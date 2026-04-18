@@ -1709,7 +1709,7 @@ class GameScene extends Phaser.Scene {
 
   spawnStartingState() {
     // Player starts at bottom-centre of the portrait map
-    const mx = Math.floor(MAP_W / 2) - 1; // centre column
+    const mx = 10; // DEBUG: moved left
     const by = MAP_H - 8;                 // near bottom
     const th = this.placeBuiltBuilding('townhall', mx, by);
     this.placeBuiltBuilding('farm', mx - 4, by - 2);
