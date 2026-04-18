@@ -1907,9 +1907,9 @@ class GameScene extends Phaser.Scene {
 
   seekFarmerTask(u) {
     // Always prioritize replanting depleted farms; only harvest when food storage has space
-    const emptyFarm = this.buildings.find(b => b.type === 'farm' && b.built && b.stock <= 0);
+    const emptyFarm = this.buildings.find(b => b.type === 'farm' && b.built && b.faction !== 'enemy' && b.stock <= 0);
     const fullFarm  = this.hasStorageSpace('food')
-                    ? this.buildings.find(b => b.type === 'farm' && b.built && b.stock > 0)
+                    ? this.buildings.find(b => b.type === 'farm' && b.built && b.faction !== 'enemy' && b.stock > 0)
                     : null;
     const target = emptyFarm || fullFarm;
     if (!target) return;
@@ -1930,7 +1930,7 @@ class GameScene extends Phaser.Scene {
     if (u.age >= 2 && this.buildings.some(b => !b.built))
       cands.push({ role:'builder',    score: 100 - cnt('builder')    * 20 });
     // Youths (age 1+) can farm and forage
-    const farmUseful = this.buildings.some(b => b.type==='farm' && b.built &&
+    const farmUseful = this.buildings.some(b => b.type==='farm' && b.built && b.faction !== 'enemy' &&
       (b.stock <= 0 || (b.stock > 0 && this.hasStorageSpace('food'))));
     if (farmUseful)
       cands.push({ role:'farmer',     score: 80  - cnt('farmer')     * 25 });
@@ -3212,7 +3212,7 @@ class GameScene extends Phaser.Scene {
       if (b.stock <= 0) { u.taskType = 'replant'; u.replantTimer = 0; return; }
       // Food storage full and not already carrying → switch to replant if needed, else idle
       if (!this.hasStorageSpace('food') && this._totalCarrying(u) === 0) {
-        const emptyFarm = this.buildings.find(f => f.type==='farm' && f.built && f.stock <= 0);
+        const emptyFarm = this.buildings.find(f => f.type==='farm' && f.built && f.faction !== 'enemy' && f.stock <= 0);
         if (emptyFarm) { u.taskType = 'replant'; u.taskBldgId = emptyFarm.id; u.replantTimer = 0; }
         else { u.taskType = null; }
         return;
