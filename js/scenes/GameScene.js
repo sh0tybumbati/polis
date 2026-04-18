@@ -763,15 +763,18 @@ class GameScene extends Phaser.Scene {
         if ((this.mapData[y]?.[x] ?? 0) >= 98) continue; // don't draw over buildings
         const px = x * TILE, py = MAP_OY + y * TILE;
         if (r === ROAD_PAVED) {
-          // DEBUG: bright blue to confirm paved road rendering
-          gfx.fillStyle(0x0000ff, 0.90).fillRect(px, py, TILE, TILE);
+          // Stone slabs — warm tan fill with mortar joints at tile edges
+          gfx.fillStyle(0xbcaa7e, 0.90).fillRect(px, py, TILE, TILE);
+          gfx.fillStyle(0x5c4c2e, 0.55).fillRect(px, py, TILE, 1);       // top joint
+          gfx.fillStyle(0x5c4c2e, 0.55).fillRect(px, py, 1, TILE);       // left joint
+          gfx.fillStyle(0xd8c898, 0.30).fillRect(px + 2, py + 2, TILE - 4, 4); // slab highlight
         } else {
           // Worn desire path — full-tile dirt overlay so adjacent tiles blend naturally;
           // traffic intensity varies opacity (more worn = more visible)
           const traffic = this.trafficMap[y]?.[x] ?? DESIRE_THRESHOLD;
           const worn = Math.min(1, traffic / (DESIRE_THRESHOLD * 3));
-          gfx.fillStyle(0xff0000, 0.22 + worn * 0.22).fillRect(px, py, TILE, TILE);
-          gfx.fillStyle(0xff0000, 0.15 + worn * 0.15).fillRect(px + 5, py + 5, TILE - 10, TILE - 10);
+          gfx.fillStyle(0x9a7840, 0.22 + worn * 0.22).fillRect(px, py, TILE, TILE);
+          gfx.fillStyle(0x7a5c28, 0.15 + worn * 0.15).fillRect(px + 5, py + 5, TILE - 10, TILE - 10);
         }
       }
     }
@@ -1391,9 +1394,12 @@ class GameScene extends Phaser.Scene {
       // Side windows
       gfx.fillStyle(0xffe880, 0.7).fillRect(cx-18, py+30, 10, 12);
       gfx.fillStyle(0xffe880, 0.7).fillRect(cx+8, py+30, 10, 12);
-      // Wing walls
-      gfx.fillStyle(0xaa8848).fillRect(px+4, py+28, cx-26, s-32);
-      gfx.fillStyle(0xaa8848).fillRect(cx+22, py+28, px+s-4-(cx+22), s-32);
+      // Wing walls (width clamped — decorative, zero for small sizes)
+      const wingW = Math.max(0, cx - 22 - (px + 4));
+      if (wingW > 0) {
+        gfx.fillStyle(0xaa8848).fillRect(px+4, py+28, wingW, Math.max(1, s-32));
+        gfx.fillStyle(0xaa8848).fillRect(cx+22, py+28, wingW, Math.max(1, s-32));
+      }
       // Flag pole + flag
       gfx.lineStyle(2, 0x8a6030, 1).lineBetween(cx, py+2, cx, py-6);
       gfx.fillStyle(0xcc3322).fillTriangle(cx, py-6, cx+10, py-3, cx, py);
@@ -1709,7 +1715,7 @@ class GameScene extends Phaser.Scene {
 
   spawnStartingState() {
     // Player starts at bottom-centre of the portrait map
-    const mx = 10; // DEBUG: moved left
+    const mx = Math.floor(MAP_W / 2) - 1; // centre column
     const by = MAP_H - 8;                 // near bottom
     const th = this.placeBuiltBuilding('townhall', mx, by);
     this.placeBuiltBuilding('farm', mx - 4, by - 2);
