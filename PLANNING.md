@@ -125,10 +125,10 @@ Gender is a single field (`gender: 'male' | 'female'`) assigned at spawn (50/50 
 ### Living Ecosystem
 
 #### Scrub Vegetation
-- [ ] **Scrub nodes** — sparse bushes scattered across heartland and scrubland tiles at world-gen; visually distinct from berry bushes (no food yield, just animal forage)
-- [ ] **Slow spread** — each day transition, each scrub node has a small chance (~15%) to seed an adjacent non-rock, non-water, non-building tile; seeded tiles become new scrub nodes after one day; spread capped by a global density limit so they don't carpet the map
-- [ ] **Grazing depletes scrub** — when a deer or sheep eats, the target scrub node's `stock` decreases; at 0 the node disappears; stock regrows slowly over time
-- [ ] Scrubs drawn as small olive-green clusters; depleted scrubs shown as bare dirt until regrown
+- [x] **Scrub nodes** — sparse olive-green shrub clusters in heartland/scrubland; animal-only forage (`resource: null`), 35 placed at world-gen
+- [x] **Slow spread** — 15% chance per day to seed adjacent tile; new scrubs start dormant (1 day); capped at 50 nodes
+- [x] **Grazing depletes scrub** — animals decrement `stock` on arrival; at 0 the node enters a 3-day dormant (bare dirt) state before regrowing
+- [x] Scrubs drawn as small olive-green clusters; depleted scrubs shown as bare dirt patch
 
 #### Berry Bush Spread & Regrowth
 - [x] **Berry bushes never disappear** — when stock hits 0 the bush enters a dormant state (bare visual, cannot be harvested); stock replenishes fully after ~2 days, then it can be harvested again
@@ -143,15 +143,15 @@ Gender is a single field (`gender: 'male' | 'female'`) assigned at spawn (50/50 
 - [x] Seeding is capped: no more than one new sapling per tree per day; global tree node cap ~60 to prevent runaway forestation
 
 #### Wildlife Foraging
-- [ ] **Deer and sheep must eat 3 scrub portions per day** — tracked via `ateToday` counter reset at each dawn
-- [ ] If an animal ends the day having eaten < 3: it becomes **hungry** (slower, faded tint); two consecutive hungry days = death
-- [ ] Animals actively path toward the nearest scrub node when hungry; scrub is animal-only forage (workers cannot harvest it)
-- [ ] Scrub scarcity naturally soft-caps animal population — no hard cap needed
+- [x] **Deer and sheep must eat 3 scrub portions per day** — tracked via `ateToday` counter reset at each dawn
+- [x] If an animal ends the day having eaten < 3: it becomes **hungry** (faded tint); two consecutive hungry days = death
+- [x] Animals actively path toward the nearest scrub node when hungry; scrub is animal-only forage (workers cannot harvest it)
+- [x] Scrub scarcity naturally soft-caps animal population — no hard cap needed
 
 #### Wildlife Reproduction & Edge Entry
-- [ ] **No pre-spawned populations** — deer and wild sheep do not exist at world start; small herds wander in from the map edges over the first few days (1–2 animals per entry, random edge position, once per ~90s while population < 3)
-- [ ] Edge entry: animal spawns just off the north, east, or west edge (south edge is player heartland — no entry there) and walks inward; gender assigned on entry
-- [ ] Mating uses the gender system described above; offspring scale up over one day
+- [x] **No pre-spawned populations** — animals enter from N/E/W map edges every ~90s (1–2 deer or 1 sheep) while below cap
+- [x] Edge entry: spawns at N row 8, or random y on E/W edges in the middle 60% of map height; gender assigned on entry
+- [ ] **Mating / reproduction** — male+female pair in proximity → offspring after time; not yet implemented
 - [ ] Population self-regulates through scrub availability; overpopulation collapses when scrubs are stripped
 - [ ] Tamed pasture sheep use the gender-based pasture breeding + shepherd feeding system above; the old `SHEEP_WOOL_MS` fixed timer is replaced entirely
 

@@ -3,6 +3,10 @@
 ## [Unreleased]
 
 ### Added
+- **Scrub vegetation** — sparse olive-green scrub nodes scattered across heartland and scrubland biomes; animals-only forage (workers cannot harvest), depletes to bare dirt on grazing and regrows over 3 days, spreads to adjacent tiles at 15% chance per day (capped at 50 nodes)
+- **Wildlife foraging** — deer and wild sheep actively seek the nearest scrub node when hungry (`ateToday < 3`); two consecutive unfed days causes the animal to die, naturally soft-capping population to scrub availability
+- **Edge entry spawning** — deer and wild sheep no longer pre-spawn at world start; instead small groups wander in from the N, E, and W map edges every ~90 seconds as long as population is below cap, giving the world a living arrival feel
+- **Hunger visuals** — hungry deer render with a faded brown tint; hungry wild sheep render semi-transparent, making struggling animals visible at a glance
 - **Gender-aware pasture system** — pastured sheep are now tracked as males, females, and lambs; dawn breeding requires a fed pen with ≥1 male and ≥1 female (40% chance per female), lambs mature in 2 days with random gender assignment
 - **Shepherd feeding priority** — shepherds now carry food from stores to each pasture each day (`fedToday` flag); unfed pens don't breed, making food supply a direct lever on herd growth
 - **Shepherd pen transfers** — shepherds move one adult from an overcrowded pen to an underpopulated one, automatically balancing the herd across multiple pastures

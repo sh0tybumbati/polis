@@ -105,6 +105,7 @@ const NODE_DEF = {
   large_boulder: { resource: 'stone', stock: 24, large: true  },
   small_tree:    { resource: 'wood',  stock: 8,  large: false },
   large_tree:    { resource: 'wood',  stock: 20, large: true  },
+  scrub:         { resource: null,    stock: 6,  large: false },  // animal-only forage
 };
 
 // Role each node type assigns
@@ -173,9 +174,8 @@ class GameScene extends Phaser.Scene {
     this._minimapTimer = 0;
     this.fordSet     = new Set(); // encoded tile keys (y*MAP_W+x) that are ford crossings
     this.deer        = [];   // wild deer + carcasses
-    this._deerRespawn = 0;   // ms until next deer respawn check
+    this._edgeEntryTimer = 0; // ms until next edge-entry check (starts immediately)
     this.sheep       = [];   // wild sheep (tame sheep live in pasture data)
-    this._sheepRespawn = 0;
     this.trafficMap  = [];   // cumulative footfall per tile (integer)
     this.roadMap     = [];   // ROAD_NONE / ROAD_DESIRE / ROAD_PAVED per tile
     this.roadGfx     = null; // world-space Graphics for road overlay
@@ -329,6 +329,7 @@ class GameScene extends Phaser.Scene {
       large_tree:    t => t === T_FOREST || t === T_GRASS,
       small_boulder: t => t !== T_WATER,
       large_boulder: t => t !== T_WATER,
+      scrub:         t => t === T_GRASS || t === T_SAND,
     };
 
     const place = (type, targetBiome, count, allowed) => {
@@ -352,6 +353,24 @@ class GameScene extends Phaser.Scene {
 
     const clearOfPlayer = (_tx, ty) => ty < MAP_H - 14; // leave room for player buildings
     const clearOfEnemy  = (_tx, ty) => ty > 14;          // leave room for enemy buildings
+
+    // Scrub (biomes 0+1): animal forage, separate pass, looser spacing
+    const scrubOk = terrainOk.scrub;
+    let scrubPlaced = 0;
+    for (let attempt = 0; attempt < 2000 && scrubPlaced < 35; attempt++) {
+      const tx = Phaser.Math.Between(1, MAP_W - 2);
+      const ty = Phaser.Math.Between(1, MAP_H - 2);
+      const biome = this.biomeData[ty]?.[tx] ?? -1;
+      if (biome > 1) continue;
+      if (!scrubOk(this.terrainData[ty]?.[tx] ?? T_GRASS)) continue;
+      if (ty >= MAP_H - 12) continue; // clear of player start
+      const wx = tx * TILE + TILE / 2, wy = MAP_OY + ty * TILE + TILE / 2;
+      if (this.resNodes.some(n => n.type === 'scrub' && Phaser.Math.Distance.Between(wx, wy, n.x, n.y) < 48)) continue;
+      this.resNodes.push({ id: this.getId(), type: 'scrub', x: wx, y: wy,
+        stock: NODE_DEF.scrub.stock, maxStock: NODE_DEF.scrub.stock,
+        gfx: null, labelObj: null, dormantTimer: 0, sapling: false, saplingTimer: 0 });
+      scrubPlaced++;
+    }
 
     // Heartland (biome 0): food-rich, light stone/wood
     place('berry_bush',    0, 7, clearOfPlayer);
@@ -626,12 +645,27 @@ class GameScene extends Phaser.Scene {
       gfx.fillStyle(0x1a6a12, alpha).fillCircle(8, 4, 16);
       gfx.fillStyle(0x2a8020, alpha).fillCircle(0, -10, 16);
       gfx.fillStyle(0x338a28, alpha).fillCircle(0, -3, 12);
+    } else if (type === 'scrub') {
+      // Low olive-green shrub cluster — animal forage
+      gfx.fillStyle(0x7a8830, alpha).fillEllipse(-6, 2, 14, 8);
+      gfx.fillStyle(0x6a7828, alpha).fillEllipse(4, 0, 12, 7);
+      gfx.fillStyle(0x8a9838, alpha).fillEllipse(-2, -3, 10, 6);
+      gfx.fillStyle(0x5a6820, alpha * 0.6).fillRect(-7, 4, 3, 5);
+      gfx.fillStyle(0x5a6820, alpha * 0.6).fillRect(3, 3, 3, 4);
     }
   }
 
   redrawNode(n) {
     n.gfx?.destroy(); n.labelObj?.destroy();
     n.gfx = null; n.labelObj = null;
+
+    // Depleted scrub — bare dirt patch
+    if (n.type === 'scrub' && n.dormantTimer > 0) {
+      n.gfx = this._w(this.add.graphics().setDepth(2)).setPosition(n.x, n.y);
+      n.gfx.fillStyle(0x8a6840, 0.35).fillEllipse(0, 2, 18, 10);
+      n.gfx.fillStyle(0x7a5830, 0.25).fillEllipse(-4, -1, 10, 6);
+      return;
+    }
 
     // Dormant berry bush — faded bare shrub, no berries
     if (n.type === 'berry_bush' && n.dormantTimer > 0) {
@@ -652,8 +686,16 @@ class GameScene extends Phaser.Scene {
 
     if (n.stock <= 0) return;
 
-    const def      = NODE_DEF[n.type];
-    const ratio    = n.stock / n.maxStock;
+    const def   = NODE_DEF[n.type];
+    const ratio = n.stock / n.maxStock;
+
+    // Scrub: draw body only, no stock bar or label (animals can't read it)
+    if (n.type === 'scrub') {
+      n.gfx = this._w(this.add.graphics().setDepth(2)).setPosition(n.x, n.y);
+      this._drawNodeBody(n.gfx, n, 0.45 + ratio * 0.55);
+      return;
+    }
+
     const alpha    = 0.45 + ratio * 0.55;
     const targeted = this.units?.some(u => u.targetNode === n && u.hp > 0);
 
@@ -812,6 +854,7 @@ class GameScene extends Phaser.Scene {
       meatLeft: DEER_MEAT,
       moveTo: null,
       wanderTimer: 0,
+      ateToday: 0, hungryDays: 0,
       gfx: this._w(this.add.graphics().setDepth(5)),
     };
     this._redrawDeer(d);
@@ -833,10 +876,11 @@ class GameScene extends Phaser.Scene {
       }
     } else {
       const sc = d.scale ?? 1.0;
+      const hungry = (d.hungryDays ?? 0) > 0;
       // Shadow
       g.fillStyle(0x000000, 0.12).fillEllipse(0, 10, 22 * sc, 7 * sc);
-      // Body
-      g.fillStyle(0xb07030).fillEllipse(0, 0, 20 * sc, 13 * sc);
+      // Body (faded if hungry)
+      g.fillStyle(hungry ? 0x806020 : 0xb07030, hungry ? 0.5 : 1.0).fillEllipse(0, 0, 20 * sc, 13 * sc);
       // Head
       g.fillStyle(0xb07030).fillCircle(11 * sc, -4 * sc, 6 * sc);
       // Antlers on males (two short lines above head)
@@ -887,9 +931,40 @@ class GameScene extends Phaser.Scene {
         d.moveTo = null;
         d.wanderTimer = 0;
       } else {
+        // Grazing — seek scrub when hungry
+        const hungry = (d.ateToday ?? 0) < 3;
+        if (hungry) {
+          if (!d.grazeTarget) {
+            let best = null, bestDist = TILE * 14;
+            for (const n of this.resNodes) {
+              if (n.type !== 'scrub' || n.stock <= 0 || n.dormantTimer > 0) continue;
+              const dist = Phaser.Math.Distance.Between(d.x, d.y, n.x, n.y);
+              if (dist < bestDist) { bestDist = dist; best = n; }
+            }
+            if (best) { d.grazeTarget = best.id; d.moveTo = { x: best.x, y: best.y }; }
+          }
+          if (d.grazeTarget) {
+            const scrub = this.resNodes.find(n => n.id === d.grazeTarget);
+            if (!scrub || scrub.stock <= 0 || scrub.dormantTimer > 0) {
+              d.grazeTarget = null;
+            } else {
+              d.moveTo = { x: scrub.x, y: scrub.y };
+              if (Phaser.Math.Distance.Between(d.x, d.y, scrub.x, scrub.y) < 20) {
+                scrub.stock--;
+                d.ateToday = (d.ateToday ?? 0) + 1;
+                d.grazeTarget = null; d.moveTo = null;
+                if (scrub.stock <= 0) { scrub.dormantTimer = 3; }
+                this.redrawNode(scrub);
+              }
+            }
+          }
+        } else {
+          d.grazeTarget = null;
+        }
+
         // Wander — pick a new wander target every 3–6 seconds
         d.wanderTimer -= delta;
-        if (!d.moveTo || d.wanderTimer <= 0) {
+        if (!d.grazeTarget && (!d.moveTo || d.wanderTimer <= 0)) {
           const angle = Math.random() * Math.PI * 2;
           const dist  = Phaser.Math.Between(TILE * 2, TILE * 6);
           const tx = d.x + Math.cos(angle) * dist;
@@ -925,6 +1000,21 @@ class GameScene extends Phaser.Scene {
     d.hp = 0;
     this._redrawDeer(d);
     this.showFloatText(d.x, d.y - 18, `+${DEER_MEAT} meat`, '#ffcc44');
+  }
+
+  // Returns a spawn position just inside the N, E, or W map edge
+  _edgeEntryPos() {
+    const edge = Phaser.Math.Between(0, 2); // 0=N, 1=E, 2=W
+    const yMin = MAP_OY + Math.floor(MAP_H * 0.25) * TILE;
+    const yMax = MAP_OY + Math.floor(MAP_H * 0.85) * TILE;
+    if (edge === 0) { // N — walk in from top, avoid extreme enemy rows
+      const x = Phaser.Math.Between(4, MAP_W - 5) * TILE + TILE / 2;
+      return { x, y: MAP_OY + 8 * TILE };
+    } else if (edge === 1) { // E
+      return { x: MAP_W * TILE - TILE, y: Phaser.Math.Between(yMin, yMax) };
+    } else { // W
+      return { x: TILE, y: Phaser.Math.Between(yMin, yMax) };
+    }
   }
 
   spawnStartingDeer() {
@@ -975,6 +1065,7 @@ class GameScene extends Phaser.Scene {
       moveTo: null,
       woolReady: true,      // shearable immediately; resets after each clip
       woolTimer: 0,         // ms since last shear
+      ateToday: 0, hungryDays: 0,
       gfx: this._w(this.add.graphics().setDepth(5)),
     };
     this._redrawSheep(s);
@@ -985,16 +1076,19 @@ class GameScene extends Phaser.Scene {
   _redrawSheep(s) {
     const g = s.gfx;
     g.clear().setPosition(s.x, s.y);
-    // Shorn sheep look darker/thinner; wool-ready are fluffy white
-    const col = s.isTamed ? 0xe8e0c0
-              : (s.woolReady === false) ? 0xb8a880   // shorn — darker, shorter coat
+    // Shorn sheep look darker/thinner; wool-ready are fluffy white; hungry are faded
+    const hungry = !s.isTamed && (s.hungryDays ?? 0) > 0;
+    const col = hungry ? 0xb0a888
+              : s.isTamed ? 0xe8e0c0
+              : (s.woolReady === false) ? 0xb8a880
               : 0xf0ece0;
+    const bodyAlpha = hungry ? 0.5 : 1.0;
     // Shadow
     g.fillStyle(0x000000, 0.10).fillEllipse(0, 10, 20, 6);
     // Fluffy body — layered circles
-    g.fillStyle(col).fillCircle(-3, 0, 9);
-    g.fillStyle(col).fillCircle(4,  1, 10);
-    g.fillStyle(col).fillCircle(0, -4,  8);
+    g.fillStyle(col, bodyAlpha).fillCircle(-3, 0, 9);
+    g.fillStyle(col, bodyAlpha).fillCircle(4,  1, 10);
+    g.fillStyle(col, bodyAlpha).fillCircle(0, -4,  8);
     // Head
     g.fillStyle(0xd0c4a0).fillCircle(12, -3, 5);
     // Eye
@@ -1055,9 +1149,40 @@ class GameScene extends Phaser.Scene {
         if (!this.isBlocked(nx, ny)) { s.x = nx; s.y = ny; }
         s.moveTo = null;
       } else {
+        // Grazing — seek scrub when hungry
+        if (!s.isTamed) {
+          const hungry = (s.ateToday ?? 0) < 3;
+          if (hungry) {
+            if (!s.grazeTarget) {
+              let best = null, bestDist = TILE * 12;
+              for (const n of this.resNodes) {
+                if (n.type !== 'scrub' || n.stock <= 0 || n.dormantTimer > 0) continue;
+                const d = Phaser.Math.Distance.Between(s.x, s.y, n.x, n.y);
+                if (d < bestDist) { bestDist = d; best = n; }
+              }
+              if (best) { s.grazeTarget = best.id; s.moveTo = { x: best.x, y: best.y }; }
+            }
+            if (s.grazeTarget) {
+              const scrub = this.resNodes.find(n => n.id === s.grazeTarget);
+              if (!scrub || scrub.stock <= 0 || scrub.dormantTimer > 0) {
+                s.grazeTarget = null;
+              } else {
+                s.moveTo = { x: scrub.x, y: scrub.y };
+                if (Phaser.Math.Distance.Between(s.x, s.y, scrub.x, scrub.y) < 20) {
+                  scrub.stock--;
+                  s.ateToday = (s.ateToday ?? 0) + 1;
+                  s.grazeTarget = null; s.moveTo = null;
+                  if (scrub.stock <= 0) { scrub.dormantTimer = 3; }
+                  this.redrawNode(scrub);
+                }
+              }
+            }
+          } else { s.grazeTarget = null; }
+        }
+
         // Wander
         s.wanderTimer -= delta;
-        if (!s.moveTo || s.wanderTimer <= 0) {
+        if (!s.grazeTarget && (!s.moveTo || s.wanderTimer <= 0)) {
           const a = Math.random() * Math.PI * 2;
           const dist = Phaser.Math.Between(TILE, TILE * 4);
           const tx = Phaser.Math.Clamp(s.x + Math.cos(a)*dist, TILE, MAP_W*TILE-TILE);
@@ -1742,8 +1867,7 @@ class GameScene extends Phaser.Scene {
     w1.homeBldgId = th.id; w1.age = 2; w1.gender = 'male';
     w2.homeBldgId = th.id; w2.age = 2; w2.gender = 'female';
     this.redrawUnit(w1); this.redrawUnit(w2);
-    this.spawnStartingDeer();
-    this.spawnStartingWildSheep();
+    // Animals enter from map edges over time (no pre-spawned populations)
     // Enemy polis stub at the top
     this._placeEnemyVillage();
   }
@@ -2285,29 +2409,18 @@ class GameScene extends Phaser.Scene {
     this._updateTimerBar();
     this._attractTimer += delta;
     if (this._attractTimer >= 25000) { this._attractTimer = 0; this.attractAdults(); }
-    // Wild sheep respawn: one every 60s if below cap
-    this._sheepRespawn -= delta;
-    if (this._sheepRespawn <= 0) {
-      this._sheepRespawn = 60000;
-      if (this.sheep.filter(s => !s.isTamed).length < SHEEP_MAX) {
-        const tx = Phaser.Math.Between(2, MAP_W - 3);
-        const ty = Phaser.Math.Between(Math.floor(MAP_H * 0.52), MAP_H - 3);
-        const terr = this.terrainData[ty]?.[tx] ?? T_GRASS;
-        if (terr !== T_WATER && terr !== T_ROCK)
-          this._spawnWildSheep(tx * TILE + TILE/2, MAP_OY + ty * TILE + TILE/2);
+    // Edge entry: animals wander in from N/E/W edges every ~90s
+    this._edgeEntryTimer -= delta;
+    if (this._edgeEntryTimer <= 0) {
+      this._edgeEntryTimer = 90000;
+      const liveDeer  = this.deer.filter(d => !d.isDead).length;
+      const liveWild  = this.sheep.filter(s => !s.isTamed).length;
+      if (liveDeer < DEER_MAX) {
+        const n = Phaser.Math.Between(1, Math.min(2, DEER_MAX - liveDeer));
+        for (let i = 0; i < n; i++) { const p = this._edgeEntryPos(); if (p) this._spawnDeer(p.x, p.y); }
       }
-    }
-    // Deer respawn: one new deer every 40s if below cap, in heartland/scrubland
-    this._deerRespawn -= delta;
-    if (this._deerRespawn <= 0) {
-      this._deerRespawn = 40000;
-      if (this.deer.filter(d => !d.isDead).length < DEER_MAX) {
-        const tx = Phaser.Math.Between(2, MAP_W - 3);
-        const ty = Phaser.Math.Between(Math.floor(MAP_H * 0.50), MAP_H - 3);
-        const terr = this.terrainData[ty]?.[tx] ?? T_GRASS;
-        if (terr !== T_WATER && terr !== T_ROCK) {
-          this._spawnDeer(tx * TILE + TILE / 2, MAP_OY + ty * TILE + TILE / 2);
-        }
+      if (liveWild < SHEEP_MAX) {
+        const p = this._edgeEntryPos(); if (p) this._spawnWildSheep(p.x, p.y);
       }
     }
     this._barTimer += delta;
@@ -3535,10 +3648,15 @@ class GameScene extends Phaser.Scene {
     const tx = srcTx + dx, ty = srcTy + dy;
     if (tx < 1 || tx >= MAP_W - 1 || ty < 1 || ty >= MAP_H - 1) return false;
     const terr = this.terrainData[ty]?.[tx];
-    if (terr === T_WATER || terr === T_ROCK || terr === T_SAND) return false;
     const biome = this._biomAt(tx, ty);
-    if (type === 'berry_bush' && biome > 1) return false;       // heartland/scrubland only
-    if ((type === 'small_tree' || type === 'large_tree') && biome > 2) return false; // not badlands
+    if (type === 'scrub') {
+      if (terr === T_WATER || terr === T_ROCK) return false;
+      if (biome > 1) return false; // heartland/scrubland only
+    } else {
+      if (terr === T_WATER || terr === T_ROCK || terr === T_SAND) return false;
+      if (type === 'berry_bush' && biome > 1) return false;
+      if ((type === 'small_tree' || type === 'large_tree') && biome > 2) return false;
+    }
     if ((this.mapData[ty]?.[tx] ?? 0) >= 98) return false;
     const nx = tx * TILE + TILE / 2, ny = MAP_OY + ty * TILE + TILE / 2;
     if (this.resNodes.some(n => Phaser.Math.Distance.Between(nx, ny, n.x, n.y) < 56)) return false;
@@ -3546,7 +3664,7 @@ class GameScene extends Phaser.Scene {
     const isSapling = type === 'small_tree' || type === 'large_tree';
     const node = { id: this.getId(), type, x: nx, y: ny,
       stock: 0, maxStock: def.stock, gfx: null, labelObj: null,
-      dormantTimer: type === 'berry_bush' ? 2 : 0,
+      dormantTimer: type === 'berry_bush' ? 2 : type === 'scrub' ? 1 : 0,
       sapling: isSapling,
       saplingTimer: type === 'small_tree' ? 3 : type === 'large_tree' ? 5 : 0 };
     this.resNodes.push(node);
@@ -3593,12 +3711,42 @@ class GameScene extends Phaser.Scene {
           if (treeCount < 60 && Math.random() < 0.12)
             this._trySpreadNode(n, n.type);
         }
+      } else if (n.type === 'scrub') {
+        if (n.dormantTimer > 0) {
+          n.dormantTimer--;
+          if (n.dormantTimer === 0) { n.stock = n.maxStock; }
+        } else if (n.stock <= 0) {
+          n.dormantTimer = 3; // regrow in 3 days
+        } else {
+          const scrubCount = this.resNodes.filter(n => n.type === 'scrub').length;
+          if (scrubCount < 50 && Math.random() < 0.15) this._trySpreadNode(n, 'scrub');
+        }
       } else {
         // Boulders: partial natural replenishment
         n.stock = Math.min(n.maxStock, n.stock + Math.ceil(n.maxStock * 0.4));
       }
       this.redrawNode(n);
     });
+
+    // Wildlife hunger check — dawn eating tally
+    for (const d of this.deer) {
+      if (d.isDead) continue;
+      if ((d.ateToday ?? 0) < 3) {
+        d.hungryDays = (d.hungryDays ?? 0) + 1;
+        if (d.hungryDays >= 2) { d.isDead = true; this._redrawDeer(d); }
+      } else { d.hungryDays = 0; }
+      d.ateToday = 0;
+      if (!d.isDead) this._redrawDeer(d); // refresh hunger tint
+    }
+    for (const s of this.sheep) {
+      if (s.isTamed) continue;
+      if ((s.ateToday ?? 0) < 3) {
+        s.hungryDays = (s.hungryDays ?? 0) + 1;
+        if (s.hungryDays >= 2) { s.gfx?.destroy(); this.sheep = this.sheep.filter(w => w !== s); continue; }
+      } else { s.hungryDays = 0; }
+      s.ateToday = 0;
+      this._redrawSheep(s); // refresh hunger tint
+    }
   }
 
   endDay() {
