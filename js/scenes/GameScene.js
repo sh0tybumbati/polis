@@ -773,8 +773,8 @@ class GameScene extends Phaser.Scene {
           // traffic intensity varies opacity (more worn = more visible)
           const traffic = this.trafficMap[y]?.[x] ?? DESIRE_THRESHOLD;
           const worn = Math.min(1, traffic / (DESIRE_THRESHOLD * 3));
-          gfx.fillStyle(0x9a7840, 0.22 + worn * 0.22).fillRect(px, py, TILE, TILE);
-          gfx.fillStyle(0x7a5c28, 0.15 + worn * 0.15).fillRect(px + 5, py + 5, TILE - 10, TILE - 10);
+          gfx.fillStyle(0xff0000, 0.22 + worn * 0.22).fillRect(px, py, TILE, TILE);
+          gfx.fillStyle(0xff0000, 0.15 + worn * 0.15).fillRect(px + 5, py + 5, TILE - 10, TILE - 10);
         }
       }
     }
