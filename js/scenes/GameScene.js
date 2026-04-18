@@ -760,6 +760,7 @@ class GameScene extends Phaser.Scene {
       for (let x = 0; x < MAP_W; x++) {
         const r = this.roadMap[y][x];
         if (r === ROAD_NONE) continue;
+        if ((this.mapData[y]?.[x] ?? 0) >= 98) continue; // don't draw over buildings
         const px = x * TILE, py = MAP_OY + y * TILE;
         if (r === ROAD_PAVED) {
           // Stone slabs — warm tan fill with mortar joints at tile edges
