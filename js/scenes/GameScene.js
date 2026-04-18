@@ -1379,30 +1379,46 @@ class GameScene extends Phaser.Scene {
         .fillTriangle(cx-7, py+9, cx-9, py+14, cx-5, py+14);
 
     } else if (type === 'townhall') {
-      // Wide stone base
-      gfx.fillStyle(0xb8975a).fillRect(px+2, py+24, s-4, s-26);
-      // Central tower
-      gfx.fillStyle(0xcca96a).fillRect(cx-20, py+8, 40, s-10);
-      // Tower roof (flat battlement style)
-      gfx.fillStyle(0x8a6030).fillRect(cx-22, py+6, 44, 8);
-      // Battlements
-      for (let i = 0; i < 4; i++)
-        gfx.fillStyle(0xaa7733).fillRect(cx-20+i*11, py+2, 7, 8);
-      // Main gate arch
-      gfx.fillStyle(0x3a1e08).fillRect(cx-9, py+s-26, 18, 24);
-      gfx.fillStyle(0x5a3010, 0.5).fillRect(cx-8, py+s-25, 8, 23);
-      // Side windows
-      gfx.fillStyle(0xffe880, 0.7).fillRect(cx-18, py+30, 10, 12);
-      gfx.fillStyle(0xffe880, 0.7).fillRect(cx+8, py+30, 10, 12);
-      // Wing walls (width clamped — decorative, zero for small sizes)
-      const wingW = Math.max(0, cx - 22 - (px + 4));
-      if (wingW > 0) {
-        gfx.fillStyle(0xaa8848).fillRect(px+4, py+28, wingW, Math.max(1, s-32));
-        gfx.fillStyle(0xaa8848).fillRect(cx+22, py+28, wingW, Math.max(1, s-32));
+      // Greek temple (hexastyle) — marble, terracotta pediment, blue frieze
+      const marble = 0xf0ece0, stone = 0xc4bca0, shadow = 0xa8a080;
+      const terra  = 0xcc5533, azure = 0x224488;
+
+      // Krepidoma — 3 stepped tiers + ground shadow
+      gfx.fillStyle(shadow).fillRect(px,   py+62, s,   2);
+      gfx.fillStyle(marble).fillRect(px+2, py+58, s-4, 4);
+      gfx.fillStyle(marble).fillRect(px+5, py+54, s-10, 4);
+      gfx.fillStyle(marble).fillRect(px+7, py+50, s-14, 4); // stylobate
+
+      // 6 columns: shaft (5px wide, 29px tall), fluting shadow, capital, base
+      for (let i = 0; i < 6; i++) {
+        const cx_ = px + 3 + i * 11;
+        gfx.fillStyle(marble).fillRect(cx_,   py+22, 5, 29);
+        gfx.fillStyle(shadow, 0.45).fillRect(cx_+3, py+22, 2, 29);
+        gfx.fillStyle(marble).fillRect(cx_-2, py+17, 9,  6); // capital
+        gfx.fillStyle(marble).fillRect(cx_-1, py+50, 7,  2); // base
       }
-      // Flag pole + flag
-      gfx.lineStyle(2, 0x8a6030, 1).lineBetween(cx, py+2, cx, py-6);
-      gfx.fillStyle(0xcc3322).fillTriangle(cx, py-6, cx+10, py-3, cx, py);
+
+      // Entablature: architrave + painted frieze + cornice shadow
+      gfx.fillStyle(marble).fillRect(px+2, py+12, s-4, 11);
+      gfx.fillStyle(azure, 0.55).fillRect(px+3, py+14, s-6, 5);
+      gfx.fillStyle(shadow).fillRect(px+2, py+22, s-4, 1);
+
+      // Pediment + tympanum
+      gfx.fillStyle(marble).fillTriangle(px+2, py+12, px+s-2, py+12, cx, py+2);
+      gfx.fillStyle(terra,  0.4).fillTriangle(px+7, py+12, px+s-7, py+12, cx, py+5);
+      gfx.lineStyle(1, stone, 0.9).strokeTriangle(px+2, py+12, px+s-2, py+12, cx, py+2);
+
+      // Acroteria — apex + two corner finials
+      gfx.fillStyle(terra).fillTriangle(cx-4, py+4, cx+4, py+4, cx, py);
+      gfx.fillStyle(terra).fillTriangle(px+2, py+11, px+8, py+11, px+5, py+7);
+      gfx.fillStyle(terra).fillTriangle(px+s-8, py+11, px+s-2, py+11, px+s-5, py+7);
+
+      // Pronaos shadow (dim interior between columns)
+      gfx.fillStyle(0x140e06, 0.55).fillRect(px+8, py+22, s-16, 29);
+
+      // Door
+      gfx.fillStyle(0x221408).fillRect(cx-7, py+34, 14, 17);
+      gfx.fillStyle(0x4a2c12, 0.45).fillRect(cx-6, py+35, 6, 16);
 
     } else if (type === 'granary') {
       // Round barn body
