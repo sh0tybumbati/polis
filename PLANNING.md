@@ -88,7 +88,7 @@
 - [x] `visMap[y][x]` stores state (0/1/2); recomputed each frame from all living friendly units
 - [x] Fog rendered as a dark overlay (depth 8) on the world camera; minimap mirrors fog state
 - [x] Player buildings grant a large (radius 10) permanent lit circle while built
-- [ ] Watch Tower (Milestone 3) adds a large static lit radius even with no units nearby
+- [x] Watch Tower (Milestone 3) adds a large static lit radius even with no units nearby
 
 ### Enemy Village (Mirror Sim — groundwork only)
 - [x] Enemy polis pre-placed in Badlands during world gen (buildings exist, visible once fog cleared)
@@ -270,11 +270,45 @@ When a villager cannot reach a shop with an attendant (queue too long, shop unst
 - [ ] Destroying enemy food infrastructure (mill, bakery, butcher) degrades the enemy's food efficiency, forcing its population back to raw Foodhaus eating — slowing worker output and soldier training
 - [ ] Enemy AI build-order is extended to include food chain buildings at the appropriate unlock thresholds, prioritising the chain that matches its available raw resources
 
-#### Material Chains *(same pattern, implemented in later milestones)*
+#### Military Production — Unit Tiers & Material Chains
+
+**Unit roster (three tiers):**
+
+| Tier | Unit | Source | Requires |
+|---|---|---|---|
+| Levy | Clubman | Barracks | nothing |
+| Levy | Slinger | Archery | nothing |
+| Mid | Spearman | Barracks | food |
+| Mid | Archer | Archery | food |
+| Mid | Cavalry | Stable | food |
+| Mid | Peltast | field upgrade | leather kit |
+| Elite | Hoplite | field upgrade | leather + bronze kit |
+| Elite | Toxotes | field upgrade | leather + bronze kit |
+
+**Leather chain** (hunt → tan → equip):
+- [ ] Deer carcasses drop **hide** alongside meat; hunters haul hide to tannery or storage
+- [ ] **Tannery** building: workers process hide → leather (1 hide → 2 leather); stored in a leather store
+- [ ] **Leather kit** assembled at Tannery (4 leather → 1 kit); kits stored at Tannery
+- [ ] At dawn: Clubmen and Slingers with a kit available upgrade to **Peltast** / **Scout** (light armored)
+
+**Bronze chain** (mine → smelt → forge → equip):
+- [ ] **Ore nodes** placed in badlands/rock biomes at world-gen (similar density to boulders)
+- [ ] **Mine** building: workers extract ore from ore nodes and haul to storage
+- [ ] **Smelter**: 2 ore → 1 bronze ingot; stored in ingot pile
+- [ ] **Blacksmith**: 1 ingot + 1 leather → 1 bronze kit; kits stored at Blacksmith
+- [ ] At dawn: Peltasts / Spearmen / Archers with a bronze kit available upgrade to **Hoplite** / **Toxotes**
+
+**Unlock gates:**
+| Building | Unlocks after |
+|---|---|
+| Tannery | 3 hides ever collected |
+| Mine | Stone Pile built |
+| Smelter | Mine has produced 5 ore |
+| Blacksmith | Smelter has produced 3 ingots AND Tannery has produced 5 leather |
+
+#### Material Chains *(future milestones)*
 - **Wood**: Logs → Sawmill (1 log → 3 planks) → Carpenter (planks → furniture, tools, components)
 - **Stone**: Raw stone → Stonemason (1 stone → 2 blocks) → Builder's Yard (blocks → fortifications, paved areas)
-- **Metal** *(later era)*: Ore → Smelter (ore → ingots) → Blacksmith (ingots → weapons, tools, armour)
-- Same unlock-gate rule applies: must have built and operated the preceding building in the chain
 
 ### Counter-Unit Triangle
 - [x] **Cavalry** — fast (×1.6 speed), high damage vs archers, weak to spearmen (hoplites get +50% atk vs cavalry)

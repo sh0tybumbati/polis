@@ -65,6 +65,7 @@ const TRAFFIC_DECAY_PER_DAY = 18; // subtracted from every tile each day transit
 // Deer / hunting
 const DEER_MAX        = 8;    // max live deer on map at once
 const DEER_MEAT       = 8;    // food units per carcass
+const DEER_HIDE       = 2;    // hides per carcass
 const DEER_FLEE_R     = 3.5 * TILE; // flee when a friendly unit is this close
 const DEER_SPEED      = 52;   // px/s (outpaces workers at 40, slower than archers at 62)
 const DEER_ATK_RANGE  = TILE * 0.9; // melee kill range for hunter workers
@@ -94,6 +95,10 @@ const BLDG = {
   barracks: { label: 'Barracks',  color: 0x8a6848, cost: { stone: 6, wood: 4 }, size: 2, spawnMs: 18000 },
   archery:  { label: 'Archery',   color: 0x2a7a4a, cost: { stone: 5, wood: 3 }, size: 2, spawnMs: 16000 },
   stable:   { label: 'Stable',    color: 0x7a5522, cost: { stone: 6, wood: 8 }, size: 2, spawnMs: 22000 },
+  tannery:  { label: 'Tannery',   color: 0x8a5530, cost: { stone: 4, wood: 5 }, size: 2, stores: { hide: 30, leather: 30, leatherKit: 10 } },
+  mine:     { label: 'Mine',      color: 0x666655, cost: { stone: 5, wood: 4 }, size: 2, stores: { ore: 30 } },
+  smelter:  { label: 'Smelter',   color: 0xaa5522, cost: { stone: 8, wood: 3 }, size: 2, stores: { ingot: 20 } },
+  blacksmith:{ label: 'Smithy',   color: 0x555566, cost: { stone: 6, wood: 4 }, size: 2, stores: { bronzeKit: 10 } },
   palisade: { label: 'Palisade',  color: 0x8a6030, cost: { wood: 2 },           size: 1 },
   watchtower:{ label: 'W.Tower',  color: 0x7a7060, cost: { stone: 4, wood: 3 }, size: 1, fogRadius: 6, atkRange: 5 * TILE },
   gate:     { label: 'Gate',      color: 0xa08858, cost: { stone: 3, wood: 2 }, size: 1 },
@@ -102,17 +107,26 @@ const BLDG = {
               sheepCap: 10, stores: { wool: 30 } },
 };
 
-const BUILD_WORK = { house: 10, granary: 14, woodshed: 12, stonepile: 8, farm: 16, barracks: 22, archery: 18, stable: 24, palisade: 4, watchtower: 14, gate: 8, wall: 6 };
+const BUILD_WORK = { house: 10, granary: 14, woodshed: 12, stonepile: 8, farm: 16, barracks: 22, archery: 18, stable: 24, palisade: 4, watchtower: 14, gate: 8, wall: 6, tannery: 18, mine: 20, smelter: 24, blacksmith: 22 };
 
 const DAY_DURATION    = 90000;   // 90s day — larger world needs more management time
 const NIGHT_DURATION  = 90000;   // 90s night — enemies travel further
 const WAVE_SPAWN_Y    = Math.floor(MAP_H * 0.04);  // ~row 5 from top — enemies march south
 
 const UDEF = {
-  hoplite:   { hp: 4, atk: 1, speed: 55, color: 0x3a6acc, range: 34 },
+  // ── Levy (no resource cost) ───────────────────────────────────────────────
+  clubman:   { hp: 2, atk: 1, speed: 58, color: 0x886644, range: 28 },
+  slinger:   { hp: 1, atk: 1, speed: 65, color: 0x668855, range: 70 },
+  // ── Mid-tier ─────────────────────────────────────────────────────────────
   spearman:  { hp: 5, atk: 1, speed: 52, color: 0x4466cc, range: 38 }, // strong vs cavalry
   archer:    { hp: 2, atk: 1, speed: 62, color: 0x44aa77, range: 90 },
   cavalry:   { hp: 4, atk: 2, speed: 88, color: 0xcc9922, range: 38 }, // strong vs archers, weak vs spearmen
+  // ── Leather-upgraded ─────────────────────────────────────────────────────
+  peltast:   { hp: 3, atk: 1, speed: 56, color: 0xaa7744, range: 72 }, // light armored; upgraded clubman/slinger
+  // ── Bronze-upgraded (elite) ───────────────────────────────────────────────
+  hoplite:   { hp: 6, atk: 2, speed: 50, color: 0x3a6acc, range: 38 }, // armored melee elite
+  toxotes:   { hp: 3, atk: 2, speed: 58, color: 0x33aa66, range: 100 }, // bronze archer elite
+  // ── Enemy ────────────────────────────────────────────────────────────────
   worker:    { hp: 2, atk: 0, speed: 40, color: 0xaa8844, gatherRange: 52, gatherRate: 2800 },
   raider:    { hp: 3, atk: 1, speed: 68, color: 0xcc3a2a, range: 32 },
   berserker: { hp: 5, atk: 2, speed: 82, color: 0xdd5522, range: 32 },
@@ -144,12 +158,14 @@ const NODE_DEF = {
   small_tree:    { resource: 'wood',  stock: 8,  large: false },
   large_tree:    { resource: 'wood',  stock: 20, large: true  },
   scrub:         { resource: null,    stock: 6,  large: false },  // animal-only forage
+  ore_vein:      { resource: 'ore',   stock: 16, large: true  },  // bronze ore — badlands/rock
 };
 
 // Role each node type assigns
 const NODE_ROLE = {
   berry_bush: 'forager', small_boulder: 'miner', large_boulder: 'miner',
   small_tree: 'woodcutter', large_tree: 'woodcutter',
+  ore_vein: 'miner',
 };
 
 const NIGHT_START = 10;  // first night (enemies attack)
@@ -426,9 +442,12 @@ class GameScene extends Phaser.Scene {
     place('small_tree',    2, 4);
     place('large_boulder', 2, 4);
 
-    // Badlands (biome 3): dense stone for enemy mining
+    // Badlands (biome 3): dense stone + ore for enemy mining
     place('large_boulder', 3, 5, clearOfEnemy);
     place('small_boulder', 3, 3, clearOfEnemy);
+    // Ore veins: rock tiles in scrubland/badlands, accessible to both sides
+    place('ore_vein', 1, 3);
+    place('ore_vein', 3, 5);
 
     // Scatter stick bundles (floor piles of wood) near every tree node
     // — gives an early wood supply without changing tree rarity
@@ -691,6 +710,13 @@ class GameScene extends Phaser.Scene {
       gfx.fillStyle(0x8a9838, alpha).fillEllipse(-2, -3, 10, 6);
       gfx.fillStyle(0x5a6820, alpha * 0.6).fillRect(-7, 4, 3, 5);
       gfx.fillStyle(0x5a6820, alpha * 0.6).fillRect(3, 3, 3, 4);
+    } else if (type === 'ore_vein') {
+      // Dark rock with copper-green veins
+      gfx.fillStyle(0x554433, alpha).fillEllipse(0, 2, 46, 32);
+      gfx.fillStyle(0x446644, alpha * 0.9).fillEllipse(-8, -2, 16, 10);
+      gfx.fillStyle(0x447744, alpha * 0.8).fillEllipse(6, 4, 12, 8);
+      gfx.lineStyle(2, 0x55aa55, alpha * 0.7)
+        .lineBetween(-10, 0, -4, 8).lineBetween(2, -4, 8, 6).lineBetween(-2, 2, 4, -4);
     }
   }
 
@@ -895,7 +921,7 @@ class GameScene extends Phaser.Scene {
       scale: gender === 'male' ? 1.1 : 1.0,
       fleeR: gender === 'male' ? DEER_FLEE_R - 0.5 * TILE : DEER_FLEE_R,
       isDead: false,
-      meatLeft: DEER_MEAT,
+      meatLeft: DEER_MEAT, hideLeft: DEER_HIDE,
       moveTo: null,
       wanderTimer: 0,
       ateToday: 0, hungryDays: 0,
@@ -1443,12 +1469,12 @@ class GameScene extends Phaser.Scene {
     }
     // Planned capacity is available but only up to the same amount as the built cap
     // (prevents hoarding infinite resources into ghost buildings)
-    for (const r of ['food', 'stone', 'wood', 'wool'])
+    for (const r of ['food', 'stone', 'wood', 'wool', 'hide', 'leather', 'ore', 'ingot', 'bronzeKit'])
       max[r] = (max[r] || 0) + (planned[r] || 0);
     this.storageMax = max;
     // Clamp current resources to new cap
-    for (const r of ['food', 'stone', 'wood', 'wool'])
-      this.resources[r] = Math.min(this.resources[r], max[r] || 0);
+    for (const r of ['food', 'stone', 'wood', 'wool', 'hide', 'leather', 'ore', 'ingot', 'bronzeKit'])
+      this.resources[r] = Math.min(this.resources[r] || 0, max[r] || 0);
     this.updateUI();
   }
 
@@ -1651,6 +1677,43 @@ class GameScene extends Phaser.Scene {
       gfx.lineStyle(1, 0x555548, 0.5)
         .lineBetween(cx-8, cy+2, cx-4, cy+10).lineBetween(cx+10, cy+4, cx+14, cy+12);
 
+    } else if (type === 'tannery') {
+      gfx.fillStyle(0x7a4422).fillRect(px+4, py+6, s-8, s-10);
+      // Hide racks
+      gfx.lineStyle(2, 0x5a3010, 0.9)
+        .lineBetween(px+8, py+8, px+8, py+s-6)
+        .lineBetween(px+s-8, py+8, px+s-8, py+s-6)
+        .lineBetween(px+8, py+14, px+s-8, py+14)
+        .lineBetween(px+8, py+s-12, px+s-8, py+s-12);
+      gfx.fillStyle(0xcc9966, 0.6).fillRect(px+10, py+15, s-20, s-30);
+    } else if (type === 'mine') {
+      // Dark entrance with timber supports
+      gfx.fillStyle(0x444433).fillRect(px+2, py+4, s-4, s-6);
+      gfx.fillStyle(0x222211).fillRect(px+s/2-10, py+s/2-6, 20, s/2+2);
+      gfx.lineStyle(3, 0x7a5830, 0.9)
+        .lineBetween(px+s/2-10, py+s/2-6, px+s/2-10, py+s-4)
+        .lineBetween(px+s/2+10, py+s/2-6, px+s/2+10, py+s-4)
+        .lineBetween(px+s/2-10, py+s/2-6, px+s/2+10, py+s/2-6);
+      // Ore cart hint
+      gfx.fillStyle(0x446644, 0.7).fillRect(px+s/2-5, py+s*0.7, 10, 6);
+    } else if (type === 'smelter') {
+      // Stone furnace with chimney
+      gfx.fillStyle(0x885533).fillRect(px+4, py+8, s-8, s-10);
+      gfx.fillStyle(0x444433).fillRect(px+s/2-8, py+4, 16, 12);
+      // Fire glow
+      gfx.fillStyle(0xff6600, 0.5).fillRect(px+s/2-6, py+s/2, 12, 10);
+      gfx.fillStyle(0xffaa00, 0.4).fillRect(px+s/2-4, py+s/2-2, 8, 8);
+      gfx.lineStyle(2, 0x554422, 0.8).strokeRect(px+4, py+8, s-8, s-10);
+    } else if (type === 'blacksmith') {
+      // Dark stone with anvil shape
+      gfx.fillStyle(0x443344).fillRect(px+4, py+6, s-8, s-10);
+      // Anvil
+      gfx.fillStyle(0x888899).fillRect(px+s/2-10, py+s/2-2, 20, 8);
+      gfx.fillStyle(0x777788).fillRect(px+s/2-6, py+s/2+6, 12, 4);
+      gfx.fillStyle(0x999aaa).fillRect(px+s/2-12, py+s/2-4, 5, 4);
+      // Hammer hint
+      gfx.fillStyle(0xaa8844, 0.8).fillRect(px+s/2+6, py+s/2-8, 4, 10);
+      gfx.fillStyle(0x888877, 0.9).fillRect(px+s/2+4, py+s/2-10, 8, 5);
     } else if (type === 'pasture') {
       // Fenced paddock — green ground with wooden fence
       gfx.fillStyle(0x5a9a38).fillRect(px+4, py+4, s-8, s-8);
@@ -1887,7 +1950,7 @@ class GameScene extends Phaser.Scene {
       speed: def.speed, atk: def.atk, range: def.range,
       wallSide: 0, homeBldgId: null, age: 0,
       taskType: null, taskBldgId: null, targetNode: null,
-      carrying: { food: 0, stone: 0, wood: 0, wool: 0 }, carryMax: 5,
+      carrying: { food: 0, stone: 0, wood: 0, wool: 0, hide: 0, ore: 0 }, carryMax: 5,
       role: null, replantTimer: 0, trainTimer: 0, lastSeek: 0,
       roleMemory: {}, targetDeer: null, targetSheep: null,
       nightsSurvived: 0, isVeteran: false,
@@ -1928,11 +1991,13 @@ class GameScene extends Phaser.Scene {
       }
       // Carry dot: colour shows what's being carried
       if (u.carrying) {
-        const tot = u.carrying.food + u.carrying.stone + u.carrying.wood + (u.carrying.wool||0);
+        const tot = u.carrying.food + u.carrying.stone + u.carrying.wood + (u.carrying.wool||0) + (u.carrying.hide||0) + (u.carrying.ore||0);
         if (tot > 0) {
           const cc = u.carrying.food > 0   ? 0x88ee44
                    : u.carrying.stone > 0  ? 0xaaaadd
                    : u.carrying.wool > 0   ? 0xeeddcc   // pale wool
+                   : u.carrying.hide > 0   ? 0xcc8855   // brown hide
+                   : u.carrying.ore > 0    ? 0x55aa55   // green-copper ore
                    : 0xcc9944;
           u.gfx.fillStyle(cc).fillCircle(age === 0 ? 4 : 6, age === 0 ? 3 : 5, 2);
         }
@@ -1958,6 +2023,39 @@ class GameScene extends Phaser.Scene {
       u.gfx.lineStyle(2, 0xffee88, 0.7).strokeTriangle(0, -13, -11, 0, 11, 0);
       if (u.selected) u.gfx.lineStyle(2, 0xffdd44)
         .strokeTriangle(0, -15, -13, 1, 13, 1).strokeTriangle(0, 13, -13, 1, 13, 1);
+    } else if (u.type === 'clubman') {
+      // Small filled circle with club nub
+      u.gfx.fillStyle(def.color).fillCircle(0, 0, 8);
+      u.gfx.fillStyle(0xaa8855, 0.9).fillRect(6, -3, 7, 5);
+      if (u.selected) u.gfx.lineStyle(2, 0xffdd44).strokeCircle(0, 0, 11);
+    } else if (u.type === 'slinger') {
+      // Small diamond
+      u.gfx.fillStyle(def.color)
+        .fillTriangle(0, -9, -7, 0, 7, 0)
+        .fillTriangle(0, 8, -7, 0, 7, 0);
+      if (u.selected) u.gfx.lineStyle(2, 0xffdd44)
+        .strokeTriangle(0, -11, -9, 1, 9, 1).strokeTriangle(0, 10, -9, 1, 9, 1);
+    } else if (u.type === 'peltast') {
+      // Clubman body + leather brown rim
+      u.gfx.fillStyle(def.color).fillCircle(0, 0, 9);
+      u.gfx.lineStyle(2, 0xcc8844, 0.9).strokeCircle(0, 0, 9);
+      u.gfx.fillStyle(0xaa7733, 0.8).fillRect(6, -2, 6, 4);
+      if (u.selected) u.gfx.lineStyle(2, 0xffdd44).strokeCircle(0, 0, 12);
+    } else if (u.type === 'hoplite') {
+      // Circle with bronze shield overlay
+      u.gfx.fillStyle(def.color).fillCircle(0, 0, 11);
+      u.gfx.lineStyle(2, 0xddaa44, 0.9).strokeCircle(0, 0, 11);
+      u.gfx.fillStyle(0xddaa44, 0.5).fillEllipse(-4, 1, 10, 13);
+      if (u.selected) u.gfx.lineStyle(2, 0xffdd44).strokeCircle(0, 0, 14);
+    } else if (u.type === 'toxotes') {
+      // Larger diamond with bronze rim
+      u.gfx.fillStyle(def.color)
+        .fillTriangle(0, -13, -10, 0, 10, 0)
+        .fillTriangle(0, 11, -10, 0, 10, 0);
+      u.gfx.lineStyle(2, 0xddaa44, 0.8)
+        .strokeTriangle(0, -13, -10, 0, 10, 0).strokeTriangle(0, 11, -10, 0, 10, 0);
+      if (u.selected) u.gfx.lineStyle(2, 0xffdd44)
+        .strokeTriangle(0, -15, -12, 1, 12, 1).strokeTriangle(0, 13, -12, 1, 12, 1);
     } else if (u.type === 'berserker') {
       u.gfx.fillStyle(def.color).fillCircle(0, 0, 13);
       u.gfx.lineStyle(2, 0xff8844, 0.9).strokeCircle(0, 0, 13);
@@ -1967,7 +2065,7 @@ class GameScene extends Phaser.Scene {
       u.gfx.lineStyle(2, 0xccaa88, 0.6).strokeRect(-12, -12, 24, 24);
       if (u.selected) u.gfx.lineStyle(2, 0xffdd44).strokeRect(-14, -14, 28, 28);
     } else {
-      // hoplite, raider
+      // raider + fallback
       u.gfx.fillStyle(def.color).fillCircle(0, 0, 10);
       if (u.selected) u.gfx.lineStyle(2, 0xffdd44).strokeCircle(0, 0, 13);
     }
@@ -2240,7 +2338,7 @@ class GameScene extends Phaser.Scene {
   }
 
   _totalCarrying(u) {
-    return (u.carrying.food||0) + (u.carrying.stone||0) + (u.carrying.wood||0) + (u.carrying.wool||0);
+    return (u.carrying.food||0) + (u.carrying.stone||0) + (u.carrying.wood||0) + (u.carrying.wool||0) + (u.carrying.hide||0) + (u.carrying.ore||0);
   }
 
   hasStorageSpace(res) {
@@ -2602,6 +2700,44 @@ class GameScene extends Phaser.Scene {
       }
     }
 
+    // Tannery: hide → leather (3 hide → 1 leather, 8s), leather → leather kit (4 leather → 1 kit, 12s)
+    for (const b of this.buildings) {
+      if (b.type !== 'tannery' || !b.built || b.faction === 'enemy') continue;
+      b.tanTimer = (b.tanTimer ?? 0) + delta;
+      if (b.tanTimer >= 8000 && (this.resources.hide ?? 0) >= 3 && this.hasStorageSpace('leather')) {
+        this.resources.hide -= 3; b.tanTimer = 0;
+        this.addResource('leather', 1);
+      }
+      b.kitTimer = (b.kitTimer ?? 0) + delta;
+      if (b.kitTimer >= 12000 && (this.resources.leather ?? 0) >= 4 && (this.resources.leatherKit ?? 0) < 10) {
+        this.resources.leather -= 4; b.kitTimer = 0;
+        this.resources.leatherKit = (this.resources.leatherKit ?? 0) + 1;
+        this.updateUI();
+      }
+    }
+
+    // Smelter: 2 ore → 1 ingot (10s)
+    for (const b of this.buildings) {
+      if (b.type !== 'smelter' || !b.built || b.faction === 'enemy') continue;
+      b.smeltTimer = (b.smeltTimer ?? 0) + delta;
+      if (b.smeltTimer >= 10000 && (this.resources.ore ?? 0) >= 2 && this.hasStorageSpace('ingot')) {
+        this.resources.ore -= 2; b.smeltTimer = 0;
+        this.addResource('ingot', 1);
+      }
+    }
+
+    // Blacksmith: 1 ingot + 1 leather → 1 bronzeKit (15s)
+    for (const b of this.buildings) {
+      if (b.type !== 'blacksmith' || !b.built || b.faction === 'enemy') continue;
+      b.forgeTimer = (b.forgeTimer ?? 0) + delta;
+      if (b.forgeTimer >= 15000 && (this.resources.ingot ?? 0) >= 1 && (this.resources.leather ?? 0) >= 1
+          && (this.resources.bronzeKit ?? 0) < 10) {
+        this.resources.ingot--; this.resources.leather--; b.forgeTimer = 0;
+        this.resources.bronzeKit = (this.resources.bronzeKit ?? 0) + 1;
+        this.updateUI();
+      }
+    }
+
     // Watch tower auto-attack
     if (this.phase === 'NIGHT') {
       const enemies = this.units.filter(e => e.isEnemy && e.hp > 0);
@@ -2633,9 +2769,9 @@ class GameScene extends Phaser.Scene {
         const w = this.units.find(u => u.id === item.workerId);
         if (w) w.hp = 0;
         const cx = (b.tx + 1) * TILE, cy = MAP_OY + (b.ty + 1) * TILE;
-        const sol = this.spawnUnit('spearman', cx + Phaser.Math.Between(-10, 10), cy + Phaser.Math.Between(-10, 10), false);
+        const sol = this.spawnUnit('clubman', cx + Phaser.Math.Between(-10, 10), cy + Phaser.Math.Between(-10, 10), false);
         sol.homeBldgId = b.id; sol.age = 2;
-        this.showFloatText(cx, cy - 10, 'Spearman ready!', '#4a9aee');
+        this.showFloatText(cx, cy - 10, 'Clubman ready!', '#aa8866');
         this.updateUI();
       }
     }
@@ -2650,9 +2786,9 @@ class GameScene extends Phaser.Scene {
         const w = this.units.find(u => u.id === item.workerId);
         if (w) w.hp = 0;
         const cx = (b.tx + 1) * TILE, cy = MAP_OY + (b.ty + 1) * TILE;
-        const arc = this.spawnUnit('archer', cx + Phaser.Math.Between(-10, 10), cy + Phaser.Math.Between(-10, 10), false);
+        const arc = this.spawnUnit('slinger', cx + Phaser.Math.Between(-10, 10), cy + Phaser.Math.Between(-10, 10), false);
         arc.homeBldgId = b.id; arc.age = 2;
-        this.showFloatText(cx, cy - 10, 'Archer ready!', '#44aa77');
+        this.showFloatText(cx, cy - 10, 'Slinger ready!', '#668855');
         this.updateUI();
       }
     }
@@ -3222,28 +3358,27 @@ class GameScene extends Phaser.Scene {
       u.moveTo = null;
     }
 
-    // ── Hunter role: chase deer, kill, haul meat ──────────────────────────
+    // ── Hunter role: chase deer, kill, haul meat + hide ──────────────────
     if (u.role === 'hunter') {
-      // Deposit any meat already carried first
-      if (u.carrying.food > 0) {
+      // Deposit food and hide if carrying
+      if (u.carrying.food > 0 || (u.carrying.hide || 0) > 0) {
         const store = this.findNearestStoreroomFor(u, 'food') || this.findNearestStoreroom(u);
         if (store) {
           const sx = (store.tx+store.size/2)*TILE, sy = MAP_OY+(store.ty+store.size/2)*TILE;
           if (this.moveToward(u, sx, sy, 30, dt)) return;
-          this.addResource('food', u.carrying.food);
-          this.showGatherPop(u.x, u.y, 'food');
-          u.carrying.food = 0;
+          if (u.carrying.food > 0) { this.addResource('food', u.carrying.food); this.showGatherPop(u.x, u.y, 'food'); u.carrying.food = 0; }
+          if ((u.carrying.hide||0) > 0) { this.addResource('hide', u.carrying.hide); u.carrying.hide = 0; }
         }
       }
       // Find current target deer
       let target = this.deer.find(d => d.id === u.targetDeer);
-      // If target is gone, find nearest carcass with meat or nearest live deer
-      if (!target || (target.isDead && target.meatLeft <= 0)) {
+      // If target is gone, find nearest carcass with meat/hide or nearest live deer
+      if (!target || (target.isDead && target.meatLeft <= 0 && (target.hideLeft ?? 0) <= 0)) {
         const visible = d => {
           const tx = Math.floor(d.x / TILE), ty = Math.floor((d.y - MAP_OY) / TILE);
           return (this.visMap[ty]?.[tx] ?? 0) >= 1;
         };
-        target = this.deer.find(d => d.isDead && d.meatLeft > 0 && visible(d))
+        target = this.deer.find(d => d.isDead && (d.meatLeft > 0 || (d.hideLeft??0) > 0) && visible(d))
                || this.deer.find(d => !d.isDead && visible(d));
         if (target) { u.targetDeer = target.id; u.lastDeerPos = { x: target.x, y: target.y }; }
       }
@@ -3269,20 +3404,19 @@ class GameScene extends Phaser.Scene {
         // In range — kill deer
         this._killDeer(target);
         u.targetDeer = target.id; // stay on carcass
-      } else if (target.meatLeft > 0) {
-        // Haul meat from carcass
+      } else if (target.meatLeft > 0 || (target.hideLeft ?? 0) > 0) {
+        // Haul meat + hide from carcass
         if (this.moveToward(u, target.x, target.y, 20, dt)) return;
-        const take = Math.min(target.meatLeft, u.carryMax - this._totalCarrying(u));
-        if (take > 0) {
-          target.meatLeft -= take;
-          u.carrying.food += take;
-          this._redrawDeer(target);
-          if (target.meatLeft <= 0) {
-            target.gfx.destroy();
-            this.deer = this.deer.filter(d => d !== target);
-          }
-        } else {
-          // Carry full — deposit on next tick
+        const space = u.carryMax - this._totalCarrying(u);
+        const takeMeat = Math.min(target.meatLeft, space);
+        if (takeMeat > 0) { target.meatLeft -= takeMeat; u.carrying.food += takeMeat; }
+        const spaceAfter = u.carryMax - this._totalCarrying(u);
+        const takeHide = Math.min(target.hideLeft ?? 0, spaceAfter);
+        if (takeHide > 0) { target.hideLeft -= takeHide; u.carrying.hide = (u.carrying.hide || 0) + takeHide; }
+        this._redrawDeer(target);
+        if (target.meatLeft <= 0 && (target.hideLeft ?? 0) <= 0) {
+          target.gfx.destroy();
+          this.deer = this.deer.filter(d => d !== target);
         }
       }
       return;
@@ -3815,6 +3949,46 @@ class GameScene extends Phaser.Scene {
       if (u.age === 1) this.showFloatText(u.x, u.y - 18, '→ youth', '#ffeeaa');
       if (u.age === 2) this.showFloatText(u.x, u.y - 18, '→ adult', '#ffdd44');
     }
+    this._applyEquipmentUpgrades();
+  }
+
+  _applyEquipmentUpgrades() {
+    // Leather kit (4 leather → 1 kit stored at tannery) upgrades clubman/slinger → peltast
+    const tannery = this.buildings.find(b => b.type === 'tannery' && b.built);
+    const leatherKits = tannery ? (this.resources.leatherKit ?? 0) : 0;
+    // Bronze kit (at blacksmith) upgrades peltast/spearman/archer → hoplite/toxotes
+    const smithy = this.buildings.find(b => b.type === 'blacksmith' && b.built);
+    const bronzeKits = smithy ? (this.resources.bronzeKit ?? 0) : 0;
+
+    for (const u of this.units) {
+      if (u.isEnemy || u.isVeteran) continue;
+      // Bronze upgrade first (higher priority)
+      if (bronzeKits > 0 && (u.type === 'peltast' || u.type === 'spearman' || u.type === 'archer')) {
+        const newType = u.type === 'archer' ? 'toxotes' : 'hoplite';
+        this._upgradeUnit(u, newType);
+        this.resources.bronzeKit = (this.resources.bronzeKit || 1) - 1;
+        this.showFloatText(u.x, u.y - 22, `→ ${newType}!`, '#ddaa44');
+        continue;
+      }
+      // Leather upgrade
+      if (leatherKits > 0 && (u.type === 'clubman' || u.type === 'slinger')) {
+        this._upgradeUnit(u, 'peltast');
+        this.resources.leatherKit = (this.resources.leatherKit || 1) - 1;
+        this.showFloatText(u.x, u.y - 22, '→ peltast!', '#cc8844');
+      }
+    }
+    this.updateStorageCap();
+    this.updateUI();
+  }
+
+  _upgradeUnit(u, newType) {
+    const def = UDEF[newType];
+    u.type = newType;
+    u.maxHp = def.hp + (u.isVeteran ? 1 : 0);
+    u.hp = Math.min(u.hp, u.maxHp);
+    u.atk = def.atk;
+    u.speed = def.speed + (u.isVeteran ? Math.round(def.speed * 0.1) : 0);
+    u.range = def.range;
   }
 
   attractAdults() {
@@ -4523,7 +4697,14 @@ class GameScene extends Phaser.Scene {
       return;
     }
     if (n===1) {
-      const hints = { cavalry: '▲archer ▼spearman', spearman: '▲cavalry ▼archer', archer: '▲spearman ▼cavalry' };
+      const hints = {
+        cavalry:  '▲archer/toxotes ▼spearman/hoplite',
+        spearman: '▲cavalry ▼archer', hoplite: '▲cavalry ▼archer',
+        archer:   '▲spearman ▼cavalry', toxotes: '▲spearman ▼cavalry',
+        peltast:  'light armored — upgrade to hoplite/toxotes with bronze',
+        clubman:  'levy — upgrade to peltast with leather',
+        slinger:  'levy ranged — upgrade to peltast with leather',
+      };
       if (hints[sel[0].type]) { this.selInfo.setText(`${sel[0].type}  ${hints[sel[0].type]}`); return; }
     }
     const roles={};
