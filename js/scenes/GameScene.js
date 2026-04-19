@@ -2909,7 +2909,7 @@ class GameScene extends Phaser.Scene {
       }
     }
 
-    // Respawn queue — free, delayed respawn for units that died
+    // Birth queue — new children born from houses/townhall (workers only; soldiers never respawn)
     for (const b of this.buildings) {
       if (b.faction === 'enemy') continue;
       if (!b.built || !b.respawnQueue.length) continue;
@@ -2919,11 +2919,9 @@ class GameScene extends Phaser.Scene {
       if (item.elapsed >= delay) {
         b.respawnQueue.shift();
         const cx = (b.tx + b.size / 2) * TILE, cy = MAP_OY + (b.ty + b.size / 2) * TILE;
-        const u = this.spawnUnit(item.type, cx + Phaser.Math.Between(-10, 10), cy + Phaser.Math.Between(-10, 10), false);
-        u.homeBldgId = b.id;
-        u.age = item.type === 'worker' ? 0 : 2; // workers born as children; soldiers respawn as adults
-        const label = item.type === 'worker' ? '👶 child' : item.type === 'hoplite' ? '⚔ hoplite' : '🏹 archer';
-        this.showFloatText(cx, cy - 10, `↺ ${label}`, '#aaddff');
+        const u = this.spawnUnit('worker', cx + Phaser.Math.Between(-10, 10), cy + Phaser.Math.Between(-10, 10), false);
+        u.homeBldgId = b.id; u.age = 0;
+        this.showFloatText(cx, cy - 10, '👶 child born', '#aaddff');
         this.updateUI();
       }
     }
@@ -2939,15 +2937,17 @@ class GameScene extends Phaser.Scene {
     this.units.filter(u => u.hp <= 0).forEach(u => {
       this.tweens.add({ targets: u.gfx, alpha: 0, duration: 280, onComplete: () => u.gfx.destroy() });
       if (u.isScout) { this._waveIntelFlash(); return; }
-      if (u.homeBldgId && !u.isEnemy && !u.isVeteran) {
+      // Workers (children) only: respawn from home building — these are births, not resurrections
+      if (u.homeBldgId && !u.isEnemy && u.type === 'worker') {
         const home = this.buildings.find(b => b.id === u.homeBldgId);
-        if (home && home.built) home.respawnQueue.push({ type: u.type, elapsed: 0 });
+        if (home && home.built) home.respawnQueue.push({ type: 'worker', elapsed: 0 });
       }
-      // Enemy workers respawn from their home building (soldiers must be re-trained)
+      // Enemy workers respawn (temporary until enemy gets a proper population system)
       if (u.homeBldgId && u.isEnemy && u.type === 'worker') {
         const home = this.buildings.find(b => b.id === u.homeBldgId);
         if (home && home.built && (home.hp ?? 1) > 0) home.respawnQueue.push({ type: 'worker', elapsed: 0 });
       }
+      // Soldiers (player and enemy) die permanently — no respawn
     });
     this.units = this.units.filter(u => u.hp > 0);
     this.updateEnemyCount();
@@ -2956,14 +2956,13 @@ class GameScene extends Phaser.Scene {
   tickEnemy(u, time, dt) {
     if (u.type === 'worker') { this._tickEnemyWorker(u, time, dt); return; }
 
-    // ── Scout: beeline south, no combat ──────────────────────────────────────
-    if (u.isScout) {
+    // ── Scout: sprint south during DAY (recon run); fights normally at night ──
+    if (u.isScout && this.phase === 'DAY') {
       const eTileX = Math.floor(u.x / TILE), eTileY = Math.floor((u.y - MAP_OY) / TILE);
       const eTerr  = this.terrainData[eTileY]?.[eTileX] ?? T_GRASS;
       const step   = u.speed * (TILE_SPD[Math.min(eTerr, TILE_SPD.length-1)] ?? 1.0) * dt;
-      const nx = u.x + Phaser.Math.Between(-6, 6) * 0.02; // slight weave
       const ny = u.y + step;
-      if (!this.isBlocked(nx, ny)) { u.x = nx; u.y = ny; }
+      if (!this.isBlocked(u.x, ny)) { u.y = ny; }
       else { u.y += step * 0.6; }
       return;
     }
@@ -4061,10 +4060,6 @@ class GameScene extends Phaser.Scene {
   beginNight() {
     this.phase = 'NIGHT';
     this.timerMs = NIGHT_DURATION;
-    // Remove any live scout — it reported back, no intel for the player
-    const scouts = this.units.filter(u => u.isScout);
-    scouts.forEach(s => { s.gfx.destroy(); });
-    this.units = this.units.filter(u => !u.isScout);
     this.showPhaseMessage(`Night falls.`, 0x6677cc);
     this._setNightOverlay(true);
     this._setGates(false);
