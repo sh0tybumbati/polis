@@ -124,10 +124,17 @@ function _counterMod(attackerType, targetType) {
   if (attackerType === 'cavalry'  && targetType === 'archer')   return 2.0;
   if (attackerType === 'spearman' && targetType === 'cavalry')  return 1.5;
   if (attackerType === 'archer'   && targetType === 'spearman') return 1.5;
-  // Enemy cavalry vs player archers
-  if (attackerType === 'cavalry'  && targetType === 'archer')   return 2.0;
   return 1.0;
 }
+
+// Terrain cover modifier for incoming ranged damage (applied to target)
+function _coverMod(targetTerrain) {
+  if (targetTerrain === T_FOREST) return 0.8; // –20% in forest
+  return 1.0;
+}
+
+// Extra range for archers on high ground (T_ROCK) when stationary
+const HIGH_GROUND_BONUS = 8 * TILE;
 
 // Resource node types
 const NODE_DEF = {
@@ -2725,8 +2732,11 @@ class GameScene extends Phaser.Scene {
     // Attack if in range (any phase)
     if (near && nd <= u.range + 4) {
       if (time - u.lastAtk > 1000) {
-        near.hp -= u.atk; u.lastAtk = time; this.flash(near);
-        this.showFloatText(near.x, near.y - 14, `-${u.atk}`, '#ff6666');
+        const nTx = Math.floor(near.x/TILE), nTy = Math.floor((near.y-MAP_OY)/TILE);
+        const cover = _coverMod(this.terrainData[nTy]?.[nTx] ?? T_GRASS);
+        const dmg = Math.max(1, Math.round(u.atk * cover * _counterMod(u.type, near.type)));
+        near.hp -= dmg; u.lastAtk = time; this.flash(near);
+        this.showFloatText(near.x, near.y - 14, `-${dmg}`, '#ff6666');
       }
       return;
     }
@@ -3058,15 +3068,21 @@ class GameScene extends Phaser.Scene {
     const flankMod = quadrants.size >= 2 ? 0.8 : 1.0;
 
     if (u.type === 'archer') {
+      // High-ground range bonus on T_ROCK when stationary
+      const uTx = Math.floor(u.x/TILE), uTy = Math.floor((u.y-MAP_OY)/TILE);
+      const uTerrain = this.terrainData[uTy]?.[uTx] ?? T_GRASS;
+      const effectiveRange = u.range + (!u.moveTo && uTerrain === T_ROCK ? HIGH_GROUND_BONUS : 0);
       // Back off if enemy too close
       if (nd < 44) {
         const a = Math.atan2(u.y - near.y, u.x - near.x);
         u.x += Math.cos(a)*u.speed*dt; u.y += Math.sin(a)*u.speed*dt; return;
       }
       // Shoot if in range
-      if (nd <= u.range) {
+      if (nd <= effectiveRange) {
         if (time-u.lastAtk > 1400) {
-          const dmg = Math.max(1, Math.round(u.atk * flankMod * _counterMod(u.type, near.type)));
+          const nTx = Math.floor(near.x/TILE), nTy = Math.floor((near.y-MAP_OY)/TILE);
+          const cover = _coverMod(this.terrainData[nTy]?.[nTx] ?? T_GRASS);
+          const dmg = Math.max(1, Math.round(u.atk * flankMod * _counterMod(u.type, near.type) * cover));
           near.hp -= dmg; u.lastAtk = time; this.flash(near);
           this.showArrow(u.x, u.y, near.x, near.y);
           this.showFloatText(near.x, near.y - 14, `-${dmg}`, '#ff6666');
@@ -3074,7 +3090,7 @@ class GameScene extends Phaser.Scene {
         return;
       }
       // Advance toward enemy if too far away
-      if (nd < u.range * 2.2) {
+      if (nd < effectiveRange * 2.2) {
         const a = Phaser.Math.Angle.Between(u.x,u.y,near.x,near.y);
         u.x += Math.cos(a)*u.speed*0.7*dt; u.y += Math.sin(a)*u.speed*0.7*dt;
       }

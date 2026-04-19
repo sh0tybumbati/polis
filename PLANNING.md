@@ -298,9 +298,9 @@ When a villager cannot reach a shop with an attendant (queue too long, shop unst
 - [x] **Palisade** (cheap wooden wall) — cheaper than stone wall, burns if fire mechanic added later
 
 ### Terrain Advantages (combat)
-- [ ] Forest tiles: archers in forest get cover (–20% incoming ranged damage)
-- [ ] High-ground tiles: archers gain +8 range when stationary
-- [ ] River fords: only passable at designated ford tiles; creates natural chokepoints
+- [x] Forest tiles: archers in forest get cover (–20% incoming ranged damage)
+- [x] High-ground tiles: archers gain +8 range when stationary
+- [x] River fords: only passable at designated ford tiles; creates natural chokepoints
 
 ---
 
