@@ -282,15 +282,15 @@ When a villager cannot reach a shop with an attendant (queue too long, shop unst
 - [ ] Rock-paper-scissors clearly communicated in UI (unit tooltip shows strengths/weaknesses)
 
 ### Unit Experience
-- [ ] Units surviving 2+ nights gain *Veteran* status: +1 HP, +10% speed, gold shield icon
-- [ ] Veteran units are irreplaceable (no respawn queue when they die); loss feels meaningful
-- [ ] Optional: named veteran units (procedural Greek names)
+- [x] Units surviving 2+ nights gain *Veteran* status: +1 HP, +10% speed, gold shield icon
+- [x] Veteran units are irreplaceable (no respawn queue when they die); loss feels meaningful
+- [x] Optional: named veteran units (procedural Greek names)
 
 ### Morale & Routing
-- [ ] Units below 25% HP attempt to flee toward home building
-- [ ] Flanked units (enemies attacking from 2+ sides simultaneously) get –20% attack
+- [x] Units below 25% HP attempt to flee toward home building
+- [x] Flanked units (enemies attacking from 2+ sides simultaneously) get –20% attack
 - [ ] Units near a Hero unit (see below) are immune to routing
-- [ ] Rout creates a cascade: fleeing units trigger nearby units to check morale
+- [x] Rout creates a cascade: fleeing units trigger nearby units to check morale
 
 ### Defensive Structures
 - [ ] **Watch Tower** — costs stone+wood; auto-fires arrows at range 5 tiles; reveals fog in radius 6

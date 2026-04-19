@@ -1,3 +1,18 @@
+// ─── Greek veteran names ──────────────────────────────────────────────────────
+const GREEK_NAMES = [
+  'Lysander','Themistokles','Alkibiades','Leonidas','Brasidas',
+  'Nikias','Demetrios','Perikles','Miltiades','Xenophon',
+  'Pausanias','Epaminondas','Iphikrates','Konon','Agesilaos',
+  'Kleombrotos','Kallikrates','Thrasybulos','Phokion','Timoleon',
+];
+const _usedVetNames = new Set();
+function _pickVetName() {
+  const avail = GREEK_NAMES.filter(n => !_usedVetNames.has(n));
+  const name = avail.length ? avail[Math.floor(Math.random() * avail.length)] : GREEK_NAMES[Math.floor(Math.random() * GREEK_NAMES.length)];
+  _usedVetNames.add(name);
+  return name;
+}
+
 // ─── Constants ───────────────────────────────────────────────────────────────
 
 const TILE      = 32;
@@ -1792,6 +1807,7 @@ class GameScene extends Phaser.Scene {
       carrying: { food: 0, stone: 0, wood: 0, wool: 0 }, carryMax: 5,
       role: null, replantTimer: 0, trainTimer: 0, lastSeek: 0,
       roleMemory: {}, targetDeer: null, targetSheep: null,
+      nightsSurvived: 0, isVeteran: false,
       gfx: this._w(this.add.graphics().setDepth(6)),
     };
     this.redrawUnit(unit); this.units.push(unit);
@@ -1867,6 +1883,12 @@ class GameScene extends Phaser.Scene {
     // Gender marker — tiny dot just to the right of the HP bar
     if (u.gender) {
       u.gfx.fillStyle(u.gender === 'male' ? 0x6688cc : 0xdd88aa, 0.8).fillCircle(bw / 2 + 4, barY + 1, 2);
+    }
+    // Veteran gold shield — small diamond above unit
+    if (u.isVeteran && !u.isEnemy) {
+      u.gfx.fillStyle(0xffdd00, 0.95)
+        .fillTriangle(0, barY - 8, -4, barY - 4, 4, barY - 4)
+        .fillTriangle(0, barY - 1, -4, barY - 5, 4, barY - 5);
     }
   }
 
@@ -2547,7 +2569,7 @@ class GameScene extends Phaser.Scene {
     }
     this.units.filter(u => u.hp <= 0).forEach(u => {
       this.tweens.add({ targets: u.gfx, alpha: 0, duration: 280, onComplete: () => u.gfx.destroy() });
-      if (u.homeBldgId && !u.isEnemy) {
+      if (u.homeBldgId && !u.isEnemy && !u.isVeteran) {
         const home = this.buildings.find(b => b.id === u.homeBldgId);
         if (home && home.built) home.respawnQueue.push({ type: u.type, elapsed: 0 });
       }
@@ -2863,11 +2885,50 @@ class GameScene extends Phaser.Scene {
       u.targetDeer = null; // target dead or missing — clear
     }
 
-    if (this.phase!=='NIGHT') return;
+    if (this.phase!=='NIGHT') { u.isRouting = false; return; }
     const enemies=this.units.filter(e=>e.isEnemy&&e.hp>0);
     let near=null,nd=Infinity;
     for (const e of enemies){const d=Phaser.Math.Distance.Between(u.x,u.y,e.x,e.y);if(d<nd){nd=d;near=e;}}
+
+    // ── Morale / routing ────────────────────────────────────────────────────
+    const hpRatio = u.hp / u.maxHp;
+    if (!u.isVeteran && hpRatio < 0.25 && !u.isRouting) {
+      u.isRouting = true;
+      this.showFloatText(u.x, u.y - 18, 'routing!', '#ff8844');
+      // Cascade — nearby hurt friendlies may also break
+      this.units.filter(f => !f.isEnemy && !f.isVeteran && !f.isRouting && f !== u && f.type !== 'worker'
+        && Phaser.Math.Distance.Between(u.x, u.y, f.x, f.y) < 3 * TILE
+        && f.hp / f.maxHp < 0.5
+      ).forEach(f => {
+        f.isRouting = true;
+        this.showFloatText(f.x, f.y - 18, 'routing!', '#ff8844');
+      });
+    }
+
+    if (u.isRouting) {
+      const home = this.buildings.find(b => b.id === u.homeBldgId);
+      const hx = home ? (home.tx + home.size / 2) * TILE : MAP_W / 2 * TILE;
+      const hy = home ? MAP_OY + (home.ty + home.size / 2) * TILE : MAP_BOTTOM - TILE * 4;
+      const dh = Phaser.Math.Distance.Between(u.x, u.y, hx, hy);
+      if (dh > 8) {
+        const a = Math.atan2(hy - u.y, hx - u.x);
+        u.x += Math.cos(a) * u.speed * 1.2 * dt;
+        u.y += Math.sin(a) * u.speed * 1.2 * dt;
+      } else {
+        u.isRouting = false; // reached safety
+      }
+      return;
+    }
+
     if (!near) return;
+
+    // ── Flanking penalty: enemies attacking from 2+ quadrants → –20% atk ──
+    const nearbyEnemies = enemies.filter(e => Phaser.Math.Distance.Between(u.x, u.y, e.x, e.y) <= u.range * 1.5);
+    const quadrants = new Set(nearbyEnemies.map(e => {
+      const a = Math.atan2(e.y - u.y, e.x - u.x);
+      return Math.floor(((a + Math.PI) / (Math.PI / 2))) % 4;
+    }));
+    const atkMod = quadrants.size >= 2 ? 0.8 : 1.0;
 
     if (u.type === 'archer') {
       // Back off if enemy too close
@@ -2878,9 +2939,10 @@ class GameScene extends Phaser.Scene {
       // Shoot if in range
       if (nd <= u.range) {
         if (time-u.lastAtk > 1400) {
-          near.hp -= u.atk; u.lastAtk = time; this.flash(near);
+          const dmg = Math.max(1, Math.round(u.atk * atkMod));
+          near.hp -= dmg; u.lastAtk = time; this.flash(near);
           this.showArrow(u.x, u.y, near.x, near.y);
-          this.showFloatText(near.x, near.y - 14, `-${u.atk}`, '#ff6666');
+          this.showFloatText(near.x, near.y - 14, `-${dmg}`, '#ff6666');
         }
         return;
       }
@@ -2895,8 +2957,9 @@ class GameScene extends Phaser.Scene {
     // Hoplite
     if (nd<=u.range+4) {
       if (time-u.lastAtk>1000) {
-        near.hp-=u.atk; u.lastAtk=time; this.flash(near);
-        this.showFloatText(near.x, near.y - 14, `-${u.atk}`, '#ff6666');
+        const dmg = Math.max(1, Math.round(u.atk * atkMod));
+        near.hp-=dmg; u.lastAtk=time; this.flash(near);
+        this.showFloatText(near.x, near.y - 14, `-${dmg}`, '#ff6666');
       }
     } else if (nd<115) {
       const a=Phaser.Math.Angle.Between(u.x,u.y,near.x,near.y);
@@ -3568,6 +3631,7 @@ class GameScene extends Phaser.Scene {
 
   ageUpUnits() {
     for (const u of this.units) {
+      u.isRouting = false; // clear routing state at dawn
       if (u.isEnemy || u.type !== 'worker') continue;
       u.age++;
       if (u.age === 1) this.showFloatText(u.x, u.y - 18, '→ youth', '#ffeeaa');
@@ -3812,6 +3876,19 @@ class GameScene extends Phaser.Scene {
     this.phase = 'RESULT';
     this.nightsSurvived++;
     if (this.nightsSurvived >= WIN_NIGHTS) { this.endGame('WIN'); return; }
+
+    // Veteran promotion — soldiers that survive 2+ nights get +1 HP and +10% speed
+    for (const u of this.units) {
+      if (u.isEnemy || u.type === 'worker') continue;
+      u.nightsSurvived = (u.nightsSurvived ?? 0) + 1;
+      if (!u.isVeteran && u.nightsSurvived >= 2) {
+        u.isVeteran = true;
+        u.veteranName = _pickVetName();
+        u.maxHp += 1; u.hp = Math.min(u.hp + 1, u.maxHp);
+        u.speed = Math.round(u.speed * 1.1);
+        this.showFloatText(u.x, u.y - 22, `⚔ ${u.veteranName}!`, '#ffdd44');
+      }
+    }
     this.showPhaseMessage(`Dawn breaks! Day ${this.day + 1} begins.`, 0xddaa44);
     this._setNightOverlay(false);
     this.time.delayedCall(3000, () => {
@@ -4246,8 +4323,13 @@ class GameScene extends Phaser.Scene {
     if (!this.selInfo) return;
     const n=this.selIds.size;
     if (n===0){this.selInfo.setText('');return;}
+    const sel=this.units.filter(u=>u.selected);
+    if (n===1 && sel[0]?.isVeteran) {
+      this.selInfo.setText(`⚔ ${sel[0].veteranName} (veteran ${sel[0].type})`);
+      return;
+    }
     const roles={};
-    this.units.filter(u=>u.selected).forEach(u=>{
+    sel.forEach(u=>{
       const label=u.type==='worker'&&u.role?u.role:u.type;
       roles[label]=(roles[label]||0)+1;
     });
