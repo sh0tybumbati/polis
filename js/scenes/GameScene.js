@@ -134,6 +134,7 @@ const UDEF = {
   raider:    { hp: 3, atk: 1, speed: 68, color: 0xcc3a2a, range: 32 },
   berserker: { hp: 5, atk: 2, speed: 82, color: 0xdd5522, range: 32 },
   veteran:   { hp: 8, atk: 2, speed: 38, color: 0x885533, range: 32 },
+  scout:     { hp: 1, atk: 0, speed: 95, color: 0x336655, range: 0 },  // enemy recon — kills = wave intel
 };
 
 // Counter-unit triangle bonuses (multiplier applied to attacker's damage)
@@ -218,7 +219,8 @@ class GameScene extends Phaser.Scene {
     this.selIds    = new Set();
     this.resources  = { food: 10, stone: 15, wood: 0, wool: 0, wheat: 0, flour: 0, meat: 0 };
     this.storageMax = { food: 0,  stone: 0,  wood: 0, wool: 0, wheat: 0, flour: 0, meat: 0 };
-    this.mealsDone  = 0;  // meals served this day (0–3); reset each dawn
+    this.mealsDone    = 0;  // meals served this day (0–3); reset each dawn
+    this.scoutSpawned = false; // reset each dawn; prevents double-spawn
     this.enemyRes   = { food: 25, stone: 20, wood: 10 };
     this.day        = 1;
     this.phase      = 'DAY';
@@ -2100,6 +2102,15 @@ class GameScene extends Phaser.Scene {
         .strokeTriangle(0, -13, -10, 0, 10, 0).strokeTriangle(0, 11, -10, 0, 10, 0);
       if (u.selected) u.gfx.lineStyle(2, 0xffdd44)
         .strokeTriangle(0, -15, -12, 1, 12, 1).strokeTriangle(0, 13, -12, 1, 12, 1);
+    } else if (u.type === 'scout') {
+      // Cloaked spy — small dark diamond with teal outline
+      u.gfx.fillStyle(0x1a3328).fillTriangle(0, -9, -7, 4, 7, 4);
+      u.gfx.fillStyle(0x1a3328).fillTriangle(0, 7, -7, 4, 7, 4);
+      u.gfx.lineStyle(1, 0x33aa77, 0.9)
+        .strokeTriangle(0, -9, -7, 4, 7, 4).strokeTriangle(0, 7, -7, 4, 7, 4);
+      // Eye
+      u.gfx.fillStyle(0x55ffaa, 0.85).fillCircle(0, 0, 2);
+      if (u.selected) u.gfx.lineStyle(2, 0xffdd44).strokeCircle(0, 0, 11);
     } else if (u.type === 'berserker') {
       u.gfx.fillStyle(def.color).fillCircle(0, 0, 13);
       u.gfx.lineStyle(2, 0xff8844, 0.9).strokeCircle(0, 0, 13);
@@ -2113,7 +2124,7 @@ class GameScene extends Phaser.Scene {
       u.gfx.fillStyle(def.color).fillCircle(0, 0, 10);
       if (u.selected) u.gfx.lineStyle(2, 0xffdd44).strokeCircle(0, 0, 13);
     }
-    const bw = (u.type === 'veteran') ? 26 : (u.type === 'berserker') ? 24 : 20;
+    const bw = (u.type === 'veteran') ? 26 : (u.type === 'berserker') ? 24 : (u.type === 'scout') ? 14 : 20;
     const barY = (u.type === 'veteran') ? -18 : (u.type === 'berserker') ? -20 : -21;
     u.gfx.fillStyle(0x111111).fillRect(-bw/2, barY, bw, 3);
     const r = Math.max(0, u.hp / u.maxHp);
@@ -2677,6 +2688,11 @@ class GameScene extends Phaser.Scene {
         if (this.mealsDone < 1 && elapsed >= DAY_DURATION * 0.25) { this.mealsDone = 1; this.consumeFood(); }
         if (this.mealsDone < 2 && elapsed >= DAY_DURATION * 0.50) { this.mealsDone = 2; this.consumeFood(); }
         if (this.mealsDone < 3 && elapsed >= DAY_DURATION * 0.75) { this.mealsDone = 3; this.consumeFood(); }
+        // Enemy scout: spawns 30s before nightfall on war days
+        if (!this.scoutSpawned && this.timerMs <= 30000 && this.day >= NIGHT_START - 1) {
+          this.scoutSpawned = true;
+          this._spawnEnemyScout();
+        }
       }
       this.tickBuildings(delta, dt);
       this.tickUnits(time, dt);
@@ -2922,6 +2938,7 @@ class GameScene extends Phaser.Scene {
     }
     this.units.filter(u => u.hp <= 0).forEach(u => {
       this.tweens.add({ targets: u.gfx, alpha: 0, duration: 280, onComplete: () => u.gfx.destroy() });
+      if (u.isScout) { this._waveIntelFlash(); return; }
       if (u.homeBldgId && !u.isEnemy && !u.isVeteran) {
         const home = this.buildings.find(b => b.id === u.homeBldgId);
         if (home && home.built) home.respawnQueue.push({ type: u.type, elapsed: 0 });
@@ -2938,6 +2955,18 @@ class GameScene extends Phaser.Scene {
 
   tickEnemy(u, time, dt) {
     if (u.type === 'worker') { this._tickEnemyWorker(u, time, dt); return; }
+
+    // ── Scout: beeline south, no combat ──────────────────────────────────────
+    if (u.isScout) {
+      const eTileX = Math.floor(u.x / TILE), eTileY = Math.floor((u.y - MAP_OY) / TILE);
+      const eTerr  = this.terrainData[eTileY]?.[eTileX] ?? T_GRASS;
+      const step   = u.speed * (TILE_SPD[Math.min(eTerr, TILE_SPD.length-1)] ?? 1.0) * dt;
+      const nx = u.x + Phaser.Math.Between(-6, 6) * 0.02; // slight weave
+      const ny = u.y + step;
+      if (!this.isBlocked(nx, ny)) { u.x = nx; u.y = ny; }
+      else { u.y += step * 0.6; }
+      return;
+    }
 
     // ── Combat unit ──────────────────────────────────────────────────────────
     const players = this.units.filter(p => !p.isEnemy && p.hp > 0);
@@ -3020,6 +3049,27 @@ class GameScene extends Phaser.Scene {
     const th = this.buildings.find(b => b.faction === 'enemy' && b.type === 'townhall' && b.built);
     if (th) return { x: (th.tx + 1) * TILE, y: MAP_OY + (th.ty + 1) * TILE };
     return { x: MAP_W / 2 * TILE, y: MAP_OY + 7 * TILE };
+  }
+
+  _spawnEnemyScout() {
+    const vc = this._enemyVillageCenter();
+    const sx = vc.x + Phaser.Math.Between(-TILE * 2, TILE * 2);
+    const sy = vc.y + TILE * 2;
+    const scout = this.spawnUnit('scout', sx, sy, true);
+    scout.isScout = true;
+    this.showPhaseMessage('Enemy scout spotted! Kill it for intel.', 0xff9900);
+  }
+
+  _waveIntelFlash() {
+    const soldiers = this.units.filter(u => u.isEnemy && u.hp > 0 && u.type !== 'worker' && u.type !== 'scout');
+    if (!soldiers.length) {
+      this.showPhaseMessage('Scout killed — enemy has no forces tonight!', 0x44ff88);
+      return;
+    }
+    const counts = {};
+    for (const s of soldiers) counts[s.type] = (counts[s.type] || 0) + 1;
+    const parts = Object.entries(counts).map(([t, n]) => `${n} ${t}`).join(', ');
+    this.showPhaseMessage(`Scout killed — tonight: ${parts}`, 0xffcc44);
   }
 
   _enemyStorageMax() {
@@ -4011,6 +4061,10 @@ class GameScene extends Phaser.Scene {
   beginNight() {
     this.phase = 'NIGHT';
     this.timerMs = NIGHT_DURATION;
+    // Remove any live scout — it reported back, no intel for the player
+    const scouts = this.units.filter(u => u.isScout);
+    scouts.forEach(s => { s.gfx.destroy(); });
+    this.units = this.units.filter(u => !u.isScout);
     this.showPhaseMessage(`Night falls.`, 0x6677cc);
     this._setNightOverlay(true);
     this._setGates(false);
@@ -4033,8 +4087,10 @@ class GameScene extends Phaser.Scene {
       this.day++;
       this.phase = 'DAY';
       this.timerMs = DAY_DURATION;
+      this.mealsDone = 0;
+      this.scoutSpawned = false;
       this.ageUpUnits();
-      this.consumeFood();
+      this._enemyDawnUpkeep();
       this.applyDayBonus();
       this.updateUI();
     });
@@ -4321,7 +4377,7 @@ class GameScene extends Phaser.Scene {
     this.showPhaseMessage(`Day ${this.day} ends peacefully.`, 0xddaa44);
     this.time.delayedCall(2500, () => {
       this.day++; this.phase = 'DAY'; this.timerMs = DAY_DURATION;
-      this.mealsDone = 0;
+      this.mealsDone = 0; this.scoutSpawned = false;
       this.ageUpUnits();
       this._enemyDawnUpkeep();
       this.applyDayBonus();
@@ -4352,6 +4408,7 @@ class GameScene extends Phaser.Scene {
     this.time.delayedCall(3000, () => {
       this.day++; this.phase = 'DAY'; this.timerMs = DAY_DURATION;
       this.mealsDone = 0;
+      this.scoutSpawned = false;
       this.ageUpUnits();
       this._enemyDawnUpkeep();
       this.applyDayBonus();
