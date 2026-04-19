@@ -169,106 +169,26 @@ Gender is a single field (`gender: 'male' | 'female'`) assigned at spawn (50/50 
 
 ### Economy Depth — Food Chains & Daily Life
 
-#### Time of Day
-- [ ] The DAY phase is divided into six sub-periods tracked as a 0–1 value within the day timer: **dawn → morning → midday → afternoon → dusk → night**
-- [ ] Villagers receive an internal "reminder" signal at morning, midday, and dusk — they finish their current task first, then respond (loose in practice, not a hard interrupt)
-- [ ] At dusk, villagers head home to sleep; during the NIGHT (combat) phase they are at their house and do not work — guards are the exception (later feature)
-- [ ] Scouts and long-range workers can carry portable rations (sandwiches) and stay out for multiple days without returning to base to eat
+#### Time of Day & Meals
+- [x] **Three meals per day** — `consumeFood()` fires at 25%, 50%, 75% of DAY timer; each meal consumes 1 food per living unit (replaces old single 3× dawn deduction); starvation now deals 1 HP (not instant kill) per missed meal
+- [ ] Villager work schedule tied to meal times — MS4+
+- [ ] Portable rations for scouts — MS4
 
-#### Food Taxonomy
+#### Food Chain Buildings (first pass — passive auto-processing)
+- [x] **Mill** — 2 wheat → 3 flour every 10s (auto); stores wheat (40) + flour (30)
+- [x] **Bakery** — 2 flour → 3 food every 12s (auto); shows float "🍞 bread" per batch
+- [x] **Butcher** — 1 meat → 3 food every 8s (auto); shows float "🥩 cuts" per batch
+- [x] **Wheat from farms** — farms also produce bonus wheat at dawn (~15% of food yield); wheat chains into mill only if mill is built (no storage = silently capped at 0)
+- [x] **Hunting → meat chain** — deer carcasses yield `meat` resource; hunters deposit at butcher for 3× food value, or directly as 1:1 food if no butcher exists; sheep slaughter still gives direct food
+- [x] **Resources** — `wheat`, `flour`, `meat` added to resource pool, storageMax, carrying, and topbar UI
 
-Three tiers of food; each tier requires the player to have built and operated the preceding tier's building before the next one unlocks (minimum throughput gate, not just placement).
-
-**Tier 0 — Raw** (stored in granary/food store; villagers must eat 3× per day — morning, midday, dusk)
-- Wheat — harvested from farms (1 storage slot each)
-- Berries — foraged from berry bushes (1 slot each)
-- Raw meat — from hunting or slaughtering pasture animals (1 slot each)
-
-**Tier 1 — Ingredients / Processed** (stored in granary; more units per slot, enabling Tier 2 recipes)
-- Flour — 4 flour = 1 storage slot; produced at Mill from wheat (1 wheat → 2 flour)
-- Cuts — 4 cuts = 1 storage slot; produced at Butcher from raw meat (1 meat → 4 cuts)
-- Vegetables (onions, carrots) — 1 slot each; discovered in the wild then grown in veggie gardens; can be eaten directly once per day as a refined food, or used as a recipe ingredient
-- Olive oil — 4 units = 1 slot; pressed at Olive Press from olives grown in a grove; used as a cooking ingredient (later)
-
-**Tier 2 — Finished Meals** (stored at the establishment that makes them, limited stock; villagers eat once per day at the shop with an attendant — no self-service)
-- **Bread** — 4 flour → 1 bread loaf; made at Bakery; feeds 1 person 1 day; stored at Bakery (limited stock)
-- **Pie** — 4 flour + 2 berries → 3 pies; made at Bakery; each pie feeds 1 person 1 day; stored at Bakery
-- **Sausage** — 4 cuts → 1 large sausage; made and sold at Butcher; feeds 1 person 1 day; stored at Butcher
-
-**Tier 3 — Combination Meals** (made at Cookhouse from Tier 2 goods; portable)
-- **Sandwich** — 1 bread loaf + 1 sausage → 3 sandwiches; each feeds 1 person 1 day; storable at Cookhouse; **can be carried by scouts and explorers** for multi-day trips away from base
-
-#### Fallback: The Foodhaus
-
-When a villager cannot reach a shop with an attendant (queue too long, shop unstocked, no shop built yet), they fall back to the **Foodhaus** — a basic communal kitchen where raw food is self-prepared and eaten on the spot. Rules:
-
-- Villagers bring their own raw food from the granary and prepare it themselves; no attendant required
-- Preparing raw food at the Foodhaus takes 3× as long as being served at a specialist shop (one full eating event per visit, so still 3 visits/day)
-- The Foodhaus has limited workstation slots — when multiple villagers fall back simultaneously it creates a queue, bottlenecking the whole settlement's daily routine
-- This is not a comfortable fallback; it is the pressure that motivates building out the proper food chain
-- The Foodhaus exists from the start (it is the basic starting community kitchen); specialist shops layer on top of it over time
-
-#### Buildings
-
-**Foodhaus** *(available from game start — no unlock required)*
-- Communal fallback kitchen; handles raw food preparation when specialist shops are unavailable or overwhelmed
-- Limited workstation slots (e.g., 2–4); becomes a visible bottleneck under food-chain collapse
-- Workers can also be assigned here as a permanent role to slightly speed up raw food prep, but it never matches specialist chain throughput
-
-**Mill** *(prep building — unlocks after farm has produced 15 wheat total)*
-- Worker grinds wheat into flour (1 wheat → 2 flour)
-- Output stored in granary as Tier 1 ingredient
-
-**Bakery** *(establishment — unlocks after Mill has processed 10 wheat)*
-- Workers divide roles: producing (wheat→bread, flour+berry→pie), stocking shelves, serving customers
-- More workers = faster production and shorter queue times; fewer workers = they rotate all tasks themselves
-- Holds a limited stock of bread and pie (e.g., 8 units total); player needs multiple bakeries for a large population
-- Auto-decides recipe based on available ingredients; player can override per-bakery
-
-**Butcher** *(prep + establishment — unlocks after 5 raw meat ever collected)*
-- Worker breaks down raw meat into cuts (1 meat → 4 cuts), then makes sausages (4 cuts → 1 sausage)
-- Sells sausages directly to villagers; also supplies Cookhouse
-- Holds a limited stock of sausages; multiple butchers needed for large populations
-
-**Cookhouse** *(Tier 3 establishment — unlocks after Bakery and Butcher are both operational)*
-- Fetches bread from Bakery and sausages from Butcher: if Cookhouse has more workers than the supplier it picks up; if supplier has more workers it delivers; on a tie Cookhouse picks up
-- Makes sandwiches (1 bread + 1 sausage → 3 sandwiches); stores them on-site
-- Sandwiches are the only carriable meal — issued to scouts, soldiers, and explorers for multi-day deployments
-
-#### Shop Worker Model
-- Each establishment has worker slots; any villager adult can be assigned
-- Tasks auto-divide: with 1 worker they do everything sequentially; with 2+ they specialise (producer, stocker, server)
-- With no attendant worker present, the shop cannot serve customers regardless of stock
-- Shops are a major sink for adult workers — a well-fed large city needs several of each type running in parallel
-
-#### Storage Rules
-- Granary (food store) holds raw + Tier 1 ingredients only; their slot costs apply toward the granary capacity cap
-- Finished meals (Tier 2 and 3) are stored at the establishment and do NOT count toward granary cap
-- Sandwich inventory carried by a unit is tracked per-unit (not in any building)
-- Having multiple shops of the same type expands finished-meal capacity linearly
-
-#### Veggie Gardens & Groves *(discovered resources)*
-- Wild vegetables (onions, carrots) and grove plants (olives) exist in the world but cannot be farmed until discovered
-- A scout physically finds and carries back one specimen; once it is stored in a food store, the corresponding building unlocks (Veggie Garden for onions/carrots; Olive Grove for olives)
-- **Veggie Garden** — grows onions and carrots; one day per harvest cycle; seeds auto-saved for the next batch; multiple crop types can share one garden (player sets planting priority)
-- **Olive Grove** — slower-growing tree crop (3 days first harvest, 2 days subsequent); produces olives → pressed at Olive Press into olive oil
-- Raw vegetables can be eaten directly once per day (same as Tier 2 refined); olive oil is an ingredient only
-
-#### Building Unlock Gates
-| Building | Unlocks after |
-|---|---|
-| Mill | Farm has harvested 15 wheat |
-| Bakery | Mill has processed 10 wheat |
-| Butcher | 5 raw meat total ever collected |
-| Cookhouse | Bakery AND Butcher are both built and have produced at least 1 output |
-| Veggie Garden | 1 wild vegetable specimen returned and stored |
-| Olive Grove | 1 wild olive specimen returned and stored |
-| Olive Press | Olive Grove has produced 5 olives |
-
-#### Enemy Economy Parity
-- [ ] The enemy polis is subject to all the same food-chain constraints as the player — the enemy AI must build mills, bakeries, butchers, and a foodhaus; its soldiers and workers follow the same daily eating schedule and will bottleneck at the foodhaus if the chain is underdeveloped
-- [ ] Destroying enemy food infrastructure (mill, bakery, butcher) degrades the enemy's food efficiency, forcing its population back to raw Foodhaus eating — slowing worker output and soldier training
-- [ ] Enemy AI build-order is extended to include food chain buildings at the appropriate unlock thresholds, prioritising the chain that matches its available raw resources
+#### Future Food Chain (MS4+)
+- [ ] Cookhouse: bread + sausage → portable rations for scouts
+- [ ] Tiered food taxonomy with worker-slot shop model (customers visit shops)
+- [ ] Foodhaus fallback building with workstation bottleneck
+- [ ] Veggie gardens, olive press, olive groves (discovered resources)
+- [ ] Unlock gates per building
+- [ ] Enemy AI builds food chain buildings
 
 #### Military Production — Unit Tiers & Material Chains
 
@@ -286,17 +206,16 @@ When a villager cannot reach a shop with an attendant (queue too long, shop unst
 | Elite | Toxotes | field upgrade | leather + bronze kit |
 
 **Leather chain** (hunt → tan → equip):
-- [ ] Deer carcasses drop **hide** alongside meat; hunters haul hide to tannery or storage
-- [ ] **Tannery** building: workers process hide → leather (1 hide → 2 leather); stored in a leather store
-- [ ] **Leather kit** assembled at Tannery (4 leather → 1 kit); kits stored at Tannery
-- [ ] At dawn: Clubmen and Slingers with a kit available upgrade to **Peltast** / **Scout** (light armored)
+- [x] Deer carcasses drop **hide** alongside meat; hunters haul hide to tannery storage
+- [x] **Tannery**: 3 hide → 1 leather (8s); 4 leather → 1 leather kit (12s)
+- [x] At dawn: Clubmen/Slingers with a kit upgrade to **Peltast**
 
 **Bronze chain** (mine → smelt → forge → equip):
-- [ ] **Ore nodes** placed in badlands/rock biomes at world-gen (similar density to boulders)
-- [ ] **Mine** building: workers extract ore from ore nodes and haul to storage
-- [ ] **Smelter**: 2 ore → 1 bronze ingot; stored in ingot pile
-- [ ] **Blacksmith**: 1 ingot + 1 leather → 1 bronze kit; kits stored at Blacksmith
-- [ ] At dawn: Peltasts / Spearmen / Archers with a bronze kit available upgrade to **Hoplite** / **Toxotes**
+- [x] **Ore veins** in badlands/scrubland at world-gen
+- [x] **Mine** building: workers haul ore
+- [x] **Smelter**: 2 ore → 1 ingot (10s)
+- [x] **Blacksmith**: 1 ingot + 1 leather → 1 bronze kit (15s)
+- [x] At dawn: Peltasts/Spearmen/Archers with a bronze kit upgrade to **Hoplite** / **Toxotes**
 
 **Unlock gates:**
 | Building | Unlocks after |

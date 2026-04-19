@@ -99,6 +99,9 @@ const BLDG = {
   mine:     { label: 'Mine',      color: 0x666655, cost: { stone: 5, wood: 4 }, size: 2, stores: { ore: 30 } },
   smelter:  { label: 'Smelter',   color: 0xaa5522, cost: { stone: 8, wood: 3 }, size: 2, stores: { ingot: 20 } },
   blacksmith:{ label: 'Smithy',   color: 0x555566, cost: { stone: 6, wood: 4 }, size: 2, stores: { bronzeKit: 10 } },
+  mill:     { label: 'Mill',      color: 0xaa9955, cost: { stone: 5, wood: 4 }, size: 2, stores: { wheat: 40, flour: 30 } },
+  bakery:   { label: 'Bakery',    color: 0xcc9944, cost: { stone: 4, wood: 3 }, size: 2, stores: { flour: 20 } },
+  butcher:  { label: 'Butcher',   color: 0xaa4433, cost: { stone: 3, wood: 3 }, size: 2, stores: { meat: 20 } },
   palisade: { label: 'Palisade',  color: 0x8a6030, cost: { wood: 2 },           size: 1 },
   watchtower:{ label: 'W.Tower',  color: 0x7a7060, cost: { stone: 4, wood: 3 }, size: 1, fogRadius: 6, atkRange: 5 * TILE },
   gate:     { label: 'Gate',      color: 0xa08858, cost: { stone: 3, wood: 2 }, size: 1 },
@@ -107,7 +110,7 @@ const BLDG = {
               sheepCap: 10, stores: { wool: 30 } },
 };
 
-const BUILD_WORK = { house: 10, granary: 14, woodshed: 12, stonepile: 8, farm: 16, barracks: 22, archery: 18, stable: 24, palisade: 4, watchtower: 14, gate: 8, wall: 6, tannery: 18, mine: 20, smelter: 24, blacksmith: 22 };
+const BUILD_WORK = { house: 10, granary: 14, woodshed: 12, stonepile: 8, farm: 16, barracks: 22, archery: 18, stable: 24, palisade: 4, watchtower: 14, gate: 8, wall: 6, tannery: 18, mine: 20, smelter: 24, blacksmith: 22, mill: 16, bakery: 14, butcher: 12 };
 
 const DAY_DURATION    = 90000;   // 90s day — larger world needs more management time
 const NIGHT_DURATION  = 90000;   // 90s night — enemies travel further
@@ -213,8 +216,9 @@ class GameScene extends Phaser.Scene {
     this.buildings = [];
     this.units     = [];
     this.selIds    = new Set();
-    this.resources  = { food: 10, stone: 15, wood: 0, wool: 0 };
-    this.storageMax = { food: 0,  stone: 0,  wood: 0, wool: 0 };
+    this.resources  = { food: 10, stone: 15, wood: 0, wool: 0, wheat: 0, flour: 0, meat: 0 };
+    this.storageMax = { food: 0,  stone: 0,  wood: 0, wool: 0, wheat: 0, flour: 0, meat: 0 };
+    this.mealsDone  = 0;  // meals served this day (0–3); reset each dawn
     this.enemyRes   = { food: 25, stone: 20, wood: 10 };
     this.day        = 1;
     this.phase      = 'DAY';
@@ -1469,11 +1473,11 @@ class GameScene extends Phaser.Scene {
     }
     // Planned capacity is available but only up to the same amount as the built cap
     // (prevents hoarding infinite resources into ghost buildings)
-    for (const r of ['food', 'stone', 'wood', 'wool', 'hide', 'leather', 'ore', 'ingot', 'bronzeKit'])
+    for (const r of ['food', 'stone', 'wood', 'wool', 'hide', 'leather', 'ore', 'ingot', 'bronzeKit', 'wheat', 'flour', 'meat'])
       max[r] = (max[r] || 0) + (planned[r] || 0);
     this.storageMax = max;
     // Clamp current resources to new cap
-    for (const r of ['food', 'stone', 'wood', 'wool', 'hide', 'leather', 'ore', 'ingot', 'bronzeKit'])
+    for (const r of ['food', 'stone', 'wood', 'wool', 'hide', 'leather', 'ore', 'ingot', 'bronzeKit', 'wheat', 'flour', 'meat'])
       this.resources[r] = Math.min(this.resources[r] || 0, max[r] || 0);
     this.updateUI();
   }
@@ -1714,6 +1718,44 @@ class GameScene extends Phaser.Scene {
       // Hammer hint
       gfx.fillStyle(0xaa8844, 0.8).fillRect(px+s/2+6, py+s/2-8, 4, 10);
       gfx.fillStyle(0x888877, 0.9).fillRect(px+s/2+4, py+s/2-10, 8, 5);
+    } else if (type === 'mill') {
+      // Stone base with millstone
+      gfx.fillStyle(0x998866).fillRect(px+4, py+6, s-8, s-10);
+      gfx.lineStyle(2, 0x665533, 0.8).strokeRect(px+4, py+6, s-8, s-10);
+      // Millstone (top-down circle with grooves)
+      gfx.fillStyle(0xccbbaa).fillCircle(cx, cy-4, s*0.28);
+      gfx.fillStyle(0x998877).fillCircle(cx, cy-4, s*0.10);
+      gfx.lineStyle(1, 0x776655, 0.7)
+        .lineBetween(cx-s*0.28, cy-4, cx+s*0.28, cy-4)
+        .lineBetween(cx, cy-4-s*0.28, cx, cy-4+s*0.28);
+      // Hopper below
+      gfx.fillStyle(0x7a6644).fillRect(cx-8, cy+6, 16, 10);
+    } else if (type === 'bakery') {
+      // Sandstone walls
+      gfx.fillStyle(0xcc9944).fillRect(px+4, py+6, s-8, s-10);
+      gfx.lineStyle(2, 0x996622, 0.8).strokeRect(px+4, py+6, s-8, s-10);
+      // Oven mouth (arched)
+      gfx.fillStyle(0x332211).fillRect(cx-10, cy, 20, 14);
+      gfx.fillStyle(0x664422, 0.9).fillRect(cx-8, cy+2, 16, 10);
+      // Fire glow inside
+      gfx.fillStyle(0xff9900, 0.4).fillRect(cx-6, cy+6, 12, 6);
+      // Chimney
+      gfx.fillStyle(0x886644).fillRect(cx+4, py+2, 8, 8);
+    } else if (type === 'butcher') {
+      // Whitewashed stone
+      gfx.fillStyle(0xddccbb).fillRect(px+4, py+6, s-8, s-10);
+      gfx.lineStyle(2, 0xaa4433, 0.9).strokeRect(px+4, py+6, s-8, s-10);
+      // Hanging hooks (meat rack)
+      gfx.lineStyle(2, 0x885533, 0.9)
+        .lineBetween(px+10, py+8, px+10, py+s-10)
+        .lineBetween(cx, py+8, cx, py+s-10)
+        .lineBetween(px+s-10, py+8, px+s-10, py+s-10);
+      // Meat pieces
+      gfx.fillStyle(0xaa3322, 0.7).fillRect(px+7, py+s/2-6, 6, 14);
+      gfx.fillStyle(0xaa3322, 0.7).fillRect(cx-3, py+s/2-4, 6, 12);
+      gfx.fillStyle(0xaa3322, 0.7).fillRect(px+s-13, py+s/2-6, 6, 14);
+      // Block/counter
+      gfx.fillStyle(0x8a6644).fillRect(cx-12, py+s-18, 24, 10);
     } else if (type === 'pasture') {
       // Fenced paddock — green ground with wooden fence
       gfx.fillStyle(0x5a9a38).fillRect(px+4, py+4, s-8, s-8);
@@ -1950,7 +1992,7 @@ class GameScene extends Phaser.Scene {
       speed: def.speed, atk: def.atk, range: def.range,
       wallSide: 0, homeBldgId: null, age: 0,
       taskType: null, taskBldgId: null, targetNode: null,
-      carrying: { food: 0, stone: 0, wood: 0, wool: 0, hide: 0, ore: 0 }, carryMax: 5,
+      carrying: { food: 0, stone: 0, wood: 0, wool: 0, hide: 0, ore: 0, meat: 0, wheat: 0 }, carryMax: 5,
       role: null, replantTimer: 0, trainTimer: 0, lastSeek: 0,
       roleMemory: {}, targetDeer: null, targetSheep: null,
       nightsSurvived: 0, isVeteran: false,
@@ -1991,13 +2033,15 @@ class GameScene extends Phaser.Scene {
       }
       // Carry dot: colour shows what's being carried
       if (u.carrying) {
-        const tot = u.carrying.food + u.carrying.stone + u.carrying.wood + (u.carrying.wool||0) + (u.carrying.hide||0) + (u.carrying.ore||0);
+        const tot = u.carrying.food + u.carrying.stone + u.carrying.wood + (u.carrying.wool||0) + (u.carrying.hide||0) + (u.carrying.ore||0) + (u.carrying.meat||0) + (u.carrying.wheat||0);
         if (tot > 0) {
           const cc = u.carrying.food > 0   ? 0x88ee44
+                   : u.carrying.meat > 0   ? 0xdd5533   // red-brown meat
+                   : u.carrying.wheat > 0  ? 0xddcc66   // golden wheat
                    : u.carrying.stone > 0  ? 0xaaaadd
-                   : u.carrying.wool > 0   ? 0xeeddcc   // pale wool
-                   : u.carrying.hide > 0   ? 0xcc8855   // brown hide
-                   : u.carrying.ore > 0    ? 0x55aa55   // green-copper ore
+                   : u.carrying.wool > 0   ? 0xeeddcc
+                   : u.carrying.hide > 0   ? 0xcc8855
+                   : u.carrying.ore > 0    ? 0x55aa55
                    : 0xcc9944;
           u.gfx.fillStyle(cc).fillCircle(age === 0 ? 4 : 6, age === 0 ? 3 : 5, 2);
         }
@@ -2338,7 +2382,7 @@ class GameScene extends Phaser.Scene {
   }
 
   _totalCarrying(u) {
-    return (u.carrying.food||0) + (u.carrying.stone||0) + (u.carrying.wood||0) + (u.carrying.wool||0) + (u.carrying.hide||0) + (u.carrying.ore||0);
+    return (u.carrying.food||0) + (u.carrying.stone||0) + (u.carrying.wood||0) + (u.carrying.wool||0) + (u.carrying.hide||0) + (u.carrying.ore||0) + (u.carrying.meat||0) + (u.carrying.wheat||0);
   }
 
   hasStorageSpace(res) {
@@ -2627,6 +2671,13 @@ class GameScene extends Phaser.Scene {
         if (this.phase === 'DAY') this.beginNight();
         else this.endNight();
       }
+      // Three daily meals: morning (25% elapsed), midday (50%), evening (75%)
+      if (this.phase === 'DAY') {
+        const elapsed = DAY_DURATION - this.timerMs;
+        if (this.mealsDone < 1 && elapsed >= DAY_DURATION * 0.25) { this.mealsDone = 1; this.consumeFood(); }
+        if (this.mealsDone < 2 && elapsed >= DAY_DURATION * 0.50) { this.mealsDone = 2; this.consumeFood(); }
+        if (this.mealsDone < 3 && elapsed >= DAY_DURATION * 0.75) { this.mealsDone = 3; this.consumeFood(); }
+      }
       this.tickBuildings(delta, dt);
       this.tickUnits(time, dt);
       this._tickDeer(delta, dt);
@@ -2735,6 +2786,38 @@ class GameScene extends Phaser.Scene {
         this.resources.ingot--; this.resources.leather--; b.forgeTimer = 0;
         this.resources.bronzeKit = (this.resources.bronzeKit ?? 0) + 1;
         this.updateUI();
+      }
+    }
+
+    // Mill: 2 wheat → 3 flour (10s)
+    for (const b of this.buildings) {
+      if (b.type !== 'mill' || !b.built || b.faction === 'enemy') continue;
+      b.millTimer = (b.millTimer ?? 0) + delta;
+      if (b.millTimer >= 10000 && (this.resources.wheat ?? 0) >= 2 && this.hasStorageSpace('flour')) {
+        this.resources.wheat -= 2; b.millTimer = 0;
+        this.addResource('flour', 3);
+      }
+    }
+
+    // Bakery: 2 flour → 3 food (12s)
+    for (const b of this.buildings) {
+      if (b.type !== 'bakery' || !b.built || b.faction === 'enemy') continue;
+      b.bakeTimer = (b.bakeTimer ?? 0) + delta;
+      if (b.bakeTimer >= 12000 && (this.resources.flour ?? 0) >= 2 && this.hasStorageSpace('food')) {
+        this.resources.flour -= 2; b.bakeTimer = 0;
+        this.addResource('food', 3);
+        this.showFloatText((b.tx + 1) * TILE, MAP_OY + b.ty * TILE - 6, '🍞 bread', '#ffdd88');
+      }
+    }
+
+    // Butcher: 1 meat → 3 food (8s)
+    for (const b of this.buildings) {
+      if (b.type !== 'butcher' || !b.built || b.faction === 'enemy') continue;
+      b.cutTimer = (b.cutTimer ?? 0) + delta;
+      if (b.cutTimer >= 8000 && (this.resources.meat ?? 0) >= 1 && this.hasStorageSpace('food')) {
+        this.resources.meat -= 1; b.cutTimer = 0;
+        this.addResource('food', 3);
+        this.showFloatText((b.tx + 1) * TILE, MAP_OY + b.ty * TILE - 6, '🥩 cuts', '#cc8844');
       }
     }
 
@@ -3324,7 +3407,7 @@ class GameScene extends Phaser.Scene {
         // Walk to storeroom and deposit
         const sx = (store.tx+store.size/2)*TILE, sy = MAP_OY+(store.ty+store.size/2)*TILE;
         if (this.moveToward(u, sx, sy, 30, dt)) return;
-        for (const r of ['food','stone','wood','wool']) {
+        for (const r of ['food','stone','wood','wool','meat','wheat']) {
           if (u.carrying[r] > 0) { this.addResource(r, u.carrying[r]); u.carrying[r] = 0; }
         }
         this.showGatherPop(u.x, u.y, 'food');
@@ -3360,13 +3443,23 @@ class GameScene extends Phaser.Scene {
 
     // ── Hunter role: chase deer, kill, haul meat + hide ──────────────────
     if (u.role === 'hunter') {
-      // Deposit food and hide if carrying
-      if (u.carrying.food > 0 || (u.carrying.hide || 0) > 0) {
-        const store = this.findNearestStoreroomFor(u, 'food') || this.findNearestStoreroom(u);
+      // Deposit meat and hide if carrying
+      if ((u.carrying.meat||0) > 0 || (u.carrying.hide || 0) > 0) {
+        const hasButcher = this.buildings.some(b => b.type === 'butcher' && b.built);
+        const store = (hasButcher && (u.carrying.meat||0) > 0)
+          ? (this.findNearestStoreroomFor(u, 'meat') || this.findNearestStoreroom(u))
+          : this.findNearestStoreroom(u);
         if (store) {
           const sx = (store.tx+store.size/2)*TILE, sy = MAP_OY+(store.ty+store.size/2)*TILE;
           if (this.moveToward(u, sx, sy, 30, dt)) return;
-          if (u.carrying.food > 0) { this.addResource('food', u.carrying.food); this.showGatherPop(u.x, u.y, 'food'); u.carrying.food = 0; }
+          if ((u.carrying.meat||0) > 0) {
+            if (hasButcher && this.hasStorageSpace('meat')) {
+              this.addResource('meat', u.carrying.meat);
+            } else {
+              this.addResource('food', u.carrying.meat); // fallback: raw food if no butcher
+            }
+            this.showGatherPop(u.x, u.y, 'food'); u.carrying.meat = 0;
+          }
           if ((u.carrying.hide||0) > 0) { this.addResource('hide', u.carrying.hide); u.carrying.hide = 0; }
         }
       }
@@ -3409,7 +3502,7 @@ class GameScene extends Phaser.Scene {
         if (this.moveToward(u, target.x, target.y, 20, dt)) return;
         const space = u.carryMax - this._totalCarrying(u);
         const takeMeat = Math.min(target.meatLeft, space);
-        if (takeMeat > 0) { target.meatLeft -= takeMeat; u.carrying.food += takeMeat; }
+        if (takeMeat > 0) { target.meatLeft -= takeMeat; u.carrying.meat = (u.carrying.meat || 0) + takeMeat; }
         const spaceAfter = u.carryMax - this._totalCarrying(u);
         const takeHide = Math.min(target.hideLeft ?? 0, spaceAfter);
         if (takeHide > 0) { target.hideLeft -= takeHide; u.carrying.hide = (u.carrying.hide || 0) + takeHide; }
@@ -3424,14 +3517,22 @@ class GameScene extends Phaser.Scene {
 
     // ── Shepherd role: feed pens, transfer, tame wild, shear, slaughter surplus ──
     if (u.role === 'shepherd') {
-      // ① Deposit any carried wool at storeroom
-      if (u.carrying.wool > 0) {
-        const store = this.findNearestStoreroomFor(u, 'wool') || this.findNearestStoreroom(u);
+      // ① Deposit any carried wool or meat at storeroom
+      if (u.carrying.wool > 0 || (u.carrying.meat || 0) > 0) {
+        const store = u.carrying.wool > 0
+          ? (this.findNearestStoreroomFor(u, 'wool') || this.findNearestStoreroom(u))
+          : (this.findNearestStoreroomFor(u, 'meat') || this.findNearestStoreroom(u));
         if (store) {
           const sx = (store.tx+store.size/2)*TILE, sy = MAP_OY+(store.ty+store.size/2)*TILE;
           if (this.moveToward(u, sx, sy, 30, dt)) return;
-          this.addResource('wool', u.carrying.wool); u.carrying.wool = 0;
-          this.showGatherPop(u.x, u.y, 'wool'); this.updateUI();
+          if (u.carrying.wool > 0) { this.addResource('wool', u.carrying.wool); u.carrying.wool = 0; this.showGatherPop(u.x, u.y, 'wool'); }
+          if ((u.carrying.meat||0) > 0) {
+            const hasButcher = this.buildings.some(b => b.type === 'butcher' && b.built);
+            if (hasButcher && this.hasStorageSpace('meat')) { this.addResource('meat', u.carrying.meat); }
+            else { this.addResource('food', u.carrying.meat); }
+            u.carrying.meat = 0;
+          }
+          this.updateUI();
         }
         return;
       }
@@ -3601,8 +3702,7 @@ class GameScene extends Phaser.Scene {
         const px = (surplusPasture.tx+surplusPasture.size/2)*TILE;
         const py = MAP_OY+(surplusPasture.ty+surplusPasture.size/2)*TILE;
         if (this.moveToward(u, px, py, 32, dt)) return;
-        this._slaughterSheep(surplusPasture);
-        u.carrying.food += SHEEP_MEAT; this.updateUI();
+        this._slaughterSheep(surplusPasture); // adds food directly
         return;
       }
       return;
@@ -4029,46 +4129,48 @@ class GameScene extends Phaser.Scene {
     }
   }
 
+  // Called 3× per day (morning / midday / evening) — consumes 1 food per living unit per meal.
   consumeFood() {
     const eaters = this.units.filter(u => !u.isEnemy && u.hp > 0);
     if (!eaters.length) return;
-    const need = eaters.length * 3;
+    const need = eaters.length;  // 1 food per unit per meal
     const have = this.resources.food || 0;
     if (have >= need) {
       this.resources.food -= need;
       this.updateUI();
       return;
     }
-    // Not enough food — feed as many as possible, rest starve
-    const fedCount   = Math.floor(have / 3);
+    // Not enough — feed as many as possible, rest take a starvation mark
+    const fedCount    = have;
     const starveCount = eaters.length - fedCount;
     this.resources.food = 0;
-    // Kill random unfed units (shuffle then take first N)
     const order = [...eaters].sort(() => Math.random() - 0.5);
-    for (let i = 0; i < starveCount; i++) order[i].hp = 0;
+    for (let i = 0; i < starveCount; i++) {
+      order[i].hp = Math.max(0, order[i].hp - 1);
+    }
     this.updateUI();
     this.showPhaseMessage(
-      starveCount === eaters.length ? 'All units starved!' : `${starveCount} unit${starveCount > 1 ? 's' : ''} starved!`,
-      0xff3333);
-    // Check immediate loss (everyone dead)
+      starveCount === eaters.length ? 'Famine! No food!' : `${starveCount} unit${starveCount > 1 ? 's' : ''} go hungry!`,
+      0xff5533);
     this.time.delayedCall(200, () => {
       const alive = this.units.filter(u => !u.isEnemy && u.hp > 0).length;
       if (alive === 0) this.endGame('LOSE');
     });
+  }
 
-    // Enemy food upkeep — same 3-food-per-unit rule
+  // Dawn enemy upkeep — called once at dawn (3× daily meals would be too punishing for AI)
+  _enemyDawnUpkeep() {
     const enemyEaters = this.units.filter(u => u.isEnemy && u.hp > 0);
-    if (enemyEaters.length) {
-      const eNeed = enemyEaters.length * 3;
-      if ((this.enemyRes.food || 0) >= eNeed) {
-        this.enemyRes.food -= eNeed;
-      } else {
-        const eFed = Math.floor((this.enemyRes.food || 0) / 3);
-        const eStarve = enemyEaters.length - eFed;
-        this.enemyRes.food = 0;
-        const eOrder = [...enemyEaters].sort(() => Math.random() - 0.5);
-        for (let i = 0; i < eStarve; i++) eOrder[i].hp = 0;
-      }
+    if (!enemyEaters.length) return;
+    const eNeed = enemyEaters.length * 3;
+    if ((this.enemyRes.food || 0) >= eNeed) {
+      this.enemyRes.food -= eNeed;
+    } else {
+      const eFed = Math.floor((this.enemyRes.food || 0) / 3);
+      const eStarve = enemyEaters.length - eFed;
+      this.enemyRes.food = 0;
+      const eOrder = [...enemyEaters].sort(() => Math.random() - 0.5);
+      for (let i = 0; i < eStarve; i++) eOrder[i].hp = 0;
     }
   }
 
@@ -4109,7 +4211,10 @@ class GameScene extends Phaser.Scene {
     this._tickRoads();
     this.addResource('stone', 6);
     this.buildings.filter(b => b.type === 'farm' && b.built && b.faction !== 'enemy')
-      .forEach(b => { b.stock = Math.min(b.maxStock, b.stock + Math.ceil(b.maxStock * 0.5)); });
+      .forEach(b => {
+        b.stock = Math.min(b.maxStock, b.stock + Math.ceil(b.maxStock * 0.5));
+        this.addResource('wheat', Math.ceil(b.maxStock * 0.15)); // bonus wheat yield
+      });
     // Enemy farms: harvest directly into enemyRes.food
     this.buildings.filter(b => b.type === 'farm' && b.built && b.faction === 'enemy' && (b.hp ?? 1) > 0)
       .forEach(b => {
@@ -4216,8 +4321,9 @@ class GameScene extends Phaser.Scene {
     this.showPhaseMessage(`Day ${this.day} ends peacefully.`, 0xddaa44);
     this.time.delayedCall(2500, () => {
       this.day++; this.phase = 'DAY'; this.timerMs = DAY_DURATION;
+      this.mealsDone = 0;
       this.ageUpUnits();
-      this.consumeFood();
+      this._enemyDawnUpkeep();
       this.applyDayBonus();
       this.showPhaseMessage(`Day ${this.day} — Gather and build.`, 0xddaa44);
       this.updateUI();
@@ -4245,8 +4351,9 @@ class GameScene extends Phaser.Scene {
     this._setNightOverlay(false);
     this.time.delayedCall(3000, () => {
       this.day++; this.phase = 'DAY'; this.timerMs = DAY_DURATION;
+      this.mealsDone = 0;
       this.ageUpUnits();
-      this.consumeFood();
+      this._enemyDawnUpkeep();
       this.applyDayBonus();
       this.showPhaseMessage(`Day ${this.day} — Gather and build.`, 0xddaa44);
       this.updateUI();
@@ -4588,15 +4695,21 @@ class GameScene extends Phaser.Scene {
                      .reduce((s, b) => s + BLDG[b.type].capacity, 0);
     const cap = popCap; // used below for workerInfo
     const sm = this.storageMax;
-    const upkeep = this.units.filter(u => !u.isEnemy && u.hp > 0).length * 3;
-    const foodWarn = upkeep > 0 && this.resources.food < upkeep;
-    this.foodText.setText(`🌾${this.resources.food}/${sm.food||0} -${upkeep}`);
+    const upkeepPerMeal = this.units.filter(u => !u.isEnemy && u.hp > 0).length;
+    const foodWarn = upkeepPerMeal > 0 && this.resources.food < upkeepPerMeal;
+    this.foodText.setText(`🌾${this.resources.food}/${sm.food||0}`);
     this.foodText.setColor(foodWarn ? '#ff6655' : '#88ee88');
     this.stoneText.setText(`⛏${this.resources.stone}/${sm.stone||0}`);
     this.woodText.setText(`🪵${this.resources.wood}/${sm.wood||0}`);
     if (this.woolText) {
       const woolCap = sm.wool || 0;
-      this.woolText.setText(woolCap > 0 ? `🧶${this.resources.wool||0}/${woolCap}` : '');
+      const wheatStr = (sm.wheat||0) > 0 ? ` 🌿${this.resources.wheat||0}` : '';
+      const flourStr = (sm.flour||0) > 0 ? ` 🌾→${this.resources.flour||0}` : '';
+      const meatStr  = (sm.meat||0)  > 0 ? ` 🥩${this.resources.meat||0}`  : '';
+      this.woolText.setText(
+        (woolCap > 0 ? `🧶${this.resources.wool||0}/${woolCap}` : '') +
+        wheatStr + flourStr + meatStr
+      );
     }
     this.dayInfo.setText(this.phase === 'NIGHT' ? `🌙 Night ${this.day}` : `☀ Day ${this.day}`);
     // Phase tag

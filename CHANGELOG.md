@@ -3,6 +3,14 @@
 ## [Unreleased]
 
 ### Added
+- **Three-meal food system** — food upkeep now fires 3× during each DAY phase (at 25%, 50%, 75% elapsed) consuming 1 food per unit per meal instead of 3 at dawn; starvation now deals 1 HP damage per missed meal rather than instant-killing the unit, giving players a brief window to recover
+- **Mill building** — auto-processes 2 wheat → 3 flour every 10s; stores wheat (cap 40) and flour (cap 30); provides an efficient grain processing chain
+- **Bakery building** — auto-processes 2 flour → 3 food every 12s with a "🍞 bread" float text; makes wheat farming more food-efficient than raw grain deposit
+- **Butcher building** — auto-processes 1 meat → 3 food every 8s with a "🥩 cuts" float text; hunters now carry `meat` resource and deposit it at the butcher for 3× food value, or fall back to 1:1 food if no butcher is built
+- **Wheat from farms** — farms produce a bonus wheat yield at dawn (~15% of crop); wheat is stored only when a mill exists (storage cap 0 otherwise, so no waste before mill is built)
+- **Meat resource** — hunters haul `meat` from deer carcasses; shepherds deposit slaughter proceeds as direct food (convenient path); the butcher chain triples hunting yield
+- **New resources in UI** — wheat 🌿, flour 🌾→, and meat 🥩 shown in topbar alongside wool when any storage capacity exists
+- **New building visuals** — mill (millstone with grooves and hopper), bakery (arched oven with fire glow), butcher (hanging meat rack with counter)
 - **Scrub vegetation** — sparse olive-green scrub nodes scattered across heartland and scrubland biomes; animals-only forage (workers cannot harvest), depletes to bare dirt on grazing and regrows over 3 days, spreads to adjacent tiles at 15% chance per day (capped at 50 nodes)
 - **Wildlife foraging** — deer and wild sheep actively seek the nearest scrub node when hungry (`ateToday < 3`); two consecutive unfed days causes the animal to die, naturally soft-capping population to scrub availability
 - **Edge entry spawning** — deer and wild sheep no longer pre-spawn at world start; instead small groups wander in from the N, E, and W map edges every ~90 seconds as long as population is below cap, giving the world a living arrival feel
