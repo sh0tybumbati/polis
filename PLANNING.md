@@ -277,9 +277,9 @@ When a villager cannot reach a shop with an attendant (queue too long, shop unst
 - Same unlock-gate rule applies: must have built and operated the preceding building in the chain
 
 ### Counter-Unit Triangle
-- [ ] **Cavalry** — fast (×1.6 speed), high damage vs archers, weak to spearmen (hoplites get +50% atk vs cavalry)
-- [ ] **Spearman** (renamed/upgraded Hoplite variant) — bonus vs cavalry, average vs everything else
-- [ ] Rock-paper-scissors clearly communicated in UI (unit tooltip shows strengths/weaknesses)
+- [x] **Cavalry** — fast (×1.6 speed), high damage vs archers, weak to spearmen (hoplites get +50% atk vs cavalry)
+- [x] **Spearman** (renamed/upgraded Hoplite variant) — bonus vs cavalry, average vs everything else
+- [x] Rock-paper-scissors clearly communicated in UI (unit tooltip shows strengths/weaknesses)
 
 ### Unit Experience
 - [x] Units surviving 2+ nights gain *Veteran* status: +1 HP, +10% speed, gold shield icon

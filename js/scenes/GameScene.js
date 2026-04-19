@@ -93,12 +93,13 @@ const BLDG = {
   farm:     { label: 'Field',     color: 0x5a9a28, cost: { stone: 4, wood: 2 }, size: 2, stockMax: 32 },
   barracks: { label: 'Barracks',  color: 0x8a6848, cost: { stone: 6, wood: 4 }, size: 2, spawnMs: 18000 },
   archery:  { label: 'Archery',   color: 0x2a7a4a, cost: { stone: 5, wood: 3 }, size: 2, spawnMs: 16000 },
+  stable:   { label: 'Stable',    color: 0x7a5522, cost: { stone: 6, wood: 8 }, size: 2, spawnMs: 22000 },
   wall:     { label: 'Wall',      color: 0x9a9888, cost: { stone: 2 },          size: 1 },
   pasture:  { label: 'Pasture',   color: 0x66aa44, cost: { stone: 3, wood: 6 },  size: 3,
               sheepCap: 10, stores: { wool: 30 } },
 };
 
-const BUILD_WORK = { house: 10, granary: 14, woodshed: 12, stonepile: 8, farm: 16, barracks: 22, archery: 18, wall: 6 };
+const BUILD_WORK = { house: 10, granary: 14, woodshed: 12, stonepile: 8, farm: 16, barracks: 22, archery: 18, stable: 24, wall: 6 };
 
 const DAY_DURATION    = 90000;   // 90s day — larger world needs more management time
 const NIGHT_DURATION  = 90000;   // 90s night — enemies travel further
@@ -106,12 +107,24 @@ const WAVE_SPAWN_Y    = Math.floor(MAP_H * 0.04);  // ~row 5 from top — enemie
 
 const UDEF = {
   hoplite:   { hp: 4, atk: 1, speed: 55, color: 0x3a6acc, range: 34 },
+  spearman:  { hp: 5, atk: 1, speed: 52, color: 0x4466cc, range: 38 }, // strong vs cavalry
   archer:    { hp: 2, atk: 1, speed: 62, color: 0x44aa77, range: 90 },
+  cavalry:   { hp: 4, atk: 2, speed: 88, color: 0xcc9922, range: 38 }, // strong vs archers, weak vs spearmen
   worker:    { hp: 2, atk: 0, speed: 40, color: 0xaa8844, gatherRange: 52, gatherRate: 2800 },
   raider:    { hp: 3, atk: 1, speed: 68, color: 0xcc3a2a, range: 32 },
   berserker: { hp: 5, atk: 2, speed: 82, color: 0xdd5522, range: 32 },
   veteran:   { hp: 8, atk: 2, speed: 38, color: 0x885533, range: 32 },
 };
+
+// Counter-unit triangle bonuses (multiplier applied to attacker's damage)
+function _counterMod(attackerType, targetType) {
+  if (attackerType === 'cavalry'  && targetType === 'archer')   return 2.0;
+  if (attackerType === 'spearman' && targetType === 'cavalry')  return 1.5;
+  if (attackerType === 'archer'   && targetType === 'spearman') return 1.5;
+  // Enemy cavalry vs player archers
+  if (attackerType === 'cavalry'  && targetType === 'archer')   return 2.0;
+  return 1.0;
+}
 
 // Resource node types
 const NODE_DEF = {
@@ -1754,6 +1767,17 @@ class GameScene extends Phaser.Scene {
         bldg.barGfx.fillStyle(0x111111, 0.8).fillRect(bx, by, bw, 4);
         bldg.barGfx.fillStyle(0x44aa77).fillRect(bx, by, bw * r, 4);
       }
+    } else if (bldg.type === 'stable') {
+      if (bldg.respawnQueue.length) {
+        const delay = BLDG.stable.spawnMs || 22000;
+        const r = Math.min(1, bldg.respawnQueue[0].elapsed / delay);
+        bldg.barGfx.fillStyle(0x111111, 0.8).fillRect(bx, by, bw, 4);
+        bldg.barGfx.fillStyle(0xaaddff).fillRect(bx, by, bw * r, 4);
+      } else if (bldg.trainQueue.length) {
+        const r = bldg.trainQueue[0].elapsed / 22000;
+        bldg.barGfx.fillStyle(0x111111, 0.8).fillRect(bx, by, bw, 4);
+        bldg.barGfx.fillStyle(0xcc9922).fillRect(bx, by, bw * r, 4);
+      }
     } else if (bldg.type === 'pasture') {
       // Sheep count bar (green = adults, yellow = lambs)
       const cap = BLDG.pasture.sheepCap;
@@ -1778,8 +1802,9 @@ class GameScene extends Phaser.Scene {
     else if (bldg.type === 'farm') taskType = bldg.stock <= 0 ? 'replant' : 'harvest_farm';
     else if (bldg.type === 'barracks') taskType = 'train';
     else if (bldg.type === 'archery')  taskType = 'train_archer';
+    else if (bldg.type === 'stable')   taskType = 'train_cavalry';
     else return false;
-    const roleForTask = { build: 'builder', harvest_farm: 'farmer', replant: 'farmer', train: null, train_archer: null };
+    const roleForTask = { build: 'builder', harvest_farm: 'farmer', replant: 'farmer', train: null, train_archer: null, train_cavalry: null };
     const cx = (bldg.tx + bldg.size / 2) * TILE, cy = MAP_OY + (bldg.ty + bldg.size / 2) * TILE;
     workers.forEach(u => {
       u.taskType = taskType; u.taskBldgId = bldg.id;
@@ -1862,6 +1887,19 @@ class GameScene extends Phaser.Scene {
       u.gfx.fillStyle(0x228855, 0.7).fillTriangle(0, 10, -4, 0, 4, 0);
       if (u.selected) u.gfx.lineStyle(2, 0xffdd44)
         .strokeTriangle(0, -14, -11, 1, 11, 1).strokeTriangle(0, 13, -11, 1, 11, 1);
+    } else if (u.type === 'spearman') {
+      // Upward triangle with a spear line
+      u.gfx.fillStyle(def.color).fillTriangle(0, -11, -9, 6, 9, 6);
+      u.gfx.lineStyle(2, 0x8899ff, 0.8).lineBetween(0, -15, 0, 8);
+      if (u.selected) u.gfx.lineStyle(2, 0xffdd44).strokeTriangle(0, -13, -11, 7, 11, 7);
+    } else if (u.type === 'cavalry') {
+      // Diamond (horse + rider silhouette)
+      u.gfx.fillStyle(def.color)
+        .fillTriangle(0, -13, -11, 0, 11, 0)
+        .fillTriangle(0, 11, -11, 0, 11, 0);
+      u.gfx.lineStyle(2, 0xffee88, 0.7).strokeTriangle(0, -13, -11, 0, 11, 0);
+      if (u.selected) u.gfx.lineStyle(2, 0xffdd44)
+        .strokeTriangle(0, -15, -13, 1, 13, 1).strokeTriangle(0, 13, -13, 1, 13, 1);
     } else if (u.type === 'berserker') {
       u.gfx.fillStyle(def.color).fillCircle(0, 0, 13);
       u.gfx.lineStyle(2, 0xff8844, 0.9).strokeCircle(0, 0, 13);
@@ -2516,9 +2554,9 @@ class GameScene extends Phaser.Scene {
         const w = this.units.find(u => u.id === item.workerId);
         if (w) w.hp = 0;
         const cx = (b.tx + 1) * TILE, cy = MAP_OY + (b.ty + 1) * TILE;
-        const sol = this.spawnUnit('hoplite', cx + Phaser.Math.Between(-10, 10), cy + Phaser.Math.Between(-10, 10), false);
+        const sol = this.spawnUnit('spearman', cx + Phaser.Math.Between(-10, 10), cy + Phaser.Math.Between(-10, 10), false);
         sol.homeBldgId = b.id; sol.age = 2;
-        this.showFloatText(cx, cy - 10, 'Hoplite ready!', '#4a9aee');
+        this.showFloatText(cx, cy - 10, 'Spearman ready!', '#4a9aee');
         this.updateUI();
       }
     }
@@ -2536,6 +2574,23 @@ class GameScene extends Phaser.Scene {
         const arc = this.spawnUnit('archer', cx + Phaser.Math.Between(-10, 10), cy + Phaser.Math.Between(-10, 10), false);
         arc.homeBldgId = b.id; arc.age = 2;
         this.showFloatText(cx, cy - 10, 'Archer ready!', '#44aa77');
+        this.updateUI();
+      }
+    }
+
+    // Stable training (cavalry)
+    for (const b of this.buildings) {
+      if (b.faction === 'enemy') continue;
+      if (b.type !== 'stable' || !b.built || !b.trainQueue.length) continue;
+      const item = b.trainQueue[0]; item.elapsed += delta;
+      if (item.elapsed >= 22000) {
+        b.trainQueue.shift();
+        const w = this.units.find(u => u.id === item.workerId);
+        if (w) w.hp = 0;
+        const cx = (b.tx + 1) * TILE, cy = MAP_OY + (b.ty + 1) * TILE;
+        const cav = this.spawnUnit('cavalry', cx + Phaser.Math.Between(-10, 10), cy + Phaser.Math.Between(-10, 10), false);
+        cav.homeBldgId = b.id; cav.age = 2;
+        this.showFloatText(cx, cy - 10, 'Cavalry ready!', '#ccaa22');
         this.updateUI();
       }
     }
@@ -2928,7 +2983,7 @@ class GameScene extends Phaser.Scene {
       const a = Math.atan2(e.y - u.y, e.x - u.x);
       return Math.floor(((a + Math.PI) / (Math.PI / 2))) % 4;
     }));
-    const atkMod = quadrants.size >= 2 ? 0.8 : 1.0;
+    const flankMod = quadrants.size >= 2 ? 0.8 : 1.0;
 
     if (u.type === 'archer') {
       // Back off if enemy too close
@@ -2939,7 +2994,7 @@ class GameScene extends Phaser.Scene {
       // Shoot if in range
       if (nd <= u.range) {
         if (time-u.lastAtk > 1400) {
-          const dmg = Math.max(1, Math.round(u.atk * atkMod));
+          const dmg = Math.max(1, Math.round(u.atk * flankMod * _counterMod(u.type, near.type)));
           near.hp -= dmg; u.lastAtk = time; this.flash(near);
           this.showArrow(u.x, u.y, near.x, near.y);
           this.showFloatText(near.x, near.y - 14, `-${dmg}`, '#ff6666');
@@ -2954,10 +3009,28 @@ class GameScene extends Phaser.Scene {
       return;
     }
 
-    // Hoplite
+    // Cavalry: charge at full speed, prioritise archers
+    if (u.type === 'cavalry') {
+      const archerTarget = enemies.find(e => e.type === 'archer' && Phaser.Math.Distance.Between(u.x,u.y,e.x,e.y) < 200) ?? near;
+      const ct = archerTarget;
+      const cd = Phaser.Math.Distance.Between(u.x,u.y,ct.x,ct.y);
+      if (cd <= u.range + 4) {
+        if (time-u.lastAtk > 900) {
+          const dmg = Math.max(1, Math.round(u.atk * flankMod * _counterMod(u.type, ct.type)));
+          ct.hp -= dmg; u.lastAtk = time; this.flash(ct);
+          this.showFloatText(ct.x, ct.y - 14, `-${dmg}`, '#ffcc44');
+        }
+      } else {
+        const a = Phaser.Math.Angle.Between(u.x,u.y,ct.x,ct.y);
+        u.x += Math.cos(a)*u.speed*dt; u.y += Math.sin(a)*u.speed*dt;
+      }
+      return;
+    }
+
+    // Spearman / Hoplite — melee
     if (nd<=u.range+4) {
       if (time-u.lastAtk>1000) {
-        const dmg = Math.max(1, Math.round(u.atk * atkMod));
+        const dmg = Math.max(1, Math.round(u.atk * flankMod * _counterMod(u.type, near.type)));
         near.hp-=dmg; u.lastAtk=time; this.flash(near);
         this.showFloatText(near.x, near.y - 14, `-${dmg}`, '#ff6666');
       }
@@ -2965,7 +3038,6 @@ class GameScene extends Phaser.Scene {
       const a=Phaser.Math.Angle.Between(u.x,u.y,near.x,near.y);
       u.x+=Math.cos(a)*u.speed*0.8*dt; u.y+=Math.sin(a)*u.speed*0.8*dt;
     } else {
-      // No enemies nearby — attack enemy buildings if adjacent
       this._tryAttackBuilding(u, time);
     }
   }
@@ -3327,6 +3399,14 @@ class GameScene extends Phaser.Scene {
     }
     if (u.taskType === 'train_archer') {
       const b = this.buildings.find(b => b.id===u.taskBldgId && b.built && b.type==='archery');
+      if (!b) { u.taskType = null; return; }
+      const cx=(b.tx+b.size/2)*TILE, cy=MAP_OY+(b.ty+b.size/2)*TILE;
+      if (this.moveToward(u, cx, cy, 24, dt)) return;
+      b.trainQueue.push({ workerId: u.id, elapsed: 0 });
+      u.taskType = 'training'; u.gfx.setAlpha(0.3); return;
+    }
+    if (u.taskType === 'train_cavalry') {
+      const b = this.buildings.find(b => b.id===u.taskBldgId && b.built && b.type==='stable');
       if (!b) { u.taskType = null; return; }
       const cx=(b.tx+b.size/2)*TILE, cy=MAP_OY+(b.ty+b.size/2)*TILE;
       if (this.moveToward(u, cx, cy, 24, dt)) return;
@@ -4327,6 +4407,10 @@ class GameScene extends Phaser.Scene {
     if (n===1 && sel[0]?.isVeteran) {
       this.selInfo.setText(`⚔ ${sel[0].veteranName} (veteran ${sel[0].type})`);
       return;
+    }
+    if (n===1) {
+      const hints = { cavalry: '▲archer ▼spearman', spearman: '▲cavalry ▼archer', archer: '▲spearman ▼cavalry' };
+      if (hints[sel[0].type]) { this.selInfo.setText(`${sel[0].type}  ${hints[sel[0].type]}`); return; }
     }
     const roles={};
     sel.forEach(u=>{
