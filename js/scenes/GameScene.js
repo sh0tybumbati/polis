@@ -137,6 +137,14 @@ const UDEF = {
   scout:     { hp: 1, atk: 0, speed: 95, color: 0x336655, range: 0 },  // enemy recon — kills = wave intel
 };
 
+// Veteran progression — cumulative bonuses per level (applied on top of previous)
+const VET_LEVELS = [
+  { nights:  2, hpBonus: 1, speedMult: 1.10, label: 'Veteran',  color: 0xffdd44 },
+  { nights:  4, hpBonus: 1, speedMult: 1.10, label: 'Seasoned', color: 0xffaa22 },
+  { nights:  6, hpBonus: 2, speedMult: 1.15, label: 'Elite',    color: 0xff8800 },
+  { nights: 10, hpBonus: 3, speedMult: 1.20, label: 'Hero',     color: 0xffffff },
+];
+
 // Counter-unit triangle bonuses (multiplier applied to attacker's damage)
 function _counterMod(attackerType, targetType) {
   if (attackerType === 'cavalry'  && targetType === 'archer')   return 2.0;
@@ -1997,7 +2005,7 @@ class GameScene extends Phaser.Scene {
       carrying: { food: 0, stone: 0, wood: 0, wool: 0, hide: 0, ore: 0, meat: 0, wheat: 0 }, carryMax: 5,
       role: null, replantTimer: 0, trainTimer: 0, lastSeek: 0,
       roleMemory: {}, targetDeer: null, targetSheep: null,
-      nightsSurvived: 0, isVeteran: false,
+      nightsSurvived: 0, vetLevel: 0,
       gfx: this._w(this.add.graphics().setDepth(6)),
     };
     this.redrawUnit(unit); this.units.push(unit);
@@ -2133,11 +2141,21 @@ class GameScene extends Phaser.Scene {
     if (u.gender) {
       u.gfx.fillStyle(u.gender === 'male' ? 0x6688cc : 0xdd88aa, 0.8).fillCircle(bw / 2 + 4, barY + 1, 2);
     }
-    // Veteran gold shield — small diamond above unit
-    if (u.isVeteran && !u.isEnemy) {
-      u.gfx.fillStyle(0xffdd00, 0.95)
-        .fillTriangle(0, barY - 8, -4, barY - 4, 4, barY - 4)
-        .fillTriangle(0, barY - 1, -4, barY - 5, 4, barY - 5);
+    // Veteran badge — grows with level; hero gets crown
+    const vl = u.vetLevel ?? 0;
+    if (vl >= 1 && !u.isEnemy) {
+      const vc = VET_LEVELS[vl - 1].color;
+      const sz = 3 + vl;  // 4 / 5 / 6 / 7 px half-size
+      u.gfx.fillStyle(vc, vl === VET_LEVELS.length ? 1.0 : 0.9)
+        .fillTriangle(0, barY - sz * 2, -sz, barY - sz, sz, barY - sz)
+        .fillTriangle(0, barY - 1, -sz, barY - sz - 1, sz, barY - sz - 1);
+      if (vl === VET_LEVELS.length) {
+        // Hero: crown points
+        u.gfx.fillStyle(0xffffff, 0.95)
+          .fillTriangle(-sz-2, barY-sz*2-2, -sz-2, barY-sz, -sz+1, barY-sz*2)
+          .fillTriangle( sz+2, barY-sz*2-2,  sz+2, barY-sz,  sz-1, barY-sz*2)
+          .fillTriangle(    0, barY-sz*2-4,     -2, barY-sz*2,    2, barY-sz*2);
+      }
     }
   }
 
@@ -3297,13 +3315,17 @@ class GameScene extends Phaser.Scene {
 
     // ── Morale / routing ────────────────────────────────────────────────────
     const hpRatio = u.hp / u.maxHp;
-    if (!u.isVeteran && hpRatio < 0.25 && !u.isRouting) {
+    const heroNearby = this.units.some(h => !h.isEnemy && h.vetLevel === VET_LEVELS.length
+      && Phaser.Math.Distance.Between(u.x, u.y, h.x, h.y) < 6 * TILE);
+    if ((u.vetLevel ?? 0) === 0 && !heroNearby && hpRatio < 0.25 && !u.isRouting) {
       u.isRouting = true;
       this.showFloatText(u.x, u.y - 18, 'routing!', '#ff8844');
       // Cascade — nearby hurt friendlies may also break
-      this.units.filter(f => !f.isEnemy && !f.isVeteran && !f.isRouting && f !== u && f.type !== 'worker'
+      this.units.filter(f => !f.isEnemy && (f.vetLevel ?? 0) === 0 && !f.isRouting && f !== u && f.type !== 'worker'
         && Phaser.Math.Distance.Between(u.x, u.y, f.x, f.y) < 3 * TILE
         && f.hp / f.maxHp < 0.5
+        && !this.units.some(h => !h.isEnemy && h.vetLevel === VET_LEVELS.length
+            && Phaser.Math.Distance.Between(f.x, f.y, h.x, h.y) < 6 * TILE)
       ).forEach(f => {
         f.isRouting = true;
         this.showFloatText(f.x, f.y - 18, 'routing!', '#ff8844');
@@ -3488,6 +3510,16 @@ class GameScene extends Phaser.Scene {
         return;
       }
       u.moveTo = null;
+    }
+
+    // ── Demobilizing: walk to home building, hand in kit, become worker ──
+    if (u.role === 'demobilizing') {
+      const home = this.buildings.find(b => b.id === u.homeBldgId && b.built);
+      if (!home) { this._demobilizeUnit(u); return; }
+      const hx = (home.tx + home.size / 2) * TILE, hy = MAP_OY + (home.ty + home.size / 2) * TILE;
+      if (this.moveToward(u, hx, hy, 30, dt)) return;
+      this._demobilizeUnit(u);
+      return;
     }
 
     // ── Hunter role: chase deer, kill, haul meat + hide ──────────────────
@@ -4112,7 +4144,7 @@ class GameScene extends Phaser.Scene {
     const bronzeKits = smithy ? (this.resources.bronzeKit ?? 0) : 0;
 
     for (const u of this.units) {
-      if (u.isEnemy || u.isVeteran) continue;
+      if (u.isEnemy || (u.vetLevel ?? 0) >= 1) continue;
       // Bronze upgrade first (higher priority)
       if (bronzeKits > 0 && (u.type === 'peltast' || u.type === 'spearman' || u.type === 'archer')) {
         const newType = u.type === 'archer' ? 'toxotes' : 'hoplite';
@@ -4135,11 +4167,26 @@ class GameScene extends Phaser.Scene {
   _upgradeUnit(u, newType) {
     const def = UDEF[newType];
     u.type = newType;
-    u.maxHp = def.hp + (u.isVeteran ? 1 : 0);
-    u.hp = Math.min(u.hp, u.maxHp);
-    u.atk = def.atk;
-    u.speed = def.speed + (u.isVeteran ? Math.round(def.speed * 0.1) : 0);
-    u.range = def.range;
+    // Recompute stats from base + accumulated vet bonuses
+    let hp = def.hp, spd = def.speed;
+    for (let i = 0; i < (u.vetLevel ?? 0); i++) {
+      hp  += VET_LEVELS[i].hpBonus;
+      spd  = Math.round(spd * VET_LEVELS[i].speedMult);
+    }
+    u.maxHp = hp; u.hp = Math.min(u.hp, u.maxHp);
+    u.atk = def.atk; u.speed = spd; u.range = def.range;
+  }
+
+  _demobilizeUnit(u) {
+    const kitRefund = { peltast: 'leatherKit', hoplite: 'bronzeKit', toxotes: 'bronzeKit' }[u.type];
+    if (kitRefund) this.resources[kitRefund] = (this.resources[kitRefund] || 0) + 1;
+    u.type = 'worker'; u.vetLevel = 0; u.nightsSurvived = 0;
+    const def = UDEF.worker;
+    u.maxHp = def.hp; u.hp = def.hp; u.atk = def.atk; u.speed = def.speed; u.range = 0;
+    u.role = null; u.moveTo = null; u.isRouting = false;
+    this.updateStorageCap();
+    this.showFloatText(u.x, u.y - 18, 'back to work', '#aaddff');
+    this.updateUI();
   }
 
   attractAdults() {
@@ -4386,16 +4433,20 @@ class GameScene extends Phaser.Scene {
     this.nightsSurvived++;
     if (this.nightsSurvived >= WIN_NIGHTS) { this.endGame('WIN'); return; }
 
-    // Veteran promotion — soldiers that survive 2+ nights get +1 HP and +10% speed
+    // Veteran promotion — soldiers gain levels for each pair of nights survived
     for (const u of this.units) {
       if (u.isEnemy || u.type === 'worker') continue;
       u.nightsSurvived = (u.nightsSurvived ?? 0) + 1;
-      if (!u.isVeteran && u.nightsSurvived >= 2) {
-        u.isVeteran = true;
-        u.veteranName = _pickVetName();
-        u.maxHp += 1; u.hp = Math.min(u.hp + 1, u.maxHp);
-        u.speed = Math.round(u.speed * 1.1);
-        this.showFloatText(u.x, u.y - 22, `⚔ ${u.veteranName}!`, '#ffdd44');
+      const nextLevel = VET_LEVELS[u.vetLevel ?? 0];
+      if (nextLevel && u.nightsSurvived >= nextLevel.nights) {
+        u.vetLevel = (u.vetLevel ?? 0) + 1;
+        if (!u.veteranName) u.veteranName = _pickVetName();
+        u.maxHp += nextLevel.hpBonus;
+        u.hp = Math.min(u.hp + nextLevel.hpBonus, u.maxHp);
+        u.speed = Math.round(u.speed * nextLevel.speedMult);
+        const isHero = u.vetLevel === VET_LEVELS.length;
+        const label = isHero ? `👑 ${u.veteranName} is a Hero!` : `⚔ ${u.veteranName} — ${nextLevel.label}!`;
+        this.showFloatText(u.x, u.y - 22, label, `#${nextLevel.color.toString(16).padStart(6,'0')}`);
       }
     }
     this.showPhaseMessage(`Dawn breaks! Day ${this.day + 1} begins.`, 0xddaa44);
@@ -4857,20 +4908,34 @@ class GameScene extends Phaser.Scene {
     const n=this.selIds.size;
     if (n===0){this.selInfo.setText('');return;}
     const sel=this.units.filter(u=>u.selected);
-    if (n===1 && sel[0]?.isVeteran) {
-      this.selInfo.setText(`⚔ ${sel[0].veteranName} (veteran ${sel[0].type})`);
-      return;
-    }
-    if (n===1) {
+    if (n===1 && sel[0]?.type !== 'worker') {
+      const u = sel[0];
+      const vl = u.vetLevel ?? 0;
+      const vetLabel = vl >= 1 ? (VET_LEVELS[vl-1].label + (u.veteranName ? ` ${u.veteranName}` : '')) : '';
+      const typeStr  = vetLabel ? `${vetLabel} (${u.type})` : u.type;
+      const canDemob = vl === 0 && !u.isEnemy;
+      const demobStr = canDemob ? '  [tap again: demobilize]' : (vl >= 1 ? '  [committed — no demob]' : '');
+      this.selInfo.setText(typeStr + demobStr);
+      // Double-tap / second selection press → demobilize non-vet soldiers
+      if (canDemob && !this._demobPending) {
+        this._demobPending = u.id;
+      } else if (this._demobPending === u.id && canDemob) {
+        this._demobPending = null;
+        u.role = 'demobilizing';
+        this.deselect();
+      } else {
+        this._demobPending = null;
+      }
+      if (!canDemob) this._demobPending = null;
       const hints = {
         cavalry:  '▲archer/toxotes ▼spearman/hoplite',
         spearman: '▲cavalry ▼archer', hoplite: '▲cavalry ▼archer',
         archer:   '▲spearman ▼cavalry', toxotes: '▲spearman ▼cavalry',
-        peltast:  'light armored — upgrade to hoplite/toxotes with bronze',
-        clubman:  'levy — upgrade to peltast with leather',
-        slinger:  'levy ranged — upgrade to peltast with leather',
+        peltast:  'light armored — upgrade with bronze',
+        clubman:  'levy — upgrade with leather', slinger: 'levy ranged — upgrade with leather',
       };
-      if (hints[sel[0].type]) { this.selInfo.setText(`${sel[0].type}  ${hints[sel[0].type]}`); return; }
+      if (!vetLabel && hints[u.type]) this.selInfo.setText(`${u.type}  ${hints[u.type]}${demobStr}`);
+      return;
     }
     const roles={};
     sel.forEach(u=>{
