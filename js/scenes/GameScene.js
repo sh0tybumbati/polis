@@ -94,12 +94,15 @@ const BLDG = {
   barracks: { label: 'Barracks',  color: 0x8a6848, cost: { stone: 6, wood: 4 }, size: 2, spawnMs: 18000 },
   archery:  { label: 'Archery',   color: 0x2a7a4a, cost: { stone: 5, wood: 3 }, size: 2, spawnMs: 16000 },
   stable:   { label: 'Stable',    color: 0x7a5522, cost: { stone: 6, wood: 8 }, size: 2, spawnMs: 22000 },
+  palisade: { label: 'Palisade',  color: 0x8a6030, cost: { wood: 2 },           size: 1 },
+  watchtower:{ label: 'W.Tower',  color: 0x7a7060, cost: { stone: 4, wood: 3 }, size: 1, fogRadius: 6, atkRange: 5 * TILE },
+  gate:     { label: 'Gate',      color: 0xa08858, cost: { stone: 3, wood: 2 }, size: 1 },
   wall:     { label: 'Wall',      color: 0x9a9888, cost: { stone: 2 },          size: 1 },
   pasture:  { label: 'Pasture',   color: 0x66aa44, cost: { stone: 3, wood: 6 },  size: 3,
               sheepCap: 10, stores: { wool: 30 } },
 };
 
-const BUILD_WORK = { house: 10, granary: 14, woodshed: 12, stonepile: 8, farm: 16, barracks: 22, archery: 18, stable: 24, wall: 6 };
+const BUILD_WORK = { house: 10, granary: 14, woodshed: 12, stonepile: 8, farm: 16, barracks: 22, archery: 18, stable: 24, palisade: 4, watchtower: 14, gate: 8, wall: 6 };
 
 const DAY_DURATION    = 90000;   // 90s day — larger world needs more management time
 const NIGHT_DURATION  = 90000;   // 90s night — enemies travel further
@@ -526,12 +529,13 @@ class GameScene extends Phaser.Scene {
       paintCircle(cx, cy, clearR, 2); // then overwrite inner with lit
     }
 
-    // Buildings: clear radius = 10 (≈ 2× soldier inner radius), no dim ring
+    // Buildings: normal clear radius = 10; watch towers use their fogRadius
     for (const b of this.buildings) {
       if (!b.built || b.faction === 'enemy') continue;
       const cx = Math.floor((b.tx + b.size / 2));
       const cy = Math.floor((b.ty + b.size / 2));
-      paintCircle(cx, cy, 10, 2);
+      const r = BLDG[b.type]?.fogRadius ?? 10;
+      paintCircle(cx, cy, r, 2);
     }
   }
 
@@ -792,8 +796,13 @@ class GameScene extends Phaser.Scene {
   isBlocked(wx, wy) {
     const tx = Math.floor(wx / TILE), ty = Math.floor((wy - MAP_OY) / TILE);
     if (tx < 0 || tx >= MAP_W || ty < 0 || ty >= MAP_H) return true;
-    if ((this.terrainData[ty]?.[tx] ?? 0) === T_WATER) return true; // water impassable
-    return (this.mapData[ty]?.[tx] ?? 0) >= 98; // wall or building
+    if ((this.terrainData[ty]?.[tx] ?? 0) === T_WATER) return true;
+    const cell = this.mapData[ty]?.[tx] ?? 0;
+    if (cell < 98) return false;
+    // Gate tile: only blocks when closed
+    const gate = this.buildings.find(b => b.type === 'gate' && b.built && b.tx === tx && b.ty === ty);
+    if (gate) return !gate.isOpen;
+    return true;
   }
 
   // ─── Roads & desire paths ─────────────────────────────────────────────────
@@ -1373,6 +1382,7 @@ class GameScene extends Phaser.Scene {
       built, buildWork: built ? 0 : work, maxBuildWork: work,
       stock: built && def.stockMax ? def.stockMax : 0, maxStock: def.stockMax || 0,
       replantTimer: 0, trainQueue: [], spawnTimer: 0, respawnQueue: [], resNeeded: {}, drawnStock: -1,
+      isOpen: type === 'gate' ? true : undefined,
       gfx: null, barGfx: null, labelObj: null,
     };
   }
@@ -1380,7 +1390,8 @@ class GameScene extends Phaser.Scene {
   placeBuilding(tx, ty) {
     const def = BLDG[this.bldgType];
     if (!this.isFree(tx, ty, def.size)) return;
-    this.occupy(tx, ty, def.size, this.bldgType === 'wall' ? 98 : 99);
+    const isWallType = ['wall','palisade','gate','watchtower'].includes(this.bldgType);
+    this.occupy(tx, ty, def.size, isWallType ? 98 : 99);
     const b = this.makeBldgObj(this.bldgType, tx, ty, false);
     if (def.cost) b.resNeeded = { ...def.cost };
     this.buildings.push(b); this.redrawBuilding(b);
@@ -1393,7 +1404,7 @@ class GameScene extends Phaser.Scene {
   }
 
   placeBuiltBuilding(type, tx, ty) {
-    this.occupy(tx, ty, BLDG[type].size, type === 'wall' ? 98 : 99);
+    this.occupy(tx, ty, BLDG[type].size, ['wall','palisade','gate','watchtower'].includes(type) ? 98 : 99);
     const b = this.makeBldgObj(type, tx, ty, true);
     this.buildings.push(b); this.redrawBuilding(b);
     return b;
@@ -1650,6 +1661,46 @@ class GameScene extends Phaser.Scene {
       // Decorative sheep silhouettes inside
       gfx.fillStyle(0xf0ece0, 0.55).fillCircle(cx-14, cy-6, 7).fillCircle(cx+14, cy+6, 7).fillCircle(cx, cy-4, 7);
 
+    } else if (type === 'palisade') {
+      // Wooden stakes
+      gfx.fillStyle(0x7a5030).fillRect(px+2, py+4, s-4, s-8);
+      gfx.lineStyle(2, 0x5a3818, 0.9)
+        .lineBetween(px+s*0.25, py+2, px+s*0.25, py+s-2)
+        .lineBetween(px+s*0.5,  py+2, px+s*0.5,  py+s-2)
+        .lineBetween(px+s*0.75, py+2, px+s*0.75, py+s-2);
+      // Sharpened tops
+      gfx.fillStyle(0x9a7040)
+        .fillTriangle(px+s*0.25-4, py+4, px+s*0.25+4, py+4, px+s*0.25, py)
+        .fillTriangle(px+s*0.5-4,  py+4, px+s*0.5+4,  py+4, px+s*0.5,  py)
+        .fillTriangle(px+s*0.75-4, py+4, px+s*0.75+4, py+4, px+s*0.75, py);
+    } else if (type === 'watchtower') {
+      // Stone base + platform
+      gfx.fillStyle(0x7a7060).fillRect(px+4, py+8, s-8, s-10);
+      gfx.fillStyle(0x9a9080).fillRect(px+2, py+4, s-4, 6);
+      // Ladder line
+      gfx.lineStyle(1, 0x555544, 0.8).lineBetween(px+s*0.5, py+10, px+s*0.5, py+s-2);
+      // Crenellations
+      gfx.fillStyle(0xaaa090)
+        .fillRect(px+2, py, 6, 6).fillRect(px+s-8, py, 6, 6);
+      // Arrow slit
+      gfx.fillStyle(0x222018).fillRect(px+s/2-1, py+5, 2, 4);
+    } else if (type === 'gate') {
+      const open = bldg?.isOpen ?? true;
+      gfx.fillStyle(0xa08858).fillRect(px+2, py+4, s-4, s-6);
+      // Gate doors (drawn open or closed)
+      if (open) {
+        gfx.fillStyle(0x7a6030, 0.7)
+          .fillRect(px+2, py+4, 4, s-8)
+          .fillRect(px+s-6, py+4, 4, s-8);
+        gfx.fillStyle(0x222200, 0.5).fillRect(px+6, py+4, s-12, s-8);
+      } else {
+        gfx.fillStyle(0x8a7040).fillRect(px+3, py+5, s-6, s-8);
+        gfx.lineStyle(2, 0x5a4820, 0.9)
+          .lineBetween(px+s*0.5, py+5, px+s*0.5, py+s-4)
+          .lineBetween(px+3, py+s*0.5, px+s-3, py+s*0.5);
+      }
+      // Stone frame
+      gfx.lineStyle(2, 0x888070, 0.8).strokeRect(px+2, py+4, s-4, s-6);
     } else if (type === 'wall') {
       // Main body
       gfx.fillStyle(0x9a9888).fillRect(px+2, py+6, s-4, s-12);
@@ -2541,6 +2592,27 @@ class GameScene extends Phaser.Scene {
         // Child inherits gender randomly — already set by spawnUnit, no override needed
         this.showFloatText(cx, cy - 8, '👶 new child', '#ffeeaa');
         this.updateUI();
+      }
+    }
+
+    // Watch tower auto-attack
+    if (this.phase === 'NIGHT') {
+      const enemies = this.units.filter(e => e.isEnemy && e.hp > 0);
+      for (const b of this.buildings) {
+        if (b.type !== 'watchtower' || !b.built || b.faction === 'enemy') continue;
+        const bx = (b.tx + 0.5) * TILE, by = MAP_OY + (b.ty + 0.5) * TILE;
+        b.towerCooldown = (b.towerCooldown ?? 0) - delta;
+        if (b.towerCooldown > 0) continue;
+        let nearestEnemy = null, nearestDist = BLDG.watchtower.atkRange;
+        for (const e of enemies) {
+          const d = Phaser.Math.Distance.Between(bx, by, e.x, e.y);
+          if (d < nearestDist) { nearestDist = d; nearestEnemy = e; }
+        }
+        if (!nearestEnemy) continue;
+        nearestEnemy.hp -= 1;
+        this.showArrow(bx, by, nearestEnemy.x, nearestEnemy.y);
+        this.flash(nearestEnemy);
+        b.towerCooldown = 1800; // fires every 1.8s
       }
     }
 
@@ -3691,7 +3763,16 @@ class GameScene extends Phaser.Scene {
     this.timerMs = NIGHT_DURATION;
     this.showPhaseMessage(`Night falls.`, 0x6677cc);
     this._setNightOverlay(true);
+    this._setGates(false);
     this.updateUI();
+  }
+
+  _setGates(open) {
+    for (const b of this.buildings) {
+      if (b.type !== 'gate' || !b.built) continue;
+      b.isOpen = open;
+      this.redrawBuilding(b);
+    }
   }
 
   endNight() {
@@ -3710,6 +3791,7 @@ class GameScene extends Phaser.Scene {
   }
 
   ageUpUnits() {
+    this._setGates(true); // reopen gates at dawn
     for (const u of this.units) {
       u.isRouting = false; // clear routing state at dawn
       if (u.isEnemy || u.type !== 'worker') continue;
@@ -4375,6 +4457,22 @@ class GameScene extends Phaser.Scene {
       }
     }
     p.info.setText(infoStr);
+    // Gate: show open/close toggle
+    if (b.type === 'gate' && b.built) {
+      infoStr = b.isOpen ? 'Gate: OPEN' : 'Gate: CLOSED';
+      p.info.setText(infoStr);
+      p.actionLbl.setText(b.isOpen ? 'Close' : 'Open');
+      p.actionBtn.setFillStyle(b.isOpen ? 0x442200 : 0x224400);
+      p.actionBtn.setStrokeStyle(1, b.isOpen ? 0xff8844 : 0x44ff88, 0.7);
+      p.actionLbl.setColor(b.isOpen ? '#ffcc88' : '#aaffcc');
+      p.actionBtn.off('pointerdown').on('pointerdown', () => {
+        b.isOpen = !b.isOpen;
+        this.redrawBuilding(b);
+        this.updateUI();
+      });
+      return;
+    }
+
     // Pasture: show sheep count + slaughter option
     if (b.type === 'pasture' && b.built) {
       const males = b.males ?? 0, females = b.females ?? 0, lambs = b.lambs ?? 0;

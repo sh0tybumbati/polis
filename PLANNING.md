@@ -293,9 +293,9 @@ When a villager cannot reach a shop with an attendant (queue too long, shop unst
 - [x] Rout creates a cascade: fleeing units trigger nearby units to check morale
 
 ### Defensive Structures
-- [ ] **Watch Tower** — costs stone+wood; auto-fires arrows at range 5 tiles; reveals fog in radius 6
-- [ ] **Wall Gate** — placed in a wall segment; manually open/close; workers can pass when open, enemies cannot; seals automatically at nightfall
-- [ ] **Palisade** (cheap wooden wall) — cheaper than stone wall, burns if fire mechanic added later
+- [x] **Watch Tower** — costs stone+wood; auto-fires arrows at range 5 tiles; reveals fog in radius 6
+- [x] **Wall Gate** — placed in a wall segment; manually open/close; seals automatically at nightfall
+- [x] **Palisade** (cheap wooden wall) — cheaper than stone wall, burns if fire mechanic added later
 
 ### Terrain Advantages (combat)
 - [ ] Forest tiles: archers in forest get cover (–20% incoming ranged damage)
