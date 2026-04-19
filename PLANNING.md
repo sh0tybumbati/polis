@@ -89,7 +89,6 @@
 - [x] Fog rendered as a dark overlay (depth 8) on the world camera; minimap mirrors fog state
 - [x] Player buildings grant a large (radius 10) permanent lit circle while built
 - [ ] Watch Tower (Milestone 3) adds a large static lit radius even with no units nearby
-- [ ] **Enemy scout** appears ~20s before each night; killing it reveals full wave composition as a UI flash
 
 ### Enemy Village (Mirror Sim — groundwork only)
 - [x] Enemy polis pre-placed in Badlands during world gen (buildings exist, visible once fog cleared)
@@ -114,13 +113,13 @@ Gender is a single field (`gender: 'male' | 'female'`) assigned at spawn (50/50 
 - [x] Both sexes produce wool and meat
 - [x] **Shepherd priority order**: (1) feed pens → (2) transfer from full pen to underpopulated pen → (3) shear wild sheep → (4) tame wild → (5) slaughter surplus
 - [x] Shepherd culls extra males first, preserving at least one per pen
-- [ ] **Hungry-day death** — two consecutive unfed days kills a pasture sheep (grace rule parity with people)
+- [x] **Hungry-day death** — two consecutive unfed days kills a pasture sheep (grace rule parity with people)
 
 #### Wild Animals
 - [x] All wild deer and sheep get a `gender` field at spawn/edge-entry
 - [x] Male deer are scale 1.1, have antlers drawn, and flee radius –0.5 tiles vs females; both yield the same meat
 - [x] Wild sheep have a subtle gender dot on the head (blue/rose)
-- [ ] Mating check at dawn: a female within 5 tiles of a male of the same species, both having eaten today → 40% chance of offspring
+- [x] Mating check at dawn: a female within 5 tiles of a male of the same species, both having eaten today → 40% chance of offspring
 
 ### Living Ecosystem
 
@@ -151,9 +150,9 @@ Gender is a single field (`gender: 'male' | 'female'`) assigned at spawn (50/50 
 #### Wildlife Reproduction & Edge Entry
 - [x] **No pre-spawned populations** — animals enter from N/E/W map edges every ~90s (1–2 deer or 1 sheep) while below cap
 - [x] Edge entry: spawns at N row 8, or random y on E/W edges in the middle 60% of map height; gender assigned on entry
-- [ ] **Mating / reproduction** — male+female pair in proximity → offspring after time; not yet implemented
-- [ ] Population self-regulates through scrub availability; overpopulation collapses when scrubs are stripped
-- [ ] Tamed pasture sheep use the gender-based pasture breeding + shepherd feeding system above; the old `SHEEP_WOOL_MS` fixed timer is replaced entirely
+- [x] **Mating / reproduction** — male+female pair in proximity → offspring after time; not yet implemented
+- [x] Population self-regulates through scrub availability; overpopulation collapses when scrubs are stripped
+- [x] Tamed pasture sheep use the gender-based pasture breeding + shepherd feeding system above; the old `SHEEP_WOOL_MS` fixed timer is replaced entirely
 
 ---
 
@@ -166,6 +165,7 @@ Gender is a single field (`gender: 'male' | 'female'`) assigned at spawn (50/50 
 - [x] Enemy workers and soldiers pathfind and behave using the same unit system; enemy soldiers patrol during day and march south at night
 - [x] Enemy village rebuilds destroyed structures using its own workers and resources
 - [x] Player can observe enemy activity once fog is cleared in that region
+- [ ] **Enemy scout** appears ~20s before each night; killing it reveals full wave composition as a UI flash
 
 ### Economy Depth — Food Chains & Daily Life
 

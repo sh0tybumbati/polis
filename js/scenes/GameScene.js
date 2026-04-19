@@ -1256,6 +1256,22 @@ class GameScene extends Phaser.Scene {
         }
       }
 
+      // Hungry-day death: two consecutive unfed days kills one sheep
+      if (!b.fedToday && (b.males ?? 0) + (b.females ?? 0) + (b.lambs ?? 0) > 0) {
+        b.unfedDays = (b.unfedDays ?? 0) + 1;
+        if (b.unfedDays >= 2) {
+          if ((b.lambs ?? 0) > 0) { b.lambs--; }
+          else if ((b.males ?? 0) > 1) { b.males--; }
+          else if ((b.females ?? 0) > 0) { b.females--; }
+          else { b.males--; }
+          b.unfedDays = 0;
+          this.showFloatText(bx, by, 'sheep starved!', '#ff6644');
+          this.redrawBuildingBar(b);
+        }
+      } else {
+        b.unfedDays = 0;
+      }
+
       // Reset fed flag for next day
       b.fedToday = false;
 
@@ -3746,6 +3762,35 @@ class GameScene extends Phaser.Scene {
       } else { s.hungryDays = 0; }
       s.ateToday = 0;
       this._redrawSheep(s); // refresh hunger tint
+    }
+
+    // Wildlife mating — female + nearby male, both ate today → 40% chance offspring
+    const MATE_RANGE = 5 * TILE;
+    const liveDeer = this.deer.filter(d => !d.isDead);
+    if (liveDeer.length < DEER_MAX) {
+      for (const female of liveDeer) {
+        if (female.gender !== 'female' || female.hungryDays > 0) continue;
+        const nearMale = liveDeer.find(m => m.gender === 'male' && m.hungryDays === 0
+          && Math.hypot(m.x - female.x, m.y - female.y) <= MATE_RANGE);
+        if (nearMale && Math.random() < 0.4 && liveDeer.length < DEER_MAX) {
+          const ox = female.x + (Math.random() - 0.5) * TILE * 2;
+          const oy = female.y + (Math.random() - 0.5) * TILE * 2;
+          this._spawnDeer(ox, oy);
+        }
+      }
+    }
+    const wildSheep = this.sheep.filter(s => !s.isTamed);
+    if (wildSheep.length < SHEEP_MAX) {
+      for (const female of wildSheep) {
+        if (female.gender !== 'female' || female.hungryDays > 0) continue;
+        const nearMale = wildSheep.find(m => m.gender === 'male' && m.hungryDays === 0
+          && Math.hypot(m.x - female.x, m.y - female.y) <= MATE_RANGE);
+        if (nearMale && Math.random() < 0.4 && wildSheep.length < SHEEP_MAX) {
+          const ox = female.x + (Math.random() - 0.5) * TILE * 2;
+          const oy = female.y + (Math.random() - 0.5) * TILE * 2;
+          this._spawnWildSheep(ox, oy);
+        }
+      }
     }
   }
 
