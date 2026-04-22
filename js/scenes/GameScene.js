@@ -2841,7 +2841,7 @@ class GameScene extends Phaser.Scene {
       this.enemyScoutTimer += delta;
       if (this.enemyScoutTimer >= 75000 && !this.units.some(u => u.isEnemy && u.isScout && u.hp > 0)) {
         this.enemyScoutTimer = 0;
-        this._spawnEnemyScout();
+        // Routine removed
       }
     }
     // Edge entry: animals wander in from N/E/W edges every ~90s
@@ -4365,7 +4365,7 @@ class GameScene extends Phaser.Scene {
   beginNight() {
     this.phase = 'NIGHT';
     this.timerMs = NIGHT_DURATION;
-    this.showPhaseMessage(`Night falls.`, 0x6677cc);
+//    this.showPhaseMessage(`Night falls.`, 0x6677cc);
     this._setNightOverlay(true);
     this._setGates(false);
     this.updateUI();
@@ -4382,7 +4382,7 @@ class GameScene extends Phaser.Scene {
   endNight() {
     this.phase = 'RESULT';
     this._setNightOverlay(false);
-    this.showPhaseMessage(`Dawn — Day ${this.day + 1}.`, 0xddaa44);
+//    this.showPhaseMessage(`Dawn — Day ${this.day + 1}.`, 0xddaa44);
     this.time.delayedCall(1800, () => {
       this.day++;
       this.phase = 'DAY';
