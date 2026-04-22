@@ -13,11 +13,13 @@ const GREEK_NAMES_F = [
   'Cleopatra','Berenice','Eurydice','Olympias','Roxana',
   'Thais','Phryne','Lais','Leontion','Elpinice'
 ];
-
 function _pickName(gender) {
   const list = gender === 'female' ? GREEK_NAMES_F : GREEK_NAMES_M;
   return list[Math.floor(Math.random() * list.length)];
 }
+
+const ENABLE_NEW_UI = false;
+const ENABLE_PROACTIVE_AI = true;
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -4237,6 +4239,16 @@ class GameScene extends Phaser.Scene {
 
     // ── Idle: seek next task by role ──────────────────────────────────────
     if (this.phase !== 'DAY' && this.phase !== 'NIGHT') return;
+    if (ENABLE_PROACTIVE_AI && u.role === null && u.age >= 2 && !u.moveTo) {
+       // Proactive AI: Build storage if capacity is low
+       if (this.resources.food / (this.storageMax.food || 1) > 0.8 && !this.buildings.some(b => b.type === 'granary' && !b.built)) {
+         const site = this._findBuildSiteNear('granary', u.x, u.y);
+         if (site && this.afford(BLDG.granary.cost)) {
+           this.placeBuiltBuilding('granary', site.tx, site.ty);
+           this.spend(BLDG.granary.cost);
+         }
+       }
+    }
     if (!u.role) {
       if (time - u.lastSeek > 2000) this.pickRole(u, time);
       return;
@@ -4329,7 +4341,15 @@ class GameScene extends Phaser.Scene {
     return true;
   }
 
-  flash(unit) { this.tweens.add({targets:unit.gfx,alpha:{from:0.12,to:1},duration:130}); }
+  _findBuildSiteNear(type, nearX, nearY) {
+    const size = BLDG[type].size;
+    for (let attempt = 0; attempt < 20; attempt++) {
+      const tx = Math.floor(nearX/TILE) + Phaser.Math.Between(-8, 8);
+      const ty = Math.floor((nearY-MAP_OY)/TILE) + Phaser.Math.Between(-8, 8);
+      if (this.isFree(tx, ty, size)) return { tx, ty };
+    }
+    return null;
+  }
 
   showArrow(x1, y1, x2, y2) {
     const g = this._w(this.add.graphics().setDepth(7));
