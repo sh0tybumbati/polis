@@ -2281,6 +2281,23 @@ class GameScene extends Phaser.Scene {
   }
 
   spawnStartingState() {
+    this.isPaused = false;
+    this.input.keyboard.on('keydown-P', () => {
+      this.isPaused = !this.isPaused;
+      this.showPhaseMessage(this.isPaused ? 'PAUSED' : 'RESUMED', this.isPaused ? 0xff4444 : 0x44ff44);
+    });
+    this.input.keyboard.on('keydown', (event) => {
+      if (this.isPaused) return;
+      const cam = this.cameras.main;
+      const speed = 20;
+      switch(event.code) {
+        case 'KeyW': cam.scrollY -= speed; break;
+        case 'KeyS': cam.scrollY += speed; break;
+        case 'KeyA': cam.scrollX -= speed; break;
+        case 'KeyD': cam.scrollX += speed; break;
+      }
+    });
+
     // Player starts at bottom-centre of the portrait map
     const mx = Math.floor(MAP_W / 2) - 1; // centre column
     const by = MAP_H - 8;                 // near bottom
@@ -2774,7 +2791,7 @@ class GameScene extends Phaser.Scene {
   // ─── Update ───────────────────────────────────────────────────────────────
 
   update(time, delta) {
-    if (this.phase === 'LOSE' || this.phase === 'WIN') return;
+    if (this.phase === 'LOSE' || this.phase === 'WIN' || this.isPaused) return;
     const dt = delta / 1000;
     if (this.phase === 'DAY' || this.phase === 'NIGHT') {
       this.timerMs -= delta;
@@ -4808,7 +4825,7 @@ class GameScene extends Phaser.Scene {
             this.hoverGfx.clear();
           }
         }
-      } else if (this.bldgType && this.phase === 'DAY' && !ptr.isDown) {
+      } else if (this.bldgType && !ptr.isDown) {
         this.drawBuildGhost(ptr);
       }
     });
@@ -4848,7 +4865,7 @@ class GameScene extends Phaser.Scene {
       const wx = ptr.worldX, wy = ptr.worldY;
       if (ptr.rightButtonReleased()) { if (this.selIds.size > 0) this.moveSelectedTo(wx, wy); return; }
       if (this.roadMode) { const t = this.tileAt(wx, wy); if (t) this._paintRoad(t.tx, t.ty); return; }
-      if (this.bldgType && this.phase === 'DAY') { const t = this.tileAt(wx, wy); if (t) this.placeBuilding(t.tx, t.ty); return; }
+      if (this.bldgType) { const t = this.tileAt(wx, wy); if (t) this.placeBuilding(t.tx, t.ty); return; }
       const hit = this.unitAt(wx, wy);
       if (hit && !hit.isEnemy) { this.selectUnit(hit.id, ptr.event?.shiftKey ?? false); return; }
       // Tap on a deer — assign selected workers/archers as hunters
