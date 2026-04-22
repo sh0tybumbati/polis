@@ -5042,7 +5042,17 @@ class GameScene extends Phaser.Scene {
         });
         if (this.fmType === type) btn.setStrokeStyle(2, 0x88ccdd);
       });
-      let rx = FM_TYPES.length * (btnS+4) + 12;
+
+      // Scout: auto-explore for units that are scouts
+      if (sel.every(u => u.type === 'scout')) {
+        this._uibtn(this.uiRight, FM_TYPES.length * (btnS+4) + btnS/2, UI_PANEL_H/2, 'EXPLORE', 0x554466, null, () => {
+          sel.forEach(u => u.role = 'scouting');
+          this.updateUI();
+        });
+      }
+
+      // Selection management
+      let rx = (sel.every(u => u.type === 'scout') ? (FM_TYPES.length + 1) : FM_TYPES.length) * (btnS+4) + 12;
       this._uibtn(this.uiRight, rx + btnS/2, UI_PANEL_H/2, 'ALL', 0x334422, null, () => this.units.filter(u => !u.isEnemy).forEach(u => this.selectUnit(u.id, true)));
       this._uibtn(this.uiRight, rx + btnS + btnS/2 + 4, UI_PANEL_H/2, '✕', 0x332211, null, () => { this.bldgType = null; this.roadMode = false; this.deselect(); this.hoverGfx.clear(); this.updateUI(); });
     } else {
@@ -5054,11 +5064,11 @@ class GameScene extends Phaser.Scene {
       this._drawBuildingInfoPane();
     } else if (sel.length > 0) {
       const allWorkers = sel.every(u => u.type === 'worker');
+      const allAdults  = sel.every(u => u.age >= 2);
       if (allWorkers) {
-        // Left side for workers: Job Actions & Build tabs
-        this._drawWorkerMenu(sel);
+        if (allAdults) this._drawWorkerMenu(sel);
+        else this.uiLeft.add(this.add.text(10, 40, 'Only adults can build', { fontSize:'10px', color:'#aaa', fontFamily:'monospace' }));
       } else {
-        // Left side for soldiers: Specialized actions
         this._drawSoldierMenu(sel);
       }
     } else {
