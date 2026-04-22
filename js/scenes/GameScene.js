@@ -4798,6 +4798,17 @@ class GameScene extends Phaser.Scene {
 
       // ── Single finger / mouse ─────────────────────────────────────────
       this._pinch.active = false;
+
+      // Middle-click / Scroll wheel drag pan
+      if (ptr.isDown && ptr.middleButtonDown()) {
+        const cam = this.cameras.main;
+        cam.scrollX -= (ptr.x - this._prevX) / cam.zoom;
+        cam.scrollY -= (ptr.y - this._prevY) / cam.zoom;
+        this._prevX = ptr.x;
+        this._prevY = ptr.y;
+        return;
+      }
+      this._prevX = ptr.x; this._prevY = ptr.y;
       const isUI = ptr.y < MAP_OY || ptr.y > SCREEN_H - UI_PANEL_H;
       if (this.roadMode && ptr.isDown && ptr.leftButtonDown() && !isUI) {
         // Drag-paint road tiles
