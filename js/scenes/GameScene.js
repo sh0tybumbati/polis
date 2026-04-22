@@ -4244,7 +4244,8 @@ class GameScene extends Phaser.Scene {
        if (this.resources.food / (this.storageMax.food || 1) > 0.8 && !this.buildings.some(b => b.type === 'granary' && !b.built)) {
          const site = this._findBuildSiteNear('granary', u.x, u.y);
          if (site && this.afford(BLDG.granary.cost)) {
-           this.placeBuiltBuilding('granary', site.tx, site.ty);
+           const b = this.placeBuiltBuilding('granary', site.tx, site.ty);
+           b.built = false; b.buildWork = BUILD_WORK.granary; b.resNeeded = { stone: 4, wood: 3 };
            this.spend(BLDG.granary.cost);
          }
        }
@@ -4252,7 +4253,8 @@ class GameScene extends Phaser.Scene {
        if (this.resources.wood / (this.storageMax.wood || 1) > 0.8 && !this.buildings.some(b => b.type === 'woodshed' && !b.built)) {
          const site = this._findBuildSiteNear('woodshed', u.x, u.y);
          if (site && this.afford(BLDG.woodshed.cost)) {
-           this.placeBuiltBuilding('woodshed', site.tx, site.ty);
+           const b = this.placeBuiltBuilding('woodshed', site.tx, site.ty);
+           b.built = false; b.buildWork = BUILD_WORK.woodshed; b.resNeeded = { stone: 3, wood: 4 };
            this.spend(BLDG.woodshed.cost);
          }
        }
@@ -4262,7 +4264,8 @@ class GameScene extends Phaser.Scene {
        if (pop / (popCap || 1) > 0.8 && !this.buildings.some(b => b.type === 'house' && !b.built)) {
          const site = this._findBuildSiteNear('house', u.x, u.y);
          if (site && this.afford(BLDG.house.cost)) {
-           this.placeBuiltBuilding('house', site.tx, site.ty);
+           const b = this.placeBuiltBuilding('house', site.tx, site.ty);
+           b.built = false; b.buildWork = BUILD_WORK.house; b.resNeeded = { stone: 3 };
            this.spend(BLDG.house.cost);
          }
        }
