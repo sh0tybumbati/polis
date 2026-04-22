@@ -2665,8 +2665,8 @@ class GameScene extends Phaser.Scene {
   seekNodeTask(u, types) {
     const res = NODE_DEF[types[0]]?.resource;
     if (res && !this.hasStorageSpace(res)) return;
-    // 3000px ≈ 93 tiles — covers most of the world map
-    const near = this.findNearNode(u, 3000, types);
+    // 8000px ≈ cover the whole world map for proactive exploration
+    const near = this.findNearNode(u, 8000, types);
     if (near) {
       u.targetNode = near; u.moveTo = null;
       // Update memory: remember where we last found this kind of resource
@@ -4246,36 +4246,32 @@ class GameScene extends Phaser.Scene {
     // ── Idle: seek next task by role ──────────────────────────────────────
     if (this.phase !== 'DAY' && this.phase !== 'NIGHT') return;
     if (ENABLE_PROACTIVE_AI && u.role === null && u.age >= 2 && !u.moveTo) {
-       // Proactive AI: Build Granary
-       if (this.resources.food / (this.storageMax.food || 1) > 0.8 && !this.buildings.some(b => b.type === 'granary' && !b.built)) {
-         const site = this._findBuildSiteNear('granary', u.x, u.y);
-         if (site && this.afford(BLDG.granary.cost)) {
-           const b = this.makeBldgObj('granary', site.tx, site.ty, false);
-           b.built = false; b.buildWork = BUILD_WORK.granary; b.resNeeded = { stone: 4, wood: 3 };
+       // Proactive AI: Build Farm
+       if (this.resources.food / (this.storageMax.food || 1) < 0.4 && !this.buildings.some(b => b.type === 'farm' && !b.built)) {
+         const site = this._findBuildSiteNear('farm', u.x, u.y);
+         if (site && this.afford(BLDG.farm.cost)) {
+           const b = this.makeBldgObj('farm', site.tx, site.ty, false);
+           b.built = false; b.buildWork = BUILD_WORK.farm; b.resNeeded = { stone: 4, wood: 2 };
            this.buildings.push(b); this.redrawBuilding(b);
-           this.spend(BLDG.granary.cost);
+           this.spend(BLDG.farm.cost);
          }
        }
-       // Proactive AI: Build Woodshed
-       if (this.resources.wood / (this.storageMax.wood || 1) > 0.8 && !this.buildings.some(b => b.type === 'woodshed' && !b.built)) {
-         const site = this._findBuildSiteNear('woodshed', u.x, u.y);
-         if (site && this.afford(BLDG.woodshed.cost)) {
-           const b = this.makeBldgObj('woodshed', site.tx, site.ty, false);
-           b.built = false; b.buildWork = BUILD_WORK.woodshed; b.resNeeded = { stone: 3, wood: 4 };
-           this.buildings.push(b); this.redrawBuilding(b);
-           this.spend(BLDG.woodshed.cost);
+       // Proactive AI: Build Garden
+       if (this.resources.food < 50 && !this.buildings.some(b => b.type === 'garden' && !b.built)) {
+         const site = this._findBuildSiteNear('garden', u.x, u.y);
+         if (site && this.afford(BLDG.garden.cost)) {
+           const b = this.makeBldgObj('garden', site.tx, site.ty, false);
+           b.built = false; b.buildWork = BUILD_WORK.garden; b.resNeeded = { stone: 2, wood: 3 };
+           this.spend(BLDG.garden.cost);
          }
        }
-       // Proactive AI: Build House
-       const pop = this.units.filter(u => !u.isEnemy && u.hp > 0).length;
-       const popCap = this.buildings.filter(b => !b.faction && b.built && BLDG[b.type].capacity).reduce((s, b) => s + BLDG[b.type].capacity, 0);
-       if (pop / (popCap || 1) > 0.8 && !this.buildings.some(b => b.type === 'house' && !b.built)) {
-         const site = this._findBuildSiteNear('house', u.x, u.y);
-         if (site && this.afford(BLDG.house.cost)) {
-           const b = this.makeBldgObj('house', site.tx, site.ty, false);
-           b.built = false; b.buildWork = BUILD_WORK.house; b.resNeeded = { stone: 3 };
-           this.buildings.push(b); this.redrawBuilding(b);
-           this.spend(BLDG.house.cost);
+       // Proactive AI: Build Pasture
+       if (this.resources.wool < 20 && !this.buildings.some(b => b.type === 'pasture' && !b.built)) {
+         const site = this._findBuildSiteNear('pasture', u.x, u.y);
+         if (site && this.afford(BLDG.pasture.cost)) {
+           const b = this.makeBldgObj('pasture', site.tx, site.ty, false);
+           b.built = false; b.buildWork = BUILD_WORK.pasture; b.resNeeded = { stone: 3, wood: 6 };
+           this.spend(BLDG.pasture.cost);
          }
        }
     }
