@@ -2484,24 +2484,30 @@ class GameScene extends Phaser.Scene {
 
     // Adults (age 2+) can build and do heavy work
     if (u.age >= 2 && this.buildings.some(b => !b.built))
-      cands.push({ role:'builder',    score: 100 - cnt('builder')    * 20 });
+      cands.push({ role:'builder',    score: (100 + u.skills.masonry * 10) - cnt('builder') * 20 });
+      
     // Youths (age 1+) can farm and forage
     const farmUseful = this.buildings.some(b => b.type==='farm' && b.built && b.faction !== 'enemy' &&
       (b.stock <= 0 || (b.stock > 0 && this.hasStorageSpace('food'))));
     if (farmUseful)
-      cands.push({ role:'farmer',     score: (60 + need('food') * 60)  - cnt('farmer')     * 25 });
+      cands.push({ role:'farmer',     score: (60 + need('food') * 50 + u.skills.planting * 15)  - cnt('farmer')     * 25 });
+      
     const visNode = (types) => this.resNodes.some(n => {
       if (!types.includes(n.type) || n.stock <= 0) return false;
       const tx = Math.floor(n.x/TILE), ty = Math.floor((n.y-MAP_OY)/TILE);
       return (this.visMap[ty]?.[tx] ?? 0) >= 1;
     });
+    
     if (visNode(['berry_bush']) && this.hasStorageSpace('food'))
-      cands.push({ role:'forager',    score: (40 + need('food') * 50)  - cnt('forager')    * 22 });
+      cands.push({ role:'forager',    score: (40 + need('food') * 40 + u.skills.harvesting * 15)  - cnt('forager')    * 22 });
+      
     // Adults only: woodcutting and mining
     if (u.age >= 2 && visNode(['small_tree','large_tree']) && this.hasStorageSpace('wood'))
-      cands.push({ role:'woodcutter', score: (30 + need('wood') * 70)  - cnt('woodcutter') * 22 });
+      cands.push({ role:'woodcutter', score: (30 + need('wood') * 60 + u.skills.woodchopping * 15)  - cnt('woodcutter') * 22 });
+      
     if (u.age >= 2 && visNode(['small_boulder','large_boulder']) && this.hasStorageSpace('stone'))
-      cands.push({ role:'miner',      score: (25 + need('stone') * 70) - cnt('miner')      * 22 });
+      cands.push({ role:'miner',      score: (25 + need('stone') * 60 + u.skills.mining * 15) - cnt('miner')      * 22 });
+      
     // Adults can shepherd if there are visible wool-ready sheep and wool storage exists
     const visWoolSheep = this.sheep.some(s => {
       if (!s.woolReady) return false;
@@ -2510,7 +2516,7 @@ class GameScene extends Phaser.Scene {
     });
     const pastureExists = this.buildings.some(b => b.type === 'pasture' && b.built);
     if (u.age >= 2 && (visWoolSheep || pastureExists) && this.hasStorageSpace('wool'))
-      cands.push({ role:'shepherd',   score: (20 + need('wool') * 50)  - cnt('shepherd')   * 20 });
+      cands.push({ role:'shepherd',   score: (20 + need('wool') * 40 + u.skills.harvesting * 10)  - cnt('shepherd')   * 20 });
 
     cands.sort((a, b) => b.score - a.score);
     const best = cands.find(c => c.score > 0);
