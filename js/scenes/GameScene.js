@@ -1,16 +1,22 @@
-// ─── Greek veteran names ──────────────────────────────────────────────────────
-const GREEK_NAMES = [
+// ─── Greek names ─────────────────────────────────────────────────────────────
+const GREEK_NAMES_M = [
   'Lysander','Themistokles','Alkibiades','Leonidas','Brasidas',
   'Nikias','Demetrios','Perikles','Miltiades','Xenophon',
   'Pausanias','Epaminondas','Iphikrates','Konon','Agesilaos',
   'Kleombrotos','Kallikrates','Thrasybulos','Phokion','Timoleon',
+  'Aristides','Cimon','Philopoemen','Pelopidas','Agis'
 ];
-const _usedVetNames = new Set();
-function _pickVetName() {
-  const avail = GREEK_NAMES.filter(n => !_usedVetNames.has(n));
-  const name = avail.length ? avail[Math.floor(Math.random() * avail.length)] : GREEK_NAMES[Math.floor(Math.random() * GREEK_NAMES.length)];
-  _usedVetNames.add(name);
-  return name;
+const GREEK_NAMES_F = [
+  'Artemisia','Aspasia','Gorgo','Hydna','Telesilla',
+  'Agnodike','Phano','Cynisca','Hipparchia','Arete',
+  'Metrodora','Theano','Anyte','Nossis','Praxilla',
+  'Cleopatra','Berenice','Eurydice','Olympias','Roxana',
+  'Thais','Phryne','Lais','Leontion','Elpinice'
+];
+
+function _pickName(gender) {
+  const list = gender === 'female' ? GREEK_NAMES_F : GREEK_NAMES_M;
+  return list[Math.floor(Math.random() * list.length)];
 }
 
 // ─── Constants ───────────────────────────────────────────────────────────────
@@ -80,38 +86,38 @@ const SHEEP_MEAT      = 4;    // food from slaughtering one adult sheep
 
 const BLDG = {
   // ── Starting (pre-built, not in toolbar) ──────────────────────────────────
-  townhall:   { label: '🏛 Prytaneion',    color: 0xaa7733, cost: null, size: 2,
+  townhall:   { label: '🏛 Town Hall',    color: 0xaa7733, cost: null, size: 2,
                 capacity: 6, spawnMs: 22000, stores: { food: 25, stone: 25, wood: 25 }, hidden: true },
   // ── Buildable ─────────────────────────────────────────────────────────────
-  house:      { label: '🏠 Oikos',         color: 0xcc8844, cost: { stone: 3 },          size: 1,
+  house:      { label: '🏠 House',         color: 0xcc8844, cost: { stone: 3 },          size: 1,
                 capacity: 4, spawnMs: 20000 },
-  granary:    { label: '🌾 Sitos',         color: 0xcc9933, cost: { stone: 4, wood: 3 }, size: 2,
+  granary:    { label: '🌾 Granary',         color: 0xcc9933, cost: { stone: 4, wood: 3 }, size: 2,
                 stores: { food: 60 } },
-  woodshed:   { label: '🪵 Xylotheke',     color: 0x7a5030, cost: { stone: 3, wood: 4 }, size: 2,
+  woodshed:   { label: '🪵 Woodshed',     color: 0x7a5030, cost: { stone: 3, wood: 4 }, size: 2,
                 stores: { wood: 60 } },
-  stonepile:  { label: '🧱 Lithotheke',    color: 0x888878, cost: { stone: 3 },          size: 2,
+  stonepile:  { label: '🧱 Stone Pile',    color: 0x888878, cost: { stone: 3 },          size: 2,
                 stores: { stone: 50 } },
-  farm:       { label: '🚜 Agros',         color: 0x5a9a28, cost: { stone: 4, wood: 2 }, size: 2, stockMax: 32 },
-  garden:     { label: '🌻 Kepos',         color: 0x448833, cost: { stone: 2, wood: 3 }, size: 2, stockMax: 20,
+  farm:       { label: '🚜 Farm',         color: 0x5a9a28, cost: { stone: 4, wood: 2 }, size: 2, stockMax: 32 },
+  garden:     { label: '🌻 Garden',         color: 0x448833, cost: { stone: 2, wood: 3 }, size: 2, stockMax: 20,
                 stores: { seeds: 20 } },
-  barracks:   { label: '⚔ Strategeion',   color: 0x8a6848, cost: { stone: 6, wood: 4 }, size: 2, spawnMs: 18000 },
-  archery:    { label: '🏹 Toxikon',       color: 0x2a7a4a, cost: { stone: 5, wood: 3 }, size: 2, spawnMs: 16000 },
-  stable:     { label: '🐎 Hippikon',      color: 0x7a5522, cost: { stone: 6, wood: 8 }, size: 2, spawnMs: 22000 },
-  tannery:    { label: '👞 Bursodepsion',  color: 0x8a5530, cost: { stone: 4, wood: 5 }, size: 2, stores: { hide: 30, leather: 30, leatherKit: 10 } },
-  mine:       { label: '⛏ Metalleion',    color: 0x666655, cost: { stone: 5, wood: 4 }, size: 2, stores: { ore: 30 } },
-  smelter:    { label: '🔥 Chalkeion',     color: 0xaa5522, cost: { stone: 8, wood: 3 }, size: 2, stores: { ingot: 20 } },
-  blacksmith: { label: '🔨 Hephaisteia',   color: 0x555566, cost: { stone: 6, wood: 4 }, size: 2, stores: { bronzeKit: 10 } },
-  mill:       { label: '⚙ Mylos',         color: 0xaa9955, cost: { stone: 5, wood: 4 }, size: 2, stores: { wheat: 40, flour: 30 } },
-  bakery:     { label: '🍞 Artopoion',     color: 0xcc9944, cost: { stone: 4, wood: 3 }, size: 2, stores: { flour: 20 } },
-  butcher:    { label: '🥩 Makellon',      color: 0xaa4433, cost: { stone: 3, wood: 3 }, size: 2, stores: { meat: 20 } },
-  olive_press:{ label: '🫒 Elaiotriveion', color: 0x667733, cost: { stone: 5, wood: 4 }, size: 2, stores: { olives: 30 } },
-  temple:     { label: '🕯 Naos',          color: 0xddaa44, cost: { stone: 8, wood: 6 }, size: 2 },
-  oracle:     { label: '🔮 Manteion',      color: 0x8866aa, cost: { stone: 6, wood: 4 }, size: 2 },
-  palisade:   { label: '🪵 Staketon',      color: 0x8a6030, cost: { wood: 2 },           size: 1 },
-  watchtower: { label: '🗼 Pyrgos',        color: 0x7a7060, cost: { stone: 4, wood: 3 }, size: 1, fogRadius: 6, atkRange: 5 * TILE },
-  gate:       { label: '🚪 Pylon',         color: 0xa08858, cost: { stone: 3, wood: 2 }, size: 1 },
-  wall:       { label: '🧱 Teichos',       color: 0x9a9888, cost: { stone: 2 },          size: 1 },
-  pasture:    { label: '🐑 Poimnion',      color: 0x66aa44, cost: { stone: 3, wood: 6 }, size: 3,
+  barracks:   { label: '⚔ Barracks',   color: 0x8a6848, cost: { stone: 6, wood: 4 }, size: 2, spawnMs: 18000 },
+  archery:    { label: '🏹 Archery Range',       color: 0x2a7a4a, cost: { stone: 5, wood: 3 }, size: 2, spawnMs: 16000 },
+  stable:     { label: '🐎 Stable',      color: 0x7a5522, cost: { stone: 6, wood: 8 }, size: 2, spawnMs: 22000 },
+  tannery:    { label: '👞 Tannery',  color: 0x8a5530, cost: { stone: 4, wood: 5 }, size: 2, stores: { hide: 30, leather: 30, leatherKit: 10 } },
+  mine:       { label: '⛏ Mine',    color: 0x666655, cost: { stone: 5, wood: 4 }, size: 2, stores: { ore: 30 } },
+  smelter:    { label: '🔥 Smelter',     color: 0xaa5522, cost: { stone: 8, wood: 3 }, size: 2, stores: { ingot: 20 } },
+  blacksmith: { label: '🔨 Blacksmith',     color: 0x555566, cost: { stone: 6, wood: 4 }, size: 2, stores: { bronzeKit: 10 } },
+  mill:       { label: '⚙ Mill',         color: 0xaa9955, cost: { stone: 5, wood: 4 }, size: 2, stores: { wheat: 40, flour: 30 } },
+  bakery:     { label: '🍞 Bakery',     color: 0xcc9944, cost: { stone: 4, wood: 3 }, size: 2, stores: { flour: 20 } },
+  butcher:    { label: '🥩 Butcher',      color: 0xaa4433, cost: { stone: 3, wood: 3 }, size: 2, stores: { meat: 20 } },
+  olive_press:{ label: '🫒 Olive Press', color: 0x667733, cost: { stone: 5, wood: 4 }, size: 2, stores: { olives: 30 } },
+  temple:     { label: '🕯 Temple',          color: 0xddaa44, cost: { stone: 8, wood: 6 }, size: 2 },
+  oracle:     { label: '🔮 Oracle',      color: 0x8866aa, cost: { stone: 6, wood: 4 }, size: 2 },
+  palisade:   { label: '🪵 Palisade',      color: 0x8a6030, cost: { wood: 2 },           size: 1 },
+  watchtower: { label: '🗼 Watchtower',        color: 0x7a7060, cost: { stone: 4, wood: 3 }, size: 1, fogRadius: 6, atkRange: 5 * TILE },
+  gate:       { label: '🚪 Gate',         color: 0xa08858, cost: { stone: 3, wood: 2 }, size: 1 },
+  wall:       { label: '🧱 Wall',       color: 0x9a9888, cost: { stone: 2 },          size: 1 },
+  pasture:    { label: '🐑 Pasture',      color: 0x66aa44, cost: { stone: 3, wood: 6 }, size: 3,
                 sheepCap: 10, stores: { wool: 30 } },
 };
 
@@ -2102,11 +2108,12 @@ class GameScene extends Phaser.Scene {
 
   spawnUnit(type, x, y, isEnemy) {
     const def = UDEF[type];
+    const gender = Math.random() < 0.5 ? 'male' : 'female';
     const unit = {
       id: this.getId(), type, x, y,
       hp: def.hp, maxHp: def.hp,
       isEnemy, selected: false,
-      gender: Math.random() < 0.5 ? 'male' : 'female',
+      gender, name: _pickName(gender),
       moveTo: null, lastAtk: 0, lastGather: 0,
       speed: def.speed, atk: def.atk, range: def.range,
       wallSide: 0, homeBldgId: null, age: 0,
@@ -2115,6 +2122,11 @@ class GameScene extends Phaser.Scene {
       role: null, replantTimer: 0, trainTimer: 0, lastSeek: 0,
       roleMemory: {}, targetDeer: null, targetSheep: null,
       nightsSurvived: 0, vetLevel: 0,
+      skills: {
+        planting: 1, harvesting: 1, woodchopping: 1, mining: 1,
+        masonry: 1, woodworking: 1, smithing: 1, cooking: 1
+      },
+      workProgress: 0,
       gfx: this._w(this.add.graphics().setDepth(6)),
     };
     this.redrawUnit(unit); this.units.push(unit);
@@ -5164,18 +5176,29 @@ class GameScene extends Phaser.Scene {
 
   updateSelInfo() {
     if (!this.selInfo) return;
-    const n=this.selIds.size;
-    if (n===0){this.selInfo.setText('');return;}
-    const sel=this.units.filter(u=>u.selected);
-    if (n===1 && sel[0]?.type !== 'worker') {
+    const n = this.selIds.size;
+    if (n === 0) { this.selInfo.setText(''); return; }
+    const sel = this.units.filter(u => u.selected);
+    
+    if (n === 1) {
       const u = sel[0];
-      const vl = u.vetLevel ?? 0;
       const dispName = UNIT_NAMES[u.type] ?? u.type;
-      const vetLabel = vl >= 1 ? (VET_LEVELS[vl-1].label + (u.veteranName ? ` ${u.veteranName}` : '')) : '';
-      this.selInfo.setText((vetLabel ? `${vetLabel} ` : '') + dispName);
+      const vetLabel = u.vetLevel >= 1 ? (VET_LEVELS[u.vetLevel-1].label + ' ') : '';
+      
+      let str = `[${u.name}] ${vetLabel}${dispName}`;
+      
+      if (u.type === 'worker') {
+        const topSkills = Object.entries(u.skills)
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 3)
+          .map(([s, lv]) => `${s[0].toUpperCase()}${s.slice(1)} Lv${lv}`)
+          .join(', ');
+        str += `\nSkills: ${topSkills}`;
+      }
+      this.selInfo.setText(str);
       return;
     }
-    const roles={};
+    const roles = {};
     sel.forEach(u=>{
       const label = u.type==='worker' && u.role ? u.role : (UNIT_NAMES[u.type] ?? u.type);
       roles[label]=(roles[label]||0)+1;
