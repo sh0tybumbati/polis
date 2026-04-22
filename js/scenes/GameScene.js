@@ -4893,10 +4893,14 @@ class GameScene extends Phaser.Scene {
       if (this.selIds.size > 0) {
         if (bldg && this.orderWorkersToBuilding(bldg)) return;
         if (node && this.orderWorkersToNode(node)) return;
-      } else {
-        if (bldg) { this.selectedBuilding = bldg; this.updateUI(); return; }
-        if (this.selectedBuilding) { this.selectedBuilding = null; this.updateUI(); }
       }
+      
+      // Select building or node for info
+      if (bldg) { this.selectedBuilding = bldg; this.updateUI(); return; }
+      if (node) { this.selectedNode = node; this.updateSelInfo(); this.updateUI(); return; }
+      
+      if (this.selectedBuilding) { this.selectedBuilding = null; this.updateUI(); }
+      if (this.selectedNode) { this.selectedNode = null; this.updateUI(); }
     });
 
     this.input.keyboard?.on('keydown-ESC', () => { this.bldgType = null; this.roadMode = false; this.deselect(); this.selectedBuilding = null; this.hoverGfx.clear(); this.updateUI(); });
