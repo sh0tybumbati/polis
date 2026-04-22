@@ -432,19 +432,25 @@ class GameScene extends Phaser.Scene {
     const place = (type, targetBiome, count, allowed) => {
       const ok = terrainOk[type] ?? (t => t !== T_WATER);
       let placed = 0;
-      for (let attempt = 0; attempt < count * 50 && placed < count; attempt++) {
-        const tx = Phaser.Math.Between(1, MAP_W - 2);
-        const ty = Phaser.Math.Between(1, MAP_H - 2);
-        if ((this.biomeData[ty]?.[tx] ?? -1) !== targetBiome) continue;
-        if (!ok(this.terrainData[ty]?.[tx] ?? T_GRASS)) continue;
-        if (allowed && !allowed(tx, ty)) continue;
-        const wx = tx * TILE + TILE / 2, wy = MAP_OY + ty * TILE + TILE / 2;
-        if (this.resNodes.some(n => Phaser.Math.Distance.Between(wx, wy, n.x, n.y) < 56)) continue;
-        const def = NODE_DEF[type];
-        this.resNodes.push({ id: this.getId(), type, x: wx, y: wy,
-          stock: def.stock, maxStock: def.stock, gfx: null, labelObj: null,
-          dormantTimer: 0, sapling: false, saplingTimer: 0 });
-        placed++;
+      // Clusters: Pick a seed, spawn nodes in a 5-tile radius
+      for (let attempt = 0; attempt < count * 2 && placed < count; attempt++) {
+        const sx = Phaser.Math.Between(2, MAP_W - 3);
+        const sy = Phaser.Math.Between(2, MAP_H - 3);
+        for (let i = 0; i < 4 && placed < count; i++) {
+          const tx = sx + Phaser.Math.Between(-5, 5);
+          const ty = sy + Phaser.Math.Between(-5, 5);
+          if (tx < 1 || tx >= MAP_W - 1 || ty < 1 || ty >= MAP_H - 1) continue;
+          if ((this.biomeData[ty]?.[tx] ?? -1) !== targetBiome) continue;
+          if (!ok(this.terrainData[ty]?.[tx] ?? T_GRASS)) continue;
+          if (allowed && !allowed(tx, ty)) continue;
+          const wx = tx * TILE + TILE / 2, wy = MAP_OY + ty * TILE + TILE / 2;
+          if (this.resNodes.some(n => Phaser.Math.Distance.Between(wx, wy, n.x, n.y) < 40)) continue;
+          const def = NODE_DEF[type];
+          this.resNodes.push({ id: this.getId(), type, x: wx, y: wy,
+            stock: def.stock, maxStock: def.stock, gfx: null, labelObj: null,
+            dormantTimer: 0, sapling: false, saplingTimer: 0 });
+          placed++;
+        }
       }
     };
 
