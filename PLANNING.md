@@ -165,7 +165,9 @@ Gender is a single field (`gender: 'male' | 'female'`) assigned at spawn (50/50 
 - [x] Enemy workers and soldiers pathfind and behave using the same unit system; enemy soldiers patrol during day and march south at night
 - [x] Enemy village rebuilds destroyed structures using its own workers and resources
 - [x] Player can observe enemy activity once fog is cleared in that region
-- [ ] **Enemy scout** appears ~20s before each night; killing it reveals full wave composition as a UI flash
+- [x] **Enemy scout** appears ~20s before each night; killing it reveals full wave composition as a UI flash
+- [x] **Player scouting** — train fast Kataskopos (scouts) at the Townhall to explore and reveal map
+- [x] **Proactive Workers** — idle workers intelligently seek roles based on current resource shortages
 
 ### Economy Depth — Food Chains & Daily Life
 
@@ -184,6 +186,7 @@ Gender is a single field (`gender: 'male' | 'female'`) assigned at spawn (50/50 
 
 #### Future Food Chain (MS4+)
 - [x] Kepos (garden) — auto-produces food from seeds; seeds harvested from discovered wild gardens
+- [x] **Specialized Crop Types** — Kepos plots can cycle between Lentils (food), Garlic (HP regen), and Onions (worker speed)
 - [x] Elaiotriveion (olive press) — 2 olives → 3 food; olives harvested from discovered olive groves (mid-map)
 - [ ] **Distinct crop types for Kepos** — wild gardens yield specific seeds (lentils, garlic, onions, etc.); each Kepos plot grows one crop type with different bonuses (e.g. lentils = steady food, garlic = soldier HP regen, onions = worker speed)
 - [ ] Cookhouse: bread + sausage → portable rations for scouts

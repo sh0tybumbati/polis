@@ -32,3 +32,9 @@
 - **Context-Aware Sidebars** — the left sidebar automatically shifts content based on selection: showing building category tabs ([E]conomy, [R]esource, [C]ivic, [D]efense) when no one is selected, specific unit actions (like "RECALL" for workers or "DISMISS" for soldiers), and detailed building info/actions when a structure is selected.
 - **Mobile-Friendly UI** — reduced the size of navigation tabs and organized building options into a 2-column grid to maximize vertical space and improve usability on small screens.
 - **Selection Management** — added "ALL" (select all units) and "✕" (deselect) buttons directly to the bottom panel for faster army management.
+- **Proactive Workers** — idle workers now intelligently choose roles based on resource shortages. They prioritize gathering resources that are furthest from their storage capacity (e.g., if stone is low but wood is full, they will seek mining tasks).
+- **Player Scouts** — players can now train scouts at the Townhall for 5 food. Scouts have high movement speed and an expanded 8-tile vision radius for efficient map exploration.
+- **Garden Crop Types** — the Kepos (Garden) now supports three specialized crops that can be cycled in its info panel:
+    - **Lentils**: Standard high-yield food production.
+    - **Garlic**: Provides HP regeneration (1 HP / 2s) for nearby friendly units.
+    - **Onions**: Grants a +25% movement speed boost to nearby friendly workers.

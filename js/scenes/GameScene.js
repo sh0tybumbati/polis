@@ -592,7 +592,7 @@ class GameScene extends Phaser.Scene {
     //   all others: clear=5, dim out to 10
     for (const u of this.units) {
       if (u.isEnemy || u.hp <= 0) continue;
-      const clearR = u.type === 'worker' ? 3 : 5;
+      const clearR = u.type === 'worker' ? 3 : u.type === 'scout' ? 8 : 5;
       const dimR   = clearR * 2;
       const cx = Math.floor(u.x / TILE);
       const cy = Math.floor((u.y - MAP_OY) / TILE);
@@ -2438,6 +2438,13 @@ class GameScene extends Phaser.Scene {
     const cnt = r => workers.filter(w => w.role===r).length;
     const cands = [];
 
+    // Helper: resource "need" score (0.0 to 1.0; 1.0 = empty storage)
+    const need = res => {
+      const cap = this.storageMax[res] || 0;
+      if (cap <= 0) return 0;
+      return 1.0 - Math.min(1.0, (this.resources[res] || 0) / cap);
+    };
+
     // Adults (age 2+) can build and do heavy work
     if (u.age >= 2 && this.buildings.some(b => !b.built))
       cands.push({ role:'builder',    score: 100 - cnt('builder')    * 20 });
@@ -2445,19 +2452,19 @@ class GameScene extends Phaser.Scene {
     const farmUseful = this.buildings.some(b => b.type==='farm' && b.built && b.faction !== 'enemy' &&
       (b.stock <= 0 || (b.stock > 0 && this.hasStorageSpace('food'))));
     if (farmUseful)
-      cands.push({ role:'farmer',     score: 80  - cnt('farmer')     * 25 });
+      cands.push({ role:'farmer',     score: (60 + need('food') * 60)  - cnt('farmer')     * 25 });
     const visNode = (types) => this.resNodes.some(n => {
       if (!types.includes(n.type) || n.stock <= 0) return false;
       const tx = Math.floor(n.x/TILE), ty = Math.floor((n.y-MAP_OY)/TILE);
       return (this.visMap[ty]?.[tx] ?? 0) >= 1;
     });
     if (visNode(['berry_bush']) && this.hasStorageSpace('food'))
-      cands.push({ role:'forager',    score: 55  - cnt('forager')    * 22 });
+      cands.push({ role:'forager',    score: (40 + need('food') * 50)  - cnt('forager')    * 22 });
     // Adults only: woodcutting and mining
     if (u.age >= 2 && visNode(['small_tree','large_tree']) && this.hasStorageSpace('wood'))
-      cands.push({ role:'woodcutter', score: 50  - cnt('woodcutter') * 22 });
+      cands.push({ role:'woodcutter', score: (30 + need('wood') * 70)  - cnt('woodcutter') * 22 });
     if (u.age >= 2 && visNode(['small_boulder','large_boulder']) && this.hasStorageSpace('stone'))
-      cands.push({ role:'miner',      score: 45  - cnt('miner')      * 22 });
+      cands.push({ role:'miner',      score: (25 + need('stone') * 70) - cnt('miner')      * 22 });
     // Adults can shepherd if there are visible wool-ready sheep and wool storage exists
     const visWoolSheep = this.sheep.some(s => {
       if (!s.woolReady) return false;
@@ -2466,7 +2473,7 @@ class GameScene extends Phaser.Scene {
     });
     const pastureExists = this.buildings.some(b => b.type === 'pasture' && b.built);
     if (u.age >= 2 && (visWoolSheep || pastureExists) && this.hasStorageSpace('wool'))
-      cands.push({ role:'shepherd',   score: 40  - cnt('shepherd')   * 20 });
+      cands.push({ role:'shepherd',   score: (20 + need('wool') * 50)  - cnt('shepherd')   * 20 });
 
     cands.sort((a, b) => b.score - a.score);
     const best = cands.find(c => c.score > 0);
@@ -3105,6 +3112,17 @@ class GameScene extends Phaser.Scene {
   tickUnits(time, dt) {
     for (const u of this.units) {
       if (u.hp <= 0) continue;
+      
+      // Garlic garden: HP regen (1 HP per 2 seconds) for nearby friendly units
+      if (!u.isEnemy && u.hp < u.maxHp) {
+        const nearGarlic = this.buildings.some(b => b.type === 'garden' && b.built && b.cropType === 'garlic'
+          && Phaser.Math.Distance.Between(u.x, u.y, (b.tx+b.size/2)*TILE, MAP_OY+(b.ty+b.size/2)*TILE) < 5 * TILE);
+        if (nearGarlic) {
+          u._regenAcc = (u._regenAcc || 0) + dt;
+          if (u._regenAcc >= 2.0) { u.hp = Math.min(u.maxHp, u.hp + 1); u._regenAcc = 0; }
+        }
+      }
+
       u.isEnemy ? this.tickEnemy(u, time, dt) : this.tickPlayer(u, time, dt);
       u.gfx.setPosition(u.x, u.y); this.redrawUnit(u);
     }
@@ -4250,8 +4268,17 @@ class GameScene extends Phaser.Scene {
     const a = Math.atan2(ty - u.y, tx - u.x);
     const tileX = Math.floor(u.x / TILE), tileY = Math.floor((u.y - MAP_OY) / TILE);
     const spd = this._tileSpd(tileX, tileY);
-    u.x += Math.cos(a) * u.speed * spd * dt;
-    u.y += Math.sin(a) * u.speed * spd * dt;
+    
+    // Onion garden: +25% speed for nearby workers
+    let onionMult = 1.0;
+    if (!u.isEnemy && u.type === 'worker') {
+      const nearOnion = this.buildings.some(b => b.type === 'garden' && b.built && b.cropType === 'onions'
+        && Phaser.Math.Distance.Between(u.x, u.y, (b.tx+b.size/2)*TILE, MAP_OY+(b.ty+b.size/2)*TILE) < 5 * TILE);
+      if (nearOnion) onionMult = 1.25;
+    }
+
+    u.x += Math.cos(a) * u.speed * spd * onionMult * dt;
+    u.y += Math.sin(a) * u.speed * spd * onionMult * dt;
     // Accumulate footfall — only for non-enemy units on non-paved tiles
     if (!u.isEnemy && tileX >= 0 && tileX < MAP_W && tileY >= 0 && tileY < MAP_H) {
       if ((this.roadMap[tileY]?.[tileX] ?? ROAD_NONE) !== ROAD_PAVED) {
@@ -5098,6 +5125,13 @@ class GameScene extends Phaser.Scene {
     } else if (b.type === 'temple' && b.built) {
       actionLabel = 'Cycle Deity'; actionColor = 0x442266;
       this.uiLeft.add(this.add.text(10, 50, (b.deity ?? 'ares').toUpperCase(), { fontSize:'9px', color:'#ddaaff' }));
+    } else if (b.type === 'townhall' && b.built) {
+      actionLabel = 'Train Scout'; actionColor = 0x334455;
+      this.uiLeft.add(this.add.text(10, 50, 'Cost: 5🌾', { fontSize:'9px', color:'#88ee88' }));
+    } else if (b.type === 'garden' && b.built) {
+      actionLabel = 'Cycle Crop'; actionColor = 0x446633;
+      const cropInfo = { lentils: '🌿 Lentils (High Food)', garlic: '🧄 Garlic (HP Regen)', onions: '🧅 Onions (Worker Speed)' };
+      this.uiLeft.add(this.add.text(10, 50, cropInfo[b.cropType ?? 'lentils'], { fontSize:'9px', color:'#ccffaa' }));
     }
 
     this._uibtn(this.uiLeft, 40, 95, actionLabel, actionColor, null, () => {
@@ -5106,6 +5140,17 @@ class GameScene extends Phaser.Scene {
       } else if (b.type === 'temple' && b.built) {
         const cycle = { ares: 'athena', athena: 'apollo', apollo: 'ares' };
         b.deity = cycle[b.deity ?? 'ares']; b.templeTimer = 0; this.updateUI();
+      } else if (b.type === 'townhall' && b.built) {
+        if (this.resources.food >= 5) {
+          this.resources.food -= 5;
+          const cx = (b.tx + b.size/2)*TILE, cy = MAP_OY + (b.ty + b.size/2)*TILE;
+          this.spawnUnit('scout', cx, cy, false);
+          this.updateUI();
+        } else { this.showPhaseMessage('Not enough food!', 0xff4444); }
+      } else if (b.type === 'garden' && b.built) {
+        const cycle = { lentils: 'garlic', garlic: 'onions', onions: 'lentils' };
+        b.cropType = cycle[b.cropType ?? 'lentils'];
+        this.updateUI();
       } else if (b.type === 'pasture' && b.built && (b.males+b.females) >= 1) {
         this._slaughterSheep(b);
       } else {
