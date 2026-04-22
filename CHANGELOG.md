@@ -28,3 +28,7 @@
 - **Berry bush spreading** — each dawn, any bush at >50% stock has a 10% chance to seed a new dormant bush on an adjacent grass or scrubland tile (capped at 30 bushes total)
 - **Tree saplings** — fully harvested trees become a tiny green sapling rather than vanishing; small trees regrow in 3 days, large trees in 5 days
 - **Natural tree seeding** — each dawn, living (non-sapling) trees have a 12% chance to seed a sapling on an adjacent forest or grass tile (capped at 60 tree nodes total)
+- **GUI Rework** — implemented a major interface overhaul with a bottom-docked control panel and contextual sidebars. The minimap is now centered within this panel, flanked by contextual action buttons on the left and movement/selection controls on the right.
+- **Context-Aware Sidebars** — the left sidebar automatically shifts content based on selection: showing building category tabs ([E]conomy, [R]esource, [C]ivic, [D]efense) when no one is selected, specific unit actions (like "RECALL" for workers or "DISMISS" for soldiers), and detailed building info/actions when a structure is selected.
+- **Mobile-Friendly UI** — reduced the size of navigation tabs and organized building options into a 2-column grid to maximize vertical space and improve usability on small screens.
+- **Selection Management** — added "ALL" (select all units) and "✕" (deselect) buttons directly to the bottom panel for faster army management.

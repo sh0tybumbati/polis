@@ -80,37 +80,42 @@ const SHEEP_MEAT      = 4;    // food from slaughtering one adult sheep
 
 const BLDG = {
   // ── Starting (pre-built, not in toolbar) ──────────────────────────────────
-  townhall: { label: 'Town Hall', color: 0xaa7733, cost: null, size: 2,
-              capacity: 6, spawnMs: 22000, stores: { food: 25, stone: 25, wood: 25 }, hidden: true },
+  townhall:   { label: 'Prytaneion',    color: 0xaa7733, cost: null, size: 2,
+                capacity: 6, spawnMs: 22000, stores: { food: 25, stone: 25, wood: 25 }, hidden: true },
   // ── Buildable ─────────────────────────────────────────────────────────────
-  house:    { label: 'House',     color: 0xcc8844, cost: { stone: 3 },          size: 1,
-              capacity: 4, spawnMs: 20000 },
-  granary:  { label: 'Granary',   color: 0xcc9933, cost: { stone: 4, wood: 3 }, size: 2,
-              stores: { food: 60 } },
-  woodshed: { label: 'Wood Shed', color: 0x7a5030, cost: { stone: 3, wood: 4 }, size: 2,
-              stores: { wood: 60 } },
-  stonepile:{ label: 'Stone Pile',color: 0x888878, cost: { stone: 3 },          size: 2,
-              stores: { stone: 50 } },
-  farm:     { label: 'Field',     color: 0x5a9a28, cost: { stone: 4, wood: 2 }, size: 2, stockMax: 32 },
-  barracks: { label: 'Barracks',  color: 0x8a6848, cost: { stone: 6, wood: 4 }, size: 2, spawnMs: 18000 },
-  archery:  { label: 'Archery',   color: 0x2a7a4a, cost: { stone: 5, wood: 3 }, size: 2, spawnMs: 16000 },
-  stable:   { label: 'Stable',    color: 0x7a5522, cost: { stone: 6, wood: 8 }, size: 2, spawnMs: 22000 },
-  tannery:  { label: 'Tannery',   color: 0x8a5530, cost: { stone: 4, wood: 5 }, size: 2, stores: { hide: 30, leather: 30, leatherKit: 10 } },
-  mine:     { label: 'Mine',      color: 0x666655, cost: { stone: 5, wood: 4 }, size: 2, stores: { ore: 30 } },
-  smelter:  { label: 'Smelter',   color: 0xaa5522, cost: { stone: 8, wood: 3 }, size: 2, stores: { ingot: 20 } },
-  blacksmith:{ label: 'Smithy',   color: 0x555566, cost: { stone: 6, wood: 4 }, size: 2, stores: { bronzeKit: 10 } },
-  mill:     { label: 'Mill',      color: 0xaa9955, cost: { stone: 5, wood: 4 }, size: 2, stores: { wheat: 40, flour: 30 } },
-  bakery:   { label: 'Bakery',    color: 0xcc9944, cost: { stone: 4, wood: 3 }, size: 2, stores: { flour: 20 } },
-  butcher:  { label: 'Butcher',   color: 0xaa4433, cost: { stone: 3, wood: 3 }, size: 2, stores: { meat: 20 } },
-  palisade: { label: 'Palisade',  color: 0x8a6030, cost: { wood: 2 },           size: 1 },
-  watchtower:{ label: 'W.Tower',  color: 0x7a7060, cost: { stone: 4, wood: 3 }, size: 1, fogRadius: 6, atkRange: 5 * TILE },
-  gate:     { label: 'Gate',      color: 0xa08858, cost: { stone: 3, wood: 2 }, size: 1 },
-  wall:     { label: 'Wall',      color: 0x9a9888, cost: { stone: 2 },          size: 1 },
-  pasture:  { label: 'Pasture',   color: 0x66aa44, cost: { stone: 3, wood: 6 },  size: 3,
-              sheepCap: 10, stores: { wool: 30 } },
+  house:      { label: 'Oikos',         color: 0xcc8844, cost: { stone: 3 },          size: 1,
+                capacity: 4, spawnMs: 20000 },
+  granary:    { label: 'Sitos',         color: 0xcc9933, cost: { stone: 4, wood: 3 }, size: 2,
+                stores: { food: 60 } },
+  woodshed:   { label: 'Xylotheke',     color: 0x7a5030, cost: { stone: 3, wood: 4 }, size: 2,
+                stores: { wood: 60 } },
+  stonepile:  { label: 'Lithotheke',    color: 0x888878, cost: { stone: 3 },          size: 2,
+                stores: { stone: 50 } },
+  farm:       { label: 'Agros',         color: 0x5a9a28, cost: { stone: 4, wood: 2 }, size: 2, stockMax: 32 },
+  garden:     { label: 'Kepos',         color: 0x448833, cost: { stone: 2, wood: 3 }, size: 2, stockMax: 20,
+                stores: { seeds: 20 } },
+  barracks:   { label: 'Strategeion',   color: 0x8a6848, cost: { stone: 6, wood: 4 }, size: 2, spawnMs: 18000 },
+  archery:    { label: 'Toxikon',       color: 0x2a7a4a, cost: { stone: 5, wood: 3 }, size: 2, spawnMs: 16000 },
+  stable:     { label: 'Hippikon',      color: 0x7a5522, cost: { stone: 6, wood: 8 }, size: 2, spawnMs: 22000 },
+  tannery:    { label: 'Bursodepsion',  color: 0x8a5530, cost: { stone: 4, wood: 5 }, size: 2, stores: { hide: 30, leather: 30, leatherKit: 10 } },
+  mine:       { label: 'Metalleion',    color: 0x666655, cost: { stone: 5, wood: 4 }, size: 2, stores: { ore: 30 } },
+  smelter:    { label: 'Chalkeion',     color: 0xaa5522, cost: { stone: 8, wood: 3 }, size: 2, stores: { ingot: 20 } },
+  blacksmith: { label: 'Hephaisteia',   color: 0x555566, cost: { stone: 6, wood: 4 }, size: 2, stores: { bronzeKit: 10 } },
+  mill:       { label: 'Mylos',         color: 0xaa9955, cost: { stone: 5, wood: 4 }, size: 2, stores: { wheat: 40, flour: 30 } },
+  bakery:     { label: 'Artopoion',     color: 0xcc9944, cost: { stone: 4, wood: 3 }, size: 2, stores: { flour: 20 } },
+  butcher:    { label: 'Makellon',      color: 0xaa4433, cost: { stone: 3, wood: 3 }, size: 2, stores: { meat: 20 } },
+  olive_press:{ label: 'Elaiotriveion', color: 0x667733, cost: { stone: 5, wood: 4 }, size: 2, stores: { olives: 30 } },
+  temple:     { label: 'Naos',          color: 0xddaa44, cost: { stone: 8, wood: 6 }, size: 2 },
+  oracle:     { label: 'Manteion',      color: 0x8866aa, cost: { stone: 6, wood: 4 }, size: 2 },
+  palisade:   { label: 'Staketon',      color: 0x8a6030, cost: { wood: 2 },           size: 1 },
+  watchtower: { label: 'Pyrgos',        color: 0x7a7060, cost: { stone: 4, wood: 3 }, size: 1, fogRadius: 6, atkRange: 5 * TILE },
+  gate:       { label: 'Pylon',         color: 0xa08858, cost: { stone: 3, wood: 2 }, size: 1 },
+  wall:       { label: 'Teichos',       color: 0x9a9888, cost: { stone: 2 },          size: 1 },
+  pasture:    { label: 'Poimnion',      color: 0x66aa44, cost: { stone: 3, wood: 6 }, size: 3,
+                sheepCap: 10, stores: { wool: 30 } },
 };
 
-const BUILD_WORK = { house: 10, granary: 14, woodshed: 12, stonepile: 8, farm: 16, barracks: 22, archery: 18, stable: 24, palisade: 4, watchtower: 14, gate: 8, wall: 6, tannery: 18, mine: 20, smelter: 24, blacksmith: 22, mill: 16, bakery: 14, butcher: 12 };
+const BUILD_WORK = { house: 10, granary: 14, woodshed: 12, stonepile: 8, farm: 16, garden: 12, barracks: 22, archery: 18, stable: 24, palisade: 4, watchtower: 14, gate: 8, wall: 6, tannery: 18, mine: 20, smelter: 24, blacksmith: 22, mill: 16, bakery: 14, butcher: 12, olive_press: 16, temple: 24, oracle: 18 };
 
 const DAY_DURATION    = 90000;   // 90s day — larger world needs more management time
 const NIGHT_DURATION  = 90000;   // 90s night — enemies travel further
@@ -139,11 +144,33 @@ const UDEF = {
 
 // Veteran progression — cumulative bonuses per level (applied on top of previous)
 const VET_LEVELS = [
-  { nights:  2, hpBonus: 1, speedMult: 1.10, label: 'Veteran',  color: 0xffdd44 },
-  { nights:  4, hpBonus: 1, speedMult: 1.10, label: 'Seasoned', color: 0xffaa22 },
-  { nights:  6, hpBonus: 2, speedMult: 1.15, label: 'Elite',    color: 0xff8800 },
-  { nights: 10, hpBonus: 3, speedMult: 1.20, label: 'Hero',     color: 0xffffff },
+  { nights:  2, hpBonus: 1, speedMult: 1.10, label: 'Pratomachos', color: 0xffdd44 }, // first fighter
+  { nights:  4, hpBonus: 1, speedMult: 1.10, label: 'Lochagos',    color: 0xffaa22 }, // company captain
+  { nights:  6, hpBonus: 2, speedMult: 1.15, label: 'Taxiarchos',  color: 0xff8800 }, // brigade commander
+  { nights: 10, hpBonus: 3, speedMult: 1.20, label: 'Strategos',   color: 0xffffff }, // general
 ];
+
+// Greek display names for unit types (internal type keys stay unchanged)
+const UNIT_NAMES = {
+  worker:    'Thetes',       clubman:  'Machimos',      slinger:  'Sphendonetes',
+  peltast:   'Peltast',      spearman: 'Doryforoi',     archer:   'Toxotes',
+  cavalry:   'Hippeis',      hoplite:  'Hoplite',       toxotes:  'Toxotes Elites',
+  scout:     'Kataskopos',   raider:   'Polemistes',    berserker:'Thrakes',
+  veteran:   'Veteran',
+};
+
+// ─── UI Layout Constants ────────────────────────────────────────────────────
+const UI_PANEL_H  = 140;
+const UI_MM_W     = 100;
+const UI_MM_H     = 120;
+const UI_BTN_SIZE = 52; // "Thumbnail big"
+
+const BLDG_CATS = {
+  Economy: ['farm', 'garden', 'pasture', 'mill', 'bakery', 'butcher', 'olive_press'],
+  Resource: ['granary', 'woodshed', 'stonepile', 'mine', 'tannery', 'smelter', 'blacksmith'],
+  Civic: ['house', 'barracks', 'archery', 'stable', 'temple', 'oracle'],
+  Defense: ['palisade', 'wall', 'gate', 'watchtower']
+};
 
 // Counter-unit triangle bonuses (multiplier applied to attacker's damage)
 function _counterMod(attackerType, targetType) {
@@ -164,33 +191,25 @@ const HIGH_GROUND_BONUS = 8 * TILE;
 
 // Resource node types
 const NODE_DEF = {
-  berry_bush:    { resource: 'food',  stock: 14, large: false },
-  small_boulder: { resource: 'stone', stock: 10, large: false },
-  large_boulder: { resource: 'stone', stock: 24, large: true  },
-  small_tree:    { resource: 'wood',  stock: 8,  large: false },
-  large_tree:    { resource: 'wood',  stock: 20, large: true  },
-  scrub:         { resource: null,    stock: 6,  large: false },  // animal-only forage
-  ore_vein:      { resource: 'ore',   stock: 16, large: true  },  // bronze ore — badlands/rock
+  berry_bush:    { resource: 'food',   stock: 14, large: false },
+  small_boulder: { resource: 'stone',  stock: 10, large: false },
+  large_boulder: { resource: 'stone',  stock: 24, large: true  },
+  small_tree:    { resource: 'wood',   stock: 8,  large: false },
+  large_tree:    { resource: 'wood',   stock: 20, large: true  },
+  scrub:         { resource: null,     stock: 6,  large: false },  // animal-only forage
+  ore_vein:      { resource: 'ore',    stock: 16, large: true  },  // bronze ore — badlands/rock
+  olive_grove:   { resource: 'olives', stock: 28, large: true  },  // discovered; yields olives for press
+  wild_garden:   { resource: 'seeds',  stock: 12, large: false },  // discovered; yields seeds for Kepos
 };
 
 // Role each node type assigns
 const NODE_ROLE = {
   berry_bush: 'forager', small_boulder: 'miner', large_boulder: 'miner',
   small_tree: 'woodcutter', large_tree: 'woodcutter',
-  ore_vein: 'miner',
+  ore_vein: 'miner', olive_grove: 'forager', wild_garden: 'forager',
 };
 
-const NIGHT_START = 10;  // first night (enemies attack)
-const WIN_NIGHTS  = 3;   // survive this many nights to win
-
-// Night compositions indexed from night 1 (day NIGHT_START)
-const WAVES = [
-  { raider: 6 },
-  { raider: 7, berserker: 3 },
-  { raider: 6, berserker: 5, veteran: 2 },
-  { raider: 5, berserker: 6, veteran: 4 },
-  { raider: 4, berserker: 6, veteran: 6 },
-];
+const WIN_NIGHTS  = 20;  // survive this many nights to win (organic escalation — no scripted waves)
 const FM_TYPES  = ['phalanx', 'wedge', 'screen'];
 const FM_LABELS = ['| LINE', '▲ WEDGE', '≈ SCREEN'];
 const TAP_DIST  = 14;
@@ -225,10 +244,12 @@ class GameScene extends Phaser.Scene {
     this.buildings = [];
     this.units     = [];
     this.selIds    = new Set();
-    this.resources  = { food: 10, stone: 15, wood: 0, wool: 0, wheat: 0, flour: 0, meat: 0 };
-    this.storageMax = { food: 0,  stone: 0,  wood: 0, wool: 0, wheat: 0, flour: 0, meat: 0 };
-    this.mealsDone    = 0;  // meals served this day (0–3); reset each dawn
-    this.scoutSpawned = false; // reset each dawn; prevents double-spawn
+    this.resources  = { food: 10, stone: 15, wood: 0, wool: 0, wheat: 0, flour: 0, meat: 0, olives: 0, seeds: 0 };
+    this.storageMax = { food: 0,  stone: 0,  wood: 0, wool: 0, wheat: 0, flour: 0, meat: 0, olives: 0, seeds: 0 };
+    this.discoveries = { oliveGrove: false, wildGarden: false };
+    this.mealsDone       = 0;     // meals served this day (0–3); reset each dawn
+    this.enemyAware      = false; // enemy has spotted the player polis
+    this.enemyScoutTimer = 0;     // ms until next autonomous scout dispatch
     this.enemyRes   = { food: 25, stone: 20, wood: 10 };
     this.day        = 1;
     this.phase      = 'DAY';
@@ -398,6 +419,8 @@ class GameScene extends Phaser.Scene {
       small_boulder: t => t !== T_WATER,
       large_boulder: t => t !== T_WATER,
       scrub:         t => t === T_GRASS || t === T_SAND,
+      olive_grove:   t => t === T_GRASS || t === T_SAND,  // heartland/scrubland — not near start
+      wild_garden:   t => t === T_GRASS,                  // heartland only
     };
 
     const place = (type, targetBiome, count, allowed) => {
@@ -462,6 +485,14 @@ class GameScene extends Phaser.Scene {
     // Ore veins: rock tiles in scrubland/badlands, accessible to both sides
     place('ore_vein', 1, 3);
     place('ore_vein', 3, 5);
+    // Discoverable nodes: olive groves in scrubland mid-map, wild gardens in heartland
+    const midMap = (_tx, ty) => ty > 20 && ty < MAP_H - 20; // mid-map only
+    place('olive_grove', 1, 3, midMap);
+    place('wild_garden', 0, 3, clearOfPlayer);
+    // Mark discoverable nodes as undiscovered (hidden until a unit gets close)
+    for (const n of this.resNodes) {
+      if (n.type === 'olive_grove' || n.type === 'wild_garden') n.discovered = false;
+    }
 
     // Scatter stick bundles (floor piles of wood) near every tree node
     // — gives an early wood supply without changing tree rarity
@@ -731,12 +762,32 @@ class GameScene extends Phaser.Scene {
       gfx.fillStyle(0x447744, alpha * 0.8).fillEllipse(6, 4, 12, 8);
       gfx.lineStyle(2, 0x55aa55, alpha * 0.7)
         .lineBetween(-10, 0, -4, 8).lineBetween(2, -4, 8, 6).lineBetween(-2, 2, 4, -4);
+    } else if (type === 'olive_grove') {
+      // Gnarled silvery olive tree — thick trunk, small grey-green canopy
+      gfx.fillStyle(0x7a6644, alpha).fillRect(-4, 6, 8, 16);
+      gfx.fillStyle(0x3a4a1e, alpha * 0.9).fillEllipse(-10, -4, 24, 18);
+      gfx.fillStyle(0x4a5a28, alpha).fillEllipse(8, -6, 22, 16);
+      gfx.fillStyle(0x5a6a30, alpha * 0.85).fillEllipse(0, -10, 20, 14);
+      // Tiny olives
+      [[-6,-2],[4,0],[-2,4],[8,-4]].forEach(([ox,oy]) =>
+        gfx.fillStyle(0x224411, alpha).fillCircle(ox, oy, 2.5));
+    } else if (type === 'wild_garden') {
+      // Patch of mixed low plants — wildflowers and vegetables
+      gfx.fillStyle(0x3a6a18, alpha).fillEllipse(-4, 3, 16, 10);
+      gfx.fillStyle(0x4a7a22, alpha).fillEllipse(5, 1, 14, 9);
+      gfx.fillStyle(0x2a5a10, alpha * 0.8).fillEllipse(0, -2, 10, 7);
+      // Small flowers: yellow
+      [[-5,-1],[4,3],[0,0],[-2,5]].forEach(([fx,fy]) =>
+        gfx.fillStyle(0xddcc44, alpha * 0.9).fillCircle(fx, fy, 2));
     }
   }
 
   redrawNode(n) {
     n.gfx?.destroy(); n.labelObj?.destroy();
     n.gfx = null; n.labelObj = null;
+
+    // Undiscovered nodes are invisible until a player unit gets close
+    if (n.discovered === false) return;
 
     // Depleted scrub — bare dirt patch
     if (n.type === 'scrub' && n.dormantTimer > 0) {
@@ -1483,11 +1534,11 @@ class GameScene extends Phaser.Scene {
     }
     // Planned capacity is available but only up to the same amount as the built cap
     // (prevents hoarding infinite resources into ghost buildings)
-    for (const r of ['food', 'stone', 'wood', 'wool', 'hide', 'leather', 'ore', 'ingot', 'bronzeKit', 'wheat', 'flour', 'meat'])
+    for (const r of ['food', 'stone', 'wood', 'wool', 'hide', 'leather', 'ore', 'ingot', 'bronzeKit', 'wheat', 'flour', 'meat', 'olives', 'seeds'])
       max[r] = (max[r] || 0) + (planned[r] || 0);
     this.storageMax = max;
     // Clamp current resources to new cap
-    for (const r of ['food', 'stone', 'wood', 'wool', 'hide', 'leather', 'ore', 'ingot', 'bronzeKit', 'wheat', 'flour', 'meat'])
+    for (const r of ['food', 'stone', 'wood', 'wool', 'hide', 'leather', 'ore', 'ingot', 'bronzeKit', 'wheat', 'flour', 'meat', 'olives', 'seeds'])
       this.resources[r] = Math.min(this.resources[r] || 0, max[r] || 0);
     this.updateUI();
   }
@@ -1837,6 +1888,64 @@ class GameScene extends Phaser.Scene {
         .fillRect(px+2, py+1, 8, 7).fillRect(px+s-10, py+1, 8, 7);
       gfx.fillStyle(0x7a7868).fillRect(px+11, py+1, s-22, 7);
       gfx.lineStyle(1, 0x555544, 0.5).strokeRect(px+2, py+6, s-4, s-12);
+    } else if (type === 'olive_press') {
+      // Stone press building — circular millstone visible from top
+      gfx.fillStyle(0x8a8a6a).fillRect(px+4, py+6, s-8, s-10);
+      gfx.lineStyle(2, 0x667733, 0.9).strokeRect(px+4, py+6, s-8, s-10);
+      // Millstone (circular press)
+      gfx.fillStyle(0xaaa888).fillCircle(cx, cy, s*0.28);
+      gfx.fillStyle(0x667733, 0.6).fillCircle(cx, cy, s*0.12);
+      gfx.lineStyle(2, 0x888866, 0.8).strokeCircle(cx, cy, s*0.28);
+      // Olive branches decoration
+      gfx.fillStyle(0x445522, 0.7).fillEllipse(cx-s*0.3, py+10, 12, 6);
+      gfx.fillStyle(0x445522, 0.7).fillEllipse(cx+s*0.3, py+10, 12, 6);
+    } else if (type === 'garden') {
+      // Kepos — walled garden with planting rows
+      gfx.fillStyle(0x3a6020).fillRect(px+4, py+4, s-8, s-8);
+      gfx.lineStyle(2, 0x557733, 0.9).strokeRect(px+4, py+4, s-8, s-8);
+      // Planting rows
+      const rowCount = 4;
+      for (let i = 0; i < rowCount; i++) {
+        const ry = py + 8 + i * ((s-16)/rowCount);
+        gfx.lineStyle(1, 0x6a4422, 0.6).lineBetween(px+8, ry, px+s-8, ry);
+        // Plant dots along row
+        for (let j = 0; j < 3; j++) {
+          const rx = px + 12 + j * ((s-24)/2);
+          gfx.fillStyle(0x55aa33, 0.8).fillCircle(rx, ry-3, 3);
+        }
+      }
+    } else if (type === 'temple') {
+      // Naos — white marble columns with triangular pediment
+      const deity = bldg?.deity ?? 'ares';
+      const accentCol = deity === 'ares' ? 0xdd6644 : deity === 'athena' ? 0x6699cc : 0xddcc44;
+      // Marble base
+      gfx.fillStyle(0xe8e4d8).fillRect(px+2, py+s*0.55, s-4, s*0.45-4);
+      // Columns
+      const colCount = 4;
+      for (let i = 0; i < colCount; i++) {
+        const cx2 = px + 8 + i * (s-16)/(colCount-1);
+        gfx.fillStyle(0xf0ece0).fillRect(cx2-4, py+s*0.2, 8, s*0.38);
+        gfx.lineStyle(1, 0xccccaa, 0.6).strokeRect(cx2-4, py+s*0.2, 8, s*0.38);
+      }
+      // Pediment (triangle)
+      gfx.fillStyle(0xe8e4d8).fillTriangle(px+2, py+s*0.2+2, px+s-2, py+s*0.2+2, cx, py+2);
+      gfx.lineStyle(2, 0xaaa888, 0.8).strokeTriangle(px+2, py+s*0.2+2, px+s-2, py+s*0.2+2, cx, py+2);
+      // Deity color accent on pediment
+      gfx.fillStyle(accentCol, 0.4).fillTriangle(px+6, py+s*0.2, px+s-6, py+s*0.2, cx, py+6);
+    } else if (type === 'oracle') {
+      // Manteion — dark stone chamber with mystical vent (Pythia's tripod)
+      gfx.fillStyle(0x3a2a4a).fillRect(px+4, py+4, s-8, s-8);
+      gfx.lineStyle(2, 0x8866aa, 0.9).strokeRect(px+4, py+4, s-8, s-8);
+      // Tripod (three legs + bowl)
+      gfx.lineStyle(2, 0xaa99bb, 0.9)
+        .lineBetween(cx, py+10, cx-14, py+s-10)
+        .lineBetween(cx, py+10, cx+14, py+s-10)
+        .lineBetween(cx-7, py+s*0.4, cx+7, py+s*0.4);
+      gfx.fillStyle(0x9966bb, 0.8).fillEllipse(cx, py+10, 18, 10);
+      // Mystical smoke swirl
+      gfx.lineStyle(1, 0xddbbff, 0.5)
+        .lineBetween(cx-4, py+12, cx+4, py+18)
+        .lineBetween(cx+4, py+18, cx-4, py+24);
     }
   }
 
@@ -2205,64 +2314,17 @@ class GameScene extends Phaser.Scene {
       b.maxHp = bldgHp[s.type];
     }
 
-    // Spawn 2 real enemy workers tied to the townhall
+    // Spawn 2 enemy workers tied to the townhall — guaranteed M+F so breeding can start immediately
     const th = this.buildings.find(b => b.faction === 'enemy' && b.type === 'townhall');
     const wx0 = mx * TILE, wy0 = MAP_OY + (ey + 2) * TILE;
     for (let i = 0; i < 2; i++) {
       const w = this.spawnUnit('worker', wx0 + Phaser.Math.Between(-20, 20), wy0 + i * 24, true);
       w.homeBldgId = th?.id ?? null;
       w.age = 2;
+      w.gender = i === 0 ? 'male' : 'female';
     }
   }
 
-  spawnWave() {
-    const enemyBldgs = this.buildings.filter(b => b.faction === 'enemy');
-    const hasTownhall = enemyBldgs.some(b => b.type === 'townhall' && b.built && (b.hp ?? 1) > 0);
-    const hasBarracks = enemyBldgs.some(b => b.type === 'barracks' && b.built && (b.hp ?? 1) > 0);
-    const hasFarm     = enemyBldgs.some(b => b.type === 'farm'     && b.built && (b.hp ?? 1) > 0);
-
-    // Townhall destroyed — village broken, wave is cancelled entirely
-    if (!hasTownhall) {
-      this.showPhaseMessage('Enemy village broken — no wave tonight!', 0x44dd88);
-      return;
-    }
-
-    const base = WAVES[Math.min(this.day - 1, WAVES.length - 1)];
-    // Copy wave composition and apply building-loss penalties
-    const comp = {};
-    for (const [type, n] of Object.entries(base)) {
-      let count = n;
-      if (!hasBarracks) {
-        // Barracks gone: 50% fewer raiders, no berserkers/veterans
-        if (type === 'raider')    count = Math.ceil(count * 0.5);
-        if (type === 'berserker' || type === 'veteran') count = 0;
-      }
-      if (!hasFarm) {
-        // Farm gone: weaker wave — fewer of everything
-        count = Math.ceil(count * 0.65);
-      }
-      if (count > 0) comp[type] = count;
-    }
-
-    if (Object.keys(comp).length === 0) {
-      this.showPhaseMessage('Enemy too weakened — skirmishers only!', 0x88cc88);
-      comp.raider = 2;
-    }
-
-    const types = [];
-    Object.entries(comp).forEach(([type, n]) => { for (let i = 0; i < n; i++) types.push(type); });
-    for (let i = types.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [types[i], types[j]] = [types[j], types[i]];
-    }
-    const total = types.length;
-    types.forEach((type, i) => {
-      // Enemies march from the top — spread horizontally across the map width
-      const x = TILE * 1.5 + i * ((MAP_W - 3) * TILE / total) + TILE / 2;
-      const y = MAP_OY + WAVE_SPAWN_Y * TILE + Phaser.Math.Between(0, TILE * 2);
-      this.spawnUnit(type, x, y, true);
-    });
-  }
 
   // ─── Selection ────────────────────────────────────────────────────────────
 
@@ -2320,6 +2382,7 @@ class GameScene extends Phaser.Scene {
     let best = null, bd = Infinity;
     for (const n of this.resNodes) {
       if (n.stock <= 0) continue;
+      if (n.discovered === false) continue; // undiscovered nodes are invisible
       if (filterType && !filterType.includes(n.type)) continue;
       const tx = Math.floor(n.x / TILE), ty = Math.floor((n.y - MAP_OY) / TILE);
       if ((this.visMap[ty]?.[tx] ?? 0) === 0) continue; // skip black/unexplored tiles
@@ -2703,14 +2766,9 @@ class GameScene extends Phaser.Scene {
       // Three daily meals: morning (25% elapsed), midday (50%), evening (75%)
       if (this.phase === 'DAY') {
         const elapsed = DAY_DURATION - this.timerMs;
-        if (this.mealsDone < 1 && elapsed >= DAY_DURATION * 0.25) { this.mealsDone = 1; this.consumeFood(); }
-        if (this.mealsDone < 2 && elapsed >= DAY_DURATION * 0.50) { this.mealsDone = 2; this.consumeFood(); }
-        if (this.mealsDone < 3 && elapsed >= DAY_DURATION * 0.75) { this.mealsDone = 3; this.consumeFood(); }
-        // Enemy scout: spawns 30s before nightfall on war days
-        if (!this.scoutSpawned && this.timerMs <= 30000 && this.day >= NIGHT_START - 1) {
-          this.scoutSpawned = true;
-          this._spawnEnemyScout();
-        }
+        if (this.mealsDone < 1 && elapsed >= DAY_DURATION * 0.25) { this.mealsDone = 1; this.consumeFood(); this._enemyConsumeFood(); }
+        if (this.mealsDone < 2 && elapsed >= DAY_DURATION * 0.50) { this.mealsDone = 2; this.consumeFood(); this._enemyConsumeFood(); }
+        if (this.mealsDone < 3 && elapsed >= DAY_DURATION * 0.75) { this.mealsDone = 3; this.consumeFood(); this._enemyConsumeFood(); }
       }
       this.tickBuildings(delta, dt);
       this.tickUnits(time, dt);
@@ -2726,6 +2784,30 @@ class GameScene extends Phaser.Scene {
     this._updateTimerBar();
     this._attractTimer += delta;
     if (this._attractTimer >= 25000) { this._attractTimer = 0; this.attractAdults(); }
+    // Node discovery: reveal olive groves and wild gardens when a player unit is within 4 tiles
+    for (const n of this.resNodes) {
+      if (n.discovered !== false) continue;
+      const tx = Math.floor(n.x / TILE), ty = Math.floor((n.y - MAP_OY) / TILE);
+      if ((this.visMap[ty]?.[tx] ?? 0) < 2) continue;
+      n.discovered = true;
+      this.redrawNode(n);
+      if (n.type === 'olive_grove' && !this.discoveries.oliveGrove) {
+        this.discoveries.oliveGrove = true;
+        this.showPhaseMessage('Olive grove found! Harvest olives — build an Elaiotriveion to press them.', 0x88bb44);
+      }
+      if (n.type === 'wild_garden' && !this.discoveries.wildGarden) {
+        this.discoveries.wildGarden = true;
+        this.showPhaseMessage('Wild garden found! Gather seeds — plant a Kepos to grow your own crops.', 0x44bb66);
+      }
+    }
+    // Autonomous enemy scout dispatch — once every 75s while unaware, no active scout
+    if (!this.enemyAware) {
+      this.enemyScoutTimer += delta;
+      if (this.enemyScoutTimer >= 75000 && !this.units.some(u => u.isEnemy && u.isScout && u.hp > 0)) {
+        this.enemyScoutTimer = 0;
+        this._spawnEnemyScout();
+      }
+    }
     // Edge entry: animals wander in from N/E/W edges every ~90s
     this._edgeEntryTimer -= delta;
     if (this._edgeEntryTimer <= 0) {
@@ -2888,7 +2970,7 @@ class GameScene extends Phaser.Scene {
         const cx = (b.tx + 1) * TILE, cy = MAP_OY + (b.ty + 1) * TILE;
         const sol = this.spawnUnit('clubman', cx + Phaser.Math.Between(-10, 10), cy + Phaser.Math.Between(-10, 10), false);
         sol.homeBldgId = b.id; sol.age = 2;
-        this.showFloatText(cx, cy - 10, 'Clubman ready!', '#aa8866');
+        this.showFloatText(cx, cy - 10, 'Machimos ready!', '#aa8866');
         this.updateUI();
       }
     }
@@ -2905,7 +2987,7 @@ class GameScene extends Phaser.Scene {
         const cx = (b.tx + 1) * TILE, cy = MAP_OY + (b.ty + 1) * TILE;
         const arc = this.spawnUnit('slinger', cx + Phaser.Math.Between(-10, 10), cy + Phaser.Math.Between(-10, 10), false);
         arc.homeBldgId = b.id; arc.age = 2;
-        this.showFloatText(cx, cy - 10, 'Slinger ready!', '#668855');
+        this.showFloatText(cx, cy - 10, 'Sphendonetes ready!', '#668855');
         this.updateUI();
       }
     }
@@ -2922,7 +3004,7 @@ class GameScene extends Phaser.Scene {
         const cx = (b.tx + 1) * TILE, cy = MAP_OY + (b.ty + 1) * TILE;
         const cav = this.spawnUnit('cavalry', cx + Phaser.Math.Between(-10, 10), cy + Phaser.Math.Between(-10, 10), false);
         cav.homeBldgId = b.id; cav.age = 2;
-        this.showFloatText(cx, cy - 10, 'Cavalry ready!', '#ccaa22');
+        this.showFloatText(cx, cy - 10, 'Hippeis ready!', '#ccaa22');
         this.updateUI();
       }
     }
@@ -2943,6 +3025,80 @@ class GameScene extends Phaser.Scene {
         this.updateUI();
       }
     }
+    // Olive press: 2 olives → 1 food (10s) — the Mediterranean food chain
+    for (const b of this.buildings) {
+      if (b.type !== 'olive_press' || !b.built || b.faction === 'enemy') continue;
+      b.pressTimer = (b.pressTimer ?? 0) + delta;
+      if (b.pressTimer >= 10000 && (this.resources.olives ?? 0) >= 2 && this.hasStorageSpace('food')) {
+        this.resources.olives -= 2; b.pressTimer = 0;
+        this.addResource('food', 3);
+        this.showFloatText((b.tx + 1)*TILE, MAP_OY + b.ty*TILE - 8, '🫒 pressed', '#88aa44');
+      }
+    }
+
+    // Kepos (garden): grows vegetables → food bonus; consumes seeds to replant
+    for (const b of this.buildings) {
+      if (b.type !== 'garden' || !b.built || b.faction === 'enemy') continue;
+      b.growTimer = (b.growTimer ?? 0) + delta;
+      if (b.growTimer >= 15000 && this.hasStorageSpace('food')) {
+        b.growTimer = 0;
+        this.addResource('food', 2);
+        this.showFloatText((b.tx + 1)*TILE, MAP_OY + b.ty*TILE - 8, '🌿 harvest', '#44bb66');
+        // Replant: each harvest has 40% chance to consume 1 seed if available
+        if (Math.random() < 0.4 && (this.resources.seeds ?? 0) >= 1) {
+          this.resources.seeds -= 1; this.updateUI();
+        }
+      }
+    }
+
+    // Temple (Naos): passive aura based on deity chosen at build
+    for (const b of this.buildings) {
+      if (b.type !== 'temple' || !b.built || b.faction === 'enemy') continue;
+      b.templeTimer = (b.templeTimer ?? 0) + delta;
+      if (b.templeTimer >= 30000) { // pulse every 30s
+        b.templeTimer = 0;
+        const deity = b.deity ?? 'ares';
+        const cx = (b.tx + 1)*TILE, cy = MAP_OY + (b.ty + 1)*TILE;
+        if (deity === 'ares') {
+          // Ares: briefly heals all soldiers 1 HP
+          this.units.filter(u => !u.isEnemy && u.type !== 'worker' && u.hp > 0)
+            .forEach(u => { u.hp = Math.min(u.maxHp, u.hp + 1); });
+          this.showFloatText(cx, cy - 12, '⚔ Ares blesses the warriors', '#ff8844');
+        } else if (deity === 'athena') {
+          // Athena: speeds workers for a short time (set a timed flag)
+          this.units.filter(u => !u.isEnemy && u.type === 'worker' && u.age >= 2)
+            .forEach(u => { u._athenaBoost = 20000; });
+          this.showFloatText(cx, cy - 12, '🦉 Athena guides your workers', '#aaddff');
+        } else if (deity === 'apollo') {
+          // Apollo: reveal a small radius around the temple permanently
+          const fogR = 8;
+          for (let dy = -fogR; dy <= fogR; dy++) for (let dx = -fogR; dx <= fogR; dx++) {
+            const ty2 = b.ty + dy, tx2 = b.tx + dx;
+            if (ty2 >= 0 && ty2 < MAP_H && tx2 >= 0 && tx2 < MAP_W)
+              this.visMap[ty2][tx2] = Math.max(this.visMap[ty2][tx2], 1);
+          }
+          this.showFloatText(cx, cy - 12, '☀ Apollo illuminates', '#ffee44');
+        }
+      }
+    }
+
+    // Oracle (Manteion): periodic prophecy about the enemy
+    for (const b of this.buildings) {
+      if (b.type !== 'oracle' || !b.built || b.faction === 'enemy') continue;
+      b.oracleTimer = (b.oracleTimer ?? 0) + delta;
+      if (b.oracleTimer >= 45000) { // prophecy every 45s of game time
+        b.oracleTimer = 0;
+        const soldiers = this.units.filter(u => u.isEnemy && u.type !== 'worker' && u.hp > 0).length;
+        const aware = this.enemyAware;
+        let msg;
+        if (!aware)          msg = 'The Pythia sees peaceful skies to the north.';
+        else if (soldiers === 0) msg = 'The omens speak of armament — blades are being sharpened.';
+        else if (soldiers < 4)   msg = `The Pythia sees ${soldiers} warriors gathering in the north.`;
+        else                     msg = `Warning: ${soldiers} enemy soldiers mass beyond the river!`;
+        this.showPhaseMessage(msg, 0x9966cc);
+      }
+    }
+
     this._tickEnemyBuildings(delta);
   }
 
@@ -2960,11 +3116,6 @@ class GameScene extends Phaser.Scene {
         const home = this.buildings.find(b => b.id === u.homeBldgId);
         if (home && home.built) home.respawnQueue.push({ type: 'worker', elapsed: 0 });
       }
-      // Enemy workers respawn (temporary until enemy gets a proper population system)
-      if (u.homeBldgId && u.isEnemy && u.type === 'worker') {
-        const home = this.buildings.find(b => b.id === u.homeBldgId);
-        if (home && home.built && (home.hp ?? 1) > 0) home.respawnQueue.push({ type: 'worker', elapsed: 0 });
-      }
       // Soldiers (player and enemy) die permanently — no respawn
     });
     this.units = this.units.filter(u => u.hp > 0);
@@ -2974,14 +3125,27 @@ class GameScene extends Phaser.Scene {
   tickEnemy(u, time, dt) {
     if (u.type === 'worker') { this._tickEnemyWorker(u, time, dt); return; }
 
-    // ── Scout: sprint south during DAY (recon run); fights normally at night ──
+    // ── Scout: sprint south during DAY; retreat north once discovery made ──
     if (u.isScout && this.phase === 'DAY') {
+      // Check if scout has spotted player assets
+      if (!this.enemyAware) {
+        const spotted =
+          this.units.some(p => !p.isEnemy && p.hp > 0 &&
+            Phaser.Math.Distance.Between(u.x, u.y, p.x, p.y) < 14 * TILE) ||
+          this.buildings.some(b => b.faction !== 'enemy' && b.built &&
+            Phaser.Math.Distance.Between(u.x, u.y,
+              (b.tx + b.size/2) * TILE, MAP_OY + (b.ty + b.size/2) * TILE) < 14 * TILE);
+        if (spotted) {
+          this.enemyAware = true;
+          u.isReturning = true;
+          this.showPhaseMessage('An enemy scout has spotted your polis!', 0xff6644);
+        }
+      }
       const eTileX = Math.floor(u.x / TILE), eTileY = Math.floor((u.y - MAP_OY) / TILE);
       const eTerr  = this.terrainData[eTileY]?.[eTileX] ?? T_GRASS;
       const step   = u.speed * (TILE_SPD[Math.min(eTerr, TILE_SPD.length-1)] ?? 1.0) * dt;
-      const ny = u.y + step;
-      if (!this.isBlocked(u.x, ny)) { u.y = ny; }
-      else { u.y += step * 0.6; }
+      if (u.isReturning) { u.y -= step; } // flee north after sighting
+      else { if (!this.isBlocked(u.x, u.y + step)) { u.y += step; } else { u.y += step * 0.6; } }
       return;
     }
 
@@ -3078,15 +3242,19 @@ class GameScene extends Phaser.Scene {
   }
 
   _waveIntelFlash() {
+    if (!this.enemyAware) {
+      this.showPhaseMessage('Scout killed — your polis remains hidden!', 0x44ff88);
+      return;
+    }
     const soldiers = this.units.filter(u => u.isEnemy && u.hp > 0 && u.type !== 'worker' && u.type !== 'scout');
     if (!soldiers.length) {
-      this.showPhaseMessage('Scout killed — enemy has no forces tonight!', 0x44ff88);
+      this.showPhaseMessage('Scout killed — enemy aware but no soldiers yet!', 0xffcc44);
       return;
     }
     const counts = {};
     for (const s of soldiers) counts[s.type] = (counts[s.type] || 0) + 1;
     const parts = Object.entries(counts).map(([t, n]) => `${n} ${t}`).join(', ');
-    this.showPhaseMessage(`Scout killed — tonight: ${parts}`, 0xffcc44);
+    this.showPhaseMessage(`Scout killed — enemy forces: ${parts}`, 0xff9944);
   }
 
   _enemyStorageMax() {
@@ -3107,6 +3275,22 @@ class GameScene extends Phaser.Scene {
 
   _tickEnemyWorker(u, time, dt) {
     const carrying = this._totalCarrying(u);
+
+    // Enlisting at barracks/archery — worker trains into a soldier
+    if (u.role === 'enlisting') {
+      const bldg = this.buildings.find(b => b.id === u.enlistBldgId && b.faction === 'enemy' && b.built && (b.hp ?? 1) > 0);
+      if (!bldg) { u.role = null; return; }
+      const cx = (bldg.tx + bldg.size/2) * TILE, cy = MAP_OY + (bldg.ty + bldg.size/2) * TILE;
+      if (this.moveToward(u, cx, cy, 30, dt)) return;
+      u.enlistTimer = (u.enlistTimer || 0) + dt;
+      const trainSecs = bldg.type === 'archery' ? 12 : 15;
+      if (u.enlistTimer >= trainSecs) {
+        const newType = bldg.type === 'archery' ? 'archer' : 'hoplite';
+        this._upgradeUnit(u, newType);
+        u.role = null; u.enlistBldgId = null; u.enlistTimer = 0; u.taskType = null; u.moveTo = null;
+      }
+      return;
+    }
 
     // Active rebuild task
     if (u.taskType === 'rebuild') {
@@ -3180,7 +3364,7 @@ class GameScene extends Phaser.Scene {
       const maxTy = Math.floor(MAP_H * 0.55);
       let best = null, bestD = Infinity;
       for (const n of this.resNodes) {
-        if (n.stock <= 0) continue;
+        if (n.stock <= 0 || n.discovered === false) continue;
         const nty = Math.floor((n.y - MAP_OY) / TILE);
         if (nty > maxTy) continue;
         const d = Phaser.Math.Distance.Between(u.x, u.y, n.x, n.y);
@@ -3200,49 +3384,52 @@ class GameScene extends Phaser.Scene {
     for (const b of this.buildings) {
       if (b.faction !== 'enemy' || !b.built || (b.hp ?? 1) <= 0) continue;
 
-      // Worker respawn queue (townhall / houses)
-      if (BLDG[b.type].capacity && b.respawnQueue.length > 0) {
-        const item = b.respawnQueue[0];
-        item.elapsed += delta;
-        if (item.elapsed >= (BLDG[b.type].spawnMs || 20000)) {
-          b.respawnQueue.shift();
-          const cx = (b.tx + b.size / 2) * TILE, cy = MAP_OY + (b.ty + b.size / 2) * TILE;
-          const w = this.spawnUnit('worker', cx + Phaser.Math.Between(-10,10), cy + Phaser.Math.Between(-10,10), true);
-          w.homeBldgId = b.id; w.age = 2;
+      // Population: birth from resident M+F pair (mirrors player tickBuildings)
+      if (BLDG[b.type].capacity) {
+        const residents = this.units.filter(u => u.homeBldgId === b.id && u.isEnemy && u.hp > 0);
+        const adults    = residents.filter(u => u.age >= 2);
+        const hasMale   = adults.some(u => u.gender === 'male');
+        const hasFemale = adults.some(u => u.gender === 'female');
+        const capacity  = BLDG[b.type].capacity;
+        const canSpawn  = hasMale && hasFemale && residents.length < capacity && b.respawnQueue.length === 0;
+        if (!canSpawn) { b.spawnTimer = Math.max(0, (b.spawnTimer ?? 0) - delta * 0.5); }
+        else {
+          b.spawnTimer = (b.spawnTimer ?? 0) + delta;
+          if (b.spawnTimer >= BLDG[b.type].spawnMs) {
+            b.spawnTimer = 0;
+            const cx = (b.tx + b.size / 2) * TILE, cy = MAP_OY + (b.ty + b.size / 2) * TILE;
+            const child = this.spawnUnit('worker', cx + Phaser.Math.Between(-8, 8), cy + Phaser.Math.Between(-8, 8), true);
+            child.homeBldgId = b.id; child.age = 0;
+          }
         }
       }
 
-      // Barracks: process training queue then auto-queue hoplites
-      if (b.type === 'barracks') {
-        if (b.trainQueue.length > 0) {
-          const item = b.trainQueue[0];
-          item.elapsed += delta;
-          if (item.elapsed >= 15000) {
-            b.trainQueue.shift();
-            const cx = (b.tx + 1) * TILE, cy = MAP_OY + (b.ty + 1) * TILE;
-            const sol = this.spawnUnit('hoplite', cx + Phaser.Math.Between(-10,10), cy + Phaser.Math.Between(-10,10), true);
-            sol.homeBldgId = b.id;
-          }
-        } else if ((this.enemyRes.food || 0) >= 6) {
-          this.enemyRes.food -= 6;
-          b.trainQueue.push({ type: 'hoplite', elapsed: 0 });
+      // Training handled by enlisting workers in _tickEnemyWorker
+
+      // Mill: 2 wheat → 3 flour (10s)
+      if (b.type === 'mill') {
+        b.millTimer = (b.millTimer ?? 0) + delta;
+        if (b.millTimer >= 10000 && (this.enemyRes.wheat || 0) >= 2) {
+          this.enemyRes.wheat -= 2; b.millTimer = 0;
+          this.enemyRes.flour = (this.enemyRes.flour || 0) + 3;
         }
       }
 
-      // Archery range: process training queue then auto-queue archers
-      if (b.type === 'archery') {
-        if (b.trainQueue.length > 0) {
-          const item = b.trainQueue[0];
-          item.elapsed += delta;
-          if (item.elapsed >= 12000) {
-            b.trainQueue.shift();
-            const cx = (b.tx + 1) * TILE, cy = MAP_OY + (b.ty + 1) * TILE;
-            const arc = this.spawnUnit('archer', cx + Phaser.Math.Between(-10,10), cy + Phaser.Math.Between(-10,10), true);
-            arc.homeBldgId = b.id;
-          }
-        } else if ((this.enemyRes.food || 0) >= 5) {
-          this.enemyRes.food -= 5;
-          b.trainQueue.push({ type: 'archer', elapsed: 0 });
+      // Bakery: 2 flour → 3 food (12s)
+      if (b.type === 'bakery') {
+        b.bakeTimer = (b.bakeTimer ?? 0) + delta;
+        if (b.bakeTimer >= 12000 && (this.enemyRes.flour || 0) >= 2) {
+          this.enemyRes.flour -= 2; b.bakeTimer = 0;
+          this.enemyRes.food = (this.enemyRes.food || 0) + 3;
+        }
+      }
+
+      // Butcher: 1 meat → 3 food (8s)
+      if (b.type === 'butcher') {
+        b.butcherTimer = (b.butcherTimer ?? 0) + delta;
+        if (b.butcherTimer >= 8000 && (this.enemyRes.meat || 0) >= 1) {
+          this.enemyRes.meat -= 1; b.butcherTimer = 0;
+          this.enemyRes.food = (this.enemyRes.food || 0) + 3;
         }
       }
     }
@@ -3261,6 +3448,9 @@ class GameScene extends Phaser.Scene {
     else if (count('barracks') < 2 && (er.stone||0) >= 5 && (er.wood||0) >= 3) toBuild = 'barracks';
     else if (count('archery')  < 1 && (er.stone||0) >= 5 && (er.wood||0) >= 4) toBuild = 'archery';
     else if (count('house')    < 3 && (er.stone||0) >= 3)                       toBuild = 'house';
+    else if (count('mill')     < 1 && (er.stone||0) >= 5 && (er.wood||0) >= 4) toBuild = 'mill';
+    else if (count('bakery')   < 1 && count('mill') >= 1 && (er.stone||0) >= 4 && (er.wood||0) >= 3) toBuild = 'bakery';
+    else if (count('butcher')  < 1 && (er.stone||0) >= 3 && (er.wood||0) >= 3) toBuild = 'butcher';
     if (!toBuild) return;
 
     const cost = BLDG[toBuild].cost;
@@ -3277,6 +3467,33 @@ class GameScene extends Phaser.Scene {
       b.hp = b.maxHp = toBuild === 'barracks' ? 14 : toBuild === 'farm' ? 10 : 8;
       break;
     }
+  }
+
+  _enemyDawnMilitarize() {
+    if (!this.enemyAware) return;
+    const barracks = this.buildings.filter(b => b.faction === 'enemy' && b.built && (b.hp ?? 1) > 0
+      && (b.type === 'barracks' || b.type === 'archery'));
+    if (!barracks.length) return;
+
+    // Keep at least 2 workers gathering; enlist one idle adult per dawn
+    const eWorkers = this.units.filter(u => u.isEnemy && u.type === 'worker' && u.hp > 0 && u.age >= 2 && !u.role);
+    if (eWorkers.length <= 2) return;
+
+    // Pick the most idle worker (no task, no target)
+    const candidate = eWorkers.find(u => !u.taskType && !u.targetNode) ?? eWorkers[0];
+    if (!candidate) return;
+
+    // Assign to a random barracks or archery that doesn't already have a trainee walking to it
+    const alreadyEnlisting = new Set(
+      this.units.filter(u => u.isEnemy && u.role === 'enlisting').map(u => u.enlistBldgId));
+    const available = barracks.filter(b => !alreadyEnlisting.has(b.id));
+    if (!available.length) return;
+
+    const target = available[Math.floor(Math.random() * available.length)];
+    candidate.role = 'enlisting';
+    candidate.enlistBldgId = target.id;
+    candidate.enlistTimer = 0;
+    candidate.taskType = null; candidate.targetNode = null; candidate.moveTo = null;
   }
 
   tickPlayer(u, time, dt) {
@@ -4115,7 +4332,7 @@ class GameScene extends Phaser.Scene {
       this.phase = 'DAY';
       this.timerMs = DAY_DURATION;
       this.mealsDone = 0;
-      this.scoutSpawned = false;
+
       this.ageUpUnits();
       this._enemyDawnUpkeep();
       this.applyDayBonus();
@@ -4127,10 +4344,12 @@ class GameScene extends Phaser.Scene {
     this._setGates(true); // reopen gates at dawn
     for (const u of this.units) {
       u.isRouting = false; // clear routing state at dawn
-      if (u.isEnemy || u.type !== 'worker') continue;
+      if (u.type !== 'worker') continue;
       u.age++;
-      if (u.age === 1) this.showFloatText(u.x, u.y - 18, '→ youth', '#ffeeaa');
-      if (u.age === 2) this.showFloatText(u.x, u.y - 18, '→ adult', '#ffdd44');
+      if (!u.isEnemy) {
+        if (u.age === 1) this.showFloatText(u.x, u.y - 18, '→ youth', '#ffeeaa');
+        if (u.age === 2) this.showFloatText(u.x, u.y - 18, '→ adult', '#ffdd44');
+      }
     }
     this._applyEquipmentUpgrades();
   }
@@ -4157,7 +4376,7 @@ class GameScene extends Phaser.Scene {
       if (leatherKits > 0 && (u.type === 'clubman' || u.type === 'slinger')) {
         this._upgradeUnit(u, 'peltast');
         this.resources.leatherKit = (this.resources.leatherKit || 1) - 1;
-        this.showFloatText(u.x, u.y - 22, '→ peltast!', '#cc8844');
+        this.showFloatText(u.x, u.y - 22, '→ Peltast!', '#cc8844');
       }
     }
     this.updateStorageCap();
@@ -4185,27 +4404,29 @@ class GameScene extends Phaser.Scene {
     u.maxHp = def.hp; u.hp = def.hp; u.atk = def.atk; u.speed = def.speed; u.range = 0;
     u.role = null; u.moveTo = null; u.isRouting = false;
     this.updateStorageCap();
-    this.showFloatText(u.x, u.y - 18, 'back to work', '#aaddff');
+    this.showFloatText(u.x, u.y - 18, 'returns to Thetes', '#aaddff');
     this.updateUI();
   }
 
   attractAdults() {
-    // Houses missing a male or female adult try to recruit the right gender from a surplus building
+    this._attractAdultsForFaction(false);
+    this._attractAdultsForFaction(true);
+  }
+
+  _attractAdultsForFaction(isEnemy) {
     for (const b of this.buildings) {
-      if (b.faction === 'enemy' || !b.built || !BLDG[b.type].capacity) continue;
-      const bAdults  = this.units.filter(u => u.homeBldgId === b.id && !u.isEnemy && u.hp > 0 && u.age >= 2);
-      const hasMale  = bAdults.some(u => u.gender === 'male');
-      const hasFem   = bAdults.some(u => u.gender === 'female');
-      if (hasMale && hasFem) continue; // already has a breeding pair
+      if ((b.faction === 'enemy') !== isEnemy || !b.built || !BLDG[b.type].capacity) continue;
+      const bAdults = this.units.filter(u => u.homeBldgId === b.id && u.isEnemy === isEnemy && u.hp > 0 && u.age >= 2);
+      const hasMale = bAdults.some(u => u.gender === 'male');
+      const hasFem  = bAdults.some(u => u.gender === 'female');
+      if (hasMale && hasFem) continue;
       const wantGender = !hasMale ? 'male' : 'female';
 
-      // Find the nearest building with a surplus (>2 adults) that has the needed gender
       let donor = null, donorDist = Infinity;
       for (const db of this.buildings) {
-        if (db.id === b.id || !db.built || !BLDG[db.type].capacity) continue;
-        const dbAdults = this.units.filter(u => u.homeBldgId === db.id && !u.isEnemy && u.hp > 0 && u.age >= 2);
+        if (db.id === b.id || (db.faction === 'enemy') !== isEnemy || !db.built || !BLDG[db.type].capacity) continue;
+        const dbAdults = this.units.filter(u => u.homeBldgId === db.id && u.isEnemy === isEnemy && u.hp > 0 && u.age >= 2);
         if (dbAdults.length <= 2) continue;
-        // Prefer a donor that actually has the wanted gender to spare
         const hasWanted = dbAdults.filter(u => u.gender === wantGender).length > 1;
         if (!hasWanted) continue;
         const d = Phaser.Math.Distance.Between(
@@ -4214,8 +4435,7 @@ class GameScene extends Phaser.Scene {
         if (d < donorDist) { donorDist = d; donor = db; }
       }
       if (!donor) continue;
-      const donorAdults = this.units.filter(u => u.homeBldgId === donor.id && !u.isEnemy && u.hp > 0 && u.age >= 2);
-      // Pick the most idle adult of the wanted gender
+      const donorAdults = this.units.filter(u => u.homeBldgId === donor.id && u.isEnemy === isEnemy && u.hp > 0 && u.age >= 2);
       const candidates = donorAdults.filter(u => u.gender === wantGender);
       const mover = candidates.find(u => !u.taskType && !u.moveTo) || candidates[candidates.length - 1];
       if (!mover) continue;
@@ -4223,7 +4443,7 @@ class GameScene extends Phaser.Scene {
       mover.taskType = null; mover.role = null; mover.targetNode = null;
       const cx = (b.tx + b.size/2)*TILE, cy = MAP_OY + (b.ty + b.size/2)*TILE;
       mover.moveTo = { x: cx + Phaser.Math.Between(-12, 12), y: cy + Phaser.Math.Between(-12, 12) };
-      this.showFloatText(cx, cy - 12, '→ moved in', '#ffddaa');
+      if (!isEnemy) this.showFloatText(cx, cy - 12, '→ moved in', '#ffddaa');
     }
   }
 
@@ -4258,18 +4478,18 @@ class GameScene extends Phaser.Scene {
 
   // Dawn enemy upkeep — called once at dawn (3× daily meals would be too punishing for AI)
   _enemyDawnUpkeep() {
-    const enemyEaters = this.units.filter(u => u.isEnemy && u.hp > 0);
-    if (!enemyEaters.length) return;
-    const eNeed = enemyEaters.length * 3;
-    if ((this.enemyRes.food || 0) >= eNeed) {
-      this.enemyRes.food -= eNeed;
-    } else {
-      const eFed = Math.floor((this.enemyRes.food || 0) / 3);
-      const eStarve = enemyEaters.length - eFed;
-      this.enemyRes.food = 0;
-      const eOrder = [...enemyEaters].sort(() => Math.random() - 0.5);
-      for (let i = 0; i < eStarve; i++) eOrder[i].hp = 0;
-    }
+    // Food upkeep now fires 3× during DAY via _enemyConsumeFood() — nothing to do at dawn
+  }
+
+  _enemyConsumeFood() {
+    const eaters = this.units.filter(u => u.isEnemy && u.hp > 0);
+    if (!eaters.length) return;
+    const need = eaters.length;
+    if ((this.enemyRes.food || 0) >= need) { this.enemyRes.food -= need; return; }
+    const starveCount = eaters.length - (this.enemyRes.food || 0);
+    this.enemyRes.food = 0;
+    const order = [...eaters].sort(() => Math.random() - 0.5);
+    for (let i = 0; i < starveCount; i++) order[i].hp = Math.max(0, order[i].hp - 1);
   }
 
   _trySpreadNode(src, type) {
@@ -4313,15 +4533,17 @@ class GameScene extends Phaser.Scene {
         b.stock = Math.min(b.maxStock, b.stock + Math.ceil(b.maxStock * 0.5));
         this.addResource('wheat', Math.ceil(b.maxStock * 0.15)); // bonus wheat yield
       });
-    // Enemy farms: harvest directly into enemyRes.food
+    // Enemy farms: harvest into food + bonus wheat (mirrors player)
     this.buildings.filter(b => b.type === 'farm' && b.built && b.faction === 'enemy' && (b.hp ?? 1) > 0)
       .forEach(b => {
         const harvest = Math.ceil(b.maxStock * 0.5);
-        b.stock = 0; // workers don't harvest individually — output goes direct to pool
+        b.stock = 0;
         this._enemyAddRes('food', harvest);
+        this._enemyAddRes('wheat', Math.ceil(b.maxStock * 0.15));
       });
-    // Enemy AI build order (once per day)
+    // Enemy AI build order + militarize (once per day)
     this._enemyBuildOrder();
+    this._enemyDawnMilitarize();
     const berryCount = this.resNodes.filter(n => n.type === 'berry_bush').length;
     const treeCount  = this.resNodes.filter(n => n.type === 'small_tree' || n.type === 'large_tree').length;
     this.resNodes.forEach(n => {
@@ -4419,7 +4641,7 @@ class GameScene extends Phaser.Scene {
     this.showPhaseMessage(`Day ${this.day} ends peacefully.`, 0xddaa44);
     this.time.delayedCall(2500, () => {
       this.day++; this.phase = 'DAY'; this.timerMs = DAY_DURATION;
-      this.mealsDone = 0; this.scoutSpawned = false;
+      this.mealsDone = 0;
       this.ageUpUnits();
       this._enemyDawnUpkeep();
       this.applyDayBonus();
@@ -4433,9 +4655,9 @@ class GameScene extends Phaser.Scene {
     this.nightsSurvived++;
     if (this.nightsSurvived >= WIN_NIGHTS) { this.endGame('WIN'); return; }
 
-    // Veteran promotion — soldiers gain levels for each pair of nights survived
+    // Veteran promotion — soldiers (both sides) gain levels for nights survived
     for (const u of this.units) {
-      if (u.isEnemy || u.type === 'worker') continue;
+      if (u.type === 'worker') continue;
       u.nightsSurvived = (u.nightsSurvived ?? 0) + 1;
       const nextLevel = VET_LEVELS[u.vetLevel ?? 0];
       if (nextLevel && u.nightsSurvived >= nextLevel.nights) {
@@ -4454,7 +4676,7 @@ class GameScene extends Phaser.Scene {
     this.time.delayedCall(3000, () => {
       this.day++; this.phase = 'DAY'; this.timerMs = DAY_DURATION;
       this.mealsDone = 0;
-      this.scoutSpawned = false;
+
       this.ageUpUnits();
       this._enemyDawnUpkeep();
       this.applyDayBonus();
@@ -4520,11 +4742,12 @@ class GameScene extends Phaser.Scene {
 
       // ── Single finger / mouse ─────────────────────────────────────────
       this._pinch.active = false;
-      if (this.roadMode && ptr.isDown && ptr.leftButtonDown() && ptr.y >= MAP_OY) {
+      const isUI = ptr.y < MAP_OY || ptr.y > SCREEN_H - UI_PANEL_H;
+      if (this.roadMode && ptr.isDown && ptr.leftButtonDown() && !isUI) {
         // Drag-paint road tiles
         const t = this.tileAt(ptr.worldX, ptr.worldY);
         if (t) this._paintRoad(t.tx, t.ty);
-      } else if (!this.bldgType && !this.roadMode && ptr.isDown && ptr.leftButtonDown() && ptr.y >= MAP_OY) {
+      } else if (!this.bldgType && !this.roadMode && ptr.isDown && ptr.leftButtonDown() && !isUI) {
         const d = Phaser.Math.Distance.Between(ptr.x, ptr.y, this._ptrDownX, this._ptrDownY);
         if (d > TAP_DIST) {
           // Multiple units selected → formation drag; otherwise box-select
@@ -4580,7 +4803,7 @@ class GameScene extends Phaser.Scene {
         this.boxSelect(tl.x, tl.y, br.x, br.y, ptr.event?.shiftKey ?? false);
         return;
       }
-      if (ptr.y < MAP_OY) return;
+      if (ptr.y < MAP_OY || ptr.y > SCREEN_H - UI_PANEL_H) return;
       const wasTap = Phaser.Math.Distance.Between(ptr.x, ptr.y, this._ptrDownX, this._ptrDownY) < TAP_DIST;
       if (!wasTap) return;
       const wx = ptr.worldX, wy = ptr.worldY;
@@ -4618,7 +4841,7 @@ class GameScene extends Phaser.Scene {
   }
 
   drawBuildGhost(ptr) {
-    if (!this.bldgType || ptr.y < MAP_OY) { this.hoverGfx?.clear(); return; }
+    if (!this.bldgType || ptr.y < MAP_OY || ptr.y > SCREEN_H - UI_PANEL_H) { this.hoverGfx?.clear(); return; }
     const tile = this.tileAt(ptr.worldX, ptr.worldY); if (!tile) { this.hoverGfx?.clear(); return; }
     const def = BLDG[this.bldgType];
     const free    = this.isFree(tile.tx, tile.ty, def.size);
@@ -4632,171 +4855,87 @@ class GameScene extends Phaser.Scene {
 
   // ─── UI ───────────────────────────────────────────────────────────────────
 
-  createUI() {
-    const W = SCREEN_W;   // UI is laid out in screen space, not world space
+  _uibtn(parent, x, y, label, color, cost, callback) {
     const _ui = o => { this.cameras.main.ignore(o); return o; };
-
-    // Topbar background + bottom border
-    _ui(this.add.rectangle(W/2, MAP_OY/2, W, MAP_OY, 0x0e1520).setDepth(10));
-    _ui(this.add.graphics().setDepth(10))
-      .lineStyle(1, 0xc8a030, 0.4).lineBetween(0, MAP_OY, W, MAP_OY);
-    // Timer progress bar (drawn at bottom of topbar, updated in _updateTimerBar)
-    this.timerBarGfx = _ui(this.add.graphics().setDepth(10));
-
-    // ── Row 1: stat text (y centred at 11) ──────────────────────────────────
-    const r1 = 3;
-    const ts = { fontSize:'11px', color:'#ffffff', fontFamily:'monospace' };
-    this.foodText  = _ui(this.add.text(  6, r1, '', { ...ts, color:'#88ee88' }).setDepth(11));
-    this.stoneText = _ui(this.add.text( 68, r1, '', { ...ts, color:'#aaaacc' }).setDepth(11));
-    this.woodText  = _ui(this.add.text(130, r1, '', { ...ts, color:'#cc9944' }).setDepth(11));
-    this.woolText  = _ui(this.add.text(196, r1, '', { ...ts, color:'#e8e0c0' }).setDepth(11));
-    this.dayInfo   = _ui(this.add.text(246, r1, '', { ...ts, color:'#c8a030' }).setDepth(11));
-    this.workerInfo= _ui(this.add.text(294, r1, '', { ...ts, color:'#cc9944' }).setDepth(11));
-    this.enemyCount= _ui(this.add.text(360, r1, '', { ...ts, color:'#ee8888' }).setDepth(11));
-    this.selInfo   = _ui(this.add.text(406, r1, '', { ...ts, color:'#dddd88' }).setDepth(11));
-    this.timerText = _ui(this.add.text(W-6,  r1, '', { ...ts, fontSize:'12px' }).setOrigin(1,0).setDepth(11));
-    this.phaseTag  = _ui(this.add.text(W-6, r1+14, '', { fontSize:'8px', color:'#aaaacc', fontFamily:'monospace' }).setOrigin(1,0).setDepth(11));
-
-    // ── Row 2: buttons (centred at y = MAP_OY-btnH/2-4) ─────────────────────
-    const bldgEntries = Object.entries(BLDG).filter(([, def]) => !def.hidden);
-    const nTotal = bldgEntries.length + FM_TYPES.length + 2; // bldg + fm + ALL + X
-    const btnH   = 30;
-    const btnCY  = MAP_OY - btnH/2 - 4;
-    // Fit all buttons in W; clamp between 30 and 68 px wide
-    const btnW   = Math.min(68, Math.max(30, Math.floor((W - 30) / nTotal)));
-    const wide   = btnW >= 48; // show full label + cost only when wide enough
-    let bx = btnW / 2 + 4;
-
-    bldgEntries.forEach(([type, def]) => {
-      const btn = _ui(this.add.rectangle(bx, btnCY, btnW - 2, btnH, def.color, 0.85)
-        .setDepth(11).setInteractive({ useHandCursor: true }));
-      const lbl = wide ? def.label : def.label[0];
-      _ui(this.add.text(bx, btnCY - (wide ? 6 : 0), lbl,
-        { fontSize: wide?'9px':'10px', color:'#fff', fontFamily:'monospace' })
-        .setOrigin(0.5).setDepth(12));
-      if (wide) {
-        const costStr = Object.entries(def.cost).map(([r,n]) =>
-          `${n}${r==='stone'?'⛏':r==='wood'?'🪵':'🌾'}`).join(' ');
-        _ui(this.add.text(bx, btnCY + 7, costStr, { fontSize:'7px', color:'#ccccee', fontFamily:'monospace' })
-          .setOrigin(0.5).setDepth(12));
-      }
-      btn.on('pointerdown', () => { this.bldgType = this.bldgType===type?null:type; this.hoverGfx.clear(); this.updateUI(); });
-      this.buildingBtns[type] = btn; bx += btnW;
-    });
-
-    _ui(this.add.graphics().setDepth(11)).lineStyle(1, 0xffffff, 0.12)
-      .lineBetween(bx+2, btnCY-12, bx+2, btnCY+12);
-    bx += 8;
-
-    FM_TYPES.forEach((type, i) => {
-      const fx = bx + i * btnW;
-      const btn = _ui(this.add.rectangle(fx, btnCY, btnW - 2, btnH, 0x223344, 0.9)
-        .setDepth(11).setInteractive({ useHandCursor: true }));
-      _ui(this.add.text(fx, btnCY, FM_LABELS[i],
-        { fontSize: wide?'8px':'9px', color:'#aaccdd', fontFamily:'monospace' })
-        .setOrigin(0.5).setDepth(12));
-      btn.on('pointerdown', () => {
-        this.fmType = type; this.updateUI();
-        const sel = this.units.filter(u => u.selected && !u.isEnemy);
-        if (sel.length) {
-          const ax = sel.reduce((s,u)=>s+u.x,0)/sel.length, ay = sel.reduce((s,u)=>s+u.y,0)/sel.length;
-          this.moveSelectedTo(ax, ay);
-        }
-      });
-      this.fmBtns[type] = btn;
-    });
-    bx += FM_TYPES.length * btnW + 6;
-
-    _ui(this.add.graphics().setDepth(11)).lineStyle(1, 0xffffff, 0.12)
-      .lineBetween(bx, btnCY-12, bx, btnCY+12);
-    bx += 6;
-
-    const aBtn = _ui(this.add.rectangle(bx, btnCY, btnW - 2, btnH, 0x334422, 0.9)
-      .setDepth(11).setInteractive({ useHandCursor: true }));
-    _ui(this.add.text(bx, btnCY, wide ? 'ALL' : '☰',
-      { fontSize:'10px', color:'#aaddaa', fontFamily:'monospace' }).setOrigin(0.5).setDepth(12));
-    aBtn.on('pointerdown', () => this.units.filter(u => !u.isEnemy).forEach(u => this.selectUnit(u.id, true)));
-    bx += btnW;
-
-    const xBtn = _ui(this.add.rectangle(bx, btnCY, btnW - 2, btnH, 0x332211, 0.9)
-      .setDepth(11).setInteractive({ useHandCursor: true }));
-    _ui(this.add.text(bx, btnCY, '✕', { fontSize:'12px', color:'#ddaaaa', fontFamily:'monospace' })
-      .setOrigin(0.5).setDepth(12));
-    xBtn.on('pointerdown', () => { this.bldgType = null; this.roadMode = false; this.deselect(); this.hoverGfx.clear(); this.updateUI(); });
-    bx += btnW + 6;
-
-    // ── Road-paint tool ───────────────────────────────────────────────────
-    this.roadBtn = _ui(this.add.rectangle(bx, btnCY, btnW - 2, btnH, 0x5a4820, 0.9)
-      .setDepth(11).setInteractive({ useHandCursor: true }));
-    _ui(this.add.text(bx, btnCY - (wide ? 6 : 0), wide ? 'Road' : '🛤',
-      { fontSize: wide ? '9px' : '11px', color: '#ddcc88', fontFamily: 'monospace' }).setOrigin(0.5).setDepth(12));
-    if (wide) {
-      _ui(this.add.text(bx, btnCY + 7, '1⛏/tile',
-        { fontSize: '7px', color: '#ccccee', fontFamily: 'monospace' }).setOrigin(0.5).setDepth(12));
+    const btn = _ui(this.add.rectangle(x, y, UI_BTN_SIZE, UI_BTN_SIZE, color, 0.85).setInteractive({ useHandCursor: true }));
+    parent.add(btn);
+    const txt = _ui(this.add.text(x, y - (cost?8:0), label, { fontSize:'9px', color:'#fff', fontFamily:'monospace', align:'center', wordWrap:{width:UI_BTN_SIZE-4} }).setOrigin(0.5));
+    parent.add(txt);
+    if (cost) {
+      const costStr = Object.entries(cost).map(([r,n])=>`${n}${r==='stone'?'⛏':r==='wood'?'🪵':'🌾'}`).join(' ');
+      const ctxt = _ui(this.add.text(x, y + 10, costStr, { fontSize:'7px', color:'#ccccee', fontFamily:'monospace' }).setOrigin(0.5));
+      parent.add(ctxt);
     }
-    this.roadBtn.on('pointerdown', () => {
-      this.roadMode = !this.roadMode;
-      this.bldgType = null;
-      this.hoverGfx.clear();
-      this.updateUI();
-    });
+    btn.on('pointerdown', callback);
+    return btn;
+  }
 
-    this.phaseMsg = _ui(this.add.text(W/2, SCREEN_H/2 - 20, '', {
-      fontSize:'22px', color:'#ffffff', fontFamily:'monospace', stroke:'#000000', strokeThickness:4,
-    }).setOrigin(0.5).setDepth(20).setAlpha(0));
+  _tabbtn(parent, x, y, label, active, callback) {
+    const _ui = o => { this.cameras.main.ignore(o); return o; };
+    const w = 34, h = 22;
+    const btn = _ui(this.add.rectangle(x, y, w, h, active ? 0x88ccdd : 0x2a3545, 0.9).setInteractive({ useHandCursor: true }));
+    parent.add(btn);
+    if (active) btn.setStrokeStyle(1, 0xffffff);
+    const txt = _ui(this.add.text(x, y, label, { fontSize:'10px', color:'#fff', fontFamily:'monospace' }).setOrigin(0.5));
+    parent.add(txt);
+    btn.on('pointerdown', callback);
+    return btn;
+  }
 
-    // ── Building info panel (shown when a building is tapped with no units selected) ──
-    const pW = 220, pH = 52, pX = W/2, pY = SCREEN_H - pH/2 - 6;
-    this.bldgPanel = {
-      bg:    _ui(this.add.rectangle(pX, pY, pW, pH, 0x0e1520, 0.92).setDepth(18).setStrokeStyle(1, 0xc8a030, 0.7).setVisible(false)),
-      label: _ui(this.add.text(pX - pW/2 + 8, pY - 14, '', { fontSize:'10px', color:'#ddcc88', fontFamily:'monospace' }).setDepth(19).setVisible(false)),
-      info:  _ui(this.add.text(pX - pW/2 + 8, pY,      '', { fontSize:'9px',  color:'#aaaacc', fontFamily:'monospace' }).setDepth(19).setVisible(false)),
-    };
-    // Action button (Demolish or Cancel construction)
-    const abX = pX + pW/2 - 48, abY = pY - 2;
-    this.bldgPanel.actionBtn = _ui(this.add.rectangle(abX, abY, 74, 26, 0x661111, 0.9)
-      .setDepth(19).setStrokeStyle(1, 0xff6644, 0.6).setInteractive({ useHandCursor: true }).setVisible(false));
-    this.bldgPanel.actionLbl = _ui(this.add.text(abX, abY, 'Demolish',
-      { fontSize:'9px', color:'#ffaaaa', fontFamily:'monospace' }).setOrigin(0.5).setDepth(20).setVisible(false));
-    this.bldgPanel.actionBtn.on('pointerdown', () => {
-      if (this.selectedBuilding) this.demolishBuilding(this.selectedBuilding);
-    });
-    // Close button
-    const cbX = pX + pW/2 - 8, cbY = pY - pH/2 + 8;
-    this.bldgPanel.closeBtn = _ui(this.add.text(cbX, cbY, '✕',
-      { fontSize:'10px', color:'#887766', fontFamily:'monospace' }).setOrigin(0.5).setDepth(20)
-      .setInteractive({ useHandCursor: true }).setVisible(false));
-    this.bldgPanel.closeBtn.on('pointerdown', () => { this.selectedBuilding = null; this.updateUI(); });
+  createUI() {
+    const W = SCREEN_W, H = SCREEN_H;
+    const _ui = o => { this.cameras.main.ignore(o); return o; };
+    this.uiGfx = _ui(this.add.graphics().setDepth(10));
 
-    // ── Minimap (bottom-right corner) — portrait map 80×128 → scale to ~70×112 ─
-    const mmW = 70, mmH = 112, mmPad = 6;
-    this._mmX = W - mmW - mmPad;
-    this._mmY = SCREEN_H - mmH - mmPad;
-    this._mmW = mmW;
-    this._mmH = mmH;
-    this.minimapGfx = _ui(this.add.graphics().setDepth(14));
-    // Transparent hit zone for click-to-pan
-    const mmZone = _ui(this.add.zone(
-      this._mmX + mmW / 2, this._mmY + mmH / 2, mmW, mmH
-    ).setInteractive());
+    // --- Top Bar (Resources & Stats) ---
+    _ui(this.add.rectangle(W/2, 26, W, 52, 0x0e1520).setDepth(20));
+    _ui(this.add.graphics().setDepth(20)).lineStyle(1, 0xc8a030, 0.4).lineBetween(0, 52, W, 52);
+    this.timerBarGfx = _ui(this.add.graphics().setDepth(21));
+
+    const ts = { fontSize:'11px', color:'#ffffff', fontFamily:'monospace' };
+    this.foodText  = _ui(this.add.text(  6, 6, '', { ...ts, color:'#88ee88' }).setDepth(21));
+    this.stoneText = _ui(this.add.text( 68, 6, '', { ...ts, color:'#aaaacc' }).setDepth(21));
+    this.woodText  = _ui(this.add.text(130, 6, '', { ...ts, color:'#cc9944' }).setDepth(21));
+    this.woolText  = _ui(this.add.text(196, 6, '', { ...ts, color:'#e8e0c0' }).setDepth(21));
+    this.dayInfo   = _ui(this.add.text(256, 6, '', { ...ts, color:'#c8a030' }).setDepth(21));
+    this.workerInfo= _ui(this.add.text(304, 6, '', { ...ts, color:'#cc9944' }).setDepth(21));
+    this.enemyCount= _ui(this.add.text(370, 6, '', { ...ts, color:'#ee8888' }).setDepth(21));
+    this.timerText = _ui(this.add.text(W-6,  6, '', { ...ts, fontSize:'12px' }).setOrigin(1,0).setDepth(21));
+    this.phaseTag  = _ui(this.add.text(W-6, 20, '', { fontSize:'8px', color:'#aaaacc', fontFamily:'monospace' }).setOrigin(1,0).setDepth(21));
+    this.selInfo   = _ui(this.add.text(W/2, 40, '', { ...ts, color:'#dddd88' }).setOrigin(0.5,0).setDepth(21));
+
+    // --- Bottom UI Panel ---
+    const bY = H - UI_PANEL_H;
+    _ui(this.add.rectangle(W/2, H - UI_PANEL_H/2, W, UI_PANEL_H, 0x0e1520, 0.98).setDepth(20));
+    _ui(this.add.graphics().setDepth(20)).lineStyle(1, 0xc8a030, 0.6).lineBetween(0, bY, W, bY);
+
+    // --- Minimap (Center) ---
+    const mmX = W/2 - UI_MM_W/2, mmY = H - UI_PANEL_H/2 - UI_MM_H/2;
+    this._mmX = mmX; this._mmY = mmY; this._mmW = UI_MM_W; this._mmH = UI_MM_H;
+    _ui(this.add.rectangle(W/2, H - UI_PANEL_H/2, UI_MM_W + 4, UI_MM_H + 4, 0x000000, 0.6).setDepth(21).setStrokeStyle(1, 0xc8a030, 0.4));
+    this.minimapGfx = _ui(this.add.graphics().setDepth(22));
+    const mmZone = _ui(this.add.zone(W/2, H - UI_PANEL_H/2, UI_MM_W, UI_MM_H).setInteractive().setDepth(23));
     mmZone.on('pointerdown', ptr => {
-      const fx = (ptr.x - this._mmX) / mmW;
-      const fy = (ptr.y - this._mmY) / mmH;
-      this.cameras.main.pan(
-        fx * MAP_W * TILE,
-        MAP_OY + fy * MAP_H * TILE,
-        300, 'Sine.easeOut'
-      );
+      const fx = (ptr.x - this._mmX) / UI_MM_W;
+      const fy = (ptr.y - this._mmY) / UI_MM_H;
+      this.cameras.main.pan(fx * MAP_W * TILE, MAP_OY + fy * MAP_H * TILE, 300, 'Sine.easeOut');
     });
+
+    // --- Left & Right UI Containers ---
+    this.uiLeft  = _ui(this.add.container(0, bY).setDepth(21));
+    this.uiRight = _ui(this.add.container(W/2 + UI_MM_W/2 + 10, bY).setDepth(21));
+
+    this.buildCat = 'Economy';
+
+    // Phase message (big text overlay)
+    this.phaseMsg = _ui(this.add.text(W/2, H/2 - 40, '', {
+      fontSize:'22px', color:'#ffffff', fontFamily:'monospace', stroke:'#000000', strokeThickness:4,
+    }).setOrigin(0.5).setDepth(100).setAlpha(0));
 
     this.updateUI();
   }
 
   updateUI() {
-    const wc=this.units.filter(u=>u.type==='worker'&&!u.isEnemy&&u.hp>0).length;
-    const popCap = this.buildings.filter(b => !b.faction && b.built && BLDG[b.type].capacity)
-                     .reduce((s, b) => s + BLDG[b.type].capacity, 0);
-    const cap = popCap; // used below for workerInfo
     const sm = this.storageMax;
     const upkeepPerMeal = this.units.filter(u => !u.isEnemy && u.hp > 0).length;
     const foodWarn = upkeepPerMeal > 0 && this.resources.food < upkeepPerMeal;
@@ -4806,102 +4945,177 @@ class GameScene extends Phaser.Scene {
     this.woodText.setText(`🪵${this.resources.wood}/${sm.wood||0}`);
     if (this.woolText) {
       const woolCap = sm.wool || 0;
-      const wheatStr = (sm.wheat||0) > 0 ? ` 🌿${this.resources.wheat||0}` : '';
-      const flourStr = (sm.flour||0) > 0 ? ` 🌾→${this.resources.flour||0}` : '';
-      const meatStr  = (sm.meat||0)  > 0 ? ` 🥩${this.resources.meat||0}`  : '';
-      this.woolText.setText(
-        (woolCap > 0 ? `🧶${this.resources.wool||0}/${woolCap}` : '') +
-        wheatStr + flourStr + meatStr
-      );
+      const wheatStr  = (sm.wheat||0)  > 0 ? ` 🌿${this.resources.wheat||0}` : '';
+      const flourStr  = (sm.flour||0)  > 0 ? ` 🌾→${this.resources.flour||0}` : '';
+      const meatStr   = (sm.meat||0)   > 0 ? ` 🥩${this.resources.meat||0}`  : '';
+      const olivesStr = (sm.olives||0) > 0 ? ` 🫒${this.resources.olives||0}` : '';
+      const seedsStr  = (sm.seeds||0)  > 0 ? ` 🌱${this.resources.seeds||0}`  : '';
+      this.woolText.setText((woolCap > 0 ? `🧶${this.resources.wool||0}/${woolCap}` : '') + wheatStr + flourStr + meatStr + olivesStr + seedsStr);
     }
     this.dayInfo.setText(this.phase === 'NIGHT' ? `🌙 Night ${this.day}` : `☀ Day ${this.day}`);
-    // Phase tag
     if (this.phaseTag) {
-      if (this.phase === 'NIGHT') {
-        this.phaseTag.setText('🌙 NIGHT').setColor('#8899ee');
-      } else if (this.phase === 'DAY') {
-        this.phaseTag.setText('☀ DAY').setColor('#ddaa44');
-      } else {
-        this.phaseTag.setText('');
-      }
+      this.phaseTag.setText(this.phase === 'NIGHT' ? '🌙 NIGHT' : '☀ DAY').setColor(this.phase === 'NIGHT' ? '#8899ee' : '#ddaa44');
     }
     const adults  = this.units.filter(u => !u.isEnemy && u.hp > 0 && u.type === 'worker' && u.age >= 2).length;
     const youths  = this.units.filter(u => !u.isEnemy && u.hp > 0 && u.type === 'worker' && u.age === 1).length;
     const children= this.units.filter(u => !u.isEnemy && u.hp > 0 && u.type === 'worker' && u.age === 0).length;
+    const popCap = this.buildings.filter(b => !b.faction && b.built && BLDG[b.type].capacity).reduce((s, b) => s + BLDG[b.type].capacity, 0);
     const popStr  = children > 0 ? `${adults}+${youths}+${children}` : youths > 0 ? `${adults}+${youths}` : `${adults}`;
-    this.workerInfo.setText(`👥${popStr}/${cap}`);
-    this.updateEnemyCount(); this.updateSelInfo();
-    Object.entries(this.buildingBtns).forEach(([type,btn])=>{btn.setAlpha(this.bldgType===type?1:0.8);btn.setStrokeStyle(this.bldgType===type?2:0,0xffdd44);});
-    Object.entries(this.fmBtns).forEach(([type,btn])=>{btn.setAlpha(this.fmType===type?1:0.7);btn.setStrokeStyle(this.fmType===type?2:0,0x88ccdd);});
-    if (this.roadBtn) { this.roadBtn.setAlpha(this.roadMode?1:0.8); this.roadBtn.setStrokeStyle(this.roadMode?2:0,0xddcc44); }
-    this._updateBldgPanel();
+    this.workerInfo.setText(`👥${popStr}/${popCap}`);
+
+    this.updateEnemyCount(); 
+    this.updateSelInfo();
+    this._refreshSidebars();
   }
 
-  _updateBldgPanel() {
-    const p = this.bldgPanel; if (!p) return;
+  _refreshSidebars() {
+    if (!this.uiLeft || !this.uiRight) return;
+    this.uiLeft.removeAll(true);
+    this.uiRight.removeAll(true);
+    const btnS = UI_BTN_SIZE + 6;
+
+    const sel = this.units.filter(u => u.selected && !u.isEnemy);
+
+    // --- Right Sidebar: ALWAYS Movement & Selection control ---
+    if (sel.length > 0) {
+      FM_TYPES.forEach((type, i) => {
+        const btn = this._uibtn(this.uiRight, i * (btnS+4) + btnS/2, UI_PANEL_H/2, FM_LABELS[i], 0x223344, null, () => {
+          this.fmType = type; this.updateUI();
+          const ax = sel.reduce((s,u)=>s+u.x,0)/sel.length, ay = sel.reduce((s,u)=>s+u.y,0)/sel.length;
+          this.moveSelectedTo(ax, ay);
+        });
+        if (this.fmType === type) btn.setStrokeStyle(2, 0x88ccdd);
+      });
+      let rx = FM_TYPES.length * (btnS+4) + 12;
+      this._uibtn(this.uiRight, rx + btnS/2, UI_PANEL_H/2, 'ALL', 0x334422, null, () => this.units.filter(u => !u.isEnemy).forEach(u => this.selectUnit(u.id, true)));
+      this._uibtn(this.uiRight, rx + btnS + btnS/2 + 4, UI_PANEL_H/2, '✕', 0x332211, null, () => { this.bldgType = null; this.roadMode = false; this.deselect(); this.hoverGfx.clear(); this.updateUI(); });
+    } else {
+      this._uibtn(this.uiRight, 10 + btnS/2, UI_PANEL_H/2, 'SELECT\nALL', 0x334422, null, () => this.units.filter(u => !u.isEnemy).forEach(u => this.selectUnit(u.id, true)));
+    }
+
+    // --- Left Sidebar: Contextual Content ---
+    if (this.selectedBuilding) {
+      this._drawBuildingInfoPane();
+    } else if (sel.length > 0) {
+      const allWorkers = sel.every(u => u.type === 'worker');
+      if (allWorkers) {
+        // Left side for workers: Job Actions & Build tabs
+        this._drawWorkerMenu(sel);
+      } else {
+        // Left side for soldiers: Specialized actions
+        this._drawSoldierMenu(sel);
+      }
+    } else {
+      this._drawBuildMenu();
+    }
+  }
+
+  _drawWorkerMenu(sel) {
+    const btnS = UI_BTN_SIZE + 4;
+    // Recall button (quick home)
+    this._uibtn(this.uiLeft, 30, UI_PANEL_H/2, 'RECALL', 0x445566, null, () => {
+      const th = this.buildings.find(b => b.type === 'townhall' && !b.faction);
+      if (th) this.moveSelectedTo(th.x, th.y);
+    });
+    // Build Menu (nested or shifted)
+    const buildX = 30 + btnS + 15;
+    this.uiLeft.add(this.add.text(buildX, 15, 'BUILDING PROJECTS', { fontSize:'8px', color:'#aaa', fontFamily:'monospace' }));
+    this._drawBuildMenu(buildX);
+  }
+
+  _drawSoldierMenu(sel) {
+    const btnS = UI_BTN_SIZE + 4;
+    const canDemob = sel.some(u => (u.vetLevel??0) === 0);
+    if (canDemob) {
+      this._uibtn(this.uiLeft, 30, UI_PANEL_H/2, 'DISMISS', 0x663322, null, () => {
+        sel.forEach(u => { if ((u.vetLevel??0)===0) u.role = 'demobilizing'; });
+        this.deselect();
+        this.updateUI();
+      });
+    } else {
+      this.uiLeft.add(this.add.text(10, UI_PANEL_H/2, 'VETERANS ARE COMMITTED', { fontSize:'9px', color:'#ddaa44', fontFamily:'monospace' }));
+    }
+  }
+
+  _drawBuildMenu(offsetX = 10) {
+    const btnS = UI_BTN_SIZE + 4;
+    // Category Tabs (Smaller)
+    const cats = Object.keys(BLDG_CATS);
+    cats.forEach((cat, i) => {
+      this._tabbtn(this.uiLeft, offsetX + 20 + i * 40, 20, cat[0], this.buildCat === cat, () => {
+        this.buildCat = cat; this.updateUI();
+      });
+    });
+
+    // Buildings in Category (Grid)
+    const bldgs = BLDG_CATS[this.buildCat] || [];
+    bldgs.forEach((type, i) => {
+      const def = BLDG[type];
+      const bx = offsetX + 30 + (i % 2) * (btnS + 6);
+      const by = 60 + Math.floor(i / 2) * (btnS + 6);
+      if (by > UI_PANEL_H - 30) return;
+      const btn = this._uibtn(this.uiLeft, bx, by, def.label, def.color, def.cost, () => {
+        this.bldgType = this.bldgType === type ? null : type;
+        this.roadMode = false; this.hoverGfx.clear(); this.updateUI();
+      });
+      if (this.bldgType === type) btn.setStrokeStyle(2, 0xffdd44);
+    });
+
+    // Road tool (Floating)
+    const rX = offsetX + 30 + 2 * (btnS+6);
+    const rBtn = this._uibtn(this.uiLeft, rX, 60, 'Road', 0x5a4820, { stone: 1 }, () => {
+      this.roadMode = !this.roadMode; this.bldgType = null; this.hoverGfx.clear(); this.updateUI();
+    });
+    if (this.roadMode) rBtn.setStrokeStyle(2, 0xddcc44);
+  }
+
+  _drawBuildingInfoPane() {
     const b = this.selectedBuilding;
-    const show = !!b;
-    p.bg.setVisible(show); p.label.setVisible(show); p.info.setVisible(show);
-    p.actionBtn.setVisible(show); p.actionLbl.setVisible(show); p.closeBtn.setVisible(show);
-    if (!b) return;
     const def = BLDG[b.type];
-    p.label.setText(def.label + (b.built ? '' : '  [building...]'));
-    // Build info line
+    const ts = { fontSize:'11px', color:'#ddcc88', fontFamily:'monospace' };
+    this.uiLeft.add(this.add.text(10, 15, def.label + (b.built ? '' : ' [building...]'), ts));
+
     let infoStr = '';
     if (!b.built) {
-      // Show what still needs to be delivered
-      const needs = Object.entries(b.resNeeded || {}).filter(([,n]) => n > 0)
-        .map(([r,n]) => `${n}${r==='stone'?'⛏':r==='wood'?'🪵':'🌾'}`).join(' ');
+      const needs = Object.entries(b.resNeeded || {}).filter(([,n]) => n > 0).map(([r,n]) => `${n}${r==='stone'?'⛏':r==='wood'?'🪵':'🌾'}`).join(' ');
       infoStr = needs ? `Needs: ${needs}` : 'Workers building...';
     } else {
       const residents = this.units.filter(u => u.homeBldgId === b.id && !u.isEnemy && u.hp > 0);
       if (def.capacity) infoStr = `👥 ${residents.length}/${def.capacity}`;
       if (def.stores) {
-        const parts = Object.entries(def.stores).map(([r,cap]) =>
-          `${r[0].toUpperCase()}:${this.resources[r]||0}/${cap}`).join(' ');
+        const parts = Object.entries(def.stores).map(([r,cap]) => `${r[0].toUpperCase()}:${this.resources[r]||0}/${cap}`).join(' ');
         infoStr = (infoStr ? infoStr + '  ' : '') + parts;
       }
     }
-    p.info.setText(infoStr);
-    // Gate: show open/close toggle
+    this.uiLeft.add(this.add.text(10, 32, infoStr, { fontSize:'10px', color:'#aaaacc', fontFamily:'monospace' }));
+
+    let actionLabel = b.built ? 'Demolish' : 'Cancel';
+    let actionColor = b.built ? 0x661111 : 0x114422;
+
     if (b.type === 'gate' && b.built) {
-      infoStr = b.isOpen ? 'Gate: OPEN' : 'Gate: CLOSED';
-      p.info.setText(infoStr);
-      p.actionLbl.setText(b.isOpen ? 'Close' : 'Open');
-      p.actionBtn.setFillStyle(b.isOpen ? 0x442200 : 0x224400);
-      p.actionBtn.setStrokeStyle(1, b.isOpen ? 0xff8844 : 0x44ff88, 0.7);
-      p.actionLbl.setColor(b.isOpen ? '#ffcc88' : '#aaffcc');
-      p.actionBtn.off('pointerdown').on('pointerdown', () => {
-        b.isOpen = !b.isOpen;
-        this.redrawBuilding(b);
-        this.updateUI();
-      });
-      return;
+      actionLabel = b.isOpen ? 'Close Gate' : 'Open Gate';
+      actionColor = b.isOpen ? 0x442200 : 0x224400;
+    } else if (b.type === 'temple' && b.built) {
+      actionLabel = 'Cycle Deity'; actionColor = 0x442266;
+      this.uiLeft.add(this.add.text(10, 50, (b.deity ?? 'ares').toUpperCase(), { fontSize:'9px', color:'#ddaaff' }));
     }
 
-    // Pasture: show sheep count + slaughter option
-    if (b.type === 'pasture' && b.built) {
-      const males = b.males ?? 0, females = b.females ?? 0, lambs = b.lambs ?? 0;
-      const adults = males + females;
-      const fedMark = b.fedToday ? '✓' : '○';
-      infoStr = `🐑 ${males}♂ ${females}♀  ${lambs} lambs / ${BLDG.pasture.sheepCap}  fed:${fedMark}  🧶${this.resources.wool||0}`;
-      p.info.setText(infoStr);
-      if (adults >= 1) {
-        p.actionLbl.setText('Slaughter');
-        p.actionBtn.setFillStyle(0x552200).setStrokeStyle(1, 0xff6622, 0.7).setVisible(true);
-        p.actionLbl.setColor('#ffcc88').setVisible(true);
-        p.actionBtn.off('pointerdown').on('pointerdown', () => this._slaughterSheep(b));
-        p.closeBtn.setVisible(true);
-        return;
+    this._uibtn(this.uiLeft, 40, 95, actionLabel, actionColor, null, () => {
+      if (b.type === 'gate' && b.built) {
+        b.isOpen = !b.isOpen; this.redrawBuilding(b); this.updateUI();
+      } else if (b.type === 'temple' && b.built) {
+        const cycle = { ares: 'athena', athena: 'apollo', apollo: 'ares' };
+        b.deity = cycle[b.deity ?? 'ares']; b.templeTimer = 0; this.updateUI();
+      } else if (b.type === 'pasture' && b.built && (b.males+b.females) >= 1) {
+        this._slaughterSheep(b);
+      } else {
+        this.demolishBuilding(b);
       }
-    }
-    // Action button label
-    const actionLabel = b.built ? 'Demolish' : 'Cancel';
-    p.actionLbl.setText(actionLabel);
-    p.actionBtn.setFillStyle(b.built ? 0x661111 : 0x114422);
-    p.actionBtn.setStrokeStyle(1, b.built ? 0xff6644 : 0x44cc88, 0.7);
-    p.actionLbl.setColor(b.built ? '#ffaaaa' : '#aaffcc');
+    });
+
+    this._uibtn(this.uiLeft, 110, 95, 'Close', 0x333333, null, () => { this.selectedBuilding = null; this.updateUI(); });
   }
+
 
   updateSelInfo() {
     if (!this.selInfo) return;
@@ -4911,35 +5125,14 @@ class GameScene extends Phaser.Scene {
     if (n===1 && sel[0]?.type !== 'worker') {
       const u = sel[0];
       const vl = u.vetLevel ?? 0;
+      const dispName = UNIT_NAMES[u.type] ?? u.type;
       const vetLabel = vl >= 1 ? (VET_LEVELS[vl-1].label + (u.veteranName ? ` ${u.veteranName}` : '')) : '';
-      const typeStr  = vetLabel ? `${vetLabel} (${u.type})` : u.type;
-      const canDemob = vl === 0 && !u.isEnemy;
-      const demobStr = canDemob ? '  [tap again: demobilize]' : (vl >= 1 ? '  [committed — no demob]' : '');
-      this.selInfo.setText(typeStr + demobStr);
-      // Double-tap / second selection press → demobilize non-vet soldiers
-      if (canDemob && !this._demobPending) {
-        this._demobPending = u.id;
-      } else if (this._demobPending === u.id && canDemob) {
-        this._demobPending = null;
-        u.role = 'demobilizing';
-        this.deselect();
-      } else {
-        this._demobPending = null;
-      }
-      if (!canDemob) this._demobPending = null;
-      const hints = {
-        cavalry:  '▲archer/toxotes ▼spearman/hoplite',
-        spearman: '▲cavalry ▼archer', hoplite: '▲cavalry ▼archer',
-        archer:   '▲spearman ▼cavalry', toxotes: '▲spearman ▼cavalry',
-        peltast:  'light armored — upgrade with bronze',
-        clubman:  'levy — upgrade with leather', slinger: 'levy ranged — upgrade with leather',
-      };
-      if (!vetLabel && hints[u.type]) this.selInfo.setText(`${u.type}  ${hints[u.type]}${demobStr}`);
+      this.selInfo.setText((vetLabel ? `${vetLabel} ` : '') + dispName);
       return;
     }
     const roles={};
     sel.forEach(u=>{
-      const label=u.type==='worker'&&u.role?u.role:u.type;
+      const label = u.type==='worker' && u.role ? u.role : (UNIT_NAMES[u.type] ?? u.type);
       roles[label]=(roles[label]||0)+1;
     });
     this.selInfo.setText(Object.entries(roles).map(([t,c])=>`${c} ${t}`).join(', '));

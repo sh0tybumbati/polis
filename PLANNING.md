@@ -183,12 +183,14 @@ Gender is a single field (`gender: 'male' | 'female'`) assigned at spawn (50/50 
 - [x] **Resources** — `wheat`, `flour`, `meat` added to resource pool, storageMax, carrying, and topbar UI
 
 #### Future Food Chain (MS4+)
+- [x] Kepos (garden) — auto-produces food from seeds; seeds harvested from discovered wild gardens
+- [x] Elaiotriveion (olive press) — 2 olives → 3 food; olives harvested from discovered olive groves (mid-map)
+- [ ] **Distinct crop types for Kepos** — wild gardens yield specific seeds (lentils, garlic, onions, etc.); each Kepos plot grows one crop type with different bonuses (e.g. lentils = steady food, garlic = soldier HP regen, onions = worker speed)
 - [ ] Cookhouse: bread + sausage → portable rations for scouts
 - [ ] Tiered food taxonomy with worker-slot shop model (customers visit shops)
 - [ ] Foodhaus fallback building with workstation bottleneck
-- [ ] Veggie gardens, olive press, olive groves (discovered resources)
 - [ ] Unlock gates per building
-- [ ] Enemy AI builds food chain buildings
+- [ ] Enemy AI builds food chain buildings (Mylos, Artopoion, Makellon)
 
 #### Military Production — Unit Tiers & Material Chains
 
@@ -249,6 +251,13 @@ Gender is a single field (`gender: 'male' | 'female'`) assigned at spawn (50/50 
 - [x] **Watch Tower** — costs stone+wood; auto-fires arrows at range 5 tiles; reveals fog in radius 6
 - [x] **Wall Gate** — placed in a wall segment; manually open/close; seals automatically at nightfall
 - [x] **Palisade** (cheap wooden wall) — cheaper than stone wall, burns if fire mechanic added later
+
+### GUI & User Interface
+- [x] **Major GUI Rework** — bottom-docked control panel separating game world from UI
+- [x] **Centered Minimap** — embedded in the control panel for centralized navigation
+- [x] **Context-Aware Sidebars** — dynamically shifting buttons based on selection (Workers vs. Soldiers vs. Buildings)
+- [x] **Mobile-Friendly Optimization** — compact tabs and grid-based building menu for small screens
+- [x] **Special Actions** — "RECALL" for workers, "DISMISS" for non-veteran soldiers
 
 ### Terrain Advantages (combat)
 - [x] Forest tiles: archers in forest get cover (–20% incoming ranged damage)
