@@ -4863,29 +4863,37 @@ class GameScene extends Phaser.Scene {
       const wasTap = Phaser.Math.Distance.Between(ptr.x, ptr.y, this._ptrDownX, this._ptrDownY) < TAP_DIST;
       if (!wasTap) return;
       const wx = ptr.worldX, wy = ptr.worldY;
-      if (ptr.rightButtonReleased()) { if (this.selIds.size > 0) this.moveSelectedTo(wx, wy); return; }
+      const hit = this.unitAt(wx, wy);
+      const bldg = this.findBuildingAt(wx, wy);
+      const node = this.findNodeAt(wx, wy);
+
+      // ── RIGHT CLICK: Move & Interaction ──────────────────────────
+      if (ptr.rightButtonReleased()) {
+        if (this.selIds.size > 0) {
+          if (hit && hit.isEnemy) { /* Attack order (TBD) */ }
+          else if (bldg && bldg.built) { /* Interact (TBD) */ }
+          else {
+            const deer = this.findDeerAt(wx, wy);
+            const sheep = this.findSheepAt(wx, wy);
+            if (deer && this.selIds.size > 0) this.assignHunters(deer);
+            else if (sheep && this.selIds.size > 0) this.assignShepherds(sheep);
+            else this.moveSelectedTo(wx, wy);
+          }
+        }
+        return;
+      }
+
+      // ── LEFT CLICK: Selection & Placement ─────────────────────────
       if (this.roadMode) { const t = this.tileAt(wx, wy); if (t) this._paintRoad(t.tx, t.ty); return; }
       if (this.bldgType) { const t = this.tileAt(wx, wy); if (t) this.placeBuilding(t.tx, t.ty); return; }
-      const hit = this.unitAt(wx, wy);
+      
       if (hit && !hit.isEnemy) { this.selectUnit(hit.id, ptr.event?.shiftKey ?? false); return; }
-      // Tap on a deer — assign selected workers/archers as hunters
-      const deerHit = this.findDeerAt(wx, wy);
-      if (deerHit && this.selIds.size > 0) { this.assignHunters(deerHit); return; }
-      // Tap on a wild sheep — assign selected workers as shepherds
-      const sheepHit = this.findSheepAt(wx, wy);
-      if (sheepHit && !sheepHit.isTamed && this.selIds.size > 0) { this.assignShepherds(sheepHit); return; }
-      const bldg = this.findBuildingAt(wx, wy);
+      
+      this.deselect(); // Empty space deselects
       if (this.selIds.size > 0) {
         if (bldg && this.orderWorkersToBuilding(bldg)) return;
-        const node = this.findNodeAt(wx, wy);
         if (node && this.orderWorkersToNode(node)) return;
-        // Tap storeroom with space → assign idle workers to collect floor piles
-        if (bldg && bldg.built && BLDG[bldg.type].stores && this.floorPiles.length > 0) {
-          this._triggerCollect(bldg); return;
-        }
-        this.moveSelectedTo(wx, wy);
       } else {
-        // No units selected — select building for info/demolish
         if (bldg) { this.selectedBuilding = bldg; this.updateUI(); return; }
         if (this.selectedBuilding) { this.selectedBuilding = null; this.updateUI(); }
       }
