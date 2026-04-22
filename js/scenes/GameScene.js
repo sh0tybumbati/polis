@@ -470,14 +470,14 @@ class GameScene extends Phaser.Scene {
     }
 
     // Heartland (biome 0): food-rich, light stone/wood
-    place('berry_bush',    0, 15, clearOfPlayer); // 7 -> 15
-    place('small_tree',    0, 8, clearOfPlayer);  // 4 -> 8
-    place('small_boulder', 0, 6, clearOfPlayer);  // 3 -> 6
+    place('berry_bush',    0, 30, clearOfPlayer); // 15 -> 30
+    place('small_tree',    0, 16, clearOfPlayer); // 8 -> 16
+    place('small_boulder', 0, 12, clearOfPlayer); // 6 -> 12
 
     // Scrubland (biome 1): stone-heavy, some wood, sparse food
-    place('small_boulder', 1, 10); // 5 -> 10
-    place('large_boulder', 1, 6);  // 3 -> 6
-    place('small_tree',    1, 6);  // 3 -> 6
+    place('small_boulder', 1, 20); // 10 -> 20
+    place('large_boulder', 1, 12); // 6 -> 12
+    place('small_tree',    1, 12); // 6 -> 12
     place('berry_bush',    1, 2);
 
     // Forest (biome 2): wood-rich, some stone
