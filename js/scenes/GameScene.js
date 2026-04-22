@@ -4240,12 +4240,30 @@ class GameScene extends Phaser.Scene {
     // ── Idle: seek next task by role ──────────────────────────────────────
     if (this.phase !== 'DAY' && this.phase !== 'NIGHT') return;
     if (ENABLE_PROACTIVE_AI && u.role === null && u.age >= 2 && !u.moveTo) {
-       // Proactive AI: Build storage if capacity is low
+       // Proactive AI: Build Granary
        if (this.resources.food / (this.storageMax.food || 1) > 0.8 && !this.buildings.some(b => b.type === 'granary' && !b.built)) {
          const site = this._findBuildSiteNear('granary', u.x, u.y);
          if (site && this.afford(BLDG.granary.cost)) {
            this.placeBuiltBuilding('granary', site.tx, site.ty);
            this.spend(BLDG.granary.cost);
+         }
+       }
+       // Proactive AI: Build Woodshed
+       if (this.resources.wood / (this.storageMax.wood || 1) > 0.8 && !this.buildings.some(b => b.type === 'woodshed' && !b.built)) {
+         const site = this._findBuildSiteNear('woodshed', u.x, u.y);
+         if (site && this.afford(BLDG.woodshed.cost)) {
+           this.placeBuiltBuilding('woodshed', site.tx, site.ty);
+           this.spend(BLDG.woodshed.cost);
+         }
+       }
+       // Proactive AI: Build House
+       const pop = this.units.filter(u => !u.isEnemy && u.hp > 0).length;
+       const popCap = this.buildings.filter(b => !b.faction && b.built && BLDG[b.type].capacity).reduce((s, b) => s + BLDG[b.type].capacity, 0);
+       if (pop / (popCap || 1) > 0.8 && !this.buildings.some(b => b.type === 'house' && !b.built)) {
+         const site = this._findBuildSiteNear('house', u.x, u.y);
+         if (site && this.afford(BLDG.house.cost)) {
+           this.placeBuiltBuilding('house', site.tx, site.ty);
+           this.spend(BLDG.house.cost);
          }
        }
     }
