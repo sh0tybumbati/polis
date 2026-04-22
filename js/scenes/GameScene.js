@@ -4870,8 +4870,9 @@ class GameScene extends Phaser.Scene {
       // ── RIGHT CLICK: Move & Interaction ──────────────────────────
       if (ptr.rightButtonReleased()) {
         if (this.selIds.size > 0) {
-          if (hit && hit.isEnemy) { /* Attack order (TBD) */ }
-          else if (bldg && bldg.built) { /* Interact (TBD) */ }
+          if (hit && hit.isEnemy) { /* Attack (TBD) */ }
+          else if (bldg && this.orderWorkersToBuilding(bldg)) return;
+          else if (node && this.orderWorkersToNode(node)) return;
           else {
             const deer = this.findDeerAt(wx, wy);
             const sheep = this.findSheepAt(wx, wy);
@@ -4883,17 +4884,12 @@ class GameScene extends Phaser.Scene {
         return;
       }
 
-      // ── LEFT CLICK: Selection & Placement ─────────────────────────
+      // ── LEFT CLICK: Selection & Inspection ─────────────────────────
       if (this.roadMode) { const t = this.tileAt(wx, wy); if (t) this._paintRoad(t.tx, t.ty); return; }
       if (this.bldgType) { const t = this.tileAt(wx, wy); if (t) this.placeBuilding(t.tx, t.ty); return; }
       
+      this.deselect();
       if (hit && !hit.isEnemy) { this.selectUnit(hit.id, ptr.event?.shiftKey ?? false); return; }
-      
-      this.deselect(); // Empty space deselects
-      if (this.selIds.size > 0) {
-        if (bldg && this.orderWorkersToBuilding(bldg)) return;
-        if (node && this.orderWorkersToNode(node)) return;
-      }
       
       // Select building or node for info
       if (bldg) { this.selectedBuilding = bldg; this.updateUI(); return; }
