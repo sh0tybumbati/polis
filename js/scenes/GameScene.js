@@ -5044,6 +5044,9 @@ class GameScene extends Phaser.Scene {
     this.dayInfo   = _ui(this.add.text(256, 6, '', { ...ts, color:'#c8a030' }).setDepth(21));
     this.workerInfo= _ui(this.add.text(304, 6, '', { ...ts, color:'#cc9944' }).setDepth(21));
     this.enemyCount= _ui(this.add.text(370, 6, '', { ...ts, color:'#ee8888' }).setDepth(21));
+    this.timerText = _ui(this.add.text(W-6,  6, '', { ...ts, fontSize:'12px' }).setOrigin(1,0).setDepth(21));
+    this.phaseTag  = _ui(this.add.text(W-6, 20, '', { fontSize:'8px', color:'#aaaacc', fontFamily:'monospace' }).setOrigin(1,0).setDepth(21));
+    this.selInfo   = _ui(this.add.text(W/2, 40, '', { fontSize:'11px', color:'#dddd88', fontFamily:'monospace' }).setOrigin(0.5,0).setDepth(21));
 
     // --- Bottom UI Panel ---
     const bY = H - UI_PANEL_H;
