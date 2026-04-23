@@ -4247,7 +4247,7 @@ class GameScene extends Phaser.Scene {
     if (this.phase !== 'DAY' && this.phase !== 'NIGHT') return;
     if (ENABLE_PROACTIVE_AI && u.role === null && u.age >= 2 && !u.moveTo) {
        // Proactive AI: Build Farm
-       if (this.resources.food / (this.storageMax.food || 1) < 0.4 && !this.buildings.some(b => b.type === 'farm' && !b.built)) {
+       if (this.resources.food / (this.storageMax.food || 1) < 0.7 && !this.buildings.some(b => b.type === 'farm' && !b.built)) {
          const site = this._findBuildSiteNear('farm', u.x, u.y);
          if (site && this.afford(BLDG.farm.cost)) {
            const b = this.makeBldgObj('farm', site.tx, site.ty, false);
@@ -4257,20 +4257,22 @@ class GameScene extends Phaser.Scene {
          }
        }
        // Proactive AI: Build Garden
-       if (this.resources.food < 50 && !this.buildings.some(b => b.type === 'garden' && !b.built)) {
+       if (this.resources.food < 150 && !this.buildings.some(b => b.type === 'garden' && !b.built)) {
          const site = this._findBuildSiteNear('garden', u.x, u.y);
          if (site && this.afford(BLDG.garden.cost)) {
            const b = this.makeBldgObj('garden', site.tx, site.ty, false);
            b.built = false; b.buildWork = BUILD_WORK.garden; b.resNeeded = { stone: 2, wood: 3 };
+           this.buildings.push(b); this.redrawBuilding(b);
            this.spend(BLDG.garden.cost);
          }
        }
        // Proactive AI: Build Pasture
-       if (this.resources.wool < 20 && !this.buildings.some(b => b.type === 'pasture' && !b.built)) {
+       if (this.resources.wool < 60 && !this.buildings.some(b => b.type === 'pasture' && !b.built)) {
          const site = this._findBuildSiteNear('pasture', u.x, u.y);
          if (site && this.afford(BLDG.pasture.cost)) {
            const b = this.makeBldgObj('pasture', site.tx, site.ty, false);
            b.built = false; b.buildWork = BUILD_WORK.pasture; b.resNeeded = { stone: 3, wood: 6 };
+           this.buildings.push(b); this.redrawBuilding(b);
            this.spend(BLDG.pasture.cost);
          }
        }
