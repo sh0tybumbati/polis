@@ -4211,9 +4211,21 @@ class GameScene extends Phaser.Scene {
       }
       const cx=(b.tx+b.size/2)*TILE, cy=MAP_OY+(b.ty+b.size/2)*TILE;
       if (this.moveToward(u, cx, cy, 28, dt)) return;
-      if (time - u.lastGather > UDEF.worker.gatherRate) {
+      // Skill-based farming: planting/harvesting skill affects work speed
+      const workSpeed = 1.0 + (u.skills.planting.level ?? 1) * 0.2 + (u.skills.harvesting.level ?? 1) * 0.2;
+      u.workProgress = (u.workProgress ?? 0) + dt * workSpeed;
+      
+      if (u.workProgress >= 25.0) { // Same threshold as node harvesting
+        u.workProgress = 0;
+        
+        // XP gain for farming
+        if (u.skills.harvesting.level < 5 && Math.random() < 0.1) {
+            u.skills.harvesting.level++;
+            this.showFloatText(u.x, u.y - 24, `HARVESTING Lv${u.skills.harvesting.level}!`, '#ffff00');
+        }
+
         const pick = Math.min(u.carryMax - this._totalCarrying(u), b.stock);
-        b.stock -= pick; u.carrying.food += pick; u.lastGather = time;
+        b.stock -= pick; u.carrying.food += pick;
         this.showGatherPop(u.x, u.y, 'food');
         if (this._totalCarrying(u) >= u.carryMax || b.stock <= 0) {
           u.taskType = null; // deposit then re-seek
