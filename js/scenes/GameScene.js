@@ -4263,7 +4263,7 @@ class GameScene extends Phaser.Scene {
 
        const needs = [
          { type: 'farm',    urgency: (this.resources.food / (this.storageMax.food || 1)) < 0.4 ? 10 : 0 },
-         { type: 'granary', urgency: (count('farm') >= 1 && (count('granary') === 0 || count('granary') < Math.ceil(count('farm') / 3))) ? 9 : 0 },
+         { type: 'granary', urgency: ((count('farm') + count('garden')) >= 1 && (count('granary') === 0 || count('granary') < Math.ceil((count('farm') + count('garden')) / 3))) ? 9 : 0 },
          { type: 'house',   urgency: (pop / (popCap || 1)) > 0.7 ? 8 : 0 },
          { type: 'woodshed',urgency: (count('woodcutter') >= 1 && (count('woodshed') === 0 || count('woodshed') < Math.ceil(count('woodcutter') / 2))) ? 6 : 0 },
          { type: 'mill',    urgency: (this.resources.wheat > 10 && count('mill') < 1) ? 4 : 0 },
