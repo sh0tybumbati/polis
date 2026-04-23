@@ -4271,8 +4271,8 @@ class GameScene extends Phaser.Scene {
          { type: 'bakery',  urgency: (this.resources.flour > 10 && count('bakery') < 1) ? 4 : 0 },
          { type: 'butcher', urgency: (this.resources.meat > 0 && count('butcher') < 1) ? 3 : 0 },
          { type: 'tannery', urgency: (this.resources.hide > 10 && count('tannery') < 1) ? 3 : 0 },
-         { type: 'garden',  urgency: (discoveredCrops && count('garden') < 1 && this.resources.food < 100) ? 2 : 0 },
-         { type: 'pasture', urgency: (hasShepherd && count('pasture') < 1 && this.resources.wool < 40) ? 2 : 0 }
+         { type: 'garden',  urgency: (discoveredCrops && count('garden') < 1 && this.resources.food < 50) ? 1 : 0 },
+         { type: 'pasture', urgency: (hasShepherd && count('pasture') < 1 && this.resources.wool < 30) ? 1 : 0 }
        ];
        
        needs.sort((a, b) => b.urgency - a.urgency);
