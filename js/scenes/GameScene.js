@@ -3395,7 +3395,7 @@ class GameScene extends Phaser.Scene {
         const workSpeed = 1.0 + (u.skills[skillKey]?.level ?? 1) * 0.2;
         u.workProgress = (u.workProgress ?? 0) + dt * workSpeed;
 
-        if (u.workProgress >= 2.0) {
+        if (u.workProgress >= 5.0) { // Increased from 2.0 to 5.0 for longer harvesting time
           u.workProgress = 0;
           const res = NODE_DEF[n.type]?.resource;
           const pick = Math.min(u.carryMax - carrying, n.stock);
