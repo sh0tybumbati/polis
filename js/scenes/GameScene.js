@@ -2306,9 +2306,9 @@ class GameScene extends Phaser.Scene {
       }
     });
 
-    // Player starts at bottom-centre of the portrait map
+    // Player starts at bottom-centre of the portrait map (shifted 10 tiles North: by - 10)
     const mx = Math.floor(MAP_W / 2) - 1; // centre column
-    const by = MAP_H - 8;                 // near bottom
+    const by = MAP_H - 18;                // moved 10 tiles North
     const th = this.placeBuiltBuilding('townhall', mx, by);
     this.placeBuiltBuilding('farm', mx - 4, by - 2);
     this.updateStorageCap();
@@ -4374,7 +4374,9 @@ class GameScene extends Phaser.Scene {
     for (let attempt = 0; attempt < 20; attempt++) {
       const tx = Math.floor(nearX/TILE) + Phaser.Math.Between(-8, 8);
       const ty = Math.floor((nearY-MAP_OY)/TILE) + Phaser.Math.Between(-8, 8);
-      if (this.isFree(tx, ty, size)) return { tx, ty };
+      // Ensure site is within map bounds and free
+      if (tx >= 1 && tx <= MAP_W - size - 1 && ty >= 1 && ty <= MAP_H - size - 1 && this.isFree(tx, ty, size)) 
+        return { tx, ty };
     }
     return null;
   }
