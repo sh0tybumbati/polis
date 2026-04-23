@@ -2848,7 +2848,7 @@ class GameScene extends Phaser.Scene {
       }
       if (n.type === 'wild_garden' && !this.discoveries.wildGarden) {
         this.discoveries.wildGarden = true;
-        this.showPhaseMessage('Wild garden found! Gather seeds — plant a Kepos to grow your own crops.', 0x44bb66);
+        // Muted discovery alert
       }
     }
     // Autonomous enemy scout dispatch — once every 75s while unaware, no active scout
