@@ -3981,23 +3981,13 @@ class GameScene extends Phaser.Scene {
       }
 
       // ④ Find a visible wool-ready wild sheep to shear
-      if (!u.targetNode) {
-          const sheep = this.sheep.find(s => s.woolReady && !s.isTamed);
-          if (sheep) {
-              const tx = Math.floor(sheep.x/TILE), ty = Math.floor((sheep.y-MAP_OY)/TILE);
-              if ((this.visMap[ty]?.[tx] ?? 0) >= 1) {
-                  this.moveToward(u, sheep.x, sheep.y, TILE, dt);
-                  // Simulate shearing
-                  if (Phaser.Math.Distance.Between(u.x, u.y, sheep.x, sheep.y) < TILE) {
-                      sheep.woolReady = false; sheep.woolTimer = 10;
-                      this.addResource('wool', 5);
-                      this.showFloatText(sheep.x, sheep.y - 12, '+5🧶', '#ccbb99');
-                      this.updateUI();
-                  }
-                  return;
-              }
-          }
-      }
+      let shearTarget = null;
+      {
+        let bd = Infinity;
+        for (const s of this.sheep) {
+          if (!s.woolReady || s.isTamed) continue;
+          const tx = Math.floor(s.x / TILE), ty = Math.floor((s.y - MAP_OY) / TILE);
+          if ((this.visMap[ty]?.[tx] ?? 0) === 0) continue;
           const d = Phaser.Math.Distance.Between(u.x, u.y, s.x, s.y);
           if (d < bd) { bd = d; shearTarget = s; }
         }
@@ -4008,8 +3998,9 @@ class GameScene extends Phaser.Scene {
         if (this.moveToward(u, shearTarget.x, shearTarget.y, 22, dt)) return;
         shearTarget.woolReady = false; shearTarget.woolTimer = 0;
         this._redrawSheep(shearTarget);
-        u.carrying.wool += 1; this.updateUI();
-        this.showFloatText(shearTarget.x, shearTarget.y - 16, '🧶 sheared', '#e8e8cc');
+        this.addResource('wool', 5);
+        this.updateUI();
+        this.showFloatText(shearTarget.x, shearTarget.y - 12, '+5🧶', '#ccbb99');
         return;
       }
 
