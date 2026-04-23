@@ -4254,6 +4254,8 @@ class GameScene extends Phaser.Scene {
     if (ENABLE_PROACTIVE_AI && u.role === null && u.age >= 2 && !u.moveTo) {
     // City Planner AI: Determine urgency and priority
     if (ENABLE_PROACTIVE_AI && u.role === null && u.age >= 2 && !u.moveTo) {
+       const workers = this.units.filter(w => w.type==='worker' && !w.isEnemy && w.hp>0);
+       const count = r => workers.filter(w => w.role===r).length;
        const pop = this.units.filter(u => !u.isEnemy && u.hp > 0).length;
        const popCap = this.buildings.filter(b => !b.faction && b.built && BLDG[b.type].capacity).reduce((s, b) => s + BLDG[b.type].capacity, 0);
        const hasShepherd = this.units.some(u => u.role === 'shepherd');
