@@ -878,17 +878,18 @@ class GameScene extends Phaser.Scene {
   }
 
   isFree(tx, ty, size) {
-    for (let dy = 0; dy < size; dy++)
-      for (let dx = 0; dx < size; dx++) {
+    // Check footprint plus 1-tile buffer
+    for (let dy = -1; dy < size + 1; dy++)
+      for (let dx = -1; dx < size + 1; dx++) {
         const nx = tx + dx, ny = ty + dy;
         if (nx < 0 || nx >= MAP_W || ny < 0 || ny >= MAP_H) return false;
         const terr = this.terrainData[ny]?.[nx] ?? 0;
-        // Water and bare rock are unbuildable; forest floor can be cleared
         if (terr === T_WATER || terr === T_ROCK) return false;
-        // Ford crossings are passable terrain but not buildable (keep fords open)
         if (this.fordSet?.has(ny * MAP_W + nx)) return false;
-        // Check occupancy (walls = 98, buildings = 99)
-        if ((this.mapData[ny]?.[nx] ?? 0) >= 98) return false;
+        // Occupancy check (within footprint only)
+        if (dx >= 0 && dx < size && dy >= 0 && dy < size) {
+          if ((this.mapData[ny]?.[nx] ?? 0) >= 98) return false;
+        }
       }
     return true;
   }
