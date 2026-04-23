@@ -4254,13 +4254,16 @@ class GameScene extends Phaser.Scene {
        const discoveredCrops = this.discoveries?.wildGarden;
 
        const needs = [
-         { type: 'granary', urgency: (this.resources.food / (this.storageMax.food || 1)) > 0.6 ? 10 : 0 },
-         { type: 'woodshed',urgency: (this.resources.wood / (this.storageMax.wood || 1)) > 0.6 ? 9 : 0 },
-         { type: 'stonepile', urgency: (this.resources.stone / (this.storageMax.stone || 1)) > 0.6 ? 8 : 0 },
-         { type: 'farm',    urgency: (this.resources.food / (this.storageMax.food || 1)) < 0.4 ? 8 : 0 },
-         { type: 'house',   urgency: (pop / (popCap || 1)) > 0.6 ? 7 : 0 },
-         { type: 'garden',  urgency: (discoveredCrops && this.resources.food < 100) ? 6 : 0 },
-         { type: 'pasture', urgency: (hasShepherd && this.resources.wool < 40) ? 5 : 0 }
+         { type: 'farm',    urgency: (this.resources.food / (this.storageMax.food || 1)) < 0.4 ? 10 : 0 },
+         { type: 'house',   urgency: (pop / (popCap || 1)) > 0.7 ? 8 : 0 },
+         { type: 'granary', urgency: (this.resources.food / (this.storageMax.food || 1)) > 0.6 ? 6 : 0 },
+         { type: 'woodshed',urgency: (this.resources.wood / (this.storageMax.wood || 1)) > 0.6 ? 5 : 0 },
+         { type: 'mill',    urgency: (this.resources.wheat > 10 && count('mill') < 1) ? 4 : 0 },
+         { type: 'bakery',  urgency: (this.resources.flour > 10 && count('bakery') < 1) ? 4 : 0 },
+         { type: 'butcher', urgency: (this.resources.meat > 0 && count('butcher') < 1) ? 3 : 0 },
+         { type: 'tannery', urgency: (this.resources.hide > 10 && count('tannery') < 1) ? 3 : 0 },
+         { type: 'garden',  urgency: (discoveredCrops && this.resources.food < 100) ? 2 : 0 },
+         { type: 'pasture', urgency: (hasShepherd && this.resources.wool < 40) ? 2 : 0 }
        ];
        
        needs.sort((a, b) => b.urgency - a.urgency);
