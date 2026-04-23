@@ -3981,13 +3981,23 @@ class GameScene extends Phaser.Scene {
       }
 
       // ④ Find a visible wool-ready wild sheep to shear
-      let shearTarget = null;
-      {
-        let bd = Infinity;
-        for (const s of this.sheep) {
-          if (!s.woolReady) continue;
-          const tx = Math.floor(s.x/TILE), ty = Math.floor((s.y-MAP_OY)/TILE);
-          if ((this.visMap[ty]?.[tx] ?? 0) === 0) continue;
+      if (!u.targetNode) {
+          const sheep = this.sheep.find(s => s.woolReady && !s.isTamed);
+          if (sheep) {
+              const tx = Math.floor(sheep.x/TILE), ty = Math.floor((sheep.y-MAP_OY)/TILE);
+              if ((this.visMap[ty]?.[tx] ?? 0) >= 1) {
+                  this.moveToward(u, sheep.x, sheep.y, TILE, dt);
+                  // Simulate shearing
+                  if (Phaser.Math.Distance.Between(u.x, u.y, sheep.x, sheep.y) < TILE) {
+                      sheep.woolReady = false; sheep.woolTimer = 10;
+                      this.addResource('wool', 5);
+                      this.showFloatText(sheep.x, sheep.y - 12, '+5🧶', '#ccbb99');
+                      this.updateUI();
+                  }
+                  return;
+              }
+          }
+      }
           const d = Phaser.Math.Distance.Between(u.x, u.y, s.x, s.y);
           if (d < bd) { bd = d; shearTarget = s; }
         }
@@ -4281,7 +4291,8 @@ class GameScene extends Phaser.Scene {
          { type: 'tannery', urgency: (this.resources.hide > 10 && count('tannery') < 1) ? 3 : 0 },
          { type: 'garden',  urgency: (discoveredCrops && count('garden') < count('farm') && this.resources.food < 100) ? 2 : 0 },
 
-         { type: 'pasture', urgency: (hasShepherd && count('pasture') < 1 && this.resources.wool < 30) ? 1 : 0 }
+         { type: 'pasture', urgency: (hasShepherd && count('pasture') < Math.ceil(this.sheep.length / 10)) ? 2 : 0 }
+
        ];
        
        needs.sort((a, b) => b.urgency - a.urgency);
