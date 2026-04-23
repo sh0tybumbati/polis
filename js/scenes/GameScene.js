@@ -4183,7 +4183,8 @@ class GameScene extends Phaser.Scene {
 
       // Phase 2: construct (resources all delivered)
       if (this.moveToward(u, cx, cy, 28, dt)) return;
-      b.buildWork -= dt;
+      const workSpeed = 1.0 + (u.skills.masonry?.level ?? 1) * 0.2;
+      b.buildWork -= dt * workSpeed * 0.2; // Significantly slowed construction
       if (b.buildWork <= 0) { this.completeBuildingConstruction(b); u.taskType = null; }
       return;
     }
