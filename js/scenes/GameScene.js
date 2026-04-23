@@ -3571,7 +3571,16 @@ class GameScene extends Phaser.Scene {
       if (d>3) { const a=Phaser.Math.Angle.Between(u.x,u.y,u.moveTo.x,u.moveTo.y); u.x+=Math.cos(a)*u.speed*dt; u.y+=Math.sin(a)*u.speed*dt; return; }
       u.x=u.moveTo.x; u.y=u.moveTo.y; u.moveTo=null;
     }
-    // ── Archer hunting (runs during DAY too) ─────────────────────────────
+    // ── Sleep logic for night phase ──────────────────────────────────────
+    if (this.phase === 'NIGHT' && u.type === 'worker' && !u.moveTo && !u.targetNode && !u.taskBldgId) {
+       const home = this.buildings.find(b => b.id === u.homeBldgId);
+       if (home && Phaser.Math.Distance.Between(u.x, u.y, (home.tx+home.size/2)*TILE, MAP_OY+(home.ty+home.size/2)*TILE) > 2 * TILE) {
+         u.moveTo = { x: (home.tx + home.size/2) * TILE + Phaser.Math.Between(-10,10),
+                      y: MAP_OY + (home.ty + home.size/2) * TILE + Phaser.Math.Between(-10,10) };
+         this.showFloatText(u.x, u.y - 12, '💤 Sleeping...', '#ffffff');
+         return;
+       }
+    }
     if (u.type === 'archer' && u.targetDeer) {
       const prey = this.deer.find(d => d.id === u.targetDeer && !d.isDead);
       if (prey) {
