@@ -5306,6 +5306,8 @@ class GameScene extends Phaser.Scene {
       actionLabel = 'Cycle Crop'; actionColor = 0x446633;
       const cropInfo = { lentils: '🌿 Lentils (High Food)', garlic: '🧄 Garlic (HP Regen)', onions: '🧅 Onions (Worker Speed)' };
       this.uiLeft.add(this.add.text(10, 50, cropInfo[b.cropType ?? 'lentils'], { fontSize:'9px', color:'#ccffaa' }));
+    } else if (b.type === 'pasture' && b.built) {
+      actionLabel = 'Slaughter'; actionColor = 0x661111;
     }
 
     this._uibtn(this.uiLeft, 40, 95, actionLabel, actionColor, null, () => {
