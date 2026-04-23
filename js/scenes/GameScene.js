@@ -123,7 +123,7 @@ const BLDG = {
                 sheepCap: 10, stores: { wool: 30 } },
 };
 
-const BUILD_WORK = { house: 10, granary: 14, woodshed: 12, stonepile: 8, farm: 16, garden: 12, barracks: 22, archery: 18, stable: 24, palisade: 4, watchtower: 14, gate: 8, wall: 6, tannery: 18, mine: 20, smelter: 24, blacksmith: 22, mill: 16, bakery: 14, butcher: 12, olive_press: 16, temple: 24, oracle: 18 };
+const BUILD_WORK = { house: 10, granary: 14, woodshed: 12, stonepile: 8, farm: 16, garden: 12, barracks: 22, archery: 18, stable: 24, palisade: 4, watchtower: 14, gate: 8, wall: 6, tannery: 18, mine: 20, smelter: 24, blacksmith: 22, mill: 16, bakery: 14, butcher: 12, olive_press: 16, temple: 24, oracle: 18, pasture: 15 };
 
 const DAY_DURATION    = 90000;   // 90s day — larger world needs more management time
 const NIGHT_DURATION  = 90000;   // 90s night — enemies travel further
