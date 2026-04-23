@@ -2806,9 +2806,9 @@ class GameScene extends Phaser.Scene {
 
   update(time, delta) {
     if (this.phase === 'LOSE' || this.phase === 'WIN' || this.isPaused) return;
-    const dt = delta / 1000;
+    const dt = (delta * this.tickSpeed) / 1000;
     if (this.phase === 'DAY' || this.phase === 'NIGHT') {
-      this.timerMs -= delta;
+      this.timerMs -= delta * this.tickSpeed;
       if (this.timerMs <= 0) {
         if (this.phase === 'DAY') this.beginNight();
         else this.endNight();
@@ -5014,7 +5014,7 @@ class GameScene extends Phaser.Scene {
     const _ui = o => { this.cameras.main.ignore(o); return o; };
     this.uiGfx = _ui(this.add.graphics().setDepth(10));
 
-    // --- Top Bar (Resources & Stats) ---
+    // Header: Stats, Pause, and Speed Control
     _ui(this.add.rectangle(W/2, 26, W, 52, 0x0e1520).setDepth(20));
     _ui(this.add.graphics().setDepth(20)).lineStyle(1, 0xc8a030, 0.4).lineBetween(0, 52, W, 52);
     this.timerBarGfx = _ui(this.add.graphics().setDepth(21));
@@ -5023,13 +5023,27 @@ class GameScene extends Phaser.Scene {
     this.foodText  = _ui(this.add.text(  6, 6, '', { ...ts, color:'#88ee88' }).setDepth(21));
     this.stoneText = _ui(this.add.text( 68, 6, '', { ...ts, color:'#aaaacc' }).setDepth(21));
     this.woodText  = _ui(this.add.text(130, 6, '', { ...ts, color:'#cc9944' }).setDepth(21));
+    
+    // Pause button
+    this.isPaused = false;
+    const pauseBtn = _ui(this.add.text(200, 6, '[PAUSE]', { ...ts, color:'#ff4444' }).setDepth(21).setInteractive());
+    pauseBtn.on('pointerdown', () => {
+      this.isPaused = !this.isPaused;
+      pauseBtn.setText(this.isPaused ? '[RESUME]' : '[PAUSE]');
+    });
+
+    // Speed Control
+    this.tickSpeed = 1;
+    const speedText = _ui(this.add.text(280, 6, 'SPD: 1x', { ...ts, color:'#ffff00' }).setDepth(21).setInteractive());
+    speedText.on('pointerdown', () => {
+      this.tickSpeed = (this.tickSpeed % 5) + 1;
+      speedText.setText(`SPD: ${this.tickSpeed}x`);
+    });
+    
     this.woolText  = _ui(this.add.text(196, 6, '', { ...ts, color:'#e8e0c0' }).setDepth(21));
     this.dayInfo   = _ui(this.add.text(256, 6, '', { ...ts, color:'#c8a030' }).setDepth(21));
     this.workerInfo= _ui(this.add.text(304, 6, '', { ...ts, color:'#cc9944' }).setDepth(21));
     this.enemyCount= _ui(this.add.text(370, 6, '', { ...ts, color:'#ee8888' }).setDepth(21));
-    this.timerText = _ui(this.add.text(W-6,  6, '', { ...ts, fontSize:'12px' }).setOrigin(1,0).setDepth(21));
-    this.phaseTag  = _ui(this.add.text(W-6, 20, '', { fontSize:'8px', color:'#aaaacc', fontFamily:'monospace' }).setOrigin(1,0).setDepth(21));
-    this.selInfo   = _ui(this.add.text(W/2, 40, '', { ...ts, color:'#dddd88' }).setOrigin(0.5,0).setDepth(21));
 
     // --- Bottom UI Panel ---
     const bY = H - UI_PANEL_H;
