@@ -4238,25 +4238,29 @@ class GameScene extends Phaser.Scene {
     if (u.targetNode) {
       const n = u.targetNode;
       const res = NODE_DEF[n.type]?.resource;
-      const storageFull = res && !this.hasStorageSpace(res) && this._totalCarrying(u) === 0;
-      if (n.stock <= 0 || this._totalCarrying(u) >= u.carryMax || storageFull) {
-        u.targetNode = null;
-      } else {
-        if (this.moveToward(u, n.x, n.y, UDEF.worker.gatherRange, dt)) return;
-        if (time - u.lastGather > UDEF.worker.gatherRate) {
-          const pick = Math.min(u.carryMax - this._totalCarrying(u), n.stock);
+      const carrying = this._totalCarrying(u);
+      if (n.stock <= 0 || carrying >= u.carryMax) { u.targetNode = null; u.workProgress = 0; return; }
+      
+      if (!this.moveToward(u, n.x, n.y, UDEF.worker.gatherRange, dt)) {
+        // Work progress instead of instant harvest
+        const skillKey = n.type.includes('tree') ? 'woodchopping' : (n.type.includes('boulder') ? 'mining' : 'harvesting');
+        const workSpeed = 1.0 + (u.skills[skillKey]?.level ?? 1) * 0.2;
+        u.workProgress = (u.workProgress ?? 0) + dt * workSpeed;
+
+        if (u.workProgress >= 25.0) {
+          u.workProgress = 0;
+          const pick = Math.min(u.carryMax - carrying, n.stock);
           n.stock -= pick; u.carrying[res] += pick;
-          u.lastGather = time;
           if (n.stock <= 0) {
             if (n.type === 'berry_bush') { n.dormantTimer = 2; }
             else if (n.type === 'small_tree') { n.sapling = true; n.saplingTimer = 3; }
             else if (n.type === 'large_tree') { n.sapling = true; n.saplingTimer = 5; }
           }
           this.showGatherPop(u.x, u.y, res); this.redrawNode(n);
-          if (this._totalCarrying(u) >= u.carryMax || n.stock <= 0) u.targetNode = null;
+          if (carrying + pick >= u.carryMax || n.stock <= 0) u.targetNode = null;
         }
-        return;
       }
+      return;
     }
 
     // ── Manual move ───────────────────────────────────────────────────────
