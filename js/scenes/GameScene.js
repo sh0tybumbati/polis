@@ -4246,36 +4246,37 @@ class GameScene extends Phaser.Scene {
     // ── Idle: seek next task by role ──────────────────────────────────────
     if (this.phase !== 'DAY' && this.phase !== 'NIGHT') return;
     if (ENABLE_PROACTIVE_AI && u.role === null && u.age >= 2 && !u.moveTo) {
-       // Proactive AI: Build Farm
-       if (this.resources.food / (this.storageMax.food || 1) < 0.7 && !this.buildings.some(b => b.type === 'farm' && !b.built)) {
-         const site = this._findBuildSiteNear('farm', u.x, u.y);
-         if (site && this.afford(BLDG.farm.cost)) {
-           const b = this.makeBldgObj('farm', site.tx, site.ty, false);
-           b.built = false; b.buildWork = BUILD_WORK.farm; b.resNeeded = { stone: 4, wood: 2 };
+    // City Planner AI: Determine urgency and priority
+    if (ENABLE_PROACTIVE_AI && u.role === null && u.age >= 2 && !u.moveTo) {
+       const pop = this.units.filter(u => !u.isEnemy && u.hp > 0).length;
+       const popCap = this.buildings.filter(b => !b.faction && b.built && BLDG[b.type].capacity).reduce((s, b) => s + BLDG[b.type].capacity, 0);
+       const hasShepherd = this.units.some(u => u.role === 'shepherd');
+       const discoveredCrops = this.discoveries?.wildGarden;
+
+       const needs = [
+         { type: 'granary', urgency: (this.resources.food / (this.storageMax.food || 1)) > 0.6 ? 10 : 0 },
+         { type: 'woodshed',urgency: (this.resources.wood / (this.storageMax.wood || 1)) > 0.6 ? 9 : 0 },
+         { type: 'farm',    urgency: (this.resources.food / (this.storageMax.food || 1)) < 0.4 ? 8 : 0 },
+         { type: 'house',   urgency: (pop / (popCap || 1)) > 0.6 ? 7 : 0 },
+         { type: 'garden',  urgency: (discoveredCrops && this.resources.food < 100) ? 6 : 0 },
+         { type: 'pasture', urgency: (hasShepherd && this.resources.wool < 40) ? 5 : 0 }
+       ];
+       
+       needs.sort((a, b) => b.urgency - a.urgency);
+       const target = needs.find(n => n.urgency > 0 && !this.buildings.some(b => b.type === n.type && !b.built));
+       
+       if (target) {
+         const site = this._findBuildSiteNear(target.type, u.x, u.y);
+         if (site && this.afford(BLDG[target.type].cost)) {
+           const b = this.makeBldgObj(target.type, site.tx, site.ty, false);
+           b.built = false; b.buildWork = BUILD_WORK[target.type]; 
+           b.resNeeded = { ...BLDG[target.type].cost };
            this.buildings.push(b); this.redrawBuilding(b);
-           this.spend(BLDG.farm.cost);
+           this.spend(BLDG[target.type].cost);
+           this.showFloatText(u.x, u.y - 12, `🏠 Planning ${BLDG[target.type].label}`, '#ffdd44');
          }
        }
-       // Proactive AI: Build Garden
-       if (this.resources.food < 150 && !this.buildings.some(b => b.type === 'garden' && !b.built)) {
-         const site = this._findBuildSiteNear('garden', u.x, u.y);
-         if (site && this.afford(BLDG.garden.cost)) {
-           const b = this.makeBldgObj('garden', site.tx, site.ty, false);
-           b.built = false; b.buildWork = BUILD_WORK.garden; b.resNeeded = { stone: 2, wood: 3 };
-           this.buildings.push(b); this.redrawBuilding(b);
-           this.spend(BLDG.garden.cost);
-         }
-       }
-       // Proactive AI: Build Pasture
-       if (this.resources.wool < 60 && !this.buildings.some(b => b.type === 'pasture' && !b.built)) {
-         const site = this._findBuildSiteNear('pasture', u.x, u.y);
-         if (site && this.afford(BLDG.pasture.cost)) {
-           const b = this.makeBldgObj('pasture', site.tx, site.ty, false);
-           b.built = false; b.buildWork = BUILD_WORK.pasture; b.resNeeded = { stone: 3, wood: 6 };
-           this.buildings.push(b); this.redrawBuilding(b);
-           this.spend(BLDG.pasture.cost);
-         }
-       }
+    }
     }
     if (!u.role) {
       if (time - u.lastSeek > 2000) this.pickRole(u, time);
