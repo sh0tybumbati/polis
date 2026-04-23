@@ -1542,15 +1542,8 @@ class GameScene extends Phaser.Scene {
       if (!s) continue;
       if (b.built) {
         for (const [r, n] of Object.entries(s)) max[r] = (max[r] || 0) + n;
-      } else {
-        // Under-construction plans reserve capacity so workers can start gathering
-        for (const [r, n] of Object.entries(s)) planned[r] = (planned[r] || 0) + n;
       }
     }
-    // Planned capacity is available but only up to the same amount as the built cap
-    // (prevents hoarding infinite resources into ghost buildings)
-    for (const r of ['food', 'stone', 'wood', 'wool', 'hide', 'leather', 'ore', 'ingot', 'bronzeKit', 'wheat', 'flour', 'meat', 'olives', 'seeds'])
-      max[r] = (max[r] || 0) + (planned[r] || 0);
     this.storageMax = max;
     // Clamp current resources to new cap
     for (const r of ['food', 'stone', 'wood', 'wool', 'hide', 'leather', 'ore', 'ingot', 'bronzeKit', 'wheat', 'flour', 'meat', 'olives', 'seeds'])
