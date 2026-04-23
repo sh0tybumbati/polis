@@ -121,9 +121,11 @@ const BLDG = {
   wall:       { label: '🧱 Wall',       color: 0x9a9888, cost: { stone: 2 },          size: 1 },
   pasture:    { label: '🐑 Pasture',      color: 0x66aa44, cost: { stone: 3, wood: 6 }, size: 3,
                 sheepCap: 10, stores: { wool: 30 } },
+  warehouse:  { label: '📦 Warehouse',     color: 0x554433, cost: { stone: 10, wood: 8 }, size: 3,
+                stores: { leather: 50, wool: 50, ore: 50, ingot: 50, bronzeKit: 20 } },
 };
 
-const BUILD_WORK = { house: 10, granary: 14, woodshed: 12, stonepile: 8, farm: 16, garden: 12, barracks: 22, archery: 18, stable: 24, palisade: 4, watchtower: 14, gate: 8, wall: 6, tannery: 18, mine: 20, smelter: 24, blacksmith: 22, mill: 16, bakery: 14, butcher: 12, olive_press: 16, temple: 24, oracle: 18, pasture: 15 };
+const BUILD_WORK = { house: 10, granary: 14, woodshed: 12, stonepile: 8, farm: 16, garden: 12, barracks: 22, archery: 18, stable: 24, palisade: 4, watchtower: 14, gate: 8, wall: 6, tannery: 18, mine: 20, smelter: 24, blacksmith: 22, mill: 16, bakery: 14, butcher: 12, olive_press: 16, temple: 24, oracle: 18, pasture: 15, warehouse: 20 };
 
 const DAY_DURATION    = 90000;   // 90s day — larger world needs more management time
 const NIGHT_DURATION  = 90000;   // 90s night — enemies travel further
@@ -175,7 +177,7 @@ const UI_BTN_SIZE = 52; // "Thumbnail big"
 
 const BLDG_CATS = {
   Economy: ['farm', 'garden', 'pasture', 'mill', 'bakery', 'butcher', 'olive_press'],
-  Resource: ['granary', 'woodshed', 'stonepile', 'mine', 'tannery', 'smelter', 'blacksmith'],
+  Resource: ['granary', 'woodshed', 'stonepile', 'warehouse', 'mine', 'tannery', 'smelter', 'blacksmith'],
   Civic: ['house', 'barracks', 'archery', 'stable', 'temple', 'oracle'],
   Defense: ['palisade', 'wall', 'gate', 'watchtower']
 };
@@ -4272,6 +4274,7 @@ class GameScene extends Phaser.Scene {
          { type: 'house',   urgency: (pop / (popCap || 1)) > 0.7 ? 8 : 0 },
          { type: 'woodshed',urgency: (this.resources.wood >= this.storageMax.wood && count('woodshed') < 5) ? 6 : 0 },
          { type: 'stonepile', urgency: (this.resources.stone >= this.storageMax.stone && count('stonepile') < 5) ? 6 : 0 },
+         { type: 'warehouse', urgency: (this.resources.leather >= 30 && count('warehouse') < 2) ? 5 : 0 },
          { type: 'mill',    urgency: (this.resources.wheat > 10 && count('mill') < 1) ? 4 : 0 },
          { type: 'bakery',  urgency: (this.resources.flour > 10 && count('bakery') < 1) ? 4 : 0 },
          { type: 'butcher', urgency: (this.resources.meat > 0 && count('butcher') < 1) ? 3 : 0 },
