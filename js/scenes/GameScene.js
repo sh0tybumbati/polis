@@ -4372,14 +4372,43 @@ class GameScene extends Phaser.Scene {
 
   _findBuildSiteNear(type, nearX, nearY) {
     const size = BLDG[type].size;
-    for (let attempt = 0; attempt < 20; attempt++) {
-      const tx = Math.floor(nearX/TILE) + Phaser.Math.Between(-8, 8);
-      const ty = Math.floor((nearY-MAP_OY)/TILE) + Phaser.Math.Between(-8, 8);
-      // Ensure site is within map bounds and free
-      if (tx >= 1 && tx <= MAP_W - size - 1 && ty >= 1 && ty <= MAP_H - size - 1 && this.isFree(tx, ty, size)) 
-        return { tx, ty };
+    let bestSite = null;
+    let minScore = Infinity;
+
+    // Search for a spot
+    for (let attempt = 0; attempt < 50; attempt++) {
+      const tx = Math.floor(nearX/TILE) + Phaser.Math.Between(-10, 10);
+      const ty = Math.floor((nearY-MAP_OY)/TILE) + Phaser.Math.Between(-10, 10);
+      
+      if (tx >= 1 && tx <= MAP_W - size - 1 && ty >= 1 && ty <= MAP_H - size - 1 && this.isFree(tx, ty, size)) {
+        // Calculate score: distance to relevant entities
+        let score = 0;
+        const centerX = (tx + size/2) * TILE;
+        const centerY = MAP_OY + (ty + size/2) * TILE;
+        
+        // Prefer proximity to Townhall
+        const th = this.buildings.find(b => b.type === 'townhall');
+        if (th) score += Phaser.Math.Distance.Between(centerX, centerY, (th.tx+th.size/2)*TILE, MAP_OY+(th.ty+th.size/2)*TILE) / 20;
+        
+        // If Farm, prefer proximity to a Farm or Garden
+        if (type === 'farm') {
+          const farm = this.buildings.find(b => (b.type === 'farm' || b.type === 'garden') && b.built);
+          if (farm) score += Phaser.Math.Distance.Between(centerX, centerY, (farm.tx+farm.size/2)*TILE, MAP_OY+(farm.ty+farm.size/2)*TILE) / 10;
+        }
+
+        // If storage, prefer proximity to relevant resources
+        if (type === 'granary') {
+          const farm = this.buildings.find(b => b.type === 'farm' && b.built);
+          if (farm) score += Phaser.Math.Distance.Between(centerX, centerY, (farm.tx+farm.size/2)*TILE, MAP_OY+(farm.ty+farm.size/2)*TILE) / 10;
+        }
+
+        if (score < minScore) {
+          minScore = score;
+          bestSite = { tx, ty };
+        }
+      }
     }
-    return null;
+    return bestSite;
   }
 
   showArrow(x1, y1, x2, y2) {
