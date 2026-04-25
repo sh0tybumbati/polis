@@ -114,20 +114,46 @@ export default class UnitManager {
 
     handleSuccession(deceased) {
         if (!deceased.homeBldgId) return;
-        const alive = this.scene.units.filter(u => !u.isEnemy && u.hp > 0 && u.id !== deceased.id);
+        const alive = this.scene.units.filter(u =>
+            !u.isEnemy && u.hp > 0 && u.id !== deceased.id && u.type === 'worker' && u.age >= 2);
 
-        // Eldest child (highest age among children)
-        const children = alive.filter(u => u.fatherId === deceased.id || u.motherId === deceased.id);
-        const heir = children.length
-            ? children.reduce((best, u) => u.age > best.age ? u : best, children[0])
-            : alive.find(u => (u.fatherId && u.fatherId === deceased.fatherId)
-                           || (u.motherId && u.motherId === deceased.motherId));
-
-        if (heir) {
-            heir.homeBldgId = deceased.homeBldgId;
-            this.scene.uiManager.showFloatText(heir.x, heir.y - 16, `${heir.name} inherits`, '#c8a030');
+        if (deceased.isArchon) {
+            this._archonSuccession(deceased, alive);
+        } else {
+            // Ordinary household: eldest child inherits the home slot
+            const children = alive.filter(u => u.fatherId === deceased.id || u.motherId === deceased.id);
+            const heir = children.length
+                ? children.reduce((a, b) => b.age > a.age ? b : a)
+                : alive.find(u => u.fatherId === deceased.fatherId || u.motherId === deceased.motherId);
+            if (heir) {
+                heir.homeBldgId = deceased.homeBldgId;
+                this.scene.uiManager.showFloatText(heir.x, heir.y - 16, `${heir.name} inherits`, '#c8a030');
+            }
         }
-        // If no heir, building stays public (homeBldgId stays, new migrants can claim)
+    }
+
+    _archonSuccession(deceased, alive) {
+        const townhall = this.scene.buildings.find(b => b.type === 'townhall' && !b.faction && b.built);
+
+        // Priority: 1) eldest adult child, 2) eldest townhall resident, 3) any adult
+        const children  = alive.filter(u => u.fatherId === deceased.id || u.motherId === deceased.id);
+        const residents = alive.filter(u => u.homeBldgId === townhall?.id);
+        const pool = children.length ? children
+                   : residents.length ? residents
+                   : alive;
+
+        if (!pool.length) {
+            this.scene.showPhaseMessage('The line has ended — no heir to the Archonship!', 0xff3311);
+            return;
+        }
+
+        const heir = pool.reduce((a, b) => b.age > a.age ? b : a);
+        heir.isArchon    = true;
+        heir.homeBldgId  = townhall?.id ?? deceased.homeBldgId;
+
+        this.redrawUnit(heir);
+        this.scene.showPhaseMessage(`⚜ ${heir.name} succeeds as Archon`, 0xffdd44);
+        this.scene.uiManager.showFloatText(heir.x, heir.y - 20, '⚜ Archon', '#ffdd44');
     }
 
     _gainSkillXp(u, skillName) {
