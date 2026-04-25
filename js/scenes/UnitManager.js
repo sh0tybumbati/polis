@@ -38,7 +38,7 @@ export default class UnitManager {
             speed, atk: def.atk, range: def.range,
             wallSide: 0, homeBldgId: null, age: 2,
             taskType: null, taskBldgId: null, targetNode: null,
-            carrying: { wheat: 0, flour: 0, bread: 0, meat: 0, cuts: 0, sausages: 0, olives: 0, stone: 0, wood: 0, sticks: 0, stones: 0, wool: 0, hide: 0, ore: 0 }, carryMax,
+            carrying: { wheat: 0, flour: 0, bread: 0, meat: 0, sausages: 0, olives: 0, stone: 0, wood: 0, sticks: 0, stones: 0, wool: 0, hide: 0, ore: 0 }, carryMax,
             role: null, replantTimer: 0, trainTimer: 0, lastSeek: 0,
             roleMemory: {}, targetDeer: null, targetSheep: null,
             nightsSurvived: 0, vetLevel: 0,
@@ -75,6 +75,7 @@ export default class UnitManager {
         child.carryMax = 3 + Math.round(child.attributes.str / 2);
 
         this._applyRareTraits(child);
+        this.redrawUnit(child);  // re-draw with age:0 size after overriding attributes
         this.scene.uiManager.showFloatText(cx, cy - 16, `${child.name} born!`, '#ffeeaa');
         return child;
     }
@@ -298,6 +299,11 @@ export default class UnitManager {
             this.scene.tweens.add({ targets: u.gfx, alpha: 0, duration: 280, onComplete: () => u.gfx.destroy() });
             if (u.isScout) { this.waveIntelFlash(); return; }
             if (!u.isEnemy && u.type === 'worker') {
+                // Widow/widower becomes eligible to remarry
+                if (u.spouseId) {
+                    const spouse = this.scene.units.find(s => s.id === u.spouseId);
+                    if (spouse) spouse.spouseId = null;
+                }
                 this.handleSuccession(u);
             }
             // Hero death: morale collapse

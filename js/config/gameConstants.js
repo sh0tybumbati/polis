@@ -186,7 +186,7 @@ export const BLDG = {
                 stores: { wheat: 40, flour: 20, bread: 10, meat: 10, sausages: 10, olives: 10, stone: 40, wood: 40 }, hidden: true },
   // ── Buildable ─────────────────────────────────────────────────────────────
   house:      { label: '🏠 House',         color: 0xcc8844, cost: { stone: 3, wood: 2 }, size: 2,
-                capacity: 6, spawnMs: 20000 },
+                capacity: 6, spawnMs: 200000 },
   granary:    { label: '🌾 Granary',         color: 0xcc9933, cost: { stone: 4, wood: 3 }, size: 2,
                 stores: { wheat: 80, flour: 40, bread: 30, meat: 40, sausages: 20, olives: 40 } },
   woodshed:   { label: '🪵 Woodshed',     color: 0x7a5030, cost: { stone: 3, wood: 4 }, size: 2,

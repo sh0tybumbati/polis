@@ -316,49 +316,9 @@ export default class WorldManager {
                 if (u.age === 2) this.scene.uiManager.showFloatText(u.x, u.y - 18, '→ adult', '#ffdd44');
             }
         }
-        this.checkBirths();
         this.checkApplianceDesires();
         this.applyEquipmentUpgrades();
         this.applyTithe();
-    }
-
-    checkBirths() {
-        this._runBirths(false);
-        this._runBirths(true);
-    }
-
-    _runBirths(isEnemy) {
-        const friendly = this.scene.units.filter(u =>
-            u.isEnemy === isEnemy && u.hp > 0 && u.type === 'worker' && u.age >= 2);
-        const houses = this.scene.buildings.filter(b =>
-            b.built && (isEnemy ? b.faction === 'enemy' : !b.faction) && BLDG[b.type]?.capacity);
-
-        for (const house of houses) {
-            const residents = friendly.filter(u => u.homeBldgId === house.id);
-            const males   = residents.filter(u => u.gender === 'male');
-            const females = residents.filter(u => u.gender === 'female');
-            if (!males.length || !females.length) continue;
-
-            const cap = BLDG[house.type].capacity ?? 4;
-            const total = this.scene.units.filter(u => u.homeBldgId === house.id && u.isEnemy === isEnemy && u.hp > 0).length;
-            if (total >= cap) continue;
-
-            // Find a spouse pair, or use any male+female
-            let father = males.find(m => females.some(f => f.id === m.spouseId));
-            let mother = father ? females.find(f => f.id === father.spouseId) : null;
-            if (!father) { father = males[0]; mother = females[0]; }
-
-            if (Math.random() < 0.40) {
-                const child = this.scene.unitManager.spawnChild(father, mother);
-                if (!child) continue;
-                // Twin chance (5%)
-                const total2 = this.scene.units.filter(u => u.homeBldgId === house.id && u.isEnemy === isEnemy && u.hp > 0).length;
-                if (total2 < cap && Math.random() < 0.05) {
-                    this.scene.unitManager.spawnChild(father, mother);
-                    this.scene.uiManager.showFloatText(father.x, father.y - 28, '✦ Twins!', '#ffeeaa');
-                }
-            }
-        }
     }
 
     checkApplianceDesires() {

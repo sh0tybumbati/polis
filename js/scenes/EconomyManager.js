@@ -39,6 +39,7 @@ export default class EconomyManager {
         this.tickBuildingOperations(delta);
         this.tickResourceNodes(delta);
         this.tickHouseProduction(delta);
+        this.tickHouseBirths(delta);
         this._refreshGarrisonBars(delta);
     }
 
@@ -374,6 +375,46 @@ export default class EconomyManager {
                 (house.tx + 1) * TILE, MAP_OY + house.ty * TILE - 10,
                 `📦 ${app.label}`, '#88cc88');
         }
+    }
+
+    tickHouseBirths(delta) {
+        for (const house of this.scene.buildings) {
+            if (!house.built || house.faction || house.type !== 'house') continue;
+
+            const cap = BLDG.house.capacity ?? 6;
+            const residents = this.scene.units.filter(u =>
+                u.homeBldgId === house.id && !u.isEnemy && u.hp > 0);
+            const adults = residents.filter(u => u.age >= 2);
+
+            this._tryMarriage(adults);
+
+            // Need a married couple, both alive in this house, and space for a child
+            const father = adults.find(u =>
+                u.gender === 'male' && u.spouseId && adults.some(f => f.id === u.spouseId));
+            const mother = father ? adults.find(u => u.id === father.spouseId) : null;
+
+            if (!father || !mother || residents.length >= cap) {
+                house.spawnTimer = 0;
+                continue;
+            }
+
+            house.spawnTimer = (house.spawnTimer ?? 0) + delta;
+            if (house.spawnTimer >= BLDG.house.spawnMs) {
+                house.spawnTimer = 0;
+                this.scene.unitManager.spawnChild(father, mother);
+            }
+        }
+    }
+
+    _tryMarriage(adults) {
+        const single = adults.filter(u => !u.spouseId);
+        const male   = single.find(u => u.gender === 'male');
+        const female = single.find(u => u.gender === 'female');
+        if (!male || !female) return;
+        male.spouseId   = female.id;
+        female.spouseId = male.id;
+        this.scene.uiManager.showFloatText(
+            male.x, male.y - 20, '💍 wed', '#ffeeaa');
     }
 
     tickBuildingOperations(delta) {
