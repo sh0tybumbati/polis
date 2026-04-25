@@ -292,7 +292,7 @@ export default class UIManager {
         const b   = this.scene.selectedBuilding;
         const def = BLDG[b.type];
 
-        if (b.type === 'house' && b.built) {
+        if ((b.type === 'house' || b.type === 'townhall') && b.built) {
             this._renderOikosInfo(b, ox, oy, W, H, pad);
             return;
         }
@@ -369,11 +369,13 @@ export default class UIManager {
         const youth    = allRes.filter(u => u.age === 1);
         const children = allRes.filter(u => u.age === 0);
 
-        const patriarch = adults.find(u => u.gender === 'male') ?? adults[0];
-        const familyName = patriarch ? `Oikos of ${patriarch.name}` : `House #${b.id}`;
+        const patriarch = adults.find(u => u.isArchon) ?? adults.find(u => u.gender === 'male') ?? adults[0];
+        const familyName = b.type === 'townhall'
+            ? (patriarch ? `Archon: ${patriarch.name}` : 'Town Hall')
+            : (patriarch ? `Oikos of ${patriarch.name}` : `House #${b.id}`);
 
         this._infTxt(ox + pad, oy + 4, familyName, { fontSize: '10px', color: '#c8a030' });
-        this._infTxt(ox + W - pad - 22, oy + 6, `${allRes.length}/${BLDG.house.capacity}`,
+        this._infTxt(ox + W - pad - 22, oy + 6, `${allRes.length}/${BLDG[b.type]?.capacity ?? '?'}`,
             { fontSize: '8px', color: '#6a5c40' });
 
         const div = this._inf(this.scene.add.graphics().setDepth(22));

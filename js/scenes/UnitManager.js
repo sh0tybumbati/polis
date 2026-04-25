@@ -2,7 +2,7 @@ import {
     UDEF, TILE, MAP_OY, MAP_W, MAP_H, MAP_BOTTOM,
     TILE_SPD, T_GRASS, T_ROCK, HIGH_GROUND_BONUS,
     VET_LEVELS, BLDG, NODE_DEF, NODE_ROLE, BUILD_WORK,
-    DEER_ATK_RANGE, SHEEP_TAME_COST, pickName,
+    DEER_ATK_RANGE, SHEEP_TAME_COST, NUTRITION, pickName,
     ENABLE_PROACTIVE_AI, BLDG_CATS,
     randomAttributes, blendAttributes,
     randomPhenotype, blendPhenotype,
@@ -1107,7 +1107,7 @@ export default class UnitManager {
     get WORKSHOP_ROLES() {
         return {
             miller:    { building: 'mill',       input: 'wheat',  carryQty: 5, skill: 'mill',        needKey: 'flour',       baseScore: 50 },
-            baker:     { building: 'bakery',      input: 'flour',  carryQty: 4, skill: 'bake',        needKey: 'bread',       baseScore: 45 },
+            baker:     { building: 'bakery',      input: 'flour',  carryQty: 7, skill: 'bake',        needKey: 'bread',       baseScore: 45 },
             butcher:   { building: 'butcher',     input: 'meat',   carryQty: 4, skill: 'butcher',     needKey: 'sausages',    baseScore: 40 },
             tanner:    { building: 'tannery',     input: 'hide',   carryQty: 6, skill: 'tan',         needKey: 'leather',     baseScore: 35 },
             smelter:   { building: 'smelter',     input: 'ore',    carryQty: 6, skill: 'smelt',       needKey: 'ingot',       baseScore: 35 },
@@ -1141,8 +1141,11 @@ export default class UnitManager {
 
         if (u.workshopPhase === 'fetch') {
             if (!atBuilding) return;
-            // Arrived — pull input from global pool into building inbox
-            const available = Math.min(def.carryQty, this.scene.resources[def.input] ?? 0);
+            // Arrived — pull surplus input from global pool into building inbox.
+            // Edible inputs keep a reserve (2 per villager) so mealtime always has food.
+            const pop = this.scene.units.filter(w => !w.isEnemy && w.hp > 0).length;
+            const reserve = NUTRITION[def.input] != null ? pop * 3 : 0;
+            const available = Math.min(def.carryQty, Math.max(0, (this.scene.resources[def.input] ?? 0) - reserve));
             if (available === 0) { u.taskType = null; u.workshopPhase = null; return; }
             this.scene.resources[def.input] -= available;
             b.inbox[def.input] = (b.inbox[def.input] ?? 0) + available;
@@ -1151,7 +1154,9 @@ export default class UnitManager {
             // process phase — stay at building; restock inbox when it runs dry
             if (!atBuilding) return;
             if ((b.inbox[def.input] ?? 0) > 0) return;
-            const available = Math.min(def.carryQty, this.scene.resources[def.input] ?? 0);
+            const pop = this.scene.units.filter(w => !w.isEnemy && w.hp > 0).length;
+            const reserve = NUTRITION[def.input] != null ? pop * 3 : 0;
+            const available = Math.min(def.carryQty, Math.max(0, (this.scene.resources[def.input] ?? 0) - reserve));
             if (available > 0) {
                 this.scene.resources[def.input] -= available;
                 b.inbox[def.input] = (b.inbox[def.input] ?? 0) + available;

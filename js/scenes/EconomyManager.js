@@ -192,10 +192,13 @@ export default class EconomyManager {
         if (b.millTimer >= 10000 && (b.inbox.wheat ?? 0) >= 1 && this.hasStorageSpace('flour')) {
             b.inbox.wheat -= 1;
             b.millTimer = 0;
-            this.addResource('flour', 2);
+            this.addResource('flour', 3);  // 3 to commons
+            // In-kind wage: 1 flour to miller's house inventory
+            const home = this.scene.buildings.find(h => h.id === miller.homeBldgId && h.built && h.inventory);
+            if (home) home.inventory.flour = (home.inventory.flour ?? 0) + 1;
             this.scene.unitManager._gainSkillXp(miller, 'mill');
             this.scene.uiManager.showFloatText(
-                (b.tx + 1) * TILE, MAP_OY + b.ty * TILE - 6, '🌾→flour', '#ddcc88');
+                (b.tx + 1) * TILE, MAP_OY + b.ty * TILE - 6, '🌾→flour ×4', '#ddcc88');
         }
     }
 
@@ -212,12 +215,15 @@ export default class EconomyManager {
         if (!baker) { b.bakeTimer = 0; return; }
         b.inbox = b.inbox ?? {};
         b.bakeTimer = (b.bakeTimer ?? 0) + delta;
-        if (b.bakeTimer >= 12000 && (b.inbox.flour ?? 0) >= 2 && this.hasStorageSpace('bread')) {
-            b.inbox.flour -= 2;
+        if (b.bakeTimer >= 12000 && (b.inbox.flour ?? 0) >= 6 && this.hasStorageSpace('bread')) {
+            b.inbox.flour -= 6;
             b.bakeTimer = 0;
-            this.addResource('bread', 1);
+            this.addResource('bread', 3);  // 3 to commons
+            // In-kind wage: 1 bread to baker's house inventory
+            const home = this.scene.buildings.find(h => h.id === baker.homeBldgId && h.built && h.inventory);
+            if (home) home.inventory.bread = (home.inventory.bread ?? 0) + 1;
             this.scene.unitManager._gainSkillXp(baker, 'bake');
-            this.scene.uiManager.showFloatText((b.tx + 1) * TILE, MAP_OY + b.ty * TILE - 6, '🍞 bread', '#ffdd88');
+            this.scene.uiManager.showFloatText((b.tx + 1) * TILE, MAP_OY + b.ty * TILE - 6, '🍞 bread ×4', '#ffdd88');
         }
     }
 
@@ -379,9 +385,9 @@ export default class EconomyManager {
 
     tickHouseBirths(delta) {
         for (const house of this.scene.buildings) {
-            if (!house.built || house.faction || house.type !== 'house') continue;
+            if (!house.built || house.faction || !BLDG[house.type]?.capacity) continue;
 
-            const cap = BLDG.house.capacity ?? 6;
+            const cap = BLDG[house.type].capacity ?? 6;
             const residents = this.scene.units.filter(u =>
                 u.homeBldgId === house.id && !u.isEnemy && u.hp > 0);
             const adults = residents.filter(u => u.age >= 2);

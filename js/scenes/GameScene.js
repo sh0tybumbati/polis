@@ -301,6 +301,20 @@ export default class GameScene extends Phaser.Scene {
         this.redrawUnit(founder);
         this.showFloatText(thx, thy - 20, `${founder.name}, Archon`, '#ffdd44');
 
+        // Consort — archon's wife, lives in townhall
+        const consort = this.spawnUnit('worker', thx + 8, thy, false);
+        consort.gender     = 'female';
+        consort.age        = 2;
+        consort.homeBldgId = townhall.id;
+        consort.spouseId   = founder.id;
+        founder.spouseId   = consort.id;
+        if (consort.attributes) {
+            for (const k of Object.keys(consort.attributes))
+                consort.attributes[k] = Math.min(10, consort.attributes[k] + 1);
+        }
+        this.redrawUnit(consort);
+        this.showFloatText(thx + 8, thy - 20, `${consort.name}, Consort`, '#ffeecc');
+
         // 4 farm+house pairs scattered at ~10 tile corners around the townhall
         const r = () => Phaser.Math.Between(-2, 2);
         const cx = mx + 1, cy = by + 1; // townhall centre tile

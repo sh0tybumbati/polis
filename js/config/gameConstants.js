@@ -183,6 +183,7 @@ export const SHEEP_MEAT      = 4;    // food from slaughtering one adult sheep
 export const BLDG = {
   // ── Starting (pre-built, not in toolbar) ──────────────────────────────────
   townhall:   { label: '🏛 Town Hall',    color: 0xaa7733, cost: null, size: 2,
+                capacity: 4,
                 stores: { wheat: 40, flour: 20, bread: 10, meat: 10, sausages: 10, olives: 10, stone: 40, wood: 40 }, hidden: true },
   // ── Buildable ─────────────────────────────────────────────────────────────
   house:      { label: '🏠 House',         color: 0xcc8844, cost: { stone: 3, wood: 2 }, size: 2,
