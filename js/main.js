@@ -1,13 +1,20 @@
+import { GAME_CONFIG } from './config/gameConfig.js';
+import { SCENE_KEYS } from './config/sceneKeys.js';
+
+// Import scene classes
+import BootScene from './scenes/BootScene.js';
+import MenuScene from './scenes/MenuScene.js';
+import GameScene from './scenes/GameScene.js';
+import EndScene  from './scenes/EndScene.js';
+
 // Canvas covers the physical screen; the world (128×80 tiles) is larger — camera scrolls over it.
 const game = new Phaser.Game({
-  type: Phaser.AUTO,
-  backgroundColor: '#060c06',
-  parent: 'game',
-  scene: [BootScene, MenuScene, GameScene],
-  scale: {
-    mode: Phaser.Scale.NONE,
-    width:  SCREEN_W,
-    height: SCREEN_H,
-  },
-  render: { antialias: true },
+  ...GAME_CONFIG, // Spread the core config
+  parent: 'game', // Keep parent div specified
+  scene: [ // Register scenes using imported classes
+    BootScene,
+    MenuScene,
+    GameScene,
+    EndScene,
+  ],
 });

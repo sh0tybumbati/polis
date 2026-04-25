@@ -269,46 +269,252 @@ Gender is a single field (`gender: 'male' | 'female'`) assigned at spawn (50/50 
 
 ---
 
-## Milestone 4 — Strategic Layer
+## Milestone 4 — Dynastic Layer (Phase 1: Genealogy Foundation)
 
-### Day Phase Agency
-- [ ] **Scouting** — send a fast unit east before nightfall to reveal the enemy wave composition
-- [ ] **Idle worker alerts** — pulsing indicator on idle adult workers; tap to assign
-- [ ] **Pre-wave intel flash** — 10s before night, text overlay shows incoming unit types if enemy scout was killed
-- [ ] **Repair** — workers can repair damaged (but not destroyed) buildings at half build cost
+Every unit becomes a persistent individual with biological heritage. This is the highest-priority architectural shift toward the Oikos-first vision.
 
-### Hero Unit
-- [ ] One named hero spawns at game start (procedural Greek name, e.g. *Lysander*)
-- [ ] Hero levels up each night survived: gains HP, area morale aura, unique ability at level 3
-- [ ] Hero death = immediate morale collapse for nearby units; loss condition if no survivors remain
-- [ ] Persists between runs (Milestone 4 generational carry)
+### Unit Struct Additions
+- [x] Add `fatherId`, `motherId` (null for founder generation)
+- [x] Add `attributes: { str, dex, con, int, agi, wil }` (1–10 each)
+- [x] Add `phenotype: { skinHex, hairHex, eyeHex, heightScale }`
+- [x] Add `passions: { [skill]: 'none' | 'interested' | 'burning' }`
+- [x] Add `skills: { Farming, Woodcutting, Mining, Masonry, Bake, Butcher, Mill, Tan, Smelt, Forge, AnimalTrap, Spear, Sword, Bow }` (0–10)
+- [x] Add `spouseId` for pair-bonding
 
-### Food as Strategic Pressure
-- [ ] **Shortage state** — when food < upkeep: workers operate at 70% gather speed, no new training allowed; death only triggers after 2 consecutive days short
-- [ ] **Surplus bonus** — food > 2× upkeep: +10% worker speed (well-fed bonus)
-- [ ] **Trade caravan** (random event, every ~8 days): merchant passes through; can sell excess stone/wood for food
+### Birth System
+- [x] Children inherit `fatherId` + `motherId` at spawn
+- [x] Attributes blended: `child = floor((p1 + p2) / 2) ± mutation (0–1)`, clamped 1–10
+- [x] Phenotype blended: midpoint hex values with ±jitter for each channel
+- [x] Passions: each child gets 1 Burning Passion + 2 Interested skills; tendencies inherited with random drift
+- [x] Rare traits (<1% each): Albinism, Gigantism/Dwarfism, Twin birth, Prodigy (one skill starts +3 with Burning Passion)
+
+### Attribute Effects (Phase 1 pass)
+| Attribute | Effect |
+|---|---|
+| STR | Carry capacity: `base × (0.5 + str × 0.1)` |
+| CON | Max HP: `10 + con` |
+| AGI | Movement speed multiplier: `1 + (agi - 5) × 0.04` |
+| INT | Skill XP rate multiplier: `1 + (int - 5) × 0.1` |
+| WIL | Routing threshold: `max(0.05, 0.45 - wil × 0.04)` |
+- [x] All attribute effects wired
+
+### Starting Tetrad
+- [x] Replace 2-worker start with 4 married couples (8 adults), 4 starter 2×2 homes, 4 attached farms
+- [x] Each individual: unique Greek name, randomized attributes (3–7), 1 Burning Passion
+- [x] Couples linked via `spouseId`; starting homes assigned one couple each
+
+### Succession on Death
+- [x] On unit death: eldest living child inherits `homeBldgId`
+- [x] Fallback 1: nearest sibling (same `fatherId` or `motherId`)
+- [x] Fallback 2: estate reverts to Public
+- [x] Float text notification on succession event
+
+### Skills
+- [x] Skill XP accrues on task completion, rate = `baseXP × INT_multiplier × passion_multiplier`
+- [x] Passion multipliers: No Interest ×1.0 / Interested ×1.5 / Burning Passion ×2.5
+- [x] Skill level = `floor(xp / 10) + 1`, capped at 10
+- [x] Skills persist on the individual; carry through life, lost on death unless heir
 
 ---
 
-## Milestone 5 — Multiplayer
+## Milestone 5 — Oikos System (Phase 2: Family Estates)
 
+### New Buildings & Production
+- [x] `carpenter` building: wood(3) → planks(2) per 12s; pixel-art render
+- [x] `masons` building: stone(3) → stoneBlocks(2) per 14s; pixel-art render
+- [x] `blacksmith` added to BLDG_CATS Economy (was already in BLDG/EconomyManager)
+- [x] `planks` and `stoneBlocks` resources added to GameScene, BuildingManager, UIManager
+- [x] House size 1→2 (2×2 tile), capacity 4→6; Starting Tetrad updated
+- [x] `APPLIANCE_DEF` constant: workbench, loom, millstone, hearth, anvil
+
+### Domain Plot
+- [x] `scene.domains[]` array; `assignDomain(house)` called on house placement
+- [x] Domain = 8×8 grid (3-tile pad around 2×2 house): stored as {x1,y1,x2,y2}
+- [x] `getDomainAt(tx,ty)` helper in BuildingManager
+- [ ] Enforce in `isFree()` once Oikos family assignment is implemented
+- [ ] Clicking any domain structure opens the Family Menu
+
+### Modular Room Expansion
+- [ ] 1×2 drag-expansion attached to any domicile wall face
+- [ ] Each room: +2 capacity, +1 internal appliance slot
+- [ ] Family auto-repairs home when `condition < 80%` using private material stash
+
+### Internal Appliances
+- [x] `applianceSlots: 2`, `applianceItems: []` on house bldg objects
+- [x] At dawn: `checkApplianceDesires()` — resident skill ≥ 5 triggers desire
+- [x] At-home craft: spends `costRaw` (sticks/stones) immediately if affordable
+- [x] Workshop order: queues order on carpenter/masons/blacksmith `orderQueue`
+- [x] `_processOrders()` in EconomyManager: 25s craft time, spends `costWorkshop`, delivers to house
+- [x] Float text on install: 🔨 (self-craft) or 📦 (workshop delivery)
+
+### Family Menu UI
+- [x] `_renderOikosInfo`: replaces standard building info for built houses
+- [x] Header: "Oikos of [patriarch name]", resident count
+- [x] Resident rows: gender icon (♂/♀), name, age bracket, top skill+level, burning passion dot
+- [x] Heir highlighted in gold with ★ (eldest child with a parent also in this house)
+- [x] Appliance slot summary line
+- [x] Buttons: "View Genealogy" (stub), Demolish, Close
+- [ ] Genealogy tree: 2-generation ancestor view (deferred)
+
+---
+
+## Milestone 6 — Close the Game Loop
+
+*Goal: make the game a real, winnable/loseable experience before adding more systems.*
+
+### Win / Lose Conditions
+- [ ] Player townhall destroyed → LOSE screen
+- [ ] Enemy townhall destroyed → WIN screen (or escalate to next enemy village)
+- [ ] All player workers dead with no births possible → LOSE
+
+### Building HP
+- [ ] All player buildings get HP on placement (scaled by build work)
+- [ ] Enemy units in raid mode attack nearest player building when no player units in range
+- [ ] Destroyed buildings leave rubble; workers can clear and rebuild
+- [ ] Repair task: worker assigned to damaged building restores HP at half build cost
+
+### Enemy Village as Proper Mirror
+- [ ] Enemy workers spawned at start with `homeBldgId` pointing to enemy townhall
+- [ ] Enemy village runs same birth/meal/age system as player (through WorldManager)
+- [ ] Enemy farm gets harvested by enemy workers; enemy meals consume enemy food
+- [ ] Enemy rebuilds destroyed buildings using own workers and resources
+- [ ] Enemy trains from barracks only when `enemyRes.food` is sufficient (already done)
+
+### Gates & Walls Block Movement
+- [ ] Closed gates are impassable to enemy units
+- [ ] Walls block pathing; enemies must path around or break through
+
+---
+
+## Milestone 7 — Combat & Defense Depth
+
+*Goal: make raids and defense feel meaningful.*
+
+### Siege
+- [ ] Enemy units attack buildings when no player units in range (building HP system from M6)
+- [ ] Catapult unit (Siege Workshop): slow, high damage vs buildings, low vs units
+- [ ] War Elephant: large, slow, very high HP, damages buildings on contact
+
+### Defensive Structures
+- [ ] Watchtower auto-fires arrows (already partially wired — make it actually deal damage)
+- [ ] Palisade/wall HP; enemies must spend time breaking through
+- [ ] Fire mechanic: flaming arrows can ignite wooden structures; bucket-brigade workers
+
+### Strategic Layer
+- [ ] **Idle worker alerts** — pulsing indicator on idle adult workers
+- [ ] **Repair** — workers repair damaged buildings at half build cost (dovetails with M6)
+- [ ] **Food pressure** — shortage: workers at 70% speed, no training; surplus: +10% speed
+- [ ] **Trade caravan** — random event every ~8 days; sell surplus for food
+
+### Hero Unit
+- [ ] One named hero per village; levels up each night survived
+- [ ] Hero death = morale collapse for nearby units
+- [ ] Area morale aura; unique ability at level 3
+
+---
+
+## Milestone 8 — Localized Production  *(V25 Priority 0 — largest architectural change)*
+
+*Must come before barter — barter requires per-family inventories which requires this.*
+
+### Public vs Private Economy
+- [x] `scene.resources` = public commons (player-controlled, shown in topbar)
+- [x] `house.inventory` = private Oikos stock (shown in household panel)
+- [x] Freelance workers (forager/woodcutter/miner/hunter/shepherd) deposit to home Oikos
+- [x] Farmers and builders deposit to public pool (public buildings)
+- [x] Meals: each house feeds residents from private inventory first; public pool covers remainder
+- [x] Townhall: no longer a residence — public workspace only
+
+### Tribute System (pre-coinage)
+- [x] **Firstfruits** — 1 unit of each resource skimmed to commons on every private deposit (hardcoded, automatic)
+- [x] **Harvest Tithe** — player-set rate (0–40%, step 5%) applied to all private inventories at dawn; controlled via Townhall panel
+- [ ] **Corvée Labor** — each adult owes N public workdays per season; on their corvée day they act as public workers *(deferred to Political System milestone)*
+- [ ] **Surplus Offering** — households with inventory above a configurable threshold automatically offer excess to commons *(deferred to Barter milestone)*
+- [ ] **Tax in Coin** — replace tithe with coin-denominated tax rate once coinage is introduced *(deferred to Coinage milestone)*
+
+### Remove Global Pool (future pass)
+- [ ] Replace `scene.resources` with per-building `inputBasket` + `outputRack`
+- [ ] Stockpile Yard building: families and workshops query their assigned yard UID
+- [ ] Workers sleep only at `home_id`, deliver only to assigned stockpile yards
+- [ ] Enemy village uses same system
+
+### Worker Role Trinity
+- [ ] **Procurer** — fetches raw materials from nodes to workshop input basket
+- [ ] **Processor** — bench-locked at workshop, highest skill, runs the conversion
+- [ ] **Porter** — moves finished goods from output rack to stockpile yard
+- [ ] Solo building: one worker rotates through all three roles at reduced throughput
+
+### Resource Physicality
+- [ ] Generalize floor piles to cover all resource types
+- [ ] Land clearing required before any foundation (trees/scrub must be removed)
+- [ ] Wooden Cart: ×8 carry capacity, road-only for full speed, ×0.5 on rough terrain
+
+### Asymptotic Node Growth
+- [ ] `growth_next = current + (rate / current)` for all node regrowth
+- [ ] Large nodes yield more per tick but grow slower
+
+---
+
+## Milestone 9 — Barter Economy  *(depends on M8 per-family inventories)*
+
+### Family Private Inventory
+- [ ] Each Oikos has a private `inventory` object separate from the stockpile yard
+- [ ] Families consume from private inventory first; buy/trade for shortfalls
+
+### Relative Utility Barter
+- [ ] Dynamic trade value: `trade_value = base_price × (1 + 1 / current_stock)`
+- [ ] Kinship gifting: families with high social affinity gift surplus; creates social debt record
+
+### Commercial Tiers
+- [ ] **Home Stall** (1×1 porch attachment): neighbourhood barter; owner sets surplus threshold
+- [ ] **Market Square** (2×1 stall slots): families rent stalls; Merchant Porter moves goods home → market
+- [ ] **Mint**: indexes barter ratios into fixed Copper Coinage; unlocks Bronze Age tech tree branch
+
+---
+
+## Milestone 10 — Living World Expansion
+
+### Oikos Completion (deferred from M5)
+- [ ] Modular room expansion: 1×2 drag-on attached to any wall face; +2 capacity, +1 appliance slot
+- [ ] Domain enforcement in `isFree()` once family assignment is clear
+- [ ] Genealogy tree: 2-generation ancestor view in Family Menu
+
+### City Planner AI
+- [ ] Builder reaching skill 8 becomes City Planner
+- [ ] Autonomously plans roads, building districts within explored territory
+- [ ] Auto-zones: separates Industrial from Residential; respects Oikos domains
+- [ ] Relocation: lays new foundation → deconstructs old → hauls materials → rebuilds
+
+### Migration Petitions
+- [ ] Random families appear at map border every N days
+- [ ] Player accepts or rejects; City Planner ghosts a new residential plot on accept
+- [ ] Rejection builds mild reputation penalty
+
+---
+
+## Milestone 11 — Procedural World
+
+### Chunk-Based Generation
+- [ ] Replace fixed 80×128 map with chunk-based generation; world expands on exploration
+- [ ] Biome regions generated per chunk; tile distribution matches current band system
+- [ ] Minimap becomes a live region view that pans and scales with exploration
+
+---
+
+## Milestone 12 — Era Progression & Multiplayer
+
+### Era Progression
+- [ ] Persian Wars arc: Thermopylae-style last stand scenarios
+- [ ] Siege Workshop: catapult targeting buildings
+- [ ] Generational carry: one building bonus or veteran unit persists between runs
+- [ ] 4-city-state league mode: each player is a different Greek polis with unique unit bonus
+
+### Multiplayer
 - [ ] Colyseus server: server-authoritative unit movement + combat
 - [ ] Client sends commands (move, build, train), server resolves
 - [ ] Room lobby (host creates, others join via code)
 - [ ] 2-player co-op: shared map, split flanks
-- [ ] Sync: unit HP, positions, phase transitions, enemy village state
-- [ ] Reconnection handling
-- [ ] Deploy: GitHub Pages + Render
-
----
-
-## Milestone 6 — Era Progression
-
-- [ ] Persian Wars arc: Thermopylae-style last stand scenarios
-- [ ] War Elephant enemy (large, slow, high HP, damages buildings on contact)
-- [ ] Siege Workshop: catapult unit that targets buildings
-- [ ] Generational carry: one building bonus or veteran unit persists between runs
-- [ ] 4-city-state league mode: each player is a different Greek polis with a unique unit bonus
+- [ ] Reconnection handling; deploy: GitHub Pages + Render
 
 ---
 
@@ -317,6 +523,6 @@ Gender is a single field (`gender: 'male' | 'female'`) assigned at spawn (50/50 
 - [ ] Greek pottery visual theme (red-figure aesthetic)
 - [ ] Map editor
 - [ ] Procedural enemy general with personality (aggressive / flanking / siege)
-- [ ] Oracle building: reveals next wave composition before timer ends
+- [ ] Oracle: reveals next raid composition before timer ends
 - [ ] Fire mechanic: flaming arrows, burning buildings, bucket-brigade workers
 - [ ] Naval flank: enemy ships land on the south coast (new attack vector)
