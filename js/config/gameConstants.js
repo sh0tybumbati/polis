@@ -158,6 +158,7 @@ export const ROAD_DESIRE = 1;  // worn desire path  — ×1.15 speed bonus
 export const ROAD_PAVED  = 2;  // player-built road — ×1.45 speed bonus
 export const ROAD_SPD    = [1.0, 1.15, 1.45];  // indexed by ROAD_* constant
 export const DESIRE_THRESHOLD  = 120;   // traffic count before a desire path appears
+export const HUNGER_THRESHOLD  = 28;    // game-seconds between meals (~3 meals per 90s day)
 export const TRAFFIC_DECAY_PER_DAY = 18; // subtracted from every tile each day transition
 
 // ─── Deer / Hunting Constants ────────────────────────────────────────────────

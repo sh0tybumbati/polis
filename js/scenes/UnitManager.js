@@ -3,7 +3,7 @@ import {
     TILE_SPD, T_GRASS, T_ROCK, HIGH_GROUND_BONUS,
     VET_LEVELS, BLDG, NODE_DEF, NODE_ROLE, BUILD_WORK,
     DEER_ATK_RANGE, SHEEP_TAME_COST, NUTRITION, pickName,
-    ENABLE_PROACTIVE_AI, BLDG_CATS, DESIRE_THRESHOLD, ROAD_DESIRE, ROAD_NONE,
+    ENABLE_PROACTIVE_AI, BLDG_CATS, DESIRE_THRESHOLD, ROAD_DESIRE, ROAD_NONE, HUNGER_THRESHOLD,
     randomAttributes, blendAttributes,
     randomPhenotype, blendPhenotype,
     randomPassions, blendPassions,
@@ -663,6 +663,20 @@ export default class UnitManager {
         // Exiting building at dawn
         if (u.isInside && u.workshopPhase !== 'process') u.isInside = false;
 
+        // Hunger: accumulate during day; interrupt work to eat when threshold hit
+        if (this.scene.phase === 'DAY' && u.taskType !== 'garrison' && u.taskType !== 'eat') {
+            u.hunger = (u.hunger ?? 0) + dt;
+            if (u.hunger >= HUNGER_THRESHOLD) {
+                u.hunger = 0;
+                u._savedTask = u.taskType
+                    ? { type: u.taskType, bldgId: u.taskBldgId, node: u.targetNode,
+                        phase: u.workshopPhase, fetchBldgId: u.fetchBldgId }
+                    : null;
+                u.taskType = 'eat';
+                u.workshopPhase = null;
+            }
+        }
+
         if (u.moveTo) {
             const d = Phaser.Math.Distance.Between(u.x, u.y, u.moveTo.x, u.moveTo.y);
             if (d > 3) {
@@ -674,7 +688,10 @@ export default class UnitManager {
             u.moveTo = null;
         }
 
-        // Deposit takes priority — don't seek new tasks while carrying
+        // Deposit takes priority — don't seek new tasks while carrying (eating can wait)
+        if (u.taskType === 'eat' && this.totalCarrying(u) > 0 && !u.targetNode) {
+            u.taskType = null; // defer eating until hands are empty
+        }
         if (this.totalCarrying(u) > 0 && !u.targetNode && u.taskType !== 'build') {
             if (u.taskType !== 'deposit') this.seekDeposit(u);
             if (u.taskType === 'deposit') this.handleDepositTask(u, dt);
@@ -709,7 +726,8 @@ export default class UnitManager {
             if (!u.taskType && time - u.lastSeek > 2000) { u.lastSeek = time; this.seekWorkshopTask(u); }
         }
 
-        if (u.taskType === 'build') this.handleBuildTask(u, dt);
+        if (u.taskType === 'eat') this.handleEatTask(u, dt);
+        else if (u.taskType === 'build') this.handleBuildTask(u, dt);
         else if (u.taskType === 'repair') this.handleRepairTask(u, dt);
         else if (u.taskType === 'harvest_farm') this.handleHarvestFarmTask(u, dt);
         else if (u.taskType === 'workshop') this.handleWorkshopTask(u, dt);
@@ -1504,6 +1522,68 @@ export default class UnitManager {
             }
             this._gainSkillXp(u, def.skill);
             this.scene.uiManager.showFloatText(u.x, u.y - 14, `+1 ${def.output}`, '#ffe066');
+        }
+    }
+
+    handleEatTask(u, dt) {
+        const FOOD_PRIORITY = ['bread', 'sausages', 'flour', 'olives', 'wheat', 'meat'];
+        const NUTRITION_MAP = { bread: 1.0, sausages: 1.0, flour: 0.5, olives: 0.4, wheat: 0.3, meat: 0.3 };
+
+        // Try to eat from the nearest food building's inventory
+        const FOOD_BLDG_TYPES = new Set(['bakery', 'butcher', 'granary', 'warehouse', 'townhall', 'house']);
+        let foodBldg = null, bd = Infinity;
+        for (const b of this.scene.buildings) {
+            if (!b.built || b.faction || !FOOD_BLDG_TYPES.has(b.type)) continue;
+            const inv = b.type === 'house' && b.id !== u.homeBldgId ? null : b.inventory;
+            if (!inv || !FOOD_PRIORITY.some(k => (inv[k] ?? 0) > 0)) continue;
+            const bx = (b.tx + b.size / 2) * TILE, by = MAP_OY + (b.ty + b.size / 2) * TILE;
+            const d = Phaser.Math.Distance.Between(u.x, u.y, bx, by);
+            if (d < bd) { bd = d; foodBldg = b; }
+        }
+
+        if (foodBldg) {
+            const door = this._bldgDoor(foodBldg);
+            if (this.moveToward(u, door.x, door.y, 40, dt)) return;
+
+            for (const food of FOOD_PRIORITY) {
+                if ((foodBldg.inventory?.[food] ?? 0) >= 1) {
+                    foodBldg.inventory[food]--;
+                    // Keep commons in sync for public buildings
+                    if (this.PUBLIC_STORAGE.has(foodBldg.type) && foodBldg.isPublic) {
+                        this.scene.resources[food] = Math.max(0, (this.scene.resources[food] ?? 0) - 1);
+                    }
+                    u.dailyNutrition = (u.dailyNutrition ?? 0) + NUTRITION_MAP[food];
+                    this.scene.uiManager.showFloatText(u.x, u.y - 14, `🍞 ${food}`, '#ffee88');
+                    break;
+                }
+            }
+        } else {
+            // No food building — try commons directly
+            let fed = false;
+            for (const food of FOOD_PRIORITY) {
+                if ((this.scene.resources[food] ?? 0) >= 1) {
+                    this.scene.resources[food]--;
+                    u.dailyNutrition = (u.dailyNutrition ?? 0) + NUTRITION_MAP[food];
+                    this.scene.uiManager.showFloatText(u.x, u.y - 14, `🍞 ${food}`, '#ffee88');
+                    fed = true;
+                    break;
+                }
+            }
+            if (!fed) {
+                this.scene.uiManager.showFloatText(u.x, u.y - 14, 'hungry!', '#ff6644');
+            }
+        }
+
+        // Restore saved task
+        const saved = u._savedTask;
+        u._savedTask = null;
+        u.taskType = null;
+        if (saved?.type) {
+            u.taskType     = saved.type;
+            u.taskBldgId   = saved.bldgId;
+            u.targetNode   = saved.node;
+            u.workshopPhase = saved.phase ?? null;
+            u.fetchBldgId  = saved.fetchBldgId ?? null;
         }
     }
 

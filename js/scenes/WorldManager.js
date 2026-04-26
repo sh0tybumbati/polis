@@ -19,9 +19,7 @@ export default class WorldManager {
             }
         }
 
-        if (this.scene.phase === 'DAY') {
-            this.updateMeals();
-        }
+        // Meals are now handled by the worker hunger system in UnitManager (handleEatTask)
 
         this.tickEnemyAI(delta * this.scene.tickSpeed);
         this.checkWinLose();
@@ -300,7 +298,7 @@ export default class WorldManager {
 
             this.tickNodeRespawn();
             this.ageUpUnits();
-            this.scene.units.forEach(u => { u.dailyNutrition = 0; u._wageCollected = false; });
+            this.scene.units.forEach(u => { u.dailyNutrition = 0; u._wageCollected = false; u.hunger = 0; });
             this.scene.economyManager.collectFirstFruits();
 
             if ((this.scene.day - 1) % 8 === 0) {
