@@ -230,6 +230,14 @@ export default class UIManager {
         this.updateEnemyCount();
     }
 
+    showSaveFlash() {
+        const txt = this.scene.add.text(this.scene.SW - 45, 10, '💾 saved', {
+            fontSize: '9px', color: '#88cc88', fontFamily: 'monospace',
+            stroke: '#000000', strokeThickness: 1,
+        }).setDepth(25).setOrigin(1, 0);
+        this.scene.tweens.add({ targets: txt, alpha: 0, duration: 1500, onComplete: () => txt.destroy() });
+    }
+
     // ─── Info Pane ───────────────────────────────────────────────────────────
 
     _clearInfo() {
