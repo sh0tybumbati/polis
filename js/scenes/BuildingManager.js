@@ -199,11 +199,25 @@ export default class BuildingManager {
         this.scene.updateUI();
     }
 
+import {
+    BLDG, BUILD_WORK, TILE, MAP_OY, computeBuildCost
+} from '../config/gameConstants.js';
+// ...
     redrawBuilding(bldg) {
         bldg.gfx?.destroy(); bldg.barGfx?.destroy(); bldg.labelObj?.destroy();
         bldg.gfx = null; bldg.barGfx = null; bldg.labelObj = null;
         const px = bldg.tx * TILE, py = MAP_OY + bldg.ty * TILE, s = bldg.size * TILE;
         bldg.gfx = this.scene._w(this.scene.add.graphics().setDepth(3));
+        
+        // Progress bar for buildings under construction
+        if (!bldg.built && bldg.buildWork !== undefined) {
+            bldg.barGfx = this.scene._w(this.scene.add.graphics().setDepth(4));
+            const progress = 1 - bldg.buildWork / (BUILD_WORK[bldg.type] ?? 10);
+            const bw = s - 8;
+            bldg.barGfx.fillStyle(0x333322, 0.8).fillRect(px + 4, py - 10, bw, 6);
+            bldg.barGfx.fillStyle(0x88aa44).fillRect(px + 4, py - 10, bw * Math.max(0, Math.min(1, progress)), 6);
+        }
+
         if (bldg.built) {
             this.drawBuilding(bldg.gfx, bldg);
             if (bldg.faction === 'enemy') {
@@ -221,6 +235,7 @@ export default class BuildingManager {
                 fontSize: '14px', color: '#ffdd44', fontFamily: 'monospace',
             }).setOrigin(0.5).setDepth(4));
         }
+    }
         bldg.barGfx = this.scene._w(this.scene.add.graphics().setDepth(4));
         this.redrawBuildingBar(bldg);
     }
