@@ -5,77 +5,76 @@ Repo path: `/data/data/com.termux/files/home/projects/polis`
 
 ---
 
-## 1. Add missing skill XP calls in workshop roles
+## ✅ Completed (Dev2 — merged)
+
+- **Workshop XP** — skill XP gained in process phase via workProgress timer ✅
+- **Building `desc` fields** — all BLDG entries have a short description ✅
+- **Outdoor flag audit** — reviewed all buildings; olive_press wrongly flagged outdoor (fixed post-merge) ✅
+- **Cost balance pass** — granary, mill, bakery, archery costs adjusted ✅
+- **Role restore speedup** — immediate restore after self-supply deposit ✅ (depositPrivate guard added post-merge)
+- **Minimap colors** — now uses `BLDG[b.type]?.color` directly ✅
+
+### Feedback on Dev2
+- `olive_press: outdoor: true` — wrong. An olive press is an enclosed stone structure like a mill. Fixed post-merge.
+- Role restore had no `_depositPrivate` guard so it fired on night home deposits too. Fixed post-merge.
+- `watchtower materialQty 4→2` — too cheap for a tower that grants fog vision and garrison slots. Should be at least 4–6.
+
+---
+
+## New Tasks
+
+### 7. Fix watchtower build cost
+
+**File:** `js/config/gameConstants.js`
+
+The watchtower `materialQty` was reduced to 2 in Dev2 — restore it to at least 5. It has fog vision radius, ranged attack, and garrison slots, so it should be more expensive than a wall (stone: 2) and comparable to a palisade segment.
+
+Suggested: `cost: { stone: 3 }, materialQty: 5`
+
+---
+
+### 8. Show building `desc` in the build menu tooltip
+
+**File:** `js/scenes/UIManager.js`
+
+The `desc` field now exists on every BLDG entry. Display it in the build menu when the player hovers over (or selects) a building option.
+
+Find `_buildMenuItems` and the build panel render in `UIManager.js`. Below the building label and cost string, render the `desc` in a smaller font (around 8–9px), colour `#bbbbbb`, wrapping if needed. Look at how `showFloatText` or existing label rendering works for font size reference.
+
+Do NOT invent a hover system — just show the desc as a static subtitle line under the building name in the existing list layout.
+
+---
+
+### 9. `desc` field shown in left info panel for selected buildings
+
+**File:** `js/scenes/UIManager.js`
+
+When a built building is selected and its info appears in the left panel, add a line showing `BLDG[b.type]?.desc` beneath the building label. Same style as task 8: ~8px, `#aaaaaa`.
+
+Find the section in `_renderBuildingInfo` (or equivalent) that renders the building name and add the desc line directly below it.
+
+---
+
+### 10. Child name display above unit sprite
 
 **File:** `js/scenes/UnitManager.js`
 
-Workshop workers (miller, baker, carpenter, mason, smelter, tanner, etc.) gain skill XP in `handleGatherTask` and `handleBuildTask` but NOT in `handleWorkshopTask`. When a worker completes a production batch (in the `process` phase when `tickProduction` fires), they should gain XP.
+Workers already have a `name` field (set in `spawnUnit`). Children (age 0 and 1) currently have no visible label.
 
-`_gainSkillXp(u, skillName)` already exists. The skill names match `V25_SKILLS` in `gameConstants.js`:
-`'bake'`, `'mill'`, `'smelt'`, `'forge'`, `'tan'`, `'butcher'`, `'masonry'`, `'woodcutting'`
+Add a floating name label above child sprites. Use Phaser's `add.text` with font size 7, colour `#ffeecc`, depth 7, origin `(0.5, 1)`. Attach it to `u.nameLabel` on the unit object and update its position each tick in the main update loop (same place `u.gfx.setPosition` is called). Destroy it when the unit dies.
 
-The `WORKSHOP_ROLES` getter in UnitManager maps role name → `{ building, input, output, carryQty }`.
-Add a `skill` field to each entry in `WORKSHOP_ROLES`, then call `_gainSkillXp(u, def.skill)` at the end of the `process` phase when `b.inbox[def.input]` gets consumed (you can hook into the moment the inbox drops — or simply call it every tick the worker is in process, rate-limited by the existing `workProgress` pattern).
+Only show for age < 2 units (children/youth). Adult workers don't need it — there are too many on screen.
 
 ---
 
-## 2. Add `label` descriptions to BLDG entries for tooltip use
+### 11. Seasonal farm visual (crop rows change colour by season)
 
-**File:** `js/config/gameConstants.js`
+**File:** `js/scenes/MapManager.js` and/or `js/scenes/BuildingManager.js`
 
-Each entry in `BLDG` already has a `label` (e.g. `'🌾 Granary'`). Add a `desc` string field — one short sentence describing what the building does in-game. Example:
+There's a `season` value on `scene` (or derivable from `scene.day` — check `WorldManager` for how seasons work). Farm tiles currently draw static green. Make the farm graphic colour shift:
+- Spring: bright green `0x66cc44`
+- Summer: golden `0xc8a832`  
+- Autumn: brown-gold `0x997722`
+- Winter: pale `0xccccaa`
 
-```js
-granary: { label: '🌾 Granary', desc: 'Stores grain harvested from farms.', ... }
-```
-
-Write a `desc` for every building in `BLDG`. Keep each under 60 characters.
-These will be displayed in the build menu tooltip later — just add the data for now, no UI changes needed.
-
----
-
-## 3. Audit and fix `outdoor` flags on BLDG entries
-
-**File:** `js/config/gameConstants.js`
-
-Currently `outdoor: true` is set on: woodshed, stonepile, farm, garden, archery, pasture, palisade, watchtower, gate, wall.
-
-Review every other building and check: does this building have an enclosed interior where a worker would realistically go inside? Buildings that should NOT have `outdoor: true` (and therefore have workers ghosted while working):
-- mill, bakery, butcher, tannery, smelter, loom, carpenter, warehouse, granary, townhall, house, barracks, etc.
-
-Buildings that arguably should have `outdoor: true` (workers stay visible):
-- Any open-air structure not already listed
-
-Add `outdoor: true` to any that are missing it. Do not add `outdoor: false` — absence means indoor (that's the default).
-
----
-
-## 4. Normalise build costs across BLDG entries
-
-**File:** `js/config/gameConstants.js`
-
-Review all `cost` and `materialQty` values in `BLDG` for consistency. Rough guidelines:
-- Small 1-tile structures (palisade, wall, gate): 2–4 total material
-- Medium 2-tile buildings (woodshed, farm, garden): 5–8 total material  
-- Large 2–3 tile buildings (granary, barracks, mill): 8–14 total material
-- Fixed-material minimums (stone for mill ovens, etc.) should stay as-is in `cost`
-
-Check for any buildings that have neither `cost` nor `materialQty` (effectively free) and give them a sensible cost. List every change you make in the PR description.
-
----
-
-## 5. Add carpenter and mason to `WORKSHOP_ROLES` skill field + self-supply deposit check
-
-**File:** `js/scenes/UnitManager.js`
-
-When a carpenter (self-supplying as a woodcutter) or mason (self-supplying as a miner) deposits to the source building (`seekDeposit` → woodshed / stonepile), they should check if `_prevRole` is set and restore their original role after depositing, instead of waiting for `seekWorkshopTask` to notice stock exists.
-
-Currently the restore check only happens in `seekWorkshopTask` (called every 2000ms). Move the check: after `handleDepositTask` completes and `u._prevRole !== null`, immediately call `seekWorkshopTask(u)` to restore the role without the delay.
-
----
-
-## 6. Minimap color coverage for all building types
-
-**File:** `js/scenes/MapManager.js`
-
-In the minimap drawing section, some newer building types may be missing colour entries and show as a fallback grey. Audit the minimap render loop — find where building colours are assigned and ensure every type in `BLDG` has a colour. Use the `color` field already on each `BLDG` entry (`b.color`) — if the minimap isn't already using `b.color` directly, switch it to do so rather than a hardcoded switch/map.
+Find where farm buildings are drawn (look for `b.type === 'farm'` in `BuildingManager.js` or `redrawBuilding`). Apply the seasonal tint to the crop rectangle. Trigger a redraw of all farms at season change — check how `collectFirstFruits` or `endNight` is called in `WorldManager` to find a good hook point.
