@@ -515,24 +515,31 @@ export default class UIManager {
             this._infTxt(ox + pad, oy + 38, `HP ${u.hp}/${u.maxHp}`,
                 { fontSize: '9px', color: '#666655' });
 
+            // Nutrition Bar
+            const nut = Math.min(1, u.dailyNutrition ?? 0);
+            const nutCol = nut > 0.7 ? 0x44aa44 : nut > 0.3 ? 0xddaa22 : 0xcc3311;
+            this._infBar(ox + pad, oy + 48, W - pad * 2 - 4, 5, nut, nutCol);
+            this._infTxt(ox + pad, oy + 55, `FED ${Math.round(nut * 100)}%`,
+                { fontSize: '9px', color: '#666655' });
+
             if (u.type === 'worker') {
                 const role = u.role ? u.role[0].toUpperCase() + u.role.slice(1) : 'Idle';
-                this._infTxt(ox + pad, oy + 50, `Role: ${role}`,
+                this._infTxt(ox + pad, oy + 67, `Role: ${role}`,
                     { fontSize: '10px', color: '#aaaacc' });
 
                 // Phenotype swatches + height
-                this._infPhenotype(ox + pad, oy + 63, u.phenotype);
+                this._infPhenotype(ox + pad, oy + 80, u.phenotype);
                 const htPct = u.phenotype ? Math.round((u.phenotype.heightScale - 0.6) / 0.8 * 100) : 50;
-                this._infTxt(ox + pad + 32, oy + 63, `ht ${htPct}%`,
+                this._infTxt(ox + pad + 32, oy + 80, `ht ${htPct}%`,
                     { fontSize: '8px', color: '#6a5840' });
 
                 // All 6 attributes
                 const a = u.attributes;
                 if (a) {
-                    this._infTxt(ox + pad, oy + 76,
+                    this._infTxt(ox + pad, oy + 93,
                         `STR${a.str} DEX${a.dex} CON${a.con}`,
                         { fontSize: '9px', color: '#9a8860' });
-                    this._infTxt(ox + pad, oy + 86,
+                    this._infTxt(ox + pad, oy + 103,
                         `INT${a.int} AGI${a.agi} WIL${a.wil}`,
                         { fontSize: '9px', color: '#9a8860' });
                 }
