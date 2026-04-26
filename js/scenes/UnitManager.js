@@ -192,6 +192,13 @@ export default class UnitManager {
         if (u.type === 'worker') {
             const age = u.age ?? 2;
             const bodyCol = u.phenotype?.skinHex ?? def.color;
+            
+            // Task 15: Pulse indicator for idle adult workers
+            if (u.role === null && u.age >= 2 && !u.isEnemy) {
+                u.gfx.lineStyle(1, 0xddcc22, 0.5 + 0.4 * Math.sin(Date.now() / 400))
+                   .strokeCircle(0, 0, 12);
+            }
+            
             if (age === 0) {
                 u.gfx.fillStyle(bodyCol).fillCircle(0, 0, 5);
                 if (u.selected) u.gfx.lineStyle(2, 0xffdd44).strokeCircle(0, 0, 7);
