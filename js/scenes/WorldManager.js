@@ -1,6 +1,6 @@
 import {
     DAY_DURATION, NIGHT_DURATION, BLDG, TILE, MAP_OY, UDEF, VET_LEVELS, pickVetName,
-    APPLIANCE_DEF, NUTRITION,
+    APPLIANCE_DEF, NUTRITION, NODE_DEF,
 } from '../config/gameConstants.js';
 
 export default class WorldManager {
@@ -298,6 +298,7 @@ export default class WorldManager {
             this.scene.timerMs = DAY_DURATION;
             this.scene.mealsDone = 0;
 
+            this.tickNodeRespawn();
             this.ageUpUnits();
             this.scene.units.forEach(u => { u.dailyNutrition = 0; u._wageCollected = false; });
             this.scene.economyManager.collectFirstFruits();
@@ -311,6 +312,21 @@ export default class WorldManager {
             if ((this.scene.day - 1) % 8 === 0 && this.scene.day > 1)
                 this.scene.time.delayedCall(2500, () => this._spawnCaravan());
         });
+    }
+
+    tickNodeRespawn() {
+        for (const n of this.scene.resNodes) {
+            if (n.stock <= 0) {
+                n.respawnTimer = (n.respawnTimer ?? 0) + 1;
+                const def = NODE_DEF[n.type];
+                if (def && def.respawnDays > 0 && n.respawnTimer >= def.respawnDays) {
+                    n.stock = def.stock;
+                    n.respawnTimer = 0;
+                    this.scene.mapManager.redrawNode(n);
+                    this.scene.uiManager.showFloatText(n.x, n.y - 12, '🌱 regrown', '#88cc44');
+                }
+            }
+        }
     }
 
     setNightOverlay(active) {

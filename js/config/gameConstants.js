@@ -325,16 +325,16 @@ export const UDEF = {
 // ─── Resource Node Definitions ───────────────────────────────────────────────
 
 export const NODE_DEF = {
-  tree: { resource: 'wood', stock: 10 },
-  berry_bush: { resource: 'wheat', stock: 8 },
-  small_tree: { resource: 'wood', stock: 10 },
-  large_tree: { resource: 'wood', stock: 18 },
-  small_boulder: { resource: 'stone', stock: 12 },
-  large_boulder: { resource: 'stone', stock: 24 },
-  wild_garden: { resource: 'olives', stock: 10 },
-  olive_grove: { resource: 'olives', stock: 12 },
-  scrub: { resource: 'wool', stock: 4, large: true }, // Placeholder for 'scrub' node
-  ore_vein: { resource: 'ore', stock: 20, large: true },
+  tree: { resource: 'wood', stock: 10, respawnDays: 6 },
+  berry_bush: { resource: 'wheat', stock: 8, respawnDays: 3 },
+  small_tree: { resource: 'wood', stock: 10, respawnDays: 6 },
+  large_tree: { resource: 'wood', stock: 18, respawnDays: 0 },
+  small_boulder: { resource: 'stone', stock: 12, respawnDays: 12 },
+  large_boulder: { resource: 'stone', stock: 24, respawnDays: 0 },
+  wild_garden: { resource: 'olives', stock: 10, respawnDays: 4 },
+  olive_grove: { resource: 'olives', stock: 12, respawnDays: 5 },
+  scrub: { resource: 'wool', stock: 4, large: true, respawnDays: 4 },
+  ore_vein: { resource: 'ore', stock: 20, large: true, respawnDays: 25 },
 };
 
 export const NODE_ROLE = {
