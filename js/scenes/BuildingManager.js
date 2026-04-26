@@ -1,6 +1,7 @@
 import {
-    BLDG, BUILD_WORK, TILE, MAP_OY
+    BLDG, BUILD_WORK, TILE, MAP_OY, computeBuildCost
 } from '../config/gameConstants.js';
+import { BUILDINGS } from '../content/buildings/index.js';
 
 export default class BuildingManager {
     constructor(scene) {
@@ -40,10 +41,12 @@ export default class BuildingManager {
             replantTimer: 0, trainQueue: [], spawnTimer: 0, respawnQueue: [], resNeeded: {}, drawnStock: -1,
             isOpen: type === 'gate' ? true : undefined,
             domainId: null,
+            isPublic: false,
             inbox: {},
             applianceSlots: isHouse ? 2 : 0,
             applianceItems: [],
-            inventory: isHouse ? {} : null,  // private Oikos stock
+            inventory: {},
+            tithePending: {}, wagePending: {},
             gfx: null, barGfx: null, labelObj: null,
         };
     }
@@ -54,7 +57,8 @@ export default class BuildingManager {
         const isWallType = ['wall','palisade','gate','watchtower'].includes(this.scene.bldgType);
         this.occupy(tx, ty, def.size, isWallType ? 98 : 99);
         const b = this.makeBldgObj(this.scene.bldgType, tx, ty, false);
-        if (def.cost) b.resNeeded = { ...def.cost };
+        const cost = computeBuildCost(this.scene.bldgType, this.scene.bldgMaterial ?? 'wood');
+        if (Object.keys(cost).length) b.resNeeded = { ...cost };
         this.scene.buildings.push(b);
         if (this.scene.bldgType === 'house') this.assignDomain(b);
         this.redrawBuilding(b);
@@ -62,7 +66,7 @@ export default class BuildingManager {
         if (this.scene.hoverGfx) this.scene.hoverGfx.clear();
         this.updateStorageCap();
         
-        const canAfford = !def.cost || this.scene.economyManager.afford(def.cost);
+        const canAfford = !Object.keys(cost).length || this.scene.economyManager.afford(cost);
         const msg = canAfford ? 'Workers will build!' : 'Plan placed — gather resources!';
         const col = canAfford ? '#88ee88' : '#ffaa44';
         this.scene.uiManager.showFloatText((tx + def.size/2) * TILE, MAP_OY + ty * TILE - 6, msg, col);
@@ -222,6 +226,10 @@ export default class BuildingManager {
     }
 
     drawBuilding(gfx, bldg) {
+        BUILDINGS[bldg.type]?.draw?.(gfx, bldg);
+    }
+
+    _drawBuildingLegacy(gfx, bldg) {
         const { type, tx, ty, size } = bldg;
         const px = tx * TILE, py = MAP_OY + ty * TILE, s = size * TILE;
         const cx = px + s/2, cy = py + s/2;

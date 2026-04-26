@@ -3,7 +3,7 @@ import {
     TILE_SPD, T_GRASS, T_ROCK, HIGH_GROUND_BONUS,
     VET_LEVELS, BLDG, NODE_DEF, NODE_ROLE, BUILD_WORK,
     DEER_ATK_RANGE, SHEEP_TAME_COST, NUTRITION, pickName,
-    ENABLE_PROACTIVE_AI, BLDG_CATS,
+    ENABLE_PROACTIVE_AI, BLDG_CATS, DESIRE_THRESHOLD, ROAD_DESIRE, ROAD_NONE,
     randomAttributes, blendAttributes,
     randomPhenotype, blendPhenotype,
     randomPassions, blendPassions,
@@ -41,7 +41,8 @@ export default class UnitManager {
             carrying: { wheat: 0, flour: 0, bread: 0, meat: 0, sausages: 0, olives: 0, stone: 0, wood: 0, sticks: 0, stones: 0, wool: 0, hide: 0, ore: 0 }, carryMax,
             role: null, replantTimer: 0, trainTimer: 0, lastSeek: 0,
             roleMemory: {}, targetDeer: null, targetSheep: null,
-            nightsSurvived: 0, vetLevel: 0,
+            nightsSurvived: 0, vetLevel: 0, isInside: false, _wageCollected: false,
+            fetchBldgId: null, _prevRole: null,
             // Genealogy
             fatherId: null, motherId: null, spouseId: null,
             attributes, phenotype, passions,
@@ -315,9 +316,8 @@ export default class UnitManager {
 
             u.isEnemy ? this.tickEnemy(u, time, dt) : this.tickPlayer(u, time, dt);
             u.gfx.setPosition(u.x, u.y);
-            // Semi-transparent for units inside a tower (garrisoned or assaulting)
             const inTower = u.taskType === 'garrison' || u.aiMode === 'tower_assault';
-            u.gfx.setAlpha(inTower ? 0.55 : 1.0);
+            u.gfx.setAlpha(inTower ? 0.55 : u.isInside ? 0.15 : 1.0);
             this.redrawUnit(u);
         }
 
@@ -573,25 +573,67 @@ export default class UnitManager {
     }
 
     tickWorker(u, time, dt) {
-        if (u.age === 0) { this.tickChild(u, dt); return; }
+        if (u.age < 2) { this.tickChild(u, dt); return; }
 
         // Night: workers go home and rest; garrison units stay at post
         if (this.scene.phase === 'NIGHT' && u.taskType !== 'garrison' && !u.isRouting) {
+            // Collect wage once per night before heading home
+            if (!u._wageCollected) {
+                const workplace = u.taskBldgId
+                    ? this.scene.buildings.find(b => b.id === u.taskBldgId && b.built) : null;
+                const isProductionRole = u.role in (this.WORKSHOP_ROLES ?? {});
+
+                if (isProductionRole && workplace?.wagePending?.[u.id]) {
+                    // Production share: collect per-batch wage set aside in building
+                    for (const [res, amt] of Object.entries(workplace.wagePending[u.id])) {
+                        if (amt > 0) {
+                            u.carrying[res] = (u.carrying[res] ?? 0) + amt;
+                            this.scene.uiManager.showFloatText(u.x, u.y - 16, `💰 ${amt} ${res}`, '#ffee88');
+                        }
+                    }
+                    workplace.wagePending[u.id] = {};
+                } else if (workplace?.isPublic) {
+                    // State daily wage: 1 food from public commons
+                    const WAGE_FOOD = ['bread', 'sausages', 'flour', 'olives', 'wheat', 'meat'];
+                    for (const food of WAGE_FOOD) {
+                        if ((this.scene.resources[food] ?? 0) >= 1) {
+                            this.scene.resources[food]--;
+                            u.carrying[food] = (u.carrying[food] ?? 0) + 1;
+                            this.scene.uiManager.showFloatText(u.x, u.y - 16, `💰 ${food}`, '#ffee88');
+                            break;
+                        }
+                    }
+                }
+                u._wageCollected = true;
+            }
+
             if (u.homeBldgId) {
                 const home = this.scene.buildings.find(b => b.id === u.homeBldgId && b.built);
                 if (home) {
-                    const hx = (home.tx + home.size / 2) * TILE, hy = MAP_OY + (home.ty + home.size / 2) * TILE;
-                    if (Phaser.Math.Distance.Between(u.x, u.y, hx, hy) > 20) {
-                        this.moveToward(u, hx, hy, u.speed, dt);
+                    const hcx = (home.tx + home.size / 2) * TILE;
+                    const hcy = MAP_OY + (home.ty + home.size / 2) * TILE;
+                    if (Phaser.Math.Distance.Between(u.x, u.y, hcx, hcy) > 10) {
+                        // Deposit any carrying to home inventory while walking
+                        if (this.totalCarrying(u) > 0 && u.taskType !== 'deposit') {
+                            u.taskType = 'deposit'; u.taskBldgId = home.id; u._depositPrivate = true;
+                        }
+                        if (u.taskType === 'deposit') { this.handleDepositTask(u, dt); return; }
+                        this.moveToward(u, hcx, hcy, u.speed, dt);
+                        u.isInside = false;
+                    } else {
+                        u.isInside = true;
                     }
                 }
             }
             // Clear any non-garrison task so workers resume fresh at dawn
             if (u.taskType && u.taskType !== 'garrison') {
                 u.taskType = null; u.targetNode = null; u.workProgress = 0;
+                u.workshopPhase = null; u.fetchBldgId = null;
             }
             return;
         }
+        // Exiting building at dawn
+        if (u.isInside && u.workshopPhase !== 'process') u.isInside = false;
 
         if (u.moveTo) {
             const d = Phaser.Math.Distance.Between(u.x, u.y, u.moveTo.x, u.moveTo.y);
@@ -623,6 +665,7 @@ export default class UnitManager {
         // Design fix: if unit has a role but no task/node for 12s, re-evaluate
         // Prevents permanent lock when e.g. all farms are fallow and no nodes in range
         const stickyRoles = new Set(['hunter', 'shepherd']); // player-directed, don't auto-reassign
+        if (u._prevRole) stickyRoles.add(u.role); // self-supplying — keep temporary role until deposit done
         if (!stickyRoles.has(u.role) && !u.taskType && !u.targetNode) {
             u._roleIdleTimer = (u._roleIdleTimer ?? 0) + dt;
             if (u._roleIdleTimer > 12000) { u._roleIdleTimer = 0; u.role = null; }
@@ -806,6 +849,7 @@ export default class UnitManager {
         if (!b || b.built) { u.taskType = null; return; }
         const cx = (b.tx+b.size/2)*TILE, cy = MAP_OY+(b.ty+b.size/2)*TILE;
         if (this.moveToward(u, cx, cy, 28, dt)) return;
+        u.isInside = false;
         const workSpeed = 1.0 + (u.skills.masonry?.level ?? 1) * 0.2;
         u.workProgress = (u.workProgress ?? 0) + dt * workSpeed;
         if (u.workProgress >= 25.0) {
@@ -821,6 +865,7 @@ export default class UnitManager {
         if (!b || b.stock <= 0) { u.taskType = null; return; }
         const cx = (b.tx+b.size/2)*TILE, cy = MAP_OY+(b.ty+b.size/2)*TILE;
         if (this.moveToward(u, cx, cy, 28, dt)) return;
+        u.isInside = false;
         u.workProgress = (u.workProgress ?? 0) + dt * (1.0 + (u.skills.farming?.level ?? 1) * 0.2);
         if (u.workProgress >= 25.0) {
             u.workProgress = 0;
@@ -897,13 +942,41 @@ export default class UnitManager {
         }
     }
 
+    // Building types whose inventories count as public commons (deposit → scene.resources)
+    get PUBLIC_STORAGE() {
+        return new Set(['granary', 'warehouse', 'stonepile', 'woodshed', 'townhall']);
+    }
+
+    // Where each role's gathered resources should be deposited
+    get DEPOSIT_ROUTES() {
+        return {
+            farmer:     ['granary', 'warehouse', 'townhall'],
+            woodcutter: ['woodshed', 'warehouse', 'townhall'],
+            hunter:     ['butcher', 'warehouse', 'townhall'],
+            miner:      ['smelter', 'warehouse', 'townhall'],
+            // forager, shepherd → private (house)
+        };
+    }
+
+    // Find nearest built building of one of the given types
+    _nearestOfTypes(x, y, types) {
+        let best = null, bd = Infinity;
+        for (const b of this.scene.buildings) {
+            if (!b.built || b.faction === 'enemy') continue;
+            if (!types.includes(b.type)) continue;
+            const bx = (b.tx + b.size / 2) * TILE, by = MAP_OY + (b.ty + b.size / 2) * TILE;
+            const d = Phaser.Math.Distance.Between(x, y, bx, by);
+            if (d < bd) { bd = d; best = b; }
+        }
+        return best;
+    }
+
     seekDeposit(u) {
         const hasCarry = Object.keys(u.carrying).some(r => (u.carrying[r] || 0) > 0);
         if (!hasCarry) return;
 
-        // Freelance gatherers (forager/woodcutter/miner) deposit privately to home Oikos
-        // Bug 3: hunter deposits publicly so butcher/tannery get raw materials
-        const privateRoles = new Set(['forager', 'woodcutter', 'miner', 'shepherd', 'farmer']);
+        // Private roles: forager, shepherd → home oikos
+        const privateRoles = new Set(['forager', 'shepherd']);
         if (privateRoles.has(u.role) && u.homeBldgId) {
             const home = this.scene.buildings.find(b => b.id === u.homeBldgId && b.built && b.type === 'house');
             if (home) {
@@ -912,29 +985,32 @@ export default class UnitManager {
             }
         }
 
-        // Public deposit: nearest player storage building
-        const canStore = Object.keys(u.carrying).some(r => (u.carrying[r] || 0) > 0 && (this.scene.storageMax[r] || 0) > 0);
-        if (!canStore) { Object.keys(u.carrying).forEach(r => { u.carrying[r] = 0; }); return; }
-        let best = null, bd = Infinity;
-        for (const b of this.scene.buildings) {
-            if (!b.built || b.faction === 'enemy') continue;
-            const bx = (b.tx + b.size/2) * TILE, by = MAP_OY + (b.ty + b.size/2) * TILE;
-            const d = Phaser.Math.Distance.Between(u.x, u.y, bx, by);
-            if (d < bd) { bd = d; best = b; }
+        // Role-based routing to specific building types
+        const routeTypes = this.DEPOSIT_ROUTES[u.role];
+        if (routeTypes) {
+            const target = this._nearestOfTypes(u.x, u.y, routeTypes);
+            if (target) { u.taskType = 'deposit'; u.taskBldgId = target.id; u._depositPrivate = false; return; }
         }
-        if (best) { u.taskType = 'deposit'; u.taskBldgId = best.id; u._depositPrivate = false; }
+
+        // Fallback: nearest public storage
+        const target = this._nearestOfTypes(u.x, u.y,
+            ['granary', 'warehouse', 'stonepile', 'woodshed', 'townhall']);
+        if (target) { u.taskType = 'deposit'; u.taskBldgId = target.id; u._depositPrivate = false; }
     }
 
     handleDepositTask(u, dt) {
         const b = this.scene.buildings.find(b => b.id === u.taskBldgId && b.built && !b.faction);
         if (!b) { u.taskType = null; u._depositPrivate = false; return; }
-        const cx = (b.tx + b.size/2) * TILE, cy = MAP_OY + (b.ty + b.size/2) * TILE;
+        const cx = (b.tx + b.size / 2) * TILE, cy = MAP_OY + (b.ty + b.size / 2) * TILE;
         if (this.moveToward(u, cx, cy, 30, dt)) return;
+        u.isInside = !(BLDG[b.type]?.outdoor ?? false);
 
+        b.inventory = b.inventory ?? {};
         for (const [res, amt] of Object.entries(u.carrying)) {
             if ((amt || 0) <= 0) continue;
-            if (u._depositPrivate && b.inventory !== null) {
-                // Firstfruits: 1 unit of each resource goes to the commons before the rest reaches home
+
+            if (u._depositPrivate) {
+                // Private deposit to house: firstfruits (1 unit) go to commons if carrying ≥ 2
                 let remainder = amt;
                 if (remainder >= 2) {
                     this.scene.economyManager.addResource(res, 1);
@@ -943,14 +1019,22 @@ export default class UnitManager {
                 b.inventory[res] = (b.inventory[res] ?? 0) + remainder;
                 u.carrying[res] = 0;
                 this.scene.uiManager.showFloatText(u.x, u.y - 14, `+${remainder} ${res}`, '#aaffcc');
-            } else {
+            } else if (this.PUBLIC_STORAGE.has(b.type)) {
+                // Public storage building: deposit to both b.inventory and scene.resources
+                b.inventory[res] = (b.inventory[res] ?? 0) + amt;
                 const got = this.scene.economyManager.addResource(res, amt);
-                u.carrying[res] -= got;
+                u.carrying[res] = 0;
                 if (got > 0) this.scene.uiManager.showFloatText(u.x, u.y - 14, `+${got} ${res}`, '#88ff88');
+            } else {
+                // Workshop/other building: deposit to b.inventory only
+                b.inventory[res] = (b.inventory[res] ?? 0) + amt;
+                u.carrying[res] = 0;
+                this.scene.uiManager.showFloatText(u.x, u.y - 14, `+${amt} ${res}`, '#88ccff');
             }
         }
         u.taskType = null;
         u._depositPrivate = false;
+        u.isInside = false;
     }
 
     tickEnemyWorker(u, time, dt) {
@@ -1026,14 +1110,27 @@ export default class UnitManager {
     }
 
     tickChild(u, dt) {
+        // Age progression: child(0) → youth(1) after 2 min, youth(1) → adult(2) after 3 min
+        u.ageTimer = (u.ageTimer ?? 0) + dt;
+        const threshold = u.age === 0 ? 120000 : 180000;
+        if (u.ageTimer >= threshold) {
+            u.age++;
+            u.ageTimer = 0;
+            this.redrawUnit(u);
+            const stage = u.age === 1 ? 'youth' : 'adult';
+            this.scene.uiManager.showFloatText(u.x, u.y - 20, `${u.name} is now a ${stage}`, '#ddcc88');
+            return;
+        }
+
         const home = this.scene.buildings.find(b => b.id === u.homeBldgId);
         if (!home) return;
         const hx = (home.tx + home.size / 2) * TILE, hy = MAP_OY + (home.ty + home.size / 2) * TILE;
+        const radius = u.age === 0 ? TILE : TILE * 3;
         const dist = Phaser.Math.Distance.Between(u.x, u.y, hx, hy);
-        if (dist > TILE * 2.5 || Math.random() < 0.004) {
-            u.moveTo = { x: hx + Phaser.Math.Between(-TILE, TILE), y: hy + Phaser.Math.Between(-TILE, TILE) };
+        if (dist > radius * 2.5 || Math.random() < 0.004) {
+            u.moveTo = { x: hx + Phaser.Math.Between(-radius, radius), y: hy + Phaser.Math.Between(-radius, radius) };
         }
-        if (u.moveTo) this.moveToward(u, u.moveTo.x, u.moveTo.y, 3, dt);
+        if (u.moveTo) this.moveToward(u, u.moveTo.x, u.moveTo.y, u.age === 0 ? 3 : 5, dt);
     }
 
     pickRole(u, time) {
@@ -1071,7 +1168,11 @@ export default class UnitManager {
             const hasSlot = this.scene.buildings.some(b =>
                 b.type === def.building && b.built && !b.faction &&
                 !this.scene.units.some(w => w.role === role && w.taskBldgId === b.id));
-            if (hasSlot && (this.scene.resources[def.input] ?? 0) > 0)
+            const sourceTypes = this.FETCH_SOURCES[role] ?? [];
+            const hasInput = (this.scene.resources[def.input] ?? 0) > 0
+                || this.scene.buildings.some(b =>
+                    b.built && !b.faction && sourceTypes.includes(b.type) && (b.inventory?.[def.input] ?? 0) > 0);
+            if (hasSlot && hasInput)
                 cands.push({ role, score: def.baseScore + need(def.needKey) * 80 + (u.skills[def.skill]?.level ?? 1) * 15 });
         }
 
@@ -1143,54 +1244,178 @@ export default class UnitManager {
         };
     }
 
+    // Where each workshop role fetches its input from (building types, in priority order)
+    get FETCH_SOURCES() {
+        return {
+            miller:    ['granary', 'warehouse', 'townhall'],
+            baker:     ['mill', 'granary', 'warehouse'],
+            butcher:   ['butcher', 'warehouse', 'townhall'],
+            tanner:    ['butcher', 'tannery', 'warehouse'],
+            smelter:   ['mine', 'smelter', 'warehouse'],
+            smith:     ['smelter', 'blacksmith', 'warehouse'],
+            carpenter: ['woodshed', 'warehouse', 'townhall'],
+            mason:     ['stonepile', 'warehouse', 'townhall'],
+        };
+    }
+
+    // Find nearest building of given types that has qty > 0 of the given resource in inventory
+    _findSourceBuilding(input, types) {
+        let best = null, bd = Infinity;
+        for (const b of this.scene.buildings) {
+            if (!b.built || b.faction === 'enemy') continue;
+            if (!types.includes(b.type)) continue;
+            // Check both b.inventory and scene.resources for public storage types
+            const inBldg  = (b.inventory?.[input] ?? 0);
+            const inCommons = this.PUBLIC_STORAGE.has(b.type)
+                ? (this.scene.resources[input] ?? 0) : 0;
+            if (inBldg <= 0 && inCommons <= 0) continue;
+            const bx = (b.tx + b.size / 2) * TILE, by = MAP_OY + (b.ty + b.size / 2) * TILE;
+            const d = Phaser.Math.Distance.Between(0, 0, bx, by); // proximity score (use worker pos in seek)
+            if (d < bd) { bd = d; best = b; }
+        }
+        return best;
+    }
+
+    // Roles that can self-gather when their source buildings are empty
+    get SELF_SUPPLY() {
+        return {
+            carpenter: { nodes: ['large_tree', 'small_tree'], depositTypes: ['woodshed', 'warehouse', 'townhall'] },
+            mason:     { nodes: ['boulder', 'ore_vein'],      depositTypes: ['stonepile', 'warehouse', 'townhall'] },
+            smelter:   { nodes: ['ore_vein'],                 depositTypes: ['smelter', 'warehouse'] },
+        };
+    }
+
     seekWorkshopTask(u) {
         const def = this.WORKSHOP_ROLES[u.role];
         if (!def) { u.role = null; return; }
-        if ((this.scene.resources[def.input] ?? 0) === 0) { u.role = null; return; }
+
+        // Restore from self-supply gathering if we now have stock
+        if (u._prevRole && u._prevRole !== u.role) {
+            const sourceTypes = this.FETCH_SOURCES[u._prevRole] ?? [];
+            const hasStock = this._findSourceBuildingNear(u.x, u.y, this.WORKSHOP_ROLES[u._prevRole]?.input, sourceTypes);
+            if (hasStock) { u.role = u._prevRole; u._prevRole = null; return; }
+        }
+
+        // Find source building with input available
+        const sourceTypes = this.FETCH_SOURCES[u.role] ?? [];
+        const source = this._findSourceBuildingNear(u.x, u.y, def.input, sourceTypes);
+
+        if (!source) {
+            // Self-supply: temporarily become a gatherer to restock the source building
+            const supply = this.SELF_SUPPLY[u.role];
+            if (supply) {
+                const node = this.findNearNode(u, 8000, supply.nodes);
+                if (node) {
+                    u._prevRole  = u.role;
+                    u.role       = u.role === 'mason' ? 'miner' : 'woodcutter';
+                    u.targetNode = node;
+                    return;
+                }
+            }
+            u.role = null;
+            return;
+        }
+
         const bldg = this.scene.buildings.find(b =>
             b.type === def.building && b.built && !b.faction &&
             !this.scene.units.some(w => w.id !== u.id && w.role === u.role && w.taskBldgId === b.id));
         if (!bldg) { u.role = null; return; }
-        u.taskType = 'workshop';
-        u.taskBldgId = bldg.id;
-        u.workshopPhase = 'fetch';
+
+        u.taskType      = 'workshop';
+        u.taskBldgId    = bldg.id;
+        u.fetchBldgId   = source.id;
+        u.workshopPhase = 'goFetch';
+    }
+
+    _findSourceBuildingNear(x, y, input, types) {
+        let best = null, bd = Infinity;
+        for (const b of this.scene.buildings) {
+            if (!b.built || b.faction === 'enemy') continue;
+            if (!types.includes(b.type)) continue;
+            const inBldg    = (b.inventory?.[input] ?? 0);
+            const inCommons = this.PUBLIC_STORAGE.has(b.type) ? (this.scene.resources[input] ?? 0) : 0;
+            if (inBldg <= 0 && inCommons <= 0) continue;
+            const bx = (b.tx + b.size / 2) * TILE, by2 = MAP_OY + (b.ty + b.size / 2) * TILE;
+            const d = Phaser.Math.Distance.Between(x, y, bx, by2);
+            if (d < bd) { bd = d; best = b; }
+        }
+        return best;
     }
 
     handleWorkshopTask(u, dt) {
         const def = this.WORKSHOP_ROLES[u.role];
-        const b = this.scene.buildings.find(b => b.id === u.taskBldgId && b.built);
-        if (!b || !def) { u.taskType = null; u.workshopPhase = null; return; }
+        const b   = this.scene.buildings.find(b => b.id === u.taskBldgId && b.built);
+        if (!b || !def) { u.taskType = null; u.workshopPhase = null; u.isInside = false; return; }
 
-        const cx = (b.tx + b.size / 2) * TILE, cy = MAP_OY + (b.ty + b.size / 2) * TILE;
-        this.moveToward(u, cx, cy, 28, dt);
-        const atBuilding = Phaser.Math.Distance.Between(u.x, u.y, cx, cy) < TILE * 1.5;
-
-        if (u.workshopPhase === 'fetch') {
-            if (!atBuilding) return;
-            // Arrived — pull surplus input from global pool into building inbox.
-            // Edible inputs keep a reserve (2 per villager) so mealtime always has food.
-            const pop = this.scene.units.filter(w => !w.isEnemy && w.hp > 0).length;
-            const reserve = NUTRITION[def.input] != null ? pop * 3 : 0;
-            const available = Math.min(def.carryQty, Math.max(0, (this.scene.resources[def.input] ?? 0) - reserve));
-            if (available === 0) { u.taskType = null; u.workshopPhase = null; return; }
-            this.scene.resources[def.input] -= available;
-            b.inbox[def.input] = (b.inbox[def.input] ?? 0) + available;
-            u.workshopPhase = 'process';
-        } else {
-            // process phase — stay at building; restock inbox when it runs dry
-            if (!atBuilding) return;
-            if ((b.inbox[def.input] ?? 0) > 0) return;
-            const pop = this.scene.units.filter(w => !w.isEnemy && w.hp > 0).length;
-            const reserve = NUTRITION[def.input] != null ? pop * 3 : 0;
-            const available = Math.min(def.carryQty, Math.max(0, (this.scene.resources[def.input] ?? 0) - reserve));
-            if (available > 0) {
-                this.scene.resources[def.input] -= available;
-                b.inbox[def.input] = (b.inbox[def.input] ?? 0) + available;
-            } else {
-                u.taskType = null;
-                u.workshopPhase = null;
+        // === goFetch: walk to source building, pick up input ===
+        if (u.workshopPhase === 'goFetch') {
+            const src = this.scene.buildings.find(b => b.id === u.fetchBldgId && b.built);
+            if (!src) {
+                // re-seek source
+                const sourceTypes = this.FETCH_SOURCES[u.role] ?? [];
+                const newSrc = this._findSourceBuildingNear(u.x, u.y, def.input, sourceTypes);
+                if (!newSrc) { u.taskType = null; u.workshopPhase = null; return; }
+                u.fetchBldgId = newSrc.id;
+                return;
             }
+            const door = this._bldgDoor(src);
+            if (this.moveToward(u, door.x, door.y, 28, dt)) return;
+
+            // At source door — take resources
+            src.inventory = src.inventory ?? {};
+            let take = 0;
+            if ((src.inventory[def.input] ?? 0) > 0) {
+                take = Math.min(def.carryQty, src.inventory[def.input]);
+                src.inventory[def.input] -= take;
+                if (this.PUBLIC_STORAGE.has(src.type)) {
+                    this.scene.resources[def.input] = Math.max(0, (this.scene.resources[def.input] ?? 0) - take);
+                }
+            } else if (this.PUBLIC_STORAGE.has(src.type) && (this.scene.resources[def.input] ?? 0) > 0) {
+                take = Math.min(def.carryQty, this.scene.resources[def.input]);
+                this.scene.resources[def.input] -= take;
+            }
+            if (take === 0) {
+                // Source ran dry — try to find another
+                const sourceTypes = this.FETCH_SOURCES[u.role] ?? [];
+                const newSrc = this._findSourceBuildingNear(u.x, u.y, def.input, sourceTypes);
+                if (!newSrc) { u.taskType = null; u.workshopPhase = null; return; }
+                u.fetchBldgId = newSrc.id;
+                return;
+            }
+            u.carrying[def.input] = (u.carrying[def.input] ?? 0) + take;
+            u.workshopPhase = 'goWork';
+            return;
         }
+
+        // === goWork: carry input to workshop, deposit to inbox ===
+        if (u.workshopPhase === 'goWork') {
+            const door = this._bldgDoor(b);
+            if (this.moveToward(u, door.x, door.y, 28, dt)) return;
+
+            const carry = u.carrying[def.input] ?? 0;
+            if (carry > 0) {
+                b.inbox = b.inbox ?? {};
+                b.inbox[def.input] = (b.inbox[def.input] ?? 0) + carry;
+                u.carrying[def.input] = 0;
+            }
+            u.workshopPhase = 'process';
+            u.isInside = !(BLDG[b.type]?.outdoor ?? false);
+            return;
+        }
+
+        // === process: move to building center and work while inbox has stock ===
+        const cx = (b.tx + b.size / 2) * TILE;
+        const cy = MAP_OY + (b.ty + b.size / 2) * TILE;
+        if (this.moveToward(u, cx, cy, 10, dt)) return;
+        if ((b.inbox?.[def.input] ?? 0) > 0) return;
+
+        // Inbox empty — go fetch more
+        u.isInside = false;
+        const sourceTypes = this.FETCH_SOURCES[u.role] ?? [];
+        const newSrc = this._findSourceBuildingNear(u.x, u.y, def.input, sourceTypes);
+        if (!newSrc) { u.taskType = null; u.workshopPhase = null; return; }
+        u.fetchBldgId   = newSrc.id;
+        u.workshopPhase = 'goFetch';
     }
 
     seekNodeTask(u, types) {
@@ -1257,6 +1482,13 @@ export default class UnitManager {
         this.scene.uiManager.showPhaseMessage("Scout killed!", 0x44ff88);
     }
 
+    _bldgDoor(b) {
+        return {
+            x: (b.tx + b.size / 2) * TILE,
+            y: MAP_OY + (b.ty + b.size) * TILE - 4,
+        };
+    }
+
     moveToward(u, tx, ty, threshold, dt) {
         const d = Phaser.Math.Distance.Between(u.x, u.y, tx, ty);
         if (d <= threshold) return false;
@@ -1299,6 +1531,18 @@ export default class UnitManager {
 
         u.x += Math.cos(a) * u.speed * spd * onionMult * dt;
         u.y += Math.sin(a) * u.speed * spd * onionMult * dt;
+
+        // Accumulate foot traffic; create desire path when threshold reached
+        if (!u.isEnemy && tileX >= 0 && tileX < MAP_W && tileY >= 0 && tileY < MAP_H) {
+            const tm = this.scene.trafficMap;
+            tm[tileY][tileX] = (tm[tileY][tileX] ?? 0) + 1;
+            if (tm[tileY][tileX] >= DESIRE_THRESHOLD &&
+                (this.scene.roadMap[tileY][tileX] ?? ROAD_NONE) === ROAD_NONE) {
+                this.scene.roadMap[tileY][tileX] = ROAD_DESIRE;
+                this.scene.mapManager.drawDesirePath(tileX, tileY);
+            }
+        }
+
         return true;
     }
 

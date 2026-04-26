@@ -169,6 +169,20 @@ export default class WorldManager {
         if (this.scene.mealsDone === 2 && elapsed >= 0.75) { this.fireMeal(3); }
     }
 
+    _nearestFoodBuilding(u) {
+        const FOOD_TYPES = new Set(['bakery', 'butcher', 'granary', 'warehouse', 'townhall']);
+        const FOOD_KEYS  = ['bread', 'sausages', 'flour', 'olives', 'wheat', 'meat'];
+        let best = null, bd = Infinity;
+        for (const b of this.scene.buildings) {
+            if (!b.built || b.faction || !FOOD_TYPES.has(b.type)) continue;
+            if (!FOOD_KEYS.some(k => (b.inventory?.[k] ?? 0) > 0)) continue;
+            const bx = (b.tx + b.size / 2) * TILE, by = MAP_OY + (b.ty + b.size / 2) * TILE;
+            const d  = Phaser.Math.Distance.Between(u.x, u.y, bx, by);
+            if (d < bd) { bd = d; best = b; }
+        }
+        return best;
+    }
+
     // Consume best available food from inv for one unit, return nutrition gained.
     // Priority: bread/sausages (1.0) → flour (0.5) → olives (0.4) → raw wheat/meat (0.3)
     _feedFrom(u, inv) {
@@ -193,7 +207,7 @@ export default class WorldManager {
 
             let gained = 0;
 
-            // Try private house inventory first
+            // 1. Private house inventory (wages brought home)
             const house = this.scene.buildings.find(b =>
                 b.id === u.homeBldgId && b.built && b.type === 'house');
             if (house) {
@@ -201,7 +215,13 @@ export default class WorldManager {
                 gained = this._feedFrom(u, house.inventory);
             }
 
-            // Fall back to public commons
+            // 2. Nearest food building inventory (bakery, butcher, granary, etc.)
+            if (gained === 0) {
+                const foodBldg = this._nearestFoodBuilding(u);
+                if (foodBldg?.inventory) gained = this._feedFrom(u, foodBldg.inventory);
+            }
+
+            // 3. Public commons fallback (tithe reserves)
             if (gained === 0) gained = this._feedFrom(u, this.scene.resources);
 
             u.dailyNutrition = (u.dailyNutrition ?? 0) + gained;
@@ -279,7 +299,8 @@ export default class WorldManager {
             this.scene.mealsDone = 0;
 
             this.ageUpUnits();
-            this.scene.units.forEach(u => { u.dailyNutrition = 0; });
+            this.scene.units.forEach(u => { u.dailyNutrition = 0; u._wageCollected = false; });
+            this.scene.economyManager.collectFirstFruits();
             this.scene.updateUI();
             this.scene.showPhaseMessage(`Day ${this.scene.day} begins.`, 0xddaa44);
             if ((this.scene.day - 1) % 8 === 0 && this.scene.day > 1)

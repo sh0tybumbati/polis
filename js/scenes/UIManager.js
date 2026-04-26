@@ -1,6 +1,6 @@
 import {
     MAP_W, MAP_H, TILE, MAP_OY,
-    BLDG, BLDG_CATS, FM_TYPES, FM_LABELS, UNIT_NAMES, VET_LEVELS,
+    BLDG, BLDG_CATS, FM_TYPES, FM_LABELS, UNIT_NAMES, VET_LEVELS, computeBuildCost,
 } from '../config/gameConstants.js';
 import UIPanel from './UIPanel.js';
 
@@ -24,7 +24,7 @@ export default class UIManager {
         const PANEL_H = Math.min(280, Math.max(210, Math.floor(H * 0.24)));
         const TOP_H   = MAP_OY;   // must match MAP_OY so camera bounds align
         const KEY_H   = 10;   // decorative border strip
-        const TAB_H   = 24;   // category tab row inside actions zone
+        const TAB_H   = 26;   // category tab row inside actions zone
         const panelY  = H - PANEL_H;
         const INFO_W  = Math.floor(W * 0.30);
         const MM_W    = Math.floor(W * 0.28);
@@ -260,7 +260,7 @@ export default class UIManager {
         g.lineStyle(1, 0xc8a030, 0.35).strokeRect(x, y, w, h);
 
         const t = this._infTxt(x + w / 2, y + h / 2, label,
-            { fontSize: '9px', color: '#d4c8a8', align: 'center',
+            { fontSize: '10px', color: '#d4c8a8', align: 'center',
               wordWrap: { width: w - 4 } }).setOrigin(0.5);
 
         const z = this._inf(this.scene.add.zone(x + w / 2, y + h / 2, w, h)
@@ -298,7 +298,7 @@ export default class UIManager {
         }
 
         this._infTxt(ox + pad, oy + 6, def.label,
-            { fontSize: '11px', color: '#c8a030' });
+            { fontSize: '12px', color: '#c8a030' });
 
         // Status line
         let status = '';
@@ -319,11 +319,21 @@ export default class UIManager {
             }
         }
         if (status) this._infTxt(ox + pad, oy + 20, status,
-            { fontSize: '8px', color: '#9a9077' });
+            { fontSize: '9px', color: '#9a9077' });
 
         // HP bar for enemy buildings
         if (b.faction === 'enemy' && b.hp !== undefined) {
             this._infBar(ox + pad, oy + 30, W - pad * 2, 5, b.hp / b.maxHp, 0xcc3322);
+        }
+
+        // State ownership toggle (built non-house buildings)
+        if (b.built && b.type !== 'house' && b.type !== 'townhall' && !b.faction) {
+            const label = b.isPublic ? '🏛 State  (toggle)' : '🏠 Private  (toggle)';
+            const col   = b.isPublic ? 0x1a3040 : 0x2a2018;
+            this._infBtn(ox + pad, oy + H - 34, W - pad * 2 - 4, 20, label, col, () => {
+                b.isPublic = !b.isPublic;
+                this.updateUI();
+            });
         }
 
         // Townhall: show archon + tithe
@@ -331,16 +341,16 @@ export default class UIManager {
             const archon = this.scene.units.find(u => u.isArchon && u.hp > 0);
             if (archon) {
                 this._infTxt(ox + pad, oy + 34,
-                    `Archon: ${archon.name}`, { fontSize: '9px', color: '#ffdd88' });
+                    `Archon: ${archon.name}`, { fontSize: '10px', color: '#ffdd88' });
                 this._infPhenotype(ox + pad, oy + 46, archon.phenotype);
                 this._infTxt(ox + pad + 32, oy + 47,
-                    this._attrLine(archon.attributes), { fontSize: '7px', color: '#9a8860' });
+                    this._attrLine(archon.attributes), { fontSize: '8px', color: '#9a8860' });
             } else {
-                this._infTxt(ox + pad, oy + 34, 'No Archon', { fontSize: '9px', color: '#884422' });
+                this._infTxt(ox + pad, oy + 34, 'No Archon', { fontSize: '10px', color: '#884422' });
             }
             const rate = this.scene.titheRate ?? 10;
             this._infTxt(ox + pad, oy + 60, `Tithe: ${rate}%  (firstfruits auto)`,
-                { fontSize: '8px', color: '#7a6030' });
+                { fontSize: '9px', color: '#7a6030' });
         }
     }
 
@@ -374,9 +384,9 @@ export default class UIManager {
             ? (patriarch ? `Archon: ${patriarch.name}` : 'Town Hall')
             : (patriarch ? `Oikos of ${patriarch.name}` : `House #${b.id}`);
 
-        this._infTxt(ox + pad, oy + 4, familyName, { fontSize: '10px', color: '#c8a030' });
+        this._infTxt(ox + pad, oy + 4, familyName, { fontSize: '11px', color: '#c8a030' });
         this._infTxt(ox + W - pad - 22, oy + 6, `${allRes.length}/${BLDG[b.type]?.capacity ?? '?'}`,
-            { fontSize: '8px', color: '#6a5c40' });
+            { fontSize: '10px', color: '#6a5c40' });
 
         const div = this._inf(this.scene.add.graphics().setDepth(22));
         div.lineStyle(1, 0x5a4820, 0.5).lineBetween(ox + pad, oy + 17, ox + W - pad, oy + 17);
@@ -407,8 +417,8 @@ export default class UIManager {
             const nameStr = (u.name ?? '?').slice(0, 8) + (isHeir ? '★' : '');
             const nameCol = isHeir ? '#ffdd88' : '#c4b88a';
 
-            this._infTxt(ox + pad + indent, ry, gIcon, { fontSize: '9px', color: gCol });
-            this._infTxt(ox + pad + indent + 9, ry, nameStr, { fontSize: '9px', color: nameCol });
+            this._infTxt(ox + pad + indent, ry, gIcon, { fontSize: '10px', color: gCol });
+            this._infTxt(ox + pad + indent + 9, ry, nameStr, { fontSize: '10px', color: nameCol });
             this._infPhenotype(ox + W - pad - 30, ry, u.phenotype);
 
             // Attributes on second micro-line
@@ -417,7 +427,7 @@ export default class UIManager {
             const passStr = burning ? `♥${burning[0].slice(0,5)}` : '';
             this._infTxt(ox + pad + indent + 9, ry + 9,
                 `${attrStr}  ${passStr}`,
-                { fontSize: '7px', color: '#7a6850' });
+                { fontSize: '8px', color: '#7a6850' });
 
             ry += rowH;
         };
@@ -439,7 +449,7 @@ export default class UIManager {
                 const mo = this.scene.units.find(p => p.id === u.motherId);
                 const lin = fa || mo ? ` (${[fa?.name?.slice(0,5), mo?.name?.slice(0,4)].filter(Boolean).join('·')})` : '';
                 this._infTxt(ox + pad + 6, ry, `↳ ${u.name?.slice(0,8) ?? '?'} ${tag}${lin}`,
-                    { fontSize: '8px', color: '#9a8060' });
+                    { fontSize: '9px', color: '#9a8060' });
                 this._infPhenotype(ox + W - pad - 30, ry, u.phenotype);
                 ry += 12;
             }
@@ -455,12 +465,12 @@ export default class UIManager {
         const invStr = invEntries.length
             ? invEntries.map(([r, v]) => `${v}${r.slice(0,4)}`).join(' ')
             : 'empty';
-        this._infTxt(ox + pad, ry, `📦 ${invStr}`, { fontSize: '8px', color: invEntries.length ? '#aac890' : '#4a4030' });
+        this._infTxt(ox + pad, ry, `📦 ${invStr}`, { fontSize: '9px', color: invEntries.length ? '#aac890' : '#4a4030' });
         ry += 12;
         const slotLine = (b.applianceItems ?? []).length
             ? b.applianceItems.map(a => a.label ?? a).join(', ')
             : 'no appliances';
-        this._infTxt(ox + pad, ry, `[${slotLine}]`, { fontSize: '8px', color: '#5a6840' });
+        this._infTxt(ox + pad, ry, `[${slotLine}]`, { fontSize: '9px', color: '#5a6840' });
     }
 
     _renderUnitInfo(sel, ox, oy, W, H, pad) {
@@ -469,43 +479,43 @@ export default class UIManager {
             const nm  = UNIT_NAMES[u.type] ?? u.type;
             const vet = u.vetLevel >= 1 ? VET_LEVELS[u.vetLevel - 1].label + ' ' : '';
             this._infTxt(ox + pad, oy + 5, `${vet}${nm}`,
-                { fontSize: '11px', color: '#c8a030' });
+                { fontSize: '12px', color: '#c8a030' });
             this._infTxt(ox + pad, oy + 18, u.name ?? '',
-                { fontSize: '9px', color: '#7a7060' });
+                { fontSize: '10px', color: '#7a7060' });
             this._infBar(ox + pad, oy + 31, W - pad * 2 - 4, 5,
                 u.hp / u.maxHp,
                 u.hp / u.maxHp > 0.5 ? 0x44cc44 : u.hp / u.maxHp > 0.25 ? 0xddaa22 : 0xcc3311);
             this._infTxt(ox + pad, oy + 38, `HP ${u.hp}/${u.maxHp}`,
-                { fontSize: '8px', color: '#666655' });
+                { fontSize: '9px', color: '#666655' });
 
             if (u.type === 'worker') {
                 const role = u.role ? u.role[0].toUpperCase() + u.role.slice(1) : 'Idle';
                 this._infTxt(ox + pad, oy + 50, `Role: ${role}`,
-                    { fontSize: '9px', color: '#aaaacc' });
+                    { fontSize: '10px', color: '#aaaacc' });
 
                 // Phenotype swatches + height
                 this._infPhenotype(ox + pad, oy + 63, u.phenotype);
                 const htPct = u.phenotype ? Math.round((u.phenotype.heightScale - 0.6) / 0.8 * 100) : 50;
                 this._infTxt(ox + pad + 32, oy + 63, `ht ${htPct}%`,
-                    { fontSize: '7px', color: '#6a5840' });
+                    { fontSize: '8px', color: '#6a5840' });
 
                 // All 6 attributes
                 const a = u.attributes;
                 if (a) {
                     this._infTxt(ox + pad, oy + 76,
                         `STR${a.str} DEX${a.dex} CON${a.con}`,
-                        { fontSize: '8px', color: '#9a8860' });
+                        { fontSize: '9px', color: '#9a8860' });
                     this._infTxt(ox + pad, oy + 86,
                         `INT${a.int} AGI${a.agi} WIL${a.wil}`,
-                        { fontSize: '8px', color: '#9a8860' });
+                        { fontSize: '9px', color: '#9a8860' });
                 }
 
                 // Passions
                 const burning = Object.entries(u.passions ?? {}).find(([,v]) => v === 'burning');
                 const interested = Object.entries(u.passions ?? {}).filter(([,v]) => v === 'interested').map(([k]) => k);
-                if (burning) this._infTxt(ox + pad, oy + 97, `♥ ${burning[0]}`, { fontSize: '8px', color: '#c8603a' });
+                if (burning) this._infTxt(ox + pad, oy + 97, `♥ ${burning[0]}`, { fontSize: '9px', color: '#c8603a' });
                 if (interested.length) this._infTxt(ox + pad, oy + 107,
-                    `~ ${interested.map(s=>s.slice(0,5)).join(', ')}`, { fontSize: '7px', color: '#7a7060' });
+                    `~ ${interested.map(s=>s.slice(0,5)).join(', ')}`, { fontSize: '8px', color: '#7a7060' });
 
                 // Skills with level > 1
                 const trainedSkills = Object.entries(u.skills ?? {}).filter(([,v]) => v.level > 1);
@@ -516,7 +526,7 @@ export default class UIManager {
                     trainedSkills.sort((a,b) => b[1].level - a[1].level).slice(0, 4).forEach(([k, v]) => {
                         const stars = '★'.repeat(Math.min(v.level - 1, 4));
                         this._infTxt(ox + pad, sy, `${k.slice(0,8)} ${stars}`,
-                            { fontSize: '7px', color: '#7a9060' });
+                            { fontSize: '8px', color: '#7a9060' });
                         sy += 10;
                     });
                 }
@@ -531,22 +541,22 @@ export default class UIManager {
                 if (spouse) {
                     const sIcon = spouse.gender === 'female' ? '♀' : '♂';
                     this._infTxt(ox + pad, ly, `${sIcon} ${spouse.name?.slice(0,10) ?? '?'}`,
-                        { fontSize: '8px', color: '#c8a870' });
+                        { fontSize: '9px', color: '#c8a870' });
                     ly += 11;
                 }
                 if (fa || mo) {
                     const lin = [fa?.name?.slice(0,7), mo?.name?.slice(0,7)].filter(Boolean).join(' & ');
-                    this._infTxt(ox + pad, ly, `↑ ${lin}`, { fontSize: '7px', color: '#6a5840' });
+                    this._infTxt(ox + pad, ly, `↑ ${lin}`, { fontSize: '8px', color: '#6a5840' });
                     ly += 10;
                 }
                 if (myChildren.length) {
                     this._infTxt(ox + pad, ly,
                         `↓ ${myChildren.map(c => c.name?.slice(0,5) ?? '?').slice(0,3).join(', ')}`,
-                        { fontSize: '7px', color: '#6a7850' });
+                        { fontSize: '8px', color: '#6a7850' });
                 }
             } else {
                 this._infTxt(ox + pad, oy + 50, `Atk:${u.atk}  Spd:${u.speed}`,
-                    { fontSize: '9px', color: '#aaaacc' });
+                    { fontSize: '10px', color: '#aaaacc' });
             }
         } else {
             this._infTxt(ox + pad, oy + 5, `${sel.length} units selected`,
@@ -559,7 +569,7 @@ export default class UIManager {
             let ty = oy + 20;
             Object.entries(tally).forEach(([t, c]) => {
                 this._infTxt(ox + pad, ty, `${c}×  ${t}`,
-                    { fontSize: '9px', color: '#9a9077' });
+                    { fontSize: '10px', color: '#9a9077' });
                 ty += 13;
             });
         }
@@ -568,10 +578,10 @@ export default class UIManager {
     _renderNodeInfo(ox, oy, W, H, pad) {
         const n = this.scene.selectedNode;
         const label = n.type.replace(/_/g, ' ');
-        this._infTxt(ox + pad, oy + 6, label, { fontSize: '11px', color: '#c8a030' });
-        this._infTxt(ox + pad, oy + 20, `Stock: ${n.stock}`, { fontSize: '9px', color: '#9a9077' });
+        this._infTxt(ox + pad, oy + 6, label, { fontSize: '12px', color: '#c8a030' });
+        this._infTxt(ox + pad, oy + 20, `Stock: ${n.stock}`, { fontSize: '10px', color: '#9a9077' });
         const res = n.resource ?? n.type;
-        this._infTxt(ox + pad, oy + 32, `Yields: ${res}`, { fontSize: '9px', color: '#7a9060' });
+        this._infTxt(ox + pad, oy + 32, `Yields: ${res}`, { fontSize: '10px', color: '#7a9060' });
         this._infBtn(ox + pad, oy + 46, W - pad * 2 - 4, 26, 'Send workers', 0x2a4022, () => {
             if (this.scene.selIds.size > 0) this.scene.orderWorkersToNode(n);
         });
@@ -582,7 +592,7 @@ export default class UIManager {
 
     _renderIdleInfo(ox, oy, W, H, pad) {
         this._infTxt(ox + pad, oy + 6, 'No selection',
-            { fontSize: '9px', color: '#4a4030' });
+            { fontSize: '10px', color: '#4a4030' });
 
         // Show expanded resources
         const sm = this.scene.storageMax ?? {};
@@ -606,7 +616,7 @@ export default class UIManager {
         extras.forEach(({ k, icon }) => {
             if ((sm[k] ?? 0) > 0) {
                 this._infTxt(ox + pad, ty, `${icon} ${r[k] ?? 0}/${sm[k]}`,
-                    { fontSize: '9px', color: '#7a7060' });
+                    { fontSize: '10px', color: '#7a7060' });
                 ty += 13;
             }
         });
@@ -653,13 +663,17 @@ export default class UIManager {
             }});
         }
 
-        const tabsY   = zy;
-        const panelY2 = showTabs ? zy + TAB_H : zy;
-        const panelH  = PANEL_H - KEY_H - (showTabs ? TAB_H : 0);
+        const MAT_H   = showTabs ? 18 : 0;
+        const tabsY   = zy + MAT_H;
+        const panelY2 = showTabs ? zy + MAT_H + TAB_H : zy;
+        const panelH  = PANEL_H - KEY_H - (showTabs ? MAT_H + TAB_H : 0);
 
-        if (showTabs) this._renderCategoryTabs(zx, tabsY, ACT_W, TAB_H);
+        if (showTabs) {
+            this._renderMaterialToggle(zx, zy, ACT_W, MAT_H);
+            this._renderCategoryTabs(zx, tabsY, ACT_W, TAB_H);
+        }
 
-        this._actionPanel = new UIPanel(this.scene, zx, panelY2, ACT_W, panelH, { cols: 3 });
+        this._actionPanel = new UIPanel(this.scene, zx, panelY2, ACT_W, panelH);
         this._actionPanel.setItems(items);
     }
 
@@ -885,6 +899,25 @@ export default class UIManager {
         return items;
     }
 
+    _renderMaterialToggle(x, y, w, h) {
+        const mat  = this.scene.bldgMaterial ?? 'wood';
+        const half = Math.floor(w / 2);
+        [['wood', '🪵 Wood', x], ['stone', '🧱 Stone', x + half]].forEach(([m, label, bx]) => {
+            const active = mat === m;
+            const bg = this._tab(this.scene.add.graphics().setDepth(22));
+            bg.fillStyle(active ? 0x4a3018 : 0x1a1208, active ? 0.95 : 0.7)
+              .fillRect(bx, y, half - 1, h - 1);
+            if (active) bg.lineStyle(1, 0xc8a030, 0.7).strokeRect(bx, y, half - 1, h - 1);
+            this._tab(this.scene.add.text(bx + half / 2, y + h / 2, label, {
+                fontFamily: 'monospace', fontSize: '9px',
+                color: active ? '#e8d090' : '#5a4a28',
+            }).setOrigin(0.5).setDepth(22));
+            this._tab(this.scene.add.zone(bx + half / 2, y + h / 2, half - 1, h - 1)
+                .setInteractive().setDepth(23))
+                .on('pointerdown', () => { this.scene.bldgMaterial = m; this.updateUI(); });
+        });
+    }
+
     _renderCategoryTabs(x, y, w, h) {
         const cats  = Object.keys(BLDG_CATS);
         const tabW  = Math.floor((w - 2) / cats.length);
@@ -897,9 +930,9 @@ export default class UIManager {
               .fillRect(tx, y, tabW - 1, h - 1);
             if (active) bg.lineStyle(1, 0xc8a030, 0.8).strokeRect(tx, y, tabW - 1, h - 1);
 
-            const label = cat.length > 4 ? cat.slice(0, 3) : cat;
+            const label = cat.length > 5 ? cat.slice(0, 4) : cat;
             const txt = this._tab(this.scene.add.text(tx + tabW / 2, y + h / 2, label, {
-                fontFamily: 'monospace', fontSize: '9px',
+                fontFamily: 'monospace', fontSize: '11px',
                 color: active ? '#e8d8a0' : '#6a5a3a',
             }).setOrigin(0.5).setDepth(22));
 
@@ -912,16 +945,18 @@ export default class UIManager {
     }
 
     _buildMenuItems() {
+        const mat  = this.scene.bldgMaterial ?? 'wood';
         const bldgs = BLDG_CATS[this.scene.buildCat] ?? [];
         const items = bldgs.map(type => {
-            const def     = BLDG[type];
-            const canBuy  = !def.cost || this.scene.economyManager.afford(def.cost);
+            const def      = BLDG[type];
+            const cost     = computeBuildCost(type, mat);
+            const canBuy   = !Object.keys(cost).length || this.scene.economyManager.afford(cost);
             const isActive = this.scene.bldgType === type;
-            const costStr = def.cost
-                ? Object.entries(def.cost).map(([r, n]) => `${n}${r[0]}`).join(' ')
+            const costStr  = Object.keys(cost).length
+                ? Object.entries(cost).map(([r, n]) => `${n}${r[0]}`).join(' ')
                 : null;
             return {
-                label: def.label.replace(/^\S+\s*/, ''),  // strip leading emoji
+                label: def.label,
                 sublabel: costStr,
                 color: isActive ? 0x4a6070 : (def.color > 0 ? Math.max(0, (def.color & 0xfefefe) >> 1) : 0x2a1e0e),
                 dimmed: !canBuy,

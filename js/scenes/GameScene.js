@@ -38,7 +38,8 @@ export default class GameScene extends Phaser.Scene {
         this.day        = 1;
         this.phase      = 'DAY';
         this.nightsSurvived = 0;
-        this.bldgType  = null;
+        this.bldgType     = null;
+        this.bldgMaterial = 'wood';
         this.fmType    = 'phalanx';
         this.floorPiles = [];
         this.selectedBuilding = null;
@@ -107,6 +108,11 @@ export default class GameScene extends Phaser.Scene {
         this.mapManager.initFog();
 
         if (loaded) {
+            // Redraw any desire/paved paths stored in roadMap
+            for (let y = 0; y < this.roadMap.length; y++)
+                for (let x = 0; x < (this.roadMap[y]?.length ?? 0); x++)
+                    if (this.roadMap[y][x] > 0) this.mapManager.drawDesirePath(x, y);
+
             for (const b of this.buildings) this.buildingManager.redrawBuilding(b);
             for (const u of this.units) {
                 u.gfx = this._w(this.add.graphics().setDepth(6));
@@ -168,7 +174,8 @@ export default class GameScene extends Phaser.Scene {
         const { gfx, ...d } = u;
         // Don't persist live object references — re-seek on load
         return { ...d, moveTo: null, targetNode: null, targetDeer: null, targetSheep: null,
-                 taskType: null, workProgress: 0, workshopPhase: null };
+                 taskType: null, workProgress: 0, workshopPhase: null, isInside: false,
+                 fetchBldgId: null, _wageCollected: false, _prevRole: null };
     }
     _serBuilding(b) { const { gfx, barGfx, labelObj, ...d } = b; return d; }
     _serNode(n)     { const { gfx, labelObj, ...d } = n; return d; }
@@ -280,6 +287,7 @@ export default class GameScene extends Phaser.Scene {
 
         // Townhall at centre
         const townhall = this.placeBuiltBuilding('townhall', mx, by);
+        townhall.isPublic = true;
         this.updateStorageCap();
 
         // Founder — lives in the townhall, role locked to builder, boosted attributes

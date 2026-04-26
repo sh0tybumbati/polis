@@ -1,20 +1,20 @@
 /**
  * UIPanel — a self-contained paginated button grid.
+ * Buttons are square tiles; columns expand to fill available width.
  *
  * Usage:
- *   const panel = new UIPanel(scene, x, y, w, h, { cols: 3 });
+ *   const panel = new UIPanel(scene, x, y, w, h);
  *   panel.setItems([{ label, sublabel, color, active, dimmed, callback }]);
  *   panel.destroy();
  */
 export default class UIPanel {
-    constructor(scene, x, y, w, h, opts = {}) {
-        this.scene   = scene;
+    constructor(scene, x, y, w, h, _opts = {}) {
+        this.scene  = scene;
         this.x = x; this.y = y; this.w = w; this.h = h;
-        this.cols    = opts.cols ?? 3;
-        this.navH    = 20;
-        this._page   = 0;
-        this._items  = [];
-        this._objs   = [];  // all Phaser objects owned by this panel
+        this.navH   = 20;
+        this._page  = 0;
+        this._items = [];
+        this._objs  = [];
     }
 
     setItems(items) {
@@ -23,57 +23,75 @@ export default class UIPanel {
         this._render();
     }
 
+    // Square button size derived from panel height targeting 3 rows
+    _btnSize() {
+        const gap  = 3;
+        const rows = 3;
+        const availH = this.h - this.navH;
+        return Math.max(36, Math.floor((availH - gap * (rows + 1)) / rows));
+    }
+
+    // How many columns fit in the panel width
+    _cols() {
+        const gap = 3;
+        const sz  = this._btnSize();
+        return Math.max(3, Math.floor((this.w - gap) / (sz + gap)));
+    }
+
     _pageSize() {
-        const { h, navH, cols } = this;
-        const btnH = this._btnH();
-        const rows = Math.max(1, Math.floor((h - navH) / (btnH + 3)));
+        const gap  = 3;
+        const sz   = this._btnSize();
+        const cols = this._cols();
+        const rows = Math.max(1, Math.floor((this.h - this.navH - gap) / (sz + gap)));
         return cols * rows;
     }
 
-    _btnH() { return Math.max(32, Math.floor((this.h - this.navH) / 3) - 3); }
-
     _render() {
         this._destroy();
-        const { x, y, w, h, cols, navH } = this;
+        const { x, y, w, h, navH } = this;
         const gap  = 3;
-        const btnH = this._btnH();
-        const btnW = Math.floor((w - gap * (cols + 1)) / cols);
-        const rows = Math.max(1, Math.floor((h - navH) / (btnH + gap)));
+        const sz   = this._btnSize();
+        const cols = this._cols();
+        const rows = Math.max(1, Math.floor((h - navH - gap) / (sz + gap)));
         const pageSize = cols * rows;
         const page = this._page;
         const visible = this._items.slice(page * pageSize, (page + 1) * pageSize);
 
+        // Font sizes scale with button size
+        const fz  = Math.max(9, Math.floor(sz * 0.20)) + 'px';
+        const sfz = Math.max(7, Math.floor(sz * 0.16)) + 'px';
+
         visible.forEach((item, idx) => {
             const col = idx % cols;
             const row = Math.floor(idx / cols);
-            const bx = x + gap + col * (btnW + gap);
-            const by = y + gap + row * (btnH + gap);
+            const bx  = x + gap + col * (sz + gap);
+            const by  = y + gap + row * (sz + gap);
 
             const bg = this._ui(this.scene.add.graphics().setDepth(22));
             bg.fillStyle(item.color ?? 0x2a3040, item.dimmed ? 0.35 : 0.88)
-              .fillRect(bx, by, btnW, btnH);
+              .fillRect(bx, by, sz, sz);
             if (item.active) {
-                bg.lineStyle(2, 0xffdd44, 0.9).strokeRect(bx + 1, by + 1, btnW - 2, btnH - 2);
+                bg.lineStyle(2, 0xffdd44, 0.9).strokeRect(bx + 1, by + 1, sz - 2, sz - 2);
             } else {
-                bg.lineStyle(1, 0xc8a030, 0.22).strokeRect(bx, by, btnW, btnH);
+                bg.lineStyle(1, 0xc8a030, 0.22).strokeRect(bx, by, sz, sz);
             }
 
-            const fz   = btnW < 56 ? '8px' : '9px';
-            const lblY = item.sublabel ? by + btnH * 0.36 : by + btnH * 0.5;
-            const lbl  = this._ui(this.scene.add.text(bx + btnW / 2, lblY, item.label, {
+            const lblY = item.sublabel ? by + sz * 0.38 : by + sz * 0.5;
+            this._ui(this.scene.add.text(bx + sz / 2, lblY, item.label, {
                 fontFamily: 'monospace', fontSize: fz,
                 color: item.dimmed ? '#554433' : '#d4c8a8',
-                align: 'center', wordWrap: { width: btnW - 4 },
+                align: 'center', wordWrap: { width: sz - 4 },
             }).setOrigin(0.5).setDepth(22));
 
             if (item.sublabel) {
-                const sub = this._ui(this.scene.add.text(bx + btnW / 2, by + btnH * 0.68, item.sublabel, {
-                    fontFamily: 'monospace', fontSize: '7px',
-                    color: item.dimmed ? '#443322' : '#887755', align: 'center',
+                this._ui(this.scene.add.text(bx + sz / 2, by + sz * 0.72, item.sublabel, {
+                    fontFamily: 'monospace', fontSize: sfz,
+                    color: item.dimmed ? '#443322' : '#aa9966',
+                    align: 'center',
                 }).setOrigin(0.5).setDepth(22));
             }
 
-            const zone = this._ui(this.scene.add.zone(bx + btnW / 2, by + btnH / 2, btnW, btnH)
+            const zone = this._ui(this.scene.add.zone(bx + sz / 2, by + sz / 2, sz, sz)
                 .setInteractive().setDepth(23));
             zone.on('pointerdown', item.callback);
         });
@@ -84,10 +102,10 @@ export default class UIPanel {
             const ny = y + h - navH + 4;
             const dotSpacing = 14;
             const dotsW = totalPages * dotSpacing;
-            const dotX0 = x + w / 2 - dotsW / 2 + 7;
+            const dotX0  = x + w / 2 - dotsW / 2 + 7;
 
             for (let p = 0; p < totalPages; p++) {
-                const dx = dotX0 + p * dotSpacing;
+                const dx  = dotX0 + p * dotSpacing;
                 const dot = this._ui(this.scene.add.graphics().setDepth(22));
                 dot.fillStyle(p === page ? 0xc8a030 : 0x4a4030)
                    .fillCircle(dx, ny + 7, p === page ? 4 : 3);

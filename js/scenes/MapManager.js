@@ -2,7 +2,7 @@ import {
     TILE, MAP_OY, MAP_W, MAP_H, MAP_BOTTOM,
     T_SAND, T_GRASS, T_ROCK, T_FOREST, T_WATER,
     TILE_A, TILE_B, BIOME_A, BIOME_B,
-    ROAD_NONE, ROAD_PAVED, ROAD_SPD, TILE_SPD,
+    ROAD_NONE, ROAD_DESIRE, ROAD_PAVED, ROAD_SPD, TILE_SPD,
     NODE_DEF, BLDG
 } from '../config/gameConstants.js';
 import { MathUtils } from '../utils/MathUtils.js';
@@ -162,6 +162,7 @@ export default class MapManager {
 
     drawMap() {
         const gfx = this.scene._w(this.scene.add.graphics().setDepth(0));
+        this.desireGfx = this.scene._w(this.scene.add.graphics().setDepth(1));
         for (let y = 0; y < MAP_H; y++) {
             for (let x = 0; x < MAP_W; x++) {
                 const t = Math.min(this.scene.terrainData[y][x], TILE_A.length - 1);
@@ -194,6 +195,18 @@ export default class MapManager {
         gfx.lineStyle(1, 0x000000, 0.04);
         for (let x = 0; x <= MAP_W; x++) gfx.lineBetween(x*TILE, MAP_OY, x*TILE, MAP_BOTTOM);
         for (let y = 0; y <= MAP_H; y++) gfx.lineBetween(0, MAP_OY+y*TILE, MAP_W*TILE, MAP_OY+y*TILE);
+    }
+
+    drawDesirePath(tx, ty) {
+        if (!this.desireGfx) return;
+        const road = this.scene.roadMap[ty]?.[tx];
+        if (road === ROAD_DESIRE) {
+            this.desireGfx.fillStyle(0xb8946a, 0.55)
+                .fillRect(tx * TILE + 3, MAP_OY + ty * TILE + 3, TILE - 6, TILE - 6);
+        } else if (road === ROAD_PAVED) {
+            this.desireGfx.fillStyle(0x9a8870, 0.75)
+                .fillRect(tx * TILE + 1, MAP_OY + ty * TILE + 1, TILE - 2, TILE - 2);
+        }
     }
 
     initFog() {
