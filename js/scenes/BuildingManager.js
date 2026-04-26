@@ -220,6 +220,14 @@ export default class BuildingManager {
             bldg.labelObj = this.scene._w(this.scene.add.text(px+s/2, py+s/2-4, '⚒', {
                 fontSize: '14px', color: '#ffdd44', fontFamily: 'monospace',
             }).setOrigin(0.5).setDepth(4));
+            // Construction progress bar above building
+            if (bldg.buildWork !== undefined) {
+                const total = BUILD_WORK[bldg.type] ?? 10;
+                const progress = Math.max(0, Math.min(1, 1 - bldg.buildWork / total));
+                const bw = s - 8;
+                bldg.gfx.fillStyle(0x333322, 0.8).fillRect(px + 4, py - 8, bw, 5);
+                bldg.gfx.fillStyle(0x88aa44).fillRect(px + 4, py - 8, bw * progress, 5);
+            }
         }
         bldg.barGfx = this.scene._w(this.scene.add.graphics().setDepth(4));
         this.redrawBuildingBar(bldg);

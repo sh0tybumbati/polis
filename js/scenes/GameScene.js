@@ -201,6 +201,7 @@ export default class GameScene extends Phaser.Scene {
                 sheep: this.sheep.map(s => this._serAnimal(s)),
             };
             localStorage.setItem('polis_save', JSON.stringify(state));
+            this.uiManager.showSaveFlash?.();
         } catch(e) { console.warn('[save] failed:', e); }
     }
 

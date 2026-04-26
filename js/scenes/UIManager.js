@@ -1,6 +1,6 @@
 import {
     MAP_W, MAP_H, TILE, MAP_OY,
-    BLDG, BLDG_CATS, FM_TYPES, FM_LABELS, UNIT_NAMES, VET_LEVELS, computeBuildCost,
+    BLDG, BLDG_CATS, FM_TYPES, FM_LABELS, UNIT_NAMES, VET_LEVELS, computeBuildCost, SEASONS, SEASON_DAYS,
 } from '../config/gameConstants.js';
 import UIPanel from './UIPanel.js';
 
@@ -222,10 +222,20 @@ export default class UIManager {
         this.scene.workerInfo?.setText(`👥 ${adults}/${popCap}`);
 
         const phase = this.scene.phase;
+        const seasonIdx = Math.floor((this.scene.day - 1) / SEASON_DAYS) % 4;
+        const seasonName = SEASONS[seasonIdx];
         this.scene.dayInfo?.setText(phase === 'NIGHT'
-            ? `🌙 N${this.scene.day}` : `☀ D${this.scene.day}`);
+            ? `🌙 N${this.scene.day}  ${seasonName}` : `☀ D${this.scene.day}  ${seasonName}`);
 
         this.updateEnemyCount();
+    }
+
+    showSaveFlash() {
+        const txt = this.scene.add.text(this.scene.SW - 45, 10, '💾 saved', {
+            fontSize: '9px', color: '#88cc88', fontFamily: 'monospace',
+            stroke: '#000000', strokeThickness: 1,
+        }).setDepth(25).setOrigin(1, 0);
+        this.scene.tweens.add({ targets: txt, alpha: 0, duration: 1500, onComplete: () => txt.destroy() });
     }
 
     // ─── Info Pane ───────────────────────────────────────────────────────────
@@ -311,6 +321,13 @@ export default class UIManager {
                 .map(([r, n]) => `${n} ${r.slice(0,3)}`).join(' ');
             status = needs ? `needs: ${needs}` : '⚒ building…';
         } else {
+            // State/Private Badge
+            if (b.type !== 'house' && b.type !== 'townhall') {
+                const label = b.isPublic ? '[STATE]' : '[PRIVATE]';
+                const col   = b.isPublic ? '#c8a030' : '#6a5840';
+                this._infTxt(ox + W - pad, oy + 6, label, { fontSize: '8px', color: col }).setOrigin(1, 0);
+            }
+            
             if (def.capacity) {
                 const pop = this.scene.units.filter(u => u.homeBldgId === b.id && !u.isEnemy && u.hp > 0).length;
                 status = `👥 ${pop}/${def.capacity}`;
@@ -324,6 +341,19 @@ export default class UIManager {
         }
         if (status) this._infTxt(ox + pad, oy + 28, status,
             { fontSize: '9px', color: '#9a9077' });
+
+        // Show pending tithes and wages
+        let pendingY = oy + 40;
+        if (Object.values(b.tithePending ?? {}).some(v => v > 0)) {
+            const titheStr = Object.entries(b.tithePending).filter(([,v]) => v > 0)
+                .map(([r, v]) => `${v} ${r}`).join(', ');
+            this._infTxt(ox + pad, pendingY, `🌾 tithe: ${titheStr}`, { fontSize: '9px', color: '#c8a030' });
+            pendingY += 11;
+        }
+        const totalWages = Object.values(b.wagePending ?? {}).reduce((s, v) => s + v, 0);
+        if (totalWages > 0) {
+            this._infTxt(ox + pad, pendingY, `💰 wages: ${totalWages}`, { fontSize: '9px', color: '#aac870' });
+        }
 
         // HP bar for enemy buildings
         if (b.faction === 'enemy' && b.hp !== undefined) {
@@ -495,24 +525,31 @@ export default class UIManager {
             this._infTxt(ox + pad, oy + 38, `HP ${u.hp}/${u.maxHp}`,
                 { fontSize: '9px', color: '#666655' });
 
+            // Nutrition Bar
+            const nut = Math.min(1, u.dailyNutrition ?? 0);
+            const nutCol = nut > 0.7 ? 0x44aa44 : nut > 0.3 ? 0xddaa22 : 0xcc3311;
+            this._infBar(ox + pad, oy + 48, W - pad * 2 - 4, 5, nut, nutCol);
+            this._infTxt(ox + pad, oy + 55, `FED ${Math.round(nut * 100)}%`,
+                { fontSize: '9px', color: '#666655' });
+
             if (u.type === 'worker') {
                 const role = u.role ? u.role[0].toUpperCase() + u.role.slice(1) : 'Idle';
-                this._infTxt(ox + pad, oy + 50, `Role: ${role}`,
+                this._infTxt(ox + pad, oy + 67, `Role: ${role}`,
                     { fontSize: '10px', color: '#aaaacc' });
 
                 // Phenotype swatches + height
-                this._infPhenotype(ox + pad, oy + 63, u.phenotype);
+                this._infPhenotype(ox + pad, oy + 80, u.phenotype);
                 const htPct = u.phenotype ? Math.round((u.phenotype.heightScale - 0.6) / 0.8 * 100) : 50;
-                this._infTxt(ox + pad + 32, oy + 63, `ht ${htPct}%`,
+                this._infTxt(ox + pad + 32, oy + 80, `ht ${htPct}%`,
                     { fontSize: '8px', color: '#6a5840' });
 
                 // All 6 attributes
                 const a = u.attributes;
                 if (a) {
-                    this._infTxt(ox + pad, oy + 76,
+                    this._infTxt(ox + pad, oy + 93,
                         `STR${a.str} DEX${a.dex} CON${a.con}`,
                         { fontSize: '9px', color: '#9a8860' });
-                    this._infTxt(ox + pad, oy + 86,
+                    this._infTxt(ox + pad, oy + 103,
                         `INT${a.int} AGI${a.agi} WIL${a.wil}`,
                         { fontSize: '9px', color: '#9a8860' });
                 }
@@ -601,7 +638,24 @@ export default class UIManager {
         this._infTxt(ox + pad, oy + 6, 'No selection',
             { fontSize: '10px', color: '#4a4030' });
 
+        const workers = this.scene.units.filter(u => !u.isEnemy && u.type === 'worker' && u.hp > 0);
+        this._infTxt(ox + pad, oy + 20, `👥 ${workers.length} citizens`, { fontSize: '10px', color: '#887755' });
+
+        const census = {};
+        for (const u of workers) {
+            const role = u.role ?? 'Idle';
+            census[role] = (census[role] ?? 0) + 1;
+        }
+
+        const sorted = Object.entries(census).sort((a, b) => b[1] - a[1]).slice(0, 10);
+        let ry = oy + 32;
+        for (const [role, count] of sorted) {
+            this._infTxt(ox + pad, ry, `${role}  ×${count}`, { fontSize: '9px', color: '#9a9077' });
+            ry += 11;
+        }
+
         // Show expanded resources
+        let ty = ry + 6;
         const sm = this.scene.storageMax ?? {};
         const r  = this.scene.resources  ?? {};
         const extras = [
@@ -619,7 +673,6 @@ export default class UIManager {
             { k: 'hide',        icon: '🐾' },
             { k: 'ore',         icon: '🔩' },
         ];
-        let ty = oy + 20;
         extras.forEach(({ k, icon }) => {
             if ((sm[k] ?? 0) > 0) {
                 this._infTxt(ox + pad, ty, `${icon} ${r[k] ?? 0}/${sm[k]}`,
