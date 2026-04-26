@@ -1,6 +1,6 @@
 import {
     MAP_W, MAP_H, TILE, MAP_OY,
-    BLDG, BLDG_CATS, FM_TYPES, FM_LABELS, UNIT_NAMES, VET_LEVELS, computeBuildCost,
+    BLDG, BLDG_CATS, FM_TYPES, FM_LABELS, UNIT_NAMES, VET_LEVELS, computeBuildCost, SEASONS, SEASON_DAYS,
 } from '../config/gameConstants.js';
 import UIPanel from './UIPanel.js';
 
@@ -222,8 +222,10 @@ export default class UIManager {
         this.scene.workerInfo?.setText(`👥 ${adults}/${popCap}`);
 
         const phase = this.scene.phase;
+        const seasonIdx = Math.floor((this.scene.day - 1) / SEASON_DAYS) % 4;
+        const seasonName = SEASONS[seasonIdx];
         this.scene.dayInfo?.setText(phase === 'NIGHT'
-            ? `🌙 N${this.scene.day}` : `☀ D${this.scene.day}`);
+            ? `🌙 N${this.scene.day}  ${seasonName}` : `☀ D${this.scene.day}  ${seasonName}`);
 
         this.updateEnemyCount();
     }
