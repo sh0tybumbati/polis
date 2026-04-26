@@ -226,7 +226,7 @@ export default class BuildingManager {
     }
 
     drawBuilding(gfx, bldg) {
-        BUILDINGS[bldg.type]?.draw?.(gfx, bldg);
+        BUILDINGS[bldg.type]?.draw?.(gfx, bldg, this.scene);
     }
 
     _drawBuildingLegacy(gfx, bldg) {
@@ -613,5 +613,9 @@ export default class BuildingManager {
             bldg.barGfx.fillStyle(0x88ee44).fillRect(bx, by, bw * adults / cap, 4);
             bldg.barGfx.fillStyle(0xeeee44).fillRect(bx + bw * adults / cap, by, bw * lambs / cap, 4);
         }
+    }
+
+    redrawAll(type) {
+        this.scene.buildings.filter(b => b.type === type).forEach(b => this.redrawBuilding(b));
     }
 }
