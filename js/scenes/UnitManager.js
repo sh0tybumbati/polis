@@ -1035,6 +1035,13 @@ export default class UnitManager {
         u.taskType = null;
         u._depositPrivate = false;
         u.isInside = false;
+
+        // Restore role immediately after self-supply deposit
+        if (u._prevRole) {
+            u.role = u._prevRole;
+            u._prevRole = null;
+            this.seekWorkshopTask(u);
+        }
     }
 
     tickEnemyWorker(u, time, dt) {
@@ -1289,13 +1296,6 @@ export default class UnitManager {
         const def = this.WORKSHOP_ROLES[u.role];
         if (!def) { u.role = null; return; }
 
-        // Restore from self-supply gathering if we now have stock
-        if (u._prevRole && u._prevRole !== u.role) {
-            const sourceTypes = this.FETCH_SOURCES[u._prevRole] ?? [];
-            const hasStock = this._findSourceBuildingNear(u.x, u.y, this.WORKSHOP_ROLES[u._prevRole]?.input, sourceTypes);
-            if (hasStock) { u.role = u._prevRole; u._prevRole = null; return; }
-        }
-
         // Find source building with input available
         const sourceTypes = this.FETCH_SOURCES[u.role] ?? [];
         const source = this._findSourceBuildingNear(u.x, u.y, def.input, sourceTypes);
@@ -1407,6 +1407,15 @@ export default class UnitManager {
         const cx = (b.tx + b.size / 2) * TILE;
         const cy = MAP_OY + (b.ty + b.size / 2) * TILE;
         if (this.moveToward(u, cx, cy, 10, dt)) return;
+
+        // Gain skill XP while manning the workshop
+        const workSpeed = 1.0 + (u.skills[def.skill]?.level ?? 1) * 0.2;
+        u.workProgress = (u.workProgress ?? 0) + dt * workSpeed;
+        if (u.workProgress >= 30.0) {
+            u.workProgress = 0;
+            this._gainSkillXp(u, def.skill);
+        }
+
         if ((b.inbox?.[def.input] ?? 0) > 0) return;
 
         // Inbox empty — go fetch more

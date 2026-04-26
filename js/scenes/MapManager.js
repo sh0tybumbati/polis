@@ -316,7 +316,7 @@ export default class MapManager {
             if (vis === 0) continue;
             const px = mx + (b.tx / MAP_W) * mw;
             const py = my + (b.ty / MAP_H) * mh;
-            const col = b.faction === 'enemy' ? 0xff4444 : 0x4444ff;
+            const col = BLDG[b.type]?.color ?? 0x888888;
             gfx.fillStyle(col, 1).fillRect(px, py, Math.max(2, tw * b.size), Math.max(2, th * b.size));
         }
 
