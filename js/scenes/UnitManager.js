@@ -973,11 +973,12 @@ export default class UnitManager {
     // Where each role's gathered resources should be deposited
     get DEPOSIT_ROUTES() {
         return {
-            farmer:     ['granary', 'warehouse', 'townhall'],
-            woodcutter: ['woodshed', 'warehouse', 'townhall'],
-            hunter:     ['butcher', 'warehouse', 'townhall'],
-            miner:      ['smelter', 'warehouse', 'townhall'],
+            farmer:     ['granary'],
+            woodcutter: ['woodshed'],
+            hunter:     ['butcher'],
+            miner:      ['stonepile', 'smelter'],
             // forager, shepherd → private (house)
+            // warehouse/townhall only receive via explicit public worker routing
         };
     }
 
@@ -1041,15 +1042,17 @@ export default class UnitManager {
                 u.taskType = 'deposit'; u.taskBldgId = privateDest.id; u._depositPrivate = false; return;
             }
 
-            // Fallback: nearest of the route types (may be public)
-            const target = this._nearestOfTypes(u.x, u.y, routeTypes);
-            if (target) { u.taskType = 'deposit'; u.taskBldgId = target.id; u._depositPrivate = false; return; }
+            // Second try: nearest public building of the route type
+            const publicDest = this.scene.buildings.find(b =>
+                b.built && !b.faction && b.isPublic && routeTypes.includes(b.type));
+            if (publicDest) { u.taskType = 'deposit'; u.taskBldgId = publicDest.id; u._depositPrivate = false; return; }
         }
 
-        // Fallback: nearest public storage
-        const target = this._nearestOfTypes(u.x, u.y,
-            ['granary', 'warehouse', 'stonepile', 'woodshed', 'townhall']);
-        if (target) { u.taskType = 'deposit'; u.taskBldgId = target.id; u._depositPrivate = false; }
+        // Last resort: bring it home
+        if (u.homeBldgId) {
+            const home = this.scene.buildings.find(b => b.id === u.homeBldgId && b.built);
+            if (home) { u.taskType = 'deposit'; u.taskBldgId = home.id; u._depositPrivate = true; }
+        }
     }
 
     handleDepositTask(u, dt) {
