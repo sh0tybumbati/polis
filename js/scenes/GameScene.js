@@ -221,7 +221,9 @@ export default class GameScene extends Phaser.Scene {
             this.nextId = s.nextId; this.tickSpeed = s.tickSpeed ?? 1; this.titheRate = s.titheRate ?? 10;
 
             this.terrainData = s.terrainData; this.biomeData = s.biomeData; this.mapData = s.mapData;
-            this.fordSet = new Set(s.fordSet ?? []); this.roadMap = s.roadMap; this.domains = s.domains ?? [];
+            this.fordSet = new Set(s.fordSet ?? []); this.roadMap = s.roadMap ?? []; this.domains = s.domains ?? [];
+            // trafficMap is not saved — reinitialise blank so moveToward rows are always present
+            this.trafficMap = Array.from({ length: MAP_H }, () => new Array(MAP_W).fill(0));
 
             this.resNodes  = (s.resNodes  ?? []).map(n => ({ ...n, gfx: null, labelObj: null }));
             this.buildings = (s.buildings ?? []).map(b => ({ inbox: {}, ...b, gfx: null, barGfx: null, labelObj: null }));
