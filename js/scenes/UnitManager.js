@@ -175,7 +175,20 @@ export default class UnitManager {
         const def = UDEF[u.type];
         u.gfx.clear().setPosition(u.x, u.y);
         u.gfx.fillStyle(0x000000, 0.18).fillEllipse(0, 9, 22, 7);
-        
+
+        // Handle name label for children
+        const showLabel = u.age < 2 && !u.isEnemy && u.hp > 0;
+        if (showLabel) {
+            if (!u.nameLabel) {
+                u.nameLabel = this.scene._ui(this.scene.add.text(u.x, u.y - 12, u.name, {
+                    fontSize: '7px', color: '#ffeecc', fontFamily: 'monospace',
+                    stroke: '#000000', strokeThickness: 1,
+                }).setOrigin(0.5, 1).setDepth(7));
+            }
+        } else if (u.nameLabel) {
+            u.nameLabel.destroy(); u.nameLabel = null;
+        }
+
         if (u.type === 'worker') {
             const age = u.age ?? 2;
             const bodyCol = u.phenotype?.skinHex ?? def.color;
@@ -316,6 +329,8 @@ export default class UnitManager {
 
             u.isEnemy ? this.tickEnemy(u, time, dt) : this.tickPlayer(u, time, dt);
             u.gfx.setPosition(u.x, u.y);
+            if (u.nameLabel) u.nameLabel.setPosition(u.x, u.y - 12);
+            
             const inTower = u.taskType === 'garrison' || u.aiMode === 'tower_assault';
             u.gfx.setAlpha(inTower ? 0.55 : u.isInside ? 0.15 : 1.0);
             this.redrawUnit(u);
@@ -323,6 +338,7 @@ export default class UnitManager {
 
         this.scene.units.filter(u => u.hp <= 0).forEach(u => {
             this.scene.tweens.add({ targets: u.gfx, alpha: 0, duration: 280, onComplete: () => u.gfx.destroy() });
+            if (u.nameLabel) u.nameLabel.destroy();
             if (u.isScout) { this.waveIntelFlash(); return; }
             if (!u.isEnemy && u.type === 'worker') {
                 // Widow/widower becomes eligible to remarry
