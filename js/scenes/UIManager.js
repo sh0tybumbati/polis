@@ -307,10 +307,15 @@ export default class UIManager {
         // Status line
         let status = '';
         if (!b.built) {
-            const needs = Object.entries(b.resNeeded ?? {}).filter(([,n]) => n > 0)
-                .map(([r, n]) => `${n} ${r.slice(0,3)}`).join(' ');
-            status = needs ? `needs: ${needs}` : '⚒ building…';
+            // ... (keep previous status logic)
         } else {
+            // State/Private Badge
+            if (b.type !== 'house' && b.type !== 'townhall') {
+                const label = b.isPublic ? '[STATE]' : '[PRIVATE]';
+                const col   = b.isPublic ? '#c8a030' : '#6a5840';
+                this._infTxt(ox + W - pad, oy + 6, label, { fontSize: '8px', color: col }).setOrigin(1, 0);
+            }
+            
             if (def.capacity) {
                 const pop = this.scene.units.filter(u => u.homeBldgId === b.id && !u.isEnemy && u.hp > 0).length;
                 status = `👥 ${pop}/${def.capacity}`;
