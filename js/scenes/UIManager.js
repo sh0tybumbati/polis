@@ -979,8 +979,8 @@ export default class UIManager {
         });
 
         items.push({
-            label: 'Road',
-            sublabel: '1s',
+            label: '🛤 Road',
+            sublabel: '1st',
             color: this.scene.roadMode ? 0x4a5a28 : 0x2a2010,
             active: this.scene.roadMode,
             callback: () => {

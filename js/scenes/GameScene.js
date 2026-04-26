@@ -39,6 +39,7 @@ export default class GameScene extends Phaser.Scene {
         this.phase      = 'DAY';
         this.nightsSurvived = 0;
         this.bldgType     = null;
+        this.roadMode     = false;
         this.bldgMaterial = 'wood';
         this.fmType    = 'phalanx';
         this.floorPiles = [];
