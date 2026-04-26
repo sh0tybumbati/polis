@@ -1008,6 +1008,16 @@ export default class UnitManager {
             }
         }
 
+        // Farmers at private farms deposit to their home oikos, not the commons
+        if (u.role === 'farmer') {
+            const workplace = this.scene.buildings.find(b => b.id === u.taskBldgId && b.built);
+            const isPublicFarm = !workplace || workplace.isPublic;
+            if (!isPublicFarm && u.homeBldgId) {
+                const home = this.scene.buildings.find(b => b.id === u.homeBldgId && b.built && b.type === 'house');
+                if (home) { u.taskType = 'deposit'; u.taskBldgId = home.id; u._depositPrivate = true; return; }
+            }
+        }
+
         // Role-based routing to specific building types
         const routeTypes = this.DEPOSIT_ROUTES[u.role];
         if (routeTypes) {
