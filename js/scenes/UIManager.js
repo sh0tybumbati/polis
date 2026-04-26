@@ -317,7 +317,9 @@ export default class UIManager {
         // Status line
         let status = '';
         if (!b.built) {
-            // ... (keep previous status logic)
+            const needs = Object.entries(b.resNeeded ?? {}).filter(([,n]) => n > 0)
+                .map(([r, n]) => `${n} ${r.slice(0,3)}`).join(' ');
+            status = needs ? `needs: ${needs}` : '⚒ building…';
         } else {
             // State/Private Badge
             if (b.type !== 'house' && b.type !== 'townhall') {
