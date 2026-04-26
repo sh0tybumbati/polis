@@ -163,8 +163,13 @@ export default class UnitManager {
         const intMult  = u.attributes ? 1 + (u.attributes.int - 5) * 0.1 : 1.0;
         const passMult = u.passions?.[skillName] === 'burning' ? 2.5
                        : u.passions?.[skillName] === 'interested' ? 1.5 : 1.0;
+        // Cumulative XP required to reach each level (index = level-1)
+        const XP_THRESHOLDS = [0, 25, 75, 175, 400, 900, 2000, 4500, 10000, 22000];
         skill.xp += intMult * passMult;
-        const newLevel = Math.min(10, Math.floor(skill.xp / 10) + 1);
+        let newLevel = 1;
+        for (let i = XP_THRESHOLDS.length - 1; i >= 0; i--) {
+            if (skill.xp >= XP_THRESHOLDS[i]) { newLevel = i + 1; break; }
+        }
         if (newLevel > skill.level) {
             skill.level = newLevel;
             this.scene.uiManager.showFloatText(u.x, u.y - 20, `${skillName} ${newLevel}!`, '#ffcc44');
