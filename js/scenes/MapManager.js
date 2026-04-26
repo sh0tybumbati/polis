@@ -250,7 +250,7 @@ export default class MapManager {
             if (!b.built || b.faction === 'enemy') continue;
             const cx = Math.floor((b.tx + b.size / 2));
             const cy = Math.floor((b.ty + b.size / 2));
-            const r = BLDG[b.type]?.fogRadius ?? 10;
+            const r = BLDG[b.type]?.fogRadius ?? 3;
             paintCircle(cx, cy, r, 2);
         }
     }
