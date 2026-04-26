@@ -241,7 +241,7 @@ export const BLDG = {
                 desc: 'Provides foresight and wisdom.' },
   palisade:   { label: '🪵 Palisade',      color: 0x8a6030, cost: { wood: 2 },                       size: 1, outdoor: true,
                 desc: 'A basic wooden defensive wall.' },
-  watchtower: { label: '🗼 Watchtower',    color: 0x7a7060, cost: { stone: 2 },     materialQty: 2,  size: 1, outdoor: true,
+  watchtower: { label: '🗼 Watchtower',    color: 0x7a7060, cost: { stone: 3 },     materialQty: 5,  size: 1, outdoor: true,
                 desc: 'Provides vision and a platform for archers.',
                 fogRadius: 6, atkRange: 5 * TILE, garrisonRanged: 2, garrisonMelee: 2 },
   gate:       { label: '🚪 Gate',          color: 0xa08858, cost: { stone: 1 },     materialQty: 3,  size: 1, outdoor: true,
