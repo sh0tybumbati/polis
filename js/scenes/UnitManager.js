@@ -925,9 +925,9 @@ export default class UnitManager {
             if (n.fellWork === undefined) n.fellWork = n.type === 'large_tree' ? 28 : 16;
             const skillSpeed = 1.0 + (u.skills.woodcutting?.level ?? 1) * 0.2;
             n.fellWork -= dt * skillSpeed;
-            this._gainSkillXp(u, 'woodcutting');
             if (n.fellWork <= 0) {
                 n.felled = true;
+                this._gainSkillXp(u, 'woodcutting');
                 this.scene.mapManager.drawResourceNodes();
                 this.scene.uiManager.showFloatText(n.x, n.y - 14, '🪓 timber!', '#c0a050');
             }
