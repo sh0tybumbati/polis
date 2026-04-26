@@ -1018,9 +1018,30 @@ export default class UnitManager {
             }
         }
 
-        // Role-based routing to specific building types
+        // Role-based routing: prefer private building in home domain, fall back to nearest public
         const routeTypes = this.DEPOSIT_ROUTES[u.role];
         if (routeTypes) {
+            const homeDomain = u.homeBldgId
+                ? this.scene.buildingManager.getDomainAt(
+                    ...(this.scene.buildings.find(b => b.id === u.homeBldgId)
+                        ? [this.scene.buildings.find(b => b.id === u.homeBldgId).tx,
+                           this.scene.buildings.find(b => b.id === u.homeBldgId).ty]
+                        : [0, 0]))
+                : null;
+
+            // First try: private building in worker's home domain
+            const privateDest = homeDomain
+                ? this.scene.buildings.find(b =>
+                    b.built && !b.faction && !b.isPublic &&
+                    routeTypes.includes(b.type) &&
+                    this.scene.buildingManager.getDomainAt(b.tx, b.ty)?.id === homeDomain.id)
+                : null;
+
+            if (privateDest) {
+                u.taskType = 'deposit'; u.taskBldgId = privateDest.id; u._depositPrivate = false; return;
+            }
+
+            // Fallback: nearest of the route types (may be public)
             const target = this._nearestOfTypes(u.x, u.y, routeTypes);
             if (target) { u.taskType = 'deposit'; u.taskBldgId = target.id; u._depositPrivate = false; return; }
         }
@@ -1052,8 +1073,8 @@ export default class UnitManager {
                 b.inventory[res] = (b.inventory[res] ?? 0) + remainder;
                 u.carrying[res] = 0;
                 this.scene.uiManager.showFloatText(u.x, u.y - 14, `+${remainder} ${res}`, '#aaffcc');
-            } else if (this.PUBLIC_STORAGE.has(b.type)) {
-                // Public storage building: deposit to both b.inventory and scene.resources
+            } else if (this.PUBLIC_STORAGE.has(b.type) && b.isPublic) {
+                // State-owned public storage: deposit to both b.inventory and commons
                 b.inventory[res] = (b.inventory[res] ?? 0) + amt;
                 const got = this.scene.economyManager.addResource(res, amt);
                 u.carrying[res] = 0;
