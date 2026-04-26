@@ -360,6 +360,27 @@ export default class UIManager {
             this._infBar(ox + pad, oy + 30, W - pad * 2, 5, b.hp / b.maxHp, 0xcc3322);
         }
 
+        // Worker list for built workshops/production buildings
+        if (b.built && !b.faction) {
+            const assigned = this.scene.units.filter(u =>
+                !u.isEnemy && u.hp > 0 && u.taskBldgId === b.id && u.role);
+            if (assigned.length > 0) {
+                let wy = pendingY + 2;
+                this._infTxt(ox + pad, wy, '👷 workers:', { fontSize: '9px', color: '#c8a030' });
+                wy += 11;
+                for (const w of assigned) {
+                    const phase = w.workshopPhase ? ` (${w.workshopPhase})` : w.taskType ? ` [${w.taskType}]` : '';
+                    this._infTxt(ox + pad + 4, wy, `${w.name} — ${w.role}${phase}`,
+                        { fontSize: '8px', color: '#a09070' });
+                    wy += 10;
+                    if (wy > oy + H - 40) break;
+                }
+            } else if (b.built && !b.faction) {
+                const wy = pendingY + 2;
+                this._infTxt(ox + pad, wy, '👷 no workers assigned', { fontSize: '9px', color: '#886644' });
+            }
+        }
+
         // State ownership toggle (built non-house buildings)
         if (b.built && b.type !== 'house' && b.type !== 'townhall' && !b.faction) {
             const label = b.isPublic ? '🏛 State  (toggle)' : '🏠 Private  (toggle)';
