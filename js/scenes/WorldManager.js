@@ -301,6 +301,11 @@ export default class WorldManager {
             this.ageUpUnits();
             this.scene.units.forEach(u => { u.dailyNutrition = 0; u._wageCollected = false; });
             this.scene.economyManager.collectFirstFruits();
+
+            if ((this.scene.day - 1) % 8 === 0) {
+                this.scene.buildingManager.redrawAll('farm');
+            }
+
             this.scene.updateUI();
             this.scene.showPhaseMessage(`Day ${this.scene.day} begins.`, 0xddaa44);
             if ((this.scene.day - 1) % 8 === 0 && this.scene.day > 1)
