@@ -298,7 +298,11 @@ export default class UIManager {
         }
 
         this._infTxt(ox + pad, oy + 6, def.label,
-            { fontSize: '12px', color: '#c8a030' });
+            { fontSize: '11px', color: '#c8a030' });
+        if (def.desc) {
+            this._infTxt(ox + pad, oy + 17, def.desc,
+                { fontSize: '8px', color: '#aaaaaa' });
+        }
 
         // Status line
         let status = '';
@@ -318,7 +322,7 @@ export default class UIManager {
                 status = status ? `${status}  ${p}` : p;
             }
         }
-        if (status) this._infTxt(ox + pad, oy + 20, status,
+        if (status) this._infTxt(ox + pad, oy + 28, status,
             { fontSize: '9px', color: '#9a9077' });
 
         // HP bar for enemy buildings
@@ -385,14 +389,17 @@ export default class UIManager {
             : (patriarch ? `Oikos of ${patriarch.name}` : `House #${b.id}`);
 
         this._infTxt(ox + pad, oy + 4, familyName, { fontSize: '11px', color: '#c8a030' });
+        if (BLDG[b.type]?.desc) {
+            this._infTxt(ox + pad, oy + 14, BLDG[b.type].desc, { fontSize: '8px', color: '#aaaaaa' });
+        }
         this._infTxt(ox + W - pad - 22, oy + 6, `${allRes.length}/${BLDG[b.type]?.capacity ?? '?'}`,
             { fontSize: '10px', color: '#6a5c40' });
 
         const div = this._inf(this.scene.add.graphics().setDepth(22));
-        div.lineStyle(1, 0x5a4820, 0.5).lineBetween(ox + pad, oy + 17, ox + W - pad, oy + 17);
+        div.lineStyle(1, 0x5a4820, 0.5).lineBetween(ox + pad, oy + 24, ox + W - pad, oy + 24);
 
         // Pair couples
-        let ry = oy + 20;
+        let ry = oy + 27;
         const seen = new Set();
         const coupleRows = [];
         for (const u of adults) {
