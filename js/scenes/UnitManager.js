@@ -999,6 +999,15 @@ export default class UnitManager {
         const hasCarry = Object.keys(u.carrying).some(r => (u.carrying[r] || 0) > 0);
         if (!hasCarry) return;
 
+        // Archon household: home is the townhall — treat it as private oikos
+        if (u.homeBldgId) {
+            const home = this.scene.buildings.find(b => b.id === u.homeBldgId && b.built);
+            if (home?.type === 'townhall') {
+                u.taskType = 'deposit'; u.taskBldgId = home.id; u._depositPrivate = true;
+                return;
+            }
+        }
+
         // Private roles: forager, shepherd → home oikos
         const privateRoles = new Set(['forager', 'shepherd']);
         if (privateRoles.has(u.role) && u.homeBldgId) {
