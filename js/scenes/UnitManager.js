@@ -180,7 +180,7 @@ export default class UnitManager {
         const showLabel = u.age < 2 && !u.isEnemy && u.hp > 0;
         if (showLabel) {
             if (!u.nameLabel) {
-                u.nameLabel = this.scene._ui(this.scene.add.text(u.x, u.y - 12, u.name, {
+                u.nameLabel = this.scene._w(this.scene.add.text(u.x, u.y - 12, u.name, {
                     fontSize: '7px', color: '#ffeecc', fontFamily: 'monospace',
                     stroke: '#000000', strokeThickness: 1,
                 }).setOrigin(0.5, 1).setDepth(7));
