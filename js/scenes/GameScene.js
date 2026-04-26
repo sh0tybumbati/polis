@@ -171,7 +171,7 @@ export default class GameScene extends Phaser.Scene {
     // ─── Persistence ─────────────────────────────────────────────────────────
 
     _serUnit(u) {
-        const { gfx, ...d } = u;
+        const { gfx, nameLabel, ...d } = u;
         // Don't persist live object references — re-seek on load
         return { ...d, moveTo: null, targetNode: null, targetDeer: null, targetSheep: null,
                  taskType: null, workProgress: 0, workshopPhase: null, isInside: false,
@@ -227,7 +227,7 @@ export default class GameScene extends Phaser.Scene {
 
             this.resNodes  = (s.resNodes  ?? []).map(n => ({ ...n, gfx: null, labelObj: null }));
             this.buildings = (s.buildings ?? []).map(b => ({ inbox: {}, ...b, gfx: null, barGfx: null, labelObj: null }));
-            this.units     = (s.units     ?? []).map(u => ({ ...u, gfx: null }));
+            this.units     = (s.units     ?? []).map(u => ({ ...u, gfx: null, nameLabel: null }));
             this.deer      = (s.deer      ?? []).map(d => ({ ...d, gfx: null }));
             this.sheep     = (s.sheep     ?? []).map(ss => ({ ...ss, gfx: null, followUnit: null }));
             return true;
