@@ -1032,12 +1032,13 @@ export default class UnitManager {
                 this.scene.uiManager.showFloatText(u.x, u.y - 14, `+${amt} ${res}`, '#88ccff');
             }
         }
+        const wasPrivate = u._depositPrivate;
         u.taskType = null;
         u._depositPrivate = false;
         u.isInside = false;
 
-        // Restore role immediately after self-supply deposit
-        if (u._prevRole) {
+        // Restore role immediately after self-supply deposit (not home deposits)
+        if (u._prevRole && !wasPrivate) {
             u.role = u._prevRole;
             u._prevRole = null;
             this.seekWorkshopTask(u);

@@ -232,7 +232,7 @@ export const BLDG = {
   butcher:    { label: '🥩 Butcher',       color: 0xaa4433, cost: {},               materialQty: 5,  size: 2,
                 desc: 'Processes raw meat into cuts and sausages.',
                 stores: { meat: 40, sausages: 20, hide: 20 } },
-  olive_press:{ label: '🫒 Olive Press',   color: 0x667733, cost: { stone: 3 },     materialQty: 5,  size: 2, outdoor: true,
+  olive_press:{ label: '🫒 Olive Press',   color: 0x667733, cost: { stone: 3 },     materialQty: 5,  size: 2,
                 desc: 'Presses olives into food.',
                 stores: { olives: 40 } },
   temple:     { label: '🕯 Temple',        color: 0xddaa44, cost: { stone: 6 },     materialQty: 6,  size: 2,
