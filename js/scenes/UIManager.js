@@ -332,6 +332,19 @@ export default class UIManager {
         if (status) this._infTxt(ox + pad, oy + 28, status,
             { fontSize: '9px', color: '#9a9077' });
 
+        // Show pending tithes and wages
+        let pendingY = oy + 40;
+        if (Object.values(b.tithePending ?? {}).some(v => v > 0)) {
+            const titheStr = Object.entries(b.tithePending).filter(([,v]) => v > 0)
+                .map(([r, v]) => `${v} ${r}`).join(', ');
+            this._infTxt(ox + pad, pendingY, `🌾 tithe: ${titheStr}`, { fontSize: '9px', color: '#c8a030' });
+            pendingY += 11;
+        }
+        const totalWages = Object.values(b.wagePending ?? {}).reduce((s, v) => s + v, 0);
+        if (totalWages > 0) {
+            this._infTxt(ox + pad, pendingY, `💰 wages: ${totalWages}`, { fontSize: '9px', color: '#aac870' });
+        }
+
         // HP bar for enemy buildings
         if (b.faction === 'enemy' && b.hp !== undefined) {
             this._infBar(ox + pad, oy + 30, W - pad * 2, 5, b.hp / b.maxHp, 0xcc3322);
