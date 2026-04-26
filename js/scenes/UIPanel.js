@@ -76,7 +76,8 @@ export default class UIPanel {
                 bg.lineStyle(1, 0xc8a030, 0.22).strokeRect(bx, by, sz, sz);
             }
 
-            const lblY = item.sublabel ? by + sz * 0.38 : by + sz * 0.5;
+            const hasDesc = !!item.desc;
+            const lblY = (item.sublabel || hasDesc) ? by + sz * 0.28 : by + sz * 0.5;
             this._ui(this.scene.add.text(bx + sz / 2, lblY, item.label, {
                 fontFamily: 'monospace', fontSize: fz,
                 color: item.dimmed ? '#554433' : '#d4c8a8',
@@ -84,10 +85,20 @@ export default class UIPanel {
             }).setOrigin(0.5).setDepth(22));
 
             if (item.sublabel) {
-                this._ui(this.scene.add.text(bx + sz / 2, by + sz * 0.72, item.sublabel, {
+                const subY = hasDesc ? by + sz * 0.48 : by + sz * 0.72;
+                this._ui(this.scene.add.text(bx + sz / 2, subY, item.sublabel, {
                     fontFamily: 'monospace', fontSize: sfz,
                     color: item.dimmed ? '#443322' : '#aa9966',
                     align: 'center',
+                }).setOrigin(0.5).setDepth(22));
+            }
+
+            if (hasDesc) {
+                const dfz = Math.max(7, Math.floor(sz * 0.14)) + 'px';
+                this._ui(this.scene.add.text(bx + sz / 2, by + sz * 0.75, item.desc, {
+                    fontFamily: 'monospace', fontSize: dfz,
+                    color: item.dimmed ? '#443322' : '#bbbbbb',
+                    align: 'center', wordWrap: { width: sz - 6 }
                 }).setOrigin(0.5).setDepth(22));
             }
 

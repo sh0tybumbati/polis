@@ -958,6 +958,7 @@ export default class UIManager {
             return {
                 label: def.label,
                 sublabel: costStr,
+                desc: def.desc,
                 color: isActive ? 0x4a6070 : (def.color > 0 ? Math.max(0, (def.color & 0xfefefe) >> 1) : 0x2a1e0e),
                 dimmed: !canBuy,
                 active: isActive,
