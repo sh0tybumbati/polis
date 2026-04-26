@@ -608,7 +608,24 @@ export default class UIManager {
         this._infTxt(ox + pad, oy + 6, 'No selection',
             { fontSize: '10px', color: '#4a4030' });
 
+        const workers = this.scene.units.filter(u => !u.isEnemy && u.type === 'worker' && u.hp > 0);
+        this._infTxt(ox + pad, oy + 20, `👥 ${workers.length} citizens`, { fontSize: '10px', color: '#887755' });
+
+        const census = {};
+        for (const u of workers) {
+            const role = u.role ?? 'Idle';
+            census[role] = (census[role] ?? 0) + 1;
+        }
+
+        const sorted = Object.entries(census).sort((a, b) => b[1] - a[1]).slice(0, 10);
+        let ry = oy + 32;
+        for (const [role, count] of sorted) {
+            this._infTxt(ox + pad, ry, `${role}  ×${count}`, { fontSize: '9px', color: '#9a9077' });
+            ry += 11;
+        }
+
         // Show expanded resources
+        let ty = ry + 6;
         const sm = this.scene.storageMax ?? {};
         const r  = this.scene.resources  ?? {};
         const extras = [
@@ -626,7 +643,6 @@ export default class UIManager {
             { k: 'hide',        icon: '🐾' },
             { k: 'ore',         icon: '🔩' },
         ];
-        let ty = oy + 20;
         extras.forEach(({ k, icon }) => {
             if ((sm[k] ?? 0) > 0) {
                 this._infTxt(ox + pad, ty, `${icon} ${r[k] ?? 0}/${sm[k]}`,
