@@ -1037,7 +1037,7 @@ export default class UnitManager {
         u.isInside = false;
 
         // Restore role immediately after self-supply deposit
-        if (u._prevRole !== null) {
+        if (u._prevRole) {
             u.role = u._prevRole;
             u._prevRole = null;
             this.seekWorkshopTask(u);
