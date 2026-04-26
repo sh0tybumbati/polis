@@ -713,7 +713,7 @@ export default class UnitManager {
         if (u._prevRole) stickyRoles.add(u.role); // self-supplying — keep temporary role until deposit done
         if (!stickyRoles.has(u.role) && !u.taskType && !u.targetNode) {
             u._roleIdleTimer = (u._roleIdleTimer ?? 0) + dt;
-            if (u._roleIdleTimer > 12000) { u._roleIdleTimer = 0; u.role = null; }
+            if (u._roleIdleTimer > 45) { u._roleIdleTimer = 0; u.role = null; }
         } else {
             u._roleIdleTimer = 0;
         }
@@ -1260,17 +1260,19 @@ export default class UnitManager {
         cands.push({ role:'farmer',    score: (60 + domainFarmBonus + grainNeed * 50 + (u.skills.farming?.level    ?? 1) * 15) - cnt('farmer')    * 25 });
         cands.push({ role:'forager',   score: (40 + foodNeed  * 40 + (u.skills.farming?.level    ?? 1) * 15) - cnt('forager')   * 22 });
 
-        // Workshop roles: score each if an unoccupied building exists and has input available
+        // Workshop roles: score each if an unoccupied building exists
         for (const [role, def] of Object.entries(this.WORKSHOP_ROLES)) {
             const hasSlot = this.scene.buildings.some(b =>
                 b.type === def.building && b.built && !b.faction &&
                 !this.scene.units.some(w => w.role === role && w.taskBldgId === b.id));
+            if (!hasSlot) continue;
+            // Boost score if input is already available; still candidate if building exists but input scarce
             const sourceTypes = this.FETCH_SOURCES[role] ?? [];
             const hasInput = (this.scene.resources[def.input] ?? 0) > 0
                 || this.scene.buildings.some(b =>
                     b.built && !b.faction && sourceTypes.includes(b.type) && (b.inventory?.[def.input] ?? 0) > 0);
-            if (hasSlot && hasInput)
-                cands.push({ role, score: def.baseScore + need(def.needKey) * 80 + (u.skills[def.skill]?.level ?? 1) * 15 });
+            const inputBonus = hasInput ? 30 : 0;
+            cands.push({ role, score: def.baseScore + inputBonus + need(def.needKey) * 80 + (u.skills[def.skill]?.level ?? 1) * 15 });
         }
 
         if (u.age >= 2) {
@@ -1314,8 +1316,9 @@ export default class UnitManager {
 
         const farm = this.scene.buildings.find(b => {
             if (b.type !== 'farm' || !b.built || b.stock <= 0 || b.faction === 'enemy') return false;
+            if (b.isPublic) return true; // state farm — any worker can harvest
             const farmDomain = this.scene.buildingManager.getDomainAt(b.tx, b.ty);
-            if (!farmDomain) return true; // unowned/public — anyone can work it
+            if (!farmDomain) return true; // unowned — anyone can work it
             return homeDomain && farmDomain.id === homeDomain.id;
         });
         if (!farm) {
@@ -1402,14 +1405,14 @@ export default class UnitManager {
                     return;
                 }
             }
-            u.role = null;
+            // No source yet — wait; _roleIdleTimer will reassign if stuck too long
             return;
         }
 
         const bldg = this.scene.buildings.find(b =>
             b.type === def.building && b.built && !b.faction &&
             !this.scene.units.some(w => w.id !== u.id && w.role === u.role && w.taskBldgId === b.id));
-        if (!bldg) { u.role = null; return; }
+        if (!bldg) return; // all slots occupied — wait
 
         u.taskType      = 'workshop';
         u.taskBldgId    = bldg.id;
