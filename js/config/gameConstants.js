@@ -291,6 +291,8 @@ export const NUTRITION = {
 export const DAY_DURATION    = 90000;   // 90s day
 export const NIGHT_DURATION  = 90000;   // 90s night
 export const WIN_NIGHTS      = 20;    // number of nights to survive to win
+export const SEASONS         = ['Spring', 'Summer', 'Autumn', 'Winter'];
+export const SEASON_DAYS     = 8;     // days per season
 
 // ─── UI / Display Constants ──────────────────────────────────────────────────
 
