@@ -1312,14 +1312,14 @@ export default class UnitManager {
     // Config for all workshop roles: role → { building, input, skill, needKey, baseScore }
     get WORKSHOP_ROLES() {
         return {
-            miller:    { building: 'mill',       input: 'wheat',  carryQty: 5, skill: 'mill',        needKey: 'flour',       baseScore: 50 },
-            baker:     { building: 'bakery',      input: 'flour',  carryQty: 7, skill: 'bake',        needKey: 'bread',       baseScore: 45 },
-            butcher:   { building: 'butcher',     input: 'meat',   carryQty: 4, skill: 'butcher',     needKey: 'sausages',    baseScore: 40 },
-            tanner:    { building: 'tannery',     input: 'hide',   carryQty: 6, skill: 'tan',         needKey: 'leather',     baseScore: 35 },
-            smelter:   { building: 'smelter',     input: 'ore',    carryQty: 6, skill: 'smelt',       needKey: 'ingot',       baseScore: 35 },
-            smith:     { building: 'blacksmith',  input: 'ingot',  carryQty: 3, skill: 'forge',       needKey: 'bronzeKit',   baseScore: 30 },
-            carpenter: { building: 'carpenter',   input: 'wood',   carryQty: 6, skill: 'woodcutting', needKey: 'planks',      baseScore: 30 },
-            mason:     { building: 'masons',      input: 'stone',  carryQty: 4, skill: 'masonry',     needKey: 'stoneBlocks', baseScore: 28 },
+            miller:    { building: 'mill',       input: 'wheat',  output: 'flour',       carryQty: 5, skill: 'mill',        needKey: 'flour',       baseScore: 50 },
+            baker:     { building: 'bakery',      input: 'flour',  output: 'bread',       carryQty: 7, skill: 'bake',        needKey: 'bread',       baseScore: 45 },
+            butcher:   { building: 'butcher',     input: 'meat',   output: 'sausages',    carryQty: 4, skill: 'butcher',     needKey: 'sausages',    baseScore: 40 },
+            tanner:    { building: 'tannery',     input: 'hide',   output: 'leather',     carryQty: 6, skill: 'tan',         needKey: 'leather',     baseScore: 35 },
+            smelter:   { building: 'smelter',     input: 'ore',    output: 'ingot',       carryQty: 6, skill: 'smelt',       needKey: 'ingot',       baseScore: 35 },
+            smith:     { building: 'blacksmith',  input: 'ingot',  output: 'bronzeKit',   carryQty: 3, skill: 'forge',       needKey: 'bronzeKit',   baseScore: 30 },
+            carpenter: { building: 'carpenter',   input: 'wood',   output: 'planks',      carryQty: 6, skill: 'woodcutting', needKey: 'planks',      baseScore: 30 },
+            mason:     { building: 'masons',      input: 'stone',  output: 'stoneBlocks', carryQty: 4, skill: 'masonry',     needKey: 'stoneBlocks', baseScore: 28 },
         };
     }
 
@@ -1480,23 +1480,31 @@ export default class UnitManager {
         const cy = MAP_OY + (b.ty + b.size / 2) * TILE;
         if (this.moveToward(u, cx, cy, 10, dt)) return;
 
-        // Gain skill XP while manning the workshop
+        // Inbox empty — go fetch more
+        if ((b.inbox?.[def.input] ?? 0) <= 0) {
+            u.isInside = false;
+            const sourceTypes = this.FETCH_SOURCES[u.role] ?? [];
+            const newSrc = this._findSourceBuildingNear(u.x, u.y, def.input, sourceTypes);
+            if (!newSrc) { u.taskType = null; u.workshopPhase = null; return; }
+            u.fetchBldgId   = newSrc.id;
+            u.workshopPhase = 'goFetch';
+            return;
+        }
+
+        // Process one unit of input → output per work tick
         const workSpeed = 1.0 + (u.skills[def.skill]?.level ?? 1) * 0.2;
         u.workProgress = (u.workProgress ?? 0) + dt * workSpeed;
         if (u.workProgress >= 30.0) {
             u.workProgress = 0;
+            b.inbox[def.input] -= 1;
+            b.inventory = b.inventory ?? {};
+            b.inventory[def.output] = (b.inventory[def.output] ?? 0) + 1;
+            if (b.isPublic) {
+                this.scene.resources[def.output] = (this.scene.resources[def.output] ?? 0) + 1;
+            }
             this._gainSkillXp(u, def.skill);
+            this.scene.uiManager.showFloatText(u.x, u.y - 14, `+1 ${def.output}`, '#ffe066');
         }
-
-        if ((b.inbox?.[def.input] ?? 0) > 0) return;
-
-        // Inbox empty — go fetch more
-        u.isInside = false;
-        const sourceTypes = this.FETCH_SOURCES[u.role] ?? [];
-        const newSrc = this._findSourceBuildingNear(u.x, u.y, def.input, sourceTypes);
-        if (!newSrc) { u.taskType = null; u.workshopPhase = null; return; }
-        u.fetchBldgId   = newSrc.id;
-        u.workshopPhase = 'goFetch';
     }
 
     seekNodeTask(u, types) {
