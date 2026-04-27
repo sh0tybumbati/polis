@@ -84,7 +84,8 @@ export default class UIManager {
         this.scene.foodText   = mk(0, '#7add77');
         this.scene.woodText   = mk(1, '#cc9944');
         this.scene.stoneText  = mk(2, '#aaaacc');
-        this.scene.workerInfo = mk(3, '#ddcc88');
+        this.scene.workerInfo = mk(3, '#ddcc88').setInteractive();
+        this.scene.workerInfo.on('pointerdown', () => this.showCensusPanel());
 
         // Day + timer sits between resource cols and controls, centred in gap
         this.scene.dayInfo = this._ui(this.scene.add.text(resW + 8, cy, '', {
@@ -350,9 +351,16 @@ export default class UIManager {
             this._infTxt(ox + pad, pendingY, `🌾 tithe: ${titheStr}`, { fontSize: '9px', color: '#c8a030' });
             pendingY += 11;
         }
-        const totalWages = Object.values(b.wagePending ?? {}).reduce((s, v) => s + v, 0);
+        const totalWages = Object.values(b.wagePending ?? {}).reduce((s, resMap) => 
+            s + Object.values(resMap).reduce((a, b) => a + b, 0), 0);
         if (totalWages > 0) {
-            this._infTxt(ox + pad, pendingY, `💰 wages: ${totalWages}`, { fontSize: '9px', color: '#aac870' });
+            const wageStr = Object.values(b.wagePending).reduce((acc, resMap) => {
+                for (const [r, v] of Object.entries(resMap)) acc[r] = (acc[r] ?? 0) + v;
+                return acc;
+            }, {});
+            const wageDesc = Object.entries(wageStr).filter(([, v]) => v > 0)
+                .map(([r, v]) => `${v} ${r}`).join(', ');
+            this._infTxt(ox + pad, pendingY, `💰 wages: ${wageDesc}`, { fontSize: '9px', color: '#aac870' });
         }
 
         // HP bar for enemy buildings
@@ -1124,6 +1132,99 @@ export default class UIManager {
         // Auto-dismiss after 15s
         this.scene.time.delayedCall(15000, () => { if (this._caravanModal) closeAll(); });
         this._caravanModal = objs;
+    }
+
+    showCensusPanel(page = 0) {
+        if (this._censusObjs) {
+            this._censusObjs.forEach(o => o.destroy());
+        }
+        this._censusObjs = [];
+        this.scene.isPaused = true;
+
+        const W = this.scene.SW, H = this.scene.SH;
+        const mw = Math.min(W * 0.9, 450), mh = Math.min(H * 0.85, 550);
+        const mx = (W - mw) / 2, my = (H - mh) / 2;
+
+        const bg = this._ui(this.scene.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0.7).setDepth(40).setInteractive());
+        const panel = this._ui(this.scene.add.rectangle(W / 2, H / 2, mw, mh, 0x1a1a10, 1).setDepth(41).setInteractive());
+        const border = this._ui(this.scene.add.graphics().setDepth(42));
+        border.lineStyle(2, 0xc8a030, 0.8).strokeRect(mx, my, mw, mh);
+        this._censusObjs.push(bg, panel, border);
+
+        const title = this._ui(this.scene.add.text(mx + mw / 2, my + 15, '🏛 CENSUS ROLLS', { fontSize: '16px', color: '#ffdd88', fontStyle: 'bold' }).setOrigin(0.5, 0).setDepth(43));
+        this._censusObjs.push(title);
+
+        const closeAll = () => {
+            this._censusObjs.forEach(o => o.destroy());
+            this._censusObjs = null;
+            this.scene.isPaused = false;
+        };
+
+        const closeBtn = this._ui(this.scene.add.text(mx + mw - 15, my + 15, '✕', { fontSize: '18px', color: '#ffdd88' }).setOrigin(0.5).setDepth(43).setInteractive());
+        closeBtn.on('pointerdown', closeAll);
+        this._censusObjs.push(closeBtn);
+
+        const workers = this.scene.units.filter(u => !u.isEnemy && u.hp > 0 && u.type === 'worker').sort((a, b) => b.age - a.age || a.name.localeCompare(b.name));
+        const perPage = 10;
+        const totalPages = Math.ceil(workers.length / perPage);
+        const paged = workers.slice(page * perPage, (page + 1) * perPage);
+
+        // Header
+        const hty = my + 50;
+        const colX = [mx + 25, mx + 130, mx + 175, mx + 220, mx + 290, mx + mw - 40];
+        const headers = ['Name', 'Age', 'Gen', 'Role', 'Health'];
+        headers.forEach((h, i) => {
+            this._censusObjs.push(this._ui(this.scene.add.text(colX[i], hty, h, { fontSize: '11px', color: '#887755', fontStyle: 'bold' }).setDepth(43)));
+        });
+
+        paged.forEach((u, i) => {
+            const ry = hty + 28 + i * 32;
+            const line = this._ui(this.scene.add.graphics().setDepth(42));
+            line.lineStyle(1, 0x333322, 0.5).lineBetween(mx + 15, ry + 24, mx + mw - 15, ry + 24);
+            this._censusObjs.push(line);
+
+            const nameTxt = this._ui(this.scene.add.text(colX[0], ry, u.name, { fontSize: '13px', color: '#ffffff', fontStyle: 'bold' }).setDepth(43).setInteractive());
+            nameTxt.on('pointerdown', () => {
+                this.scene.cameras.main.pan(u.x, u.y, 600, 'Power2');
+                this.scene.cameras.main.setZoom(1.5);
+                closeAll();
+                this.scene.selectUnit(u.id, false);
+            });
+            this._censusObjs.push(nameTxt);
+
+            const ageLabel = u.age === 0 ? 'Child' : u.age === 1 ? 'Youth' : 'Adult';
+            this._censusObjs.push(this._ui(this.scene.add.text(colX[1], ry + 2, ageLabel, { fontSize: '11px', color: '#aaaacc' }).setDepth(43)));
+            this._censusObjs.push(this._ui(this.scene.add.text(colX[2], ry + 2, u.gender === 'male' ? '♂' : '♀', { fontSize: '11px', color: '#cc99cc' }).setDepth(43)));
+            
+            const roleLbl = u.role ?? 'Idle';
+            this._censusObjs.push(this._ui(this.scene.add.text(colX[3], ry + 2, roleLbl, { fontSize: '11px', color: '#ddcc88' }).setDepth(43)));
+
+            // Health bar
+            const hpR = u.hp / u.maxHp;
+            const hpCol = hpR > 0.6 ? 0x44aa44 : hpR > 0.3 ? 0xccaa33 : 0xcc3311;
+            const hpBar = this._ui(this.scene.add.graphics().setDepth(43));
+            hpBar.fillStyle(0x222222).fillRect(colX[4], ry + 4, 80, 6);
+            hpBar.fillStyle(hpCol).fillRect(colX[4], ry + 4, 80 * hpR, 6);
+            this._censusObjs.push(hpBar);
+        });
+
+        // Pagination
+        if (totalPages > 1) {
+            const py = my + mh - 35;
+            const pgTxt = this._ui(this.scene.add.text(mx + mw / 2, py, `Page ${page + 1} / ${totalPages}`, { fontSize: '12px', color: '#887755' }).setOrigin(0.5).setDepth(43));
+            this._censusObjs.push(pgTxt);
+
+            if (page > 0) {
+                const prev = this._ui(this.scene.add.text(mx + 40, py, '◀ Prev', { fontSize: '12px', color: '#ffdd88' }).setOrigin(0, 0.5).setDepth(43).setInteractive());
+                prev.on('pointerdown', () => this.showCensusPanel(page - 1));
+                this._censusObjs.push(prev);
+            }
+            if (page < totalPages - 1) {
+                const next = this._ui(this.scene.add.text(mx + mw - 40, py, 'Next ▶', { fontSize: '12px', color: '#ffdd88' }).setOrigin(1, 0.5).setDepth(43).setInteractive());
+                next.on('pointerdown', () => this.showCensusPanel(page + 1));
+                this._censusObjs.push(next);
+            }
+        }
     }
 
     showPhaseMessage(text, color) {
