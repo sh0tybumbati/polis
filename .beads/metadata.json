@@ -1,0 +1,7 @@
+{
+  "database": "dolt",
+  "backend": "dolt",
+  "dolt_mode": "embedded",
+  "dolt_database": "polis",
+  "project_id": "7340e899-8759-42e0-a4c8-b819cda090d4"
+}
