@@ -710,42 +710,47 @@ export default class UnitManager {
         // Exiting building at dawn
         if (u.isInside && u.workshopPhase !== 'process') u.isInside = false;
 
-        // Hunger: accumulate during day; interrupt work to eat when threshold hit
-        if (this.scene.phase === 'DAY' && u.taskType !== 'garrison' && u.taskType !== 'eat') {
-            u.hunger = (u.hunger ?? 0) + dt;
-            if (u.hunger >= HUNGER_THRESHOLD) {
-                u.hunger = 0;
-                this.pushTask(u, 'eat');
-                u.workshopPhase = null;
+        // Day: active work
+        if (this.scene.phase === 'DAY') {
+            // Hunger
+            if (u.taskType !== 'garrison' && u.taskType !== 'eat') {
+                u.hunger = (u.hunger ?? 0) + dt;
+                if (u.hunger >= HUNGER_THRESHOLD) {
+                    u.hunger = 0;
+                    this.pushTask(u, 'eat');
+                    u.workshopPhase = null;
+                }
+            }
+
+            if (u.moveTo) {
+                const d = Phaser.Math.Distance.Between(u.x, u.y, u.moveTo.x, u.moveTo.y);
+                if (d > 3) {
+                    const a = Phaser.Math.Angle.Between(u.x, u.y, u.moveTo.x, u.moveTo.y);
+                    u.x += Math.cos(a) * u.speed * dt;
+                    u.y += Math.sin(a) * u.speed * dt;
+                    return;
+                }
+                u.moveTo = null;
+            }
+
+            // High priority: collect tithes
+            if (this.scene.buildings.some(b => b.built && Object.values(b.tithePending ?? {}).some(v => v > 0))) {
+                u.taskType = 'collect_tithe';
+            }
+
+            // Deposit takes priority
+            if (this.totalCarrying(u) > 0 && !u.targetNode && u.taskType !== 'build' && u.taskType !== 'eat' && u.taskType !== 'collect_tithe') {
+                if (u.taskType !== 'deposit') this.seekDeposit(u);
+                if (u.taskType === 'deposit') { this.handleDepositTask(u, dt); return; }
+            }
+
+            // Seek task if idle or have role but no target/task
+            if (!u.taskType && !u.targetNode && time - u.lastSeek > 1500) {
+                u.lastSeek = time;
+                this.pickRole(u, time);
             }
         }
 
-        if (u.moveTo) {
-            const d = Phaser.Math.Distance.Between(u.x, u.y, u.moveTo.x, u.moveTo.y);
-            if (d > 3) {
-                const a = Phaser.Math.Angle.Between(u.x, u.y, u.moveTo.x, u.moveTo.y);
-                u.x += Math.cos(a) * u.speed * dt;
-                u.y += Math.sin(a) * u.speed * dt;
-                return;
-            }
-            u.moveTo = null;
-        }
-
-        // Deposit takes priority — don't seek new tasks while carrying (unless eating)
-        if (this.totalCarrying(u) > 0 && !u.targetNode && u.taskType !== 'build' && u.taskType !== 'eat') {
-            if (u.taskType !== 'deposit') this.seekDeposit(u);
-            if (u.taskType === 'deposit') this.handleDepositTask(u, dt);
-            return;
-        }
-
-        if (ENABLE_PROACTIVE_AI && u.role === null && u.age >= 2) {
-            this.runCityPlannerAI(u);
-        }
-
-        if (!u.role) {
-            if (time - u.lastSeek > 2000) this.pickRole(u, time);
-            return;
-        }
 
         // Collect tithe if pending and no high-priority task
         if (this.scene.buildings.some(b => b.built && Object.values(b.tithePending ?? {}).some(v => v > 0))) {
