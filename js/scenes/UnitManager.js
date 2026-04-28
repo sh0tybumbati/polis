@@ -946,9 +946,33 @@ export default class UnitManager {
     handleBuildTask(u, dt) {
         const b = this.scene.buildings.find(b => b.id === u.taskBldgId);
         if (!b || b.built) { u.taskType = null; return; }
+        
+        // Ensure resources are gathered for construction
+        const cost = this.scene.buildingManager.getRemainingCost(b);
+        const res = Object.keys(cost).find(r => cost[r] > 0);
+        if (res) {
+            // Seek resources
+            if (this.totalCarrying(u) === 0) {
+                // Try public first
+                if ((this.scene.resources[res] ?? 0) >= 1) {
+                    this.scene.resources[res] -= 1;
+                    u.carrying[res] += 1;
+                } else {
+                    // Fallback to private: mark as 'sold' for later compensation
+                    u.carrying[res] += 1;
+                    u._soldRes = { res, amt: 1 };
+                }
+            } else if (this.totalCarrying(u) > 0) {
+                // Deposit at building
+                this.handleDepositTask(u, dt);
+                return;
+            }
+        }
+
         const cx = (b.tx+b.size/2)*TILE, cy = MAP_OY+(b.ty+b.size/2)*TILE;
         if (this.moveToward(u, cx, cy, 28, dt)) return;
         u.isInside = false;
+        
         const attrMult = this.getAttrMult(u, ['str']);
         const workSpeed = (1.0 + (u.skills.masonry?.level ?? 1) * 0.2) * attrMult;
         u.workProgress = (u.workProgress ?? 0) + dt * workSpeed;
@@ -956,6 +980,12 @@ export default class UnitManager {
             u.workProgress = 0;
             b.buildWork -= 5;
             this._gainSkillXp(u, 'masonry');
+            // If we used private resources, add to building debt for compensation
+            if (u._soldRes) {
+                b.tithePending = b.tithePending ?? {}; // using tithePending as a proxy for debt for now
+                b.tithePending[u._soldRes.res] = (b.tithePending[u._soldRes.res] ?? 0) - u._soldRes.amt;
+                u._soldRes = null;
+            }
             if (b.buildWork <= 0) { this.scene.buildingManager.completeBuildingConstruction(b); u.taskType = null; }
         }
     }
