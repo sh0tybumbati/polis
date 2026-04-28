@@ -769,6 +769,7 @@ export default class UnitManager {
         else if (u.taskType === 'build') this.handleBuildTask(u, dt);
         else if (u.taskType === 'repair') this.handleRepairTask(u, dt);
         else if (u.taskType === 'harvest_farm') this.handleHarvestFarmTask(u, dt);
+        else if (u.taskType === 'plant') this.handlePlantTask(u, dt);
         else if (u.taskType === 'workshop') this.handleWorkshopTask(u, dt);
         else if (u.taskType === 'garrison') this.handleGarrisonTask(u, dt);
 
@@ -949,7 +950,7 @@ export default class UnitManager {
     handleHarvestFarmTask(u, dt) {
         const b = this.scene.buildings.find(b => b.id === u.taskBldgId && b.built && b.type === 'farm');
         if (!b || b.stock <= 0) { u.taskType = null; return; }
-        const cx = (b.tx+b.size/2)*TILE, cy = MAP_OY+(b.ty+b.size/2)*TILE;
+        const cx = (b.tx + b.size / 2) * TILE, cy = MAP_OY + (b.ty + b.size / 2) * TILE;
         if (this.moveToward(u, cx, cy, 28, dt)) return;
         u.isInside = false;
         const attrMult = this.getAttrMult(u, ['dex']);
@@ -962,6 +963,33 @@ export default class UnitManager {
             b.stock -= pick; u.carrying.wheat += pick;
             this._gainSkillXp(u, 'farming');
             // Redraw full building graphic when a crop row boundary is crossed
+            const rows = b.maxStock > 0 ? Math.round(b.stock / b.maxStock * 5) : 0;
+            const prevRows = b.maxStock > 0 ? Math.round((b.drawnStock ?? b.maxStock) / b.maxStock * 5) : 0;
+            if (rows !== prevRows) {
+                b.drawnStock = b.stock;
+                this.scene.buildingManager.redrawBuilding(b);
+            } else {
+                this.scene.buildingManager.redrawBuildingBar(b);
+            }
+        }
+    }
+
+    handlePlantTask(u, dt) {
+        const b = this.scene.buildings.find(b => b.id === u.taskBldgId && b.built && b.type === 'farm');
+        if (!b || !b.needsPlanting) { u.taskType = null; return; }
+        const cx = (b.tx + b.size / 2) * TILE, cy = MAP_OY + (b.ty + b.size / 2) * TILE;
+        if (this.moveToward(u, cx, cy, 28, dt)) return;
+
+        u.workProgress = (u.workProgress ?? 0) + dt;
+        if (u.workProgress >= 6000) { // 6s plant time
+            u.workProgress = 0;
+            b.needsPlanting = false;
+            b.stock = b.maxStock;
+            this.scene.buildingManager.redrawBuildingBar(b);
+            u.taskType = null;
+        }
+    }
+
             const rows = b.maxStock > 0 ? Math.round(b.stock / b.maxStock * 5) : 0;
             const prevRows = b.maxStock > 0 ? Math.round((b.drawnStock ?? b.maxStock) / b.maxStock * 5) : 0;
             if (rows !== prevRows) {
@@ -1363,6 +1391,20 @@ export default class UnitManager {
             ? this.scene.domains.find(d => d.id === home.domainId)
             : null;
 
+        // 1. Try planting first (high priority)
+        const plantFarm = this.scene.buildings.find(b => {
+            if (b.type !== 'farm' || !b.built || !b.needsPlanting) return false;
+            if (b.isPublic) return true;
+            const farmDomain = this.scene.buildingManager.getDomainAt(b.tx, b.ty);
+            return !farmDomain || (homeDomain && farmDomain.id === homeDomain.id);
+        });
+        if (plantFarm) {
+            u.taskType = 'plant'; u.taskBldgId = plantFarm.id;
+            u.moveTo = { x: (plantFarm.tx + plantFarm.size/2) * TILE, y: MAP_OY + (plantFarm.ty + plantFarm.size/2) * TILE };
+            return;
+        }
+
+        // 2. Try harvest
         const farm = this.scene.buildings.find(b => {
             if (b.type !== 'farm' || !b.built || b.stock <= 0 || b.faction === 'enemy') return false;
             if (b.isPublic) return true; // state farm — any worker can harvest

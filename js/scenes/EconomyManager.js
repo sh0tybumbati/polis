@@ -121,11 +121,11 @@ export default class EconomyManager {
 
     tickFarmRegrowth(delta) {
         for (const b of this.scene.buildings) {
-            if (b.type !== 'farm' || b.stock > 0) continue;
+            if (b.type !== 'farm' || b.stock > 0 || b.needsPlanting) continue;
             b._regrowTimer = (b._regrowTimer ?? 0) + delta;
             if (b._regrowTimer >= 90000) { // 90s day
                 b._regrowTimer = 0;
-                b.stock = b.maxStock;
+                b.needsPlanting = true;
                 this.scene.buildingManager.redrawBuildingBar(b);
             }
         }
