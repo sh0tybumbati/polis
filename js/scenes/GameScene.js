@@ -26,7 +26,7 @@ export default class GameScene extends Phaser.Scene {
         this.buildings = [];
         this.units     = [];
         this.selIds    = new Set();
-        this.resources  = { stone: 15, wood: 0, sticks: 0, stones: 0, wool: 0, wheat: 10, flour: 4, bread: 0, meat: 0, sausages: 0, olives: 0, seeds: 0, hide: 0, ore: 0, ingot: 0, leather: 0, leatherKit: 0, bronzeKit: 0, planks: 0, stoneBlocks: 0 };
+        this.resources  = { stone: 15, wood: 0, sticks: 0, stones: 0, wool: 0, wheat: 10, flour: 0, bread: 0, meat: 0, sausages: 0, olives: 0, seeds: 0, hide: 0, ore: 0, ingot: 0, leather: 0, leatherKit: 0, bronzeKit: 0, planks: 0, stoneBlocks: 0 };
         this.storageMax = { stone: 0,  wood: 0, sticks: 0, stones: 0, wool: 0, wheat: 0,  flour: 0, bread: 0, meat: 0, sausages: 0, olives: 0, seeds: 0, hide: 0, ore: 0, ingot: 0, leather: 0, leatherKit: 0, bronzeKit: 0, planks: 0, stoneBlocks: 0 };
         this.discoveries = { oliveGrove: false, wildGarden: false };
         this.mealsDone       = 0;
