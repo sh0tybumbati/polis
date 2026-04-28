@@ -96,7 +96,7 @@ gameServer.define('polis', PolisRoom);
 // Serve static client files (optional, for single-server deploys)
 app.use(express.static('../'));
 
-const PORT = process.env.PORT || 2567;
+const PORT = process.env.PORT || 8080;
 gameServer.listen(PORT).then(() => {
   console.log(`Polis server listening on ws://localhost:${PORT}`);
   console.log(`Colyseus monitor: http://localhost:${PORT}/colyseus`);

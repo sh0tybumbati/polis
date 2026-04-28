@@ -989,15 +989,6 @@ export default class UnitManager {
             u.taskType = null;
         }
     }
-
-            const rows = b.maxStock > 0 ? Math.round(b.stock / b.maxStock * 5) : 0;
-            const prevRows = b.maxStock > 0 ? Math.round((b.drawnStock ?? b.maxStock) / b.maxStock * 5) : 0;
-            if (rows !== prevRows) {
-                b.drawnStock = b.stock;
-                this.scene.buildingManager.redrawBuilding(b);
-            } else {
-                this.scene.buildingManager.redrawBuildingBar(b);
-            }
             if (this.totalCarrying(u) >= u.carryMax || b.stock <= 0) u.taskType = null;
         }
     }
