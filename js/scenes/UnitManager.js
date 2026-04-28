@@ -1739,7 +1739,7 @@ export default class UnitManager {
                     if (this.PUBLIC_STORAGE.has(foodBldg.type) && foodBldg.isPublic) {
                         this.scene.resources[food] = Math.max(0, (this.scene.resources[food] ?? 0) - 1);
                     }
-                    u.dailyNutrition = (u.dailyNutrition ?? 0) + NUTRITION_MAP[food];
+                    u.fullness = Math.min(1.0, (u.fullness ?? 0) + NUTRITION_MAP[food]);
                     this.scene.uiManager.showFloatText(u.x, u.y - 14, `🍞 ${food}`, '#ffee88');
                     break;
                 }
@@ -1750,7 +1750,7 @@ export default class UnitManager {
             for (const food of FOOD_PRIORITY) {
                 if ((this.scene.resources[food] ?? 0) >= 1) {
                     this.scene.resources[food]--;
-                    u.dailyNutrition = (u.dailyNutrition ?? 0) + NUTRITION_MAP[food];
+                    u.fullness = Math.min(1.0, (u.fullness ?? 0) + NUTRITION_MAP[food]);
                     this.scene.uiManager.showFloatText(u.x, u.y - 14, `🍞 ${food}`, '#ffee88');
                     fed = true;
                     break;
