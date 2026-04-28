@@ -415,6 +415,13 @@ export default class MapManager {
         n.gfx.setPosition(n.x, n.y);
         this.drawNodeBody(n.gfx, n, alpha);
 
+        if (n.felled === false && n.fellWork !== undefined) {
+            const maxFell = n.type === 'large_tree' ? 28 : 16;
+            const p = Math.max(0, 1 - n.fellWork / maxFell);
+            n.gfx.fillStyle(0x000000, 0.6).fillRect(-12, -22, 24, 6);
+            n.gfx.fillStyle(0xddaa44, 0.9).fillRect(-12, -22, 24 * p, 6);
+        }
+
         if (targeted) {
             const r = def.large ? 24 : 16;
             n.gfx.lineStyle(2, 0xffdd44, 0.9).strokeCircle(0, 0, r);
