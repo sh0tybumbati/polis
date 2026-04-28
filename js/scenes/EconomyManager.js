@@ -36,34 +36,47 @@ export default class EconomyManager {
     depositToBuilding(b, key, qty) {
         if (!qty || qty <= 0) return;
         b.inventory    = b.inventory    ?? {};
-        b.tithePending = b.tithePending ?? {};
-        b.wagePending  = b.wagePending  ?? {};
+        b.dailyProduction = b.dailyProduction ?? {};
 
-        const rate  = this.scene.titheRate ?? 10;
-        const tithe = Math.floor(qty * rate / 100);
-        let   keep  = qty - tithe;
+        // Track daily production
+        b.dailyProduction[key] = (b.dailyProduction[key] ?? 0) + qty;
 
-        if (tithe > 0) b.tithePending[key] = (b.tithePending[key] ?? 0) + tithe;
-
-        // Production wage: 1 unit to the worker currently processing at this building
+        // Wage: 1 unit to the worker currently processing at this building
+        let keep = qty;
         if (keep >= 2) {
             const worker = this.scene.units.find(u =>
                 !u.isEnemy && u.hp > 0 && u.taskBldgId === b.id && u.workshopPhase === 'process');
             if (worker) {
+                b.wagePending = b.wagePending ?? {};
                 b.wagePending[worker.id] = b.wagePending[worker.id] ?? {};
                 b.wagePending[worker.id][key] = (b.wagePending[worker.id][key] ?? 0) + 1;
                 keep -= 1;
             }
         }
 
-        if (keep > 0) b.inventory[key] = (b.inventory[key] ?? 0) + keep;
+        b.inventory[key] = (b.inventory[key] ?? 0) + keep;
         this.scene.updateUI();
     }
 
-    // Dawn collection: move all tithePending → public commons (scene.resources)
+    // Dawn preparation: calculate daily tithe for each building
     collectFirstFruits() {
-        // Disabled: replaced by Physical Tithe Delivery (polis-jfl)
-        return;
+        for (const b of this.scene.buildings) {
+            if (!b.built || b.faction || !b.dailyProduction) continue;
+            
+            b.tithePending = b.tithePending ?? {};
+            const rate = this.scene.titheRate ?? 10;
+            
+            for (const [key, qty] of Object.entries(b.dailyProduction)) {
+                if (qty <= 0) continue;
+                
+                // 1 unit First Fruits + Percentage Tithe
+                const tithe = 1 + Math.floor(qty * rate / 100);
+                b.tithePending[key] = (b.tithePending[key] ?? 0) + tithe;
+            }
+            // Reset daily production for the next day
+            b.dailyProduction = {};
+        }
+        this.scene.updateUI();
     }
 
 
