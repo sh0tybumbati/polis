@@ -749,6 +749,13 @@ export default class UnitManager {
             if (!u.taskType && !u.targetNode && time - u.lastSeek > 1500) {
                 u.lastSeek = time;
                 this.pickRole(u, time);
+                
+                // Fallback: If picking role didn't immediately assign a task (e.g. no work available), ensure we don't just loop
+                if (u.role && !u.taskType) {
+                    if (u.role === 'farmer') this.seekFarmerTask(u);
+                    else if (u.role === 'builder') this.seekBuilderTask(u);
+                    // Add other task seekers here if needed
+                }
             }
         }
 
