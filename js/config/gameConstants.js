@@ -186,15 +186,15 @@ export const BLDG = {
   townhall:   { label: '🏛 Town Hall',    color: 0xaa7733, cost: null, size: 2,
                 desc: 'Administrative center and residence of the Archon.',
                 capacity: 4,
-                stores: { wheat: 40, flour: 20, bread: 10, meat: 10, sausages: 10, olives: 10, stone: 40, wood: 40 }, hidden: true },
+                stores: { wheat: 40, flour: 20, bread: 10, meat: 10, sausages: 10, olives: 10, berries: 20, stone: 40, wood: 40 }, hidden: true },
   // ── Buildable ─────────────────────────────────────────────────────────────
   // cost = minimum non-substitutable materials; materialQty = flexible (wood OR stone)
   house:      { label: '🏠 House',         color: 0xcc8844, cost: {},               materialQty: 5,  size: 2,
                 desc: 'Provides housing for up to 6 citizens.',
-                capacity: 6, spawnMs: 200000 },
+                capacity: 6, spawnMs: 200000, stores: { berries: 20, bread: 10 } },
   granary:    { label: '🌾 Granary',       color: 0xcc9933, cost: {},               materialQty: 10,  size: 2,
                 desc: 'Stores large quantities of food and grain.',
-                stores: { wheat: 80, flour: 40, bread: 30, meat: 40, sausages: 20, olives: 40 } },
+                stores: { wheat: 200 } },
   woodshed:   { label: '🪵 Woodshed',      color: 0x7a5030, cost: {},               materialQty: 6,  size: 2, outdoor: true,
                 desc: 'Storage for wood and sticks.',
                 stores: { wood: 60, sticks: 80 } },
