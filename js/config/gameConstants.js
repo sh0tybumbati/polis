@@ -285,6 +285,7 @@ export const NUTRITION = {
     cuts:     0.5,   // butcher's cuts — like flour
     sausages: 1.0,   // cured sausages — full day's nutrition
     olives:   0.4,   // gathered / pressed
+    berries:  0.2,   // gathered wild
 };
 
 // ─── Day/Night Cycle Constants ──────────────────────────────────────────────
@@ -329,7 +330,7 @@ export const UDEF = {
 
 export const NODE_DEF = {
   tree: { resource: 'wood', stock: 10, respawnDays: 6 },
-  berry_bush: { resource: 'wheat', stock: 8, respawnDays: 3 },
+  berry_bush: { resource: 'berries', stock: 24, respawnDays: 0 },
   small_tree: { resource: 'wood', stock: 10, respawnDays: 6 },
   large_tree: { resource: 'wood', stock: 18, respawnDays: 0 },
   small_boulder: { resource: 'stone', stock: 12, respawnDays: 12 },

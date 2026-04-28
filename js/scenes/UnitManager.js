@@ -1022,8 +1022,8 @@ export default class UnitManager {
                        : this.getAttrMult(u, ['dex']);
 
         const workSpeed = (1.0 + (u.skills[skillKey]?.level ?? 1) * 0.2) * attrMult;
-        // Collecting a felled tree is lighter work
-        const threshold = isTree ? 10.0 : 14.0;
+        // Collecting a felled tree is lighter work. Berries are fast (5.0).
+        const threshold = isTree ? 10.0 : (n.type === 'berry_bush' ? 5.0 : 14.0);
         u.workProgress = (u.workProgress ?? 0) + dt * workSpeed;
 
         if (u.workProgress >= threshold) {
