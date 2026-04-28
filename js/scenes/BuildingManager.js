@@ -535,8 +535,8 @@ export default class BuildingManager {
                 : (r > 0.5 ? 0x4488cc : r > 0.25 ? 0xddaa22 : 0xcc3311);
             bldg.barGfx.fillStyle(bg, 0.9).fillRect(bx, by, bw, 4);
             bldg.barGfx.fillStyle(fg).fillRect(bx, by, bw * r, 4);
-            if (!bldg.faction) return; // player buildings: only show HP bar, skip rest
         }
+
         if (bldg.faction === 'enemy') return;
 
         if (!bldg.built) {
