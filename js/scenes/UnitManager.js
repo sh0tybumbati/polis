@@ -1091,6 +1091,11 @@ export default class UnitManager {
             const res = NODE_DEF[n.type]?.resource;
             const pick = Math.min(u.carryMax - this.totalCarrying(u), n.stock);
             n.stock -= pick; u.carrying[res] += pick;
+            
+            // Track daily production for resource nodes as well
+            n.dailyProduction = n.dailyProduction ?? {};
+            n.dailyProduction[res] = (n.dailyProduction[res] ?? 0) + pick;
+
             this._gainSkillXp(u, skillKey);
             this.scene.uiManager.showFloatText(u.x, u.y - 14, `+${pick}${res[0].toUpperCase()}`, '#ffffff');
 
