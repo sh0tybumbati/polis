@@ -1454,7 +1454,7 @@ export default class UnitManager {
         }
 
         cands.sort((a, b) => b.score - a.score);
-        const best = cands.find(c => c.score > 0);
+        const best = cands.length > 0 ? cands[0] : null;
         if (best) u.role = best.role;
     }
 
