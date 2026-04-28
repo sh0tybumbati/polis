@@ -712,15 +712,16 @@ export default class UnitManager {
 
         // Day: active work
         if (this.scene.phase === 'DAY') {
-            // Hunger
+            // Fullness
             if (u.taskType !== 'garrison' && u.taskType !== 'eat') {
-                u.hunger = (u.hunger ?? 0) + dt;
-                if (u.hunger >= HUNGER_THRESHOLD) {
-                    u.hunger = 0;
-                    this.pushTask(u, 'eat');
-                    u.workshopPhase = null;
+                if (this.scene.phase === 'DAY' && (u.fullness ?? 1.0) < 0.9) {
+                     this.pushTask(u, 'eat');
+                     u.workshopPhase = null;
+                } else {
+                     u.fullness = Math.max(0, (u.fullness ?? 1.0) - dt * 0.000005);
                 }
             }
+
 
             if (u.moveTo) {
                 const d = Phaser.Math.Distance.Between(u.x, u.y, u.moveTo.x, u.moveTo.y);
