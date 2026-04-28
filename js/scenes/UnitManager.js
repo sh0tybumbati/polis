@@ -968,7 +968,10 @@ export default class UnitManager {
         if (u.workProgress >= 2.0) {
             u.workProgress = 0;
             const pick = Math.min(u.carryMax - this.totalCarrying(u), b.stock);
-            b.stock -= pick; u.carrying.wheat += pick;
+            b.stock -= pick; 
+            u.carrying.wheat += pick;
+            b.dailyProduction = b.dailyProduction ?? {};
+            b.dailyProduction.wheat = (b.dailyProduction.wheat ?? 0) + pick;
             this._gainSkillXp(u, 'farming');
             // Redraw full building graphic when a crop row boundary is crossed
             const rows = b.maxStock > 0 ? Math.round(b.stock / b.maxStock * 5) : 0;
