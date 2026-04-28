@@ -64,6 +64,7 @@ export default class EconomyManager {
     collectFirstFruits() {
         // Disabled: replaced by Physical Tithe Delivery (polis-jfl)
         return;
+    }
 
 
     afford(cost) {
