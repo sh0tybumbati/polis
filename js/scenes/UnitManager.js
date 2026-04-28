@@ -1230,15 +1230,10 @@ export default class UnitManager {
             if ((amt || 0) <= 0) continue;
 
             if (u._depositPrivate) {
-                // Private deposit to house: firstfruits (1 unit) go to commons if carrying ≥ 2
-                let remainder = amt;
-                if (remainder >= 2) {
-                    this.scene.economyManager.addResource(res, 1);
-                    remainder -= 1;
-                }
-                b.inventory[res] = (b.inventory[res] ?? 0) + remainder;
+                // Private deposit to house: just update house inventory
+                b.inventory[res] = (b.inventory[res] ?? 0) + amt;
                 u.carrying[res] = 0;
-                this.scene.uiManager.showFloatText(u.x, u.y - 14, `+${remainder} ${res}`, '#aaffcc');
+                this.scene.uiManager.showFloatText(u.x, u.y - 14, `+${amt} ${res}`, '#aaffcc');
             } else if (this.PUBLIC_STORAGE.has(b.type) && b.isPublic) {
                 // State-owned public storage: deposit to both b.inventory and commons
                 b.inventory[res] = (b.inventory[res] ?? 0) + amt;
