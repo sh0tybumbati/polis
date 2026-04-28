@@ -201,7 +201,7 @@ export const BLDG = {
   stonepile:  { label: '🧱 Stone Pile',    color: 0x888878, cost: { stone: 5 },                      size: 2, outdoor: true,
                 desc: 'Storage for stone chunks and stones.',
                 stores: { stone: 50, stones: 80 } },
-  farm:       { label: '🚜 Farm',          color: 0x5a9a28, cost: {},               materialQty: 5,  size: 2, outdoor: true, stockMax: 32,
+  farm:       { label: '🚜 Farm',          color: 0x5a9a28, cost: {},               materialQty: 5,  size: 2, outdoor: true, stockMax: 48,
                 desc: 'Produces wheat. Requires a farmer to harvest.' },
   garden:     { label: '🌻 Garden',        color: 0x448833, cost: {},               materialQty: 6,  size: 2, outdoor: true, stockMax: 20,
                 desc: 'Grows olives for food and oil.',

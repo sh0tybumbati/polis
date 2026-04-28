@@ -113,9 +113,22 @@ export default class EconomyManager {
         this.tickProduction(delta);
         this.tickBuildingOperations(delta);
         this.tickResourceNodes(delta);
+        this.tickFarmRegrowth(delta);
         this.tickHouseProduction(delta);
         this.tickHouseBirths(delta);
         this._refreshGarrisonBars(delta);
+    }
+
+    tickFarmRegrowth(delta) {
+        for (const b of this.scene.buildings) {
+            if (b.type !== 'farm' || b.stock > 0) continue;
+            b._regrowTimer = (b._regrowTimer ?? 0) + delta;
+            if (b._regrowTimer >= 90000) { // 90s day
+                b._regrowTimer = 0;
+                b.stock = b.maxStock;
+                this.scene.buildingManager.redrawBuildingBar(b);
+            }
+        }
     }
 
     tickResourceNodes(delta) {

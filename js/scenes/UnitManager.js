@@ -43,6 +43,7 @@ export default class UnitManager {
             roleMemory: {}, targetDeer: null, targetSheep: null,
             nightsSurvived: 0, vetLevel: 0, isInside: false, _wageCollected: false,
             fetchBldgId: null, _prevRole: null,
+            taskStack: [],
             // Genealogy
             fatherId: null, motherId: null, spouseId: null,
             attributes, phenotype, passions,
@@ -79,6 +80,51 @@ export default class UnitManager {
         this.redrawUnit(child);  // re-draw with age:0 size after overriding attributes
         this.scene.uiManager.showFloatText(cx, cy - 16, `${child.name} born!`, '#ffeeaa');
         return child;
+    }
+
+    pushTask(u, type, targetId = null, extra = {}) {
+        // Save current task state
+        u.taskStack.push({
+            type: u.taskType,
+            bldgId: u.taskBldgId,
+            node: u.targetNode,
+            workProgress: u.workProgress,
+            role: u.role,
+            ...extra
+        });
+        u.taskType = type;
+        if (type === 'eat') {
+            u.taskBldgId = targetId;
+            u.targetNode = null;
+        } else {
+            u.taskBldgId = targetId;
+        }
+        u.workProgress = 0;
+    }
+
+    popTask(u) {
+        if (!u.taskStack.length) {
+            u.taskType = null;
+            u.taskBldgId = null;
+            u.targetNode = null;
+            u.workProgress = 0;
+            return;
+        }
+        const prev = u.taskStack.pop();
+        u.taskType = prev.type;
+        u.taskBldgId = prev.bldgId;
+        u.targetNode = prev.node;
+        u.workProgress = prev.workProgress;
+        if (prev.role) u.role = prev.role;
+    }
+
+    getAttrMult(u, attrs) {
+        if (!u.attributes) return 1.0;
+        let sum = 0;
+        attrs.forEach(a => sum += (u.attributes[a] ?? 5));
+        const avg = sum / attrs.length;
+        // 5 is baseline (1.0). Each point above 5 is +10%, each point below is -10%.
+        return 1.0 + (avg - 5) * 0.1;
     }
 
     _applyRareTraits(u) {
@@ -668,11 +714,7 @@ export default class UnitManager {
             u.hunger = (u.hunger ?? 0) + dt;
             if (u.hunger >= HUNGER_THRESHOLD) {
                 u.hunger = 0;
-                u._savedTask = u.taskType
-                    ? { type: u.taskType, bldgId: u.taskBldgId, node: u.targetNode,
-                        phase: u.workshopPhase, fetchBldgId: u.fetchBldgId }
-                    : null;
-                u.taskType = 'eat';
+                this.pushTask(u, 'eat');
                 u.workshopPhase = null;
             }
         }
@@ -688,11 +730,8 @@ export default class UnitManager {
             u.moveTo = null;
         }
 
-        // Deposit takes priority — don't seek new tasks while carrying (eating can wait)
-        if (u.taskType === 'eat' && this.totalCarrying(u) > 0 && !u.targetNode) {
-            u.taskType = null; // defer eating until hands are empty
-        }
-        if (this.totalCarrying(u) > 0 && !u.targetNode && u.taskType !== 'build') {
+        // Deposit takes priority — don't seek new tasks while carrying (unless eating)
+        if (this.totalCarrying(u) > 0 && !u.targetNode && u.taskType !== 'build' && u.taskType !== 'eat') {
             if (u.taskType !== 'deposit') this.seekDeposit(u);
             if (u.taskType === 'deposit') this.handleDepositTask(u, dt);
             return;
@@ -896,7 +935,8 @@ export default class UnitManager {
         const cx = (b.tx+b.size/2)*TILE, cy = MAP_OY+(b.ty+b.size/2)*TILE;
         if (this.moveToward(u, cx, cy, 28, dt)) return;
         u.isInside = false;
-        const workSpeed = 1.0 + (u.skills.masonry?.level ?? 1) * 0.2;
+        const attrMult = this.getAttrMult(u, ['str']);
+        const workSpeed = (1.0 + (u.skills.masonry?.level ?? 1) * 0.2) * attrMult;
         u.workProgress = (u.workProgress ?? 0) + dt * workSpeed;
         if (u.workProgress >= 25.0) {
             u.workProgress = 0;
@@ -912,8 +952,11 @@ export default class UnitManager {
         const cx = (b.tx+b.size/2)*TILE, cy = MAP_OY+(b.ty+b.size/2)*TILE;
         if (this.moveToward(u, cx, cy, 28, dt)) return;
         u.isInside = false;
-        u.workProgress = (u.workProgress ?? 0) + dt * (1.0 + (u.skills.farming?.level ?? 1) * 0.2);
-        if (u.workProgress >= 25.0) {
+        const attrMult = this.getAttrMult(u, ['dex']);
+        const workSpeed = (1.0 + (u.skills.farming?.level ?? 1) * 0.2) * attrMult;
+        u.workProgress = (u.workProgress ?? 0) + dt * workSpeed;
+        // Task 88n: burst harvest (threshold 6.0 instead of 25.0)
+        if (u.workProgress >= 6.0) {
             u.workProgress = 0;
             const pick = Math.min(u.carryMax - this.totalCarrying(u), b.stock);
             b.stock -= pick; u.carrying.wheat += pick;
@@ -941,7 +984,8 @@ export default class UnitManager {
         // Felling phase — multiple workers chip away at n.fellWork in parallel
         if (isTree && !n.felled) {
             if (n.fellWork === undefined) n.fellWork = n.type === 'large_tree' ? 28 : 16;
-            const skillSpeed = 1.0 + (u.skills.woodcutting?.level ?? 1) * 0.2;
+            const attrMult = this.getAttrMult(u, ['str']);
+            const skillSpeed = (1.0 + (u.skills.woodcutting?.level ?? 1) * 0.2) * attrMult;
             n.fellWork -= dt * skillSpeed;
             if (n.fellWork <= 0) {
                 n.felled = true;
@@ -955,9 +999,14 @@ export default class UnitManager {
         const skillKey = isTree ? 'woodcutting'
                        : (n.type.includes('boulder') || n.type.includes('ore')) ? 'mining'
                        : 'farming';
-        const workSpeed = 1.0 + (u.skills[skillKey]?.level ?? 1) * 0.2;
+        
+        const attrMult = isTree ? this.getAttrMult(u, ['str'])
+                       : (n.type.includes('boulder') || n.type.includes('ore')) ? this.getAttrMult(u, ['str'])
+                       : this.getAttrMult(u, ['dex']);
+
+        const workSpeed = (1.0 + (u.skills[skillKey]?.level ?? 1) * 0.2) * attrMult;
         // Collecting a felled tree is lighter work
-        const threshold = isTree ? 10.0 : 25.0;
+        const threshold = isTree ? 10.0 : 14.0;
         u.workProgress = (u.workProgress ?? 0) + dt * workSpeed;
 
         if (u.workProgress >= threshold) {
@@ -1513,7 +1562,8 @@ export default class UnitManager {
         }
 
         // Process one unit of input → output per work tick
-        const workSpeed = 1.0 + (u.skills[def.skill]?.level ?? 1) * 0.2;
+        const attrMult = this.getAttrMult(u, ['dex', 'int']);
+        const workSpeed = (1.0 + (u.skills[def.skill]?.level ?? 1) * 0.2) * attrMult;
         u.workProgress = (u.workProgress ?? 0) + dt * workSpeed;
         if (u.workProgress >= 30.0) {
             u.workProgress = 0;
@@ -1578,16 +1628,7 @@ export default class UnitManager {
         }
 
         // Restore saved task
-        const saved = u._savedTask;
-        u._savedTask = null;
-        u.taskType = null;
-        if (saved?.type) {
-            u.taskType     = saved.type;
-            u.taskBldgId   = saved.bldgId;
-            u.targetNode   = saved.node;
-            u.workshopPhase = saved.phase ?? null;
-            u.fetchBldgId  = saved.fetchBldgId ?? null;
-        }
+        this.popTask(u);
     }
 
     seekNodeTask(u, types) {
