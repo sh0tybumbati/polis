@@ -62,26 +62,9 @@ export default class EconomyManager {
 
     // Dawn collection: move all tithePending → public commons (scene.resources)
     collectFirstFruits() {
-        const collected = {};
-        for (const b of this.scene.buildings) {
-            if (!b.built || b.faction || !b.tithePending) continue;
-            for (const [key, qty] of Object.entries(b.tithePending)) {
-                if ((qty ?? 0) <= 0) continue;
-                this.scene.resources[key] = (this.scene.resources[key] ?? 0) + qty;
-                collected[key] = (collected[key] ?? 0) + qty;
-                b.tithePending[key] = 0;
-            }
-        }
-        const parts = Object.entries(collected)
-            .filter(([, v]) => v > 0)
-            .map(([k, v]) => `${v} ${k.slice(0, 4)}`);
-        if (parts.length) {
-            this.scene.uiManager.showFloatText(
-                this.scene.scale.width / 2, 80,
-                `🌿 First fruits: ${parts.join(' ')}`, '#ffdd88');
-        }
-        this.scene.updateUI();
-    }
+        // Disabled: replaced by Physical Tithe Delivery (polis-jfl)
+        return;
+
 
     afford(cost) {
         return Object.entries(cost).every(([r, n]) => (this.scene.resources[r] ?? 0) >= n);

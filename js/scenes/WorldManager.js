@@ -299,7 +299,7 @@ export default class WorldManager {
             this.tickNodeRespawn();
             this.ageUpUnits();
             this.scene.units.forEach(u => { u.dailyNutrition = 0; u._wageCollected = false; u.hunger = 0; });
-            this.scene.economyManager.collectFirstFruits();
+            // this.scene.economyManager.collectFirstFruits(); // Task jfl: disabled dawn tithe delivery
 
             if ((this.scene.day - 1) % 8 === 0) {
                 this.scene.buildingManager.redrawAll('farm');

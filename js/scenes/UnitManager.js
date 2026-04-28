@@ -747,6 +747,11 @@ export default class UnitManager {
             return;
         }
 
+        // Collect tithe if pending and no high-priority task
+        if (this.scene.buildings.some(b => b.built && Object.values(b.tithePending ?? {}).some(v => v > 0))) {
+            u.taskType = 'collect_tithe'; return;
+        }
+
         // Design fix: if unit has a role but no task/node for 12s, re-evaluate
         // Prevents permanent lock when e.g. all farms are fallow and no nodes in range
         const stickyRoles = new Set(['hunter', 'shepherd']); // player-directed, don't auto-reassign
@@ -771,6 +776,8 @@ export default class UnitManager {
         else if (u.taskType === 'repair') this.handleRepairTask(u, dt);
         else if (u.taskType === 'harvest_farm') this.handleHarvestFarmTask(u, dt);
         else if (u.taskType === 'plant') this.handlePlantTask(u, dt);
+        else if (u.taskType === 'collect_tithe') this.handleCollectTitheTask(u, dt);
+        else if (u.taskType === 'deposit_tithe') this.handleDepositTitheTask(u, dt);
         else if (u.taskType === 'workshop') this.handleWorkshopTask(u, dt);
         else if (u.taskType === 'garrison') this.handleGarrisonTask(u, dt);
 
@@ -991,8 +998,56 @@ export default class UnitManager {
         }
     }
 
-    handleGatherTask(u, dt) {
-        const n = u.targetNode;
+    handleCollectTitheTask(u, dt) {
+        // Step 1: Find building with tithePending
+        if (!u.targetBldgId) {
+            const b = this.scene.buildings.find(b => b.built && Object.values(b.tithePending ?? {}).some(v => v > 0));
+            if (!b) { u.taskType = null; return; }
+            u.targetBldgId = b.id;
+        }
+
+        const b = this.scene.buildings.find(b => b.id === u.targetBldgId && b.built);
+        if (!b) { u.targetBldgId = null; u.taskType = null; return; }
+
+        const door = this._bldgDoor(b);
+        if (this.moveToward(u, door.x, door.y, 30, dt)) return;
+
+        // Step 2: Collect tithe
+        let collected = false;
+        for (const [key, qty] of Object.entries(b.tithePending ?? {})) {
+            if (qty > 0) {
+                u.carrying[key] = (u.carrying[key] ?? 0) + qty;
+                b.tithePending[key] = 0;
+                collected = true;
+                this.scene.uiManager.showFloatText(u.x, u.y - 14, `+${qty} ${key}`, '#88cc88');
+            }
+        }
+
+        if (collected) {
+            u.targetBldgId = null;
+            u.taskType = 'deposit_tithe';
+        } else {
+            u.targetBldgId = null; u.taskType = null;
+        }
+    }
+
+    handleDepositTitheTask(u, dt) {
+        const th = this.scene.buildings.find(b => b.type === 'townhall' && b.built);
+        if (!th) { u.taskType = null; return; }
+        const door = this._bldgDoor(th);
+        if (this.moveToward(u, door.x, door.y, 30, dt)) return;
+        
+        for (const [key, qty] of Object.entries(u.carrying)) {
+            if (qty > 0) {
+                this.scene.resources[key] = (this.scene.resources[key] ?? 0) + qty;
+                u.carrying[key] = 0;
+                this.scene.uiManager.showFloatText(u.x, u.y - 14, `deposited ${qty} ${key}`, '#aaffcc');
+            }
+        }
+        u.taskType = null;
+    }
+
+    handleGatherTask(u, dt) {        const n = u.targetNode;
         if (!n || n.stock <= 0) { u.targetNode = null; return; }
         if (this.moveToward(u, n.x, n.y, 20, dt)) return;
 
