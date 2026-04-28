@@ -83,6 +83,7 @@ export default class UnitManager {
     }
 
     pushTask(u, type, targetId = null, extra = {}) {
+        if (!u.taskStack) u.taskStack = [];
         // Save current task state
         u.taskStack.push({
             type: u.taskType,
@@ -987,9 +988,6 @@ export default class UnitManager {
             b.stock = b.maxStock;
             this.scene.buildingManager.redrawBuildingBar(b);
             u.taskType = null;
-        }
-    }
-            if (this.totalCarrying(u) >= u.carryMax || b.stock <= 0) u.taskType = null;
         }
     }
 
