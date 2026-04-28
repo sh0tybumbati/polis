@@ -112,6 +112,16 @@ export default class BuildingManager {
         if (BLDG[bldg.type].capacity) this.scene.time.delayedCall(500, () => this.scene.attractAdults());
     }
 
+    getRemainingCost(b) {
+        const totalCost = BLDG[b.type]?.cost ?? {};
+        const spent = b.resNeeded ?? {};
+        const remaining = {};
+        for (const [res, amt] of Object.entries(totalCost)) {
+            remaining[res] = Math.max(0, amt - (spent[res] ?? 0));
+        }
+        return remaining;
+    }
+
     updateStorageCap() {
         // Seed with every key that exists in resources so existing stock isn't clamped to 0
         const max = {};
