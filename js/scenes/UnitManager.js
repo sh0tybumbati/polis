@@ -964,8 +964,8 @@ export default class UnitManager {
         const attrMult = this.getAttrMult(u, ['dex']);
         const workSpeed = (1.0 + (u.skills.farming?.level ?? 1) * 0.2) * attrMult;
         u.workProgress = (u.workProgress ?? 0) + dt * workSpeed;
-        // Task 88n: burst harvest (threshold 6.0 instead of 25.0)
-        if (u.workProgress >= 6.0) {
+        // Task 88n: burst harvest (threshold 2.0s)
+        if (u.workProgress >= 2.0) {
             u.workProgress = 0;
             const pick = Math.min(u.carryMax - this.totalCarrying(u), b.stock);
             b.stock -= pick; u.carrying.wheat += pick;
@@ -1053,9 +1053,10 @@ export default class UnitManager {
 
         const isTree = n.type === 'small_tree' || n.type === 'large_tree';
 
-        // Felling phase — multiple workers chip away at n.fellWork in parallel
+        // Felling phase
         if (isTree && !n.felled) {
-            if (n.fellWork === undefined) n.fellWork = n.type === 'large_tree' ? 28 : 16;
+            // Target: 5s felling
+            if (n.fellWork === undefined) n.fellWork = n.type === 'large_tree' ? 5.0 : 5.0;
             const attrMult = this.getAttrMult(u, ['str']);
             const skillSpeed = (1.0 + (u.skills.woodcutting?.level ?? 1) * 0.2) * attrMult;
             n.fellWork -= dt * skillSpeed;
@@ -1077,8 +1078,9 @@ export default class UnitManager {
                        : this.getAttrMult(u, ['dex']);
 
         const workSpeed = (1.0 + (u.skills[skillKey]?.level ?? 1) * 0.2) * attrMult;
-        // Collecting a felled tree is lighter work. Berries are fast (5.0).
-        const threshold = isTree ? 10.0 : (n.type === 'berry_bush' ? 5.0 : 14.0);
+        
+        // Timing: Wood (felled)=2s, Berries=1s, Stone/Ore=3s
+        const threshold = isTree ? 2.0 : (n.type === 'berry_bush' ? 1.0 : 3.0);
         u.workProgress = (u.workProgress ?? 0) + dt * workSpeed;
 
         if (u.workProgress >= threshold) {
@@ -1651,7 +1653,7 @@ export default class UnitManager {
         const attrMult = this.getAttrMult(u, ['dex', 'int']);
         const workSpeed = (1.0 + (u.skills[def.skill]?.level ?? 1) * 0.2) * attrMult;
         u.workProgress = (u.workProgress ?? 0) + dt * workSpeed;
-        if (u.workProgress >= 30.0) {
+        if (u.workProgress >= 3.0) {
             u.workProgress = 0;
             b.inbox[def.input] -= 1;
             b.inventory = b.inventory ?? {};
