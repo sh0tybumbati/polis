@@ -1,6 +1,7 @@
 import {
     MAP_W, MAP_H, TILE, MAP_OY,
     BLDG, BLDG_CATS, FM_TYPES, FM_LABELS, UNIT_NAMES, VET_LEVELS, computeBuildCost, SEASONS, SEASON_DAYS,
+    BLDG_VOLUME, RES_STATS,
 } from '../config/gameConstants.js';
 import UIPanel from './UIPanel.js';
 

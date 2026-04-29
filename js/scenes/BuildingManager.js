@@ -57,6 +57,7 @@ export default class BuildingManager {
         const isWallType = ['wall','palisade','gate','watchtower'].includes(this.scene.bldgType);
         this.occupy(tx, ty, def.size, isWallType ? 98 : 99);
         const b = this.makeBldgObj(this.scene.bldgType, tx, ty, false);
+        b.isPublic = true; // Task fix: buildings default to public
         const cost = computeBuildCost(this.scene.bldgType, this.scene.bldgMaterial ?? 'wood');
         if (Object.keys(cost).length) b.resNeeded = { ...cost };
         this.scene.buildings.push(b);

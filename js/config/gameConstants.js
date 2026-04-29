@@ -463,6 +463,22 @@ export const BLDG_VOLUME = {
     warehouse: 2000,
     house:     150,
     townhall:  500,
+    barracks:  400,
+    archery:   400,
+    stable:    400,
+    tannery:   500,
+    mine:      300,
+    smelter:   500,
+    blacksmith: 500,
+    mill:      600,
+    bakery:    500,
+    butcher:   500,
+    olive_press: 500,
+    temple:    300,
+    oracle:    300,
+    carpenter: 600,
+    masons:    600,
+    pasture:   1000,
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
