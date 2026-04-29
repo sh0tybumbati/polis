@@ -5,8 +5,7 @@ import {
     DEER_ATK_RANGE, SHEEP_TAME_COST, NUTRITION, pickName,
     ENABLE_PROACTIVE_AI, BLDG_CATS, DESIRE_THRESHOLD, ROAD_DESIRE, ROAD_NONE, HUNGER_THRESHOLD,
     RES_STATS,
-} from '../config/gameConstants.js';
-    randomPhenotype, blendPhenotype,
+    randomAttributes, randomPhenotype, blendPhenotype,
     randomPassions, blendPassions,
     emptySkills,
 } from '../config/gameConstants.js';
