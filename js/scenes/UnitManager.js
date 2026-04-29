@@ -4,7 +4,8 @@ import {
     VET_LEVELS, BLDG, NODE_DEF, NODE_ROLE, BUILD_WORK,
     DEER_ATK_RANGE, SHEEP_TAME_COST, NUTRITION, pickName,
     ENABLE_PROACTIVE_AI, BLDG_CATS, DESIRE_THRESHOLD, ROAD_DESIRE, ROAD_NONE, HUNGER_THRESHOLD,
-    randomAttributes, blendAttributes,
+    RES_STATS,
+} from '../config/gameConstants.js';
     randomPhenotype, blendPhenotype,
     randomPassions, blendPassions,
     emptySkills,
@@ -825,16 +826,33 @@ export default class UnitManager {
 
         if (deer.isDead) {
             // Harvest carcass: take meat and hide
-            const meatPick = Math.min(deer.meatLeft, u.carryMax - this.totalCarrying(u));
-            const hidePick = Math.min(deer.hideLeft, Math.max(0, u.carryMax - this.totalCarrying(u) - meatPick));
+            let meatPick = 0;
+            while (meatPick < deer.meatLeft && this.canUnitCarryMore(u, 'meat', meatPick + 1)) {
+                meatPick++;
+            }
+            let hidePick = 0;
+            while (hidePick < deer.hideLeft && this.canUnitCarryMore(u, 'hide', hidePick + 1, meatPick)) {
+                // The 4th param 'meatPick' would need to be handled by canUnitCarryMore or manual weight calc
+                // Let's just do manual check here for simplicity since it's mixed harvest
+                const curW = this.getUnitCarryWeight(u) + meatPick * RES_STATS.meat.weight;
+                const curV = this.getUnitCarryVolume(u) + meatPick * RES_STATS.meat.volume;
+                const nextW = curW + (hidePick + 1) * RES_STATS.hide.weight;
+                const nextV = curV + (hidePick + 1) * RES_STATS.hide.volume;
+                if (nextW <= this.getUnitMaxWeight(u) && nextV <= this.getUnitMaxVolume(u)) hidePick++;
+                else break;
+            }
+
             if (meatPick > 0 || hidePick > 0) {
                 deer.meatLeft -= meatPick;
                 deer.hideLeft -= hidePick;
                 u.carrying.meat = (u.carrying.meat ?? 0) + meatPick;
                 u.carrying.hide = (u.carrying.hide ?? 0) + hidePick;
+                
+                // Track production
                 this.scene.natureManager.redrawDeer(deer);
             }
             if (deer.meatLeft <= 0 && deer.hideLeft <= 0) u.targetDeer = null;
+            if (meatPick === 0 && hidePick === 0) u.role = null; // full
             return;
         }
 
@@ -1012,7 +1030,13 @@ export default class UnitManager {
         // Task 88n: burst harvest (threshold 2.0s)
         if (u.workProgress >= 2.0) {
             u.workProgress = 0;
-            const pick = Math.min(u.carryMax - this.totalCarrying(u), b.stock);
+            
+            let pick = 0;
+            while (pick < b.stock && this.canUnitCarryMore(u, 'wheat', pick + 1)) {
+                pick++;
+            }
+            if (pick === 0) { u.taskType = null; return; }
+
             b.stock -= pick; 
             u.carrying.wheat += pick;
             b.dailyProduction = b.dailyProduction ?? {};
@@ -1134,7 +1158,13 @@ export default class UnitManager {
         if (u.workProgress >= threshold) {
             u.workProgress = 0;
             const res = NODE_DEF[n.type]?.resource;
-            const pick = Math.min(u.carryMax - this.totalCarrying(u), n.stock);
+            
+            let pick = 0;
+            while (pick < n.stock && this.canUnitCarryMore(u, res, pick + 1)) {
+                pick++;
+            }
+            if (pick === 0) { u.targetNode = null; return; }
+
             n.stock -= pick; u.carrying[res] += pick;
             
             // Track daily production for resource nodes as well
@@ -1333,7 +1363,10 @@ export default class UnitManager {
         if (eFarm) {
             const fx = (eFarm.tx + 1) * TILE, fy = MAP_OY + (eFarm.ty + 1) * TILE;
             if (Phaser.Math.Distance.Between(u.x, u.y, fx, fy) < 28) {
-                const pick = Math.min(u.carryMax - this.totalCarrying(u), eFarm.stock);
+                let pick = 0;
+                while (pick < eFarm.stock && this.canUnitCarryMore(u, 'wheat', pick + 1)) {
+                    pick++;
+                }
                 eFarm.stock -= pick;
                 u.carrying.wheat = (u.carrying.wheat ?? 0) + pick;
             } else {
@@ -1368,12 +1401,18 @@ export default class UnitManager {
         u.workProgress = (u.workProgress ?? 0) + dt;
         if (u.workProgress >= 25.0) {
             u.workProgress = 0;
-            const pick = Math.min(u.carryMax - this.totalCarrying(u), n.stock);
-            n.stock -= pick;
             const res = NODE_DEF[n.type]?.resource ?? 'wheat';
+            
+            let pick = 0;
+            while (pick < n.stock && this.canUnitCarryMore(u, res, pick + 1)) {
+                pick++;
+            }
+            if (pick === 0) { u.targetNode = null; return; }
+
+            n.stock -= pick;
             u.carrying[res] = (u.carrying[res] ?? 0) + pick;
             if (n.stock <= 0) { u.targetNode = null; this.scene.mapManager.drawResourceNodes(); }
-            if (this.totalCarrying(u) >= u.carryMax) u.targetNode = null;
+            if (!this.canUnitCarryMore(u, res, 1)) u.targetNode = null;
         }
     }
 
@@ -1846,6 +1885,43 @@ export default class UnitManager {
 
     totalCarrying(u) {
         return Object.values(u.carrying).reduce((a, b) => a + (b || 0), 0);
+    }
+
+    getUnitCarryWeight(u) {
+        let total = 0;
+        for (const [res, qty] of Object.entries(u.carrying || {})) {
+            total += qty * (RES_STATS[res]?.weight ?? 0);
+        }
+        return total;
+    }
+
+    getUnitCarryVolume(u) {
+        let total = 0;
+        for (const [res, qty] of Object.entries(u.carrying || {})) {
+            total += qty * (RES_STATS[res]?.volume ?? 0);
+        }
+        return total;
+    }
+
+    getUnitMaxWeight(u) {
+        const base = 20 + (u.attributes?.str ?? 5) * 5;
+        const mult = u.equipment === 'backpack' ? 1.5 : u.equipment === 'wheelbarrow' ? 3.0 : 1.0;
+        const cap  = u.equipment === 'backpack' ? 60 : u.equipment === 'wheelbarrow' ? 150 : Infinity;
+        return Math.min(base * mult, cap);
+    }
+
+    getUnitMaxVolume(u) {
+        const base = 10 + (u.attributes?.str ?? 5) * 2;
+        const mult = u.equipment === 'backpack' ? 1.5 : u.equipment === 'wheelbarrow' ? 3.0 : 1.0;
+        const cap  = u.equipment === 'backpack' ? 30 : u.equipment === 'wheelbarrow' ? 80 : Infinity;
+        return Math.min(base * mult, cap);
+    }
+
+    canUnitCarryMore(u, res, qty = 1) {
+        const w = (RES_STATS[res]?.weight ?? 0) * qty;
+        const v = (RES_STATS[res]?.volume ?? 0) * qty;
+        return (this.getUnitCarryWeight(u) + w <= this.getUnitMaxWeight(u)) &&
+               (this.getUnitCarryVolume(u) + v <= this.getUnitMaxVolume(u));
     }
 
     waveIntelFlash() {
