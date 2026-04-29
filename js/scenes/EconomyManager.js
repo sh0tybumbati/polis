@@ -1,5 +1,5 @@
 import {
-    BLDG, TILE, MAP_OY, APPLIANCE_DEF,
+    BLDG, TILE, MAP_OY, APPLIANCE_DEF, RES_STATS, BLDG_VOLUME,
 } from '../config/gameConstants.js';
 import { BUILDINGS } from '../content/buildings/index.js';
 
@@ -91,19 +91,58 @@ export default class EconomyManager {
         this.scene.updateUI();
     }
 
-    hasStorageSpace(res) {
-        return (this.scene.resources[res] || 0) < (this.scene.storageMax[res] || 0);
+    getBuildingCurrentVolume(b) {
+        let total = 0;
+        const inv = b.inventory ?? {};
+        for (const [res, qty] of Object.entries(inv)) {
+            total += qty * (RES_STATS[res]?.volume ?? 0);
+        }
+        // Also include inbox for workshops
+        const inbox = b.inbox ?? {};
+        for (const [res, qty] of Object.entries(inbox)) {
+            total += qty * (RES_STATS[res]?.volume ?? 0);
+        }
+        return total;
+    }
+
+    hasStorageSpace(res, amount = 1, b = null) {
+        const vol = (RES_STATS[res]?.volume ?? 0) * amount;
+        if (b) {
+            const maxVol = BLDG_VOLUME[b.type] ?? Infinity;
+            return this.getBuildingCurrentVolume(b) + vol <= maxVol;
+        }
+        // Global/public check: sum of all public building capacities
+        let totalFree = 0;
+        for (const bl of this.scene.buildings) {
+            if (bl.built && bl.isPublic && BLDG_VOLUME[bl.type]) {
+                totalFree += Math.max(0, BLDG_VOLUME[bl.type] - this.getBuildingCurrentVolume(bl));
+            }
+        }
+        return totalFree >= vol;
     }
 
     addResource(res, amount) {
-        const cap     = this.scene.storageMax[res] || 0;
-        const current = this.scene.resources[res]  || 0;
-        const canTake = Math.min(amount, cap - current);
-        if (canTake > 0) {
-            this.scene.resources[res] += canTake;
-            this.scene.updateUI();
+        // Find public buildings with space
+        let remaining = amount;
+        const volPer = RES_STATS[res]?.volume ?? 0;
+        
+        for (const b of this.scene.buildings) {
+            if (remaining <= 0) break;
+            if (b.built && b.isPublic && BLDG_VOLUME[b.type]) {
+                const freeVol = BLDG_VOLUME[b.type] - this.getBuildingCurrentVolume(b);
+                const canFit = Math.floor(freeVol / volPer);
+                const toAdd = Math.min(remaining, canFit);
+                if (toAdd > 0) {
+                    b.inventory = b.inventory ?? {};
+                    b.inventory[res] = (b.inventory[res] ?? 0) + toAdd;
+                    this.scene.resources[res] = (this.scene.resources[res] ?? 0) + toAdd;
+                    remaining -= toAdd;
+                }
+            }
         }
-        return canTake;
+        const totalAdded = amount - remaining;
+        if (totalAdded > 0) this.scene.updateUI();
+        return totalAdded;
     }
 
     tick(delta) {
