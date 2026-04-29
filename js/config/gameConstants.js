@@ -191,7 +191,7 @@ export const BLDG = {
   // cost = minimum non-substitutable materials; materialQty = flexible (wood OR stone)
   house:      { label: '🏠 House',         color: 0xcc8844, cost: {},               materialQty: 5,  size: 2,
                 desc: 'Provides housing for up to 6 citizens.',
-                capacity: 6, spawnMs: 200000, stores: { berries: 20, bread: 10 } },
+                capacity: 6, spawnMs: 200000, stores: { berries: 120, bread: 10 } },
   granary:    { label: '🌾 Granary',       color: 0xcc9933, cost: {},               materialQty: 10,  size: 2,
                 desc: 'Stores large quantities of food and grain.',
                 stores: { wheat: 200 } },

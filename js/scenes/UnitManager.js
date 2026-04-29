@@ -657,6 +657,9 @@ export default class UnitManager {
                 const workplace = u.taskBldgId
                     ? this.scene.buildings.find(b => b.id === u.taskBldgId && b.built) : null;
                 const isProductionRole = u.role in (this.WORKSHOP_ROLES ?? {});
+                
+                // Task fix: check for node-based roles (woodcutter/miner)
+                const isNodeWorker = u.role === 'woodcutter' || u.role === 'miner' || u.role === 'forager';
 
                 if (isProductionRole && workplace?.wagePending?.[u.id]) {
                     // Production share: collect per-batch wage set aside in building
@@ -667,7 +670,7 @@ export default class UnitManager {
                         }
                     }
                     workplace.wagePending[u.id] = {};
-                } else if (workplace?.isPublic) {
+                } else if (workplace?.isPublic || isNodeWorker) {
                     // State daily wage: 1 food from public commons
                     const WAGE_FOOD = ['bread', 'sausages', 'flour', 'olives', 'wheat', 'meat'];
                     for (const food of WAGE_FOOD) {
@@ -714,7 +717,7 @@ export default class UnitManager {
         if (this.scene.phase === 'DAY') {
             // Fullness
             if (u.taskType !== 'garrison' && u.taskType !== 'eat') {
-                if (this.scene.phase === 'DAY' && (u.fullness ?? 1.0) < 0.9) {
+                if (this.scene.phase === 'DAY' && (u.fullness ?? 1.0) < 0.5) {
                      this.pushTask(u, 'eat');
                      u.workshopPhase = null;
                 } else {
@@ -734,8 +737,9 @@ export default class UnitManager {
                 u.moveTo = null;
             }
 
-            // High priority: collect tithes
-            if (this.scene.buildings.some(b => b.built && Object.values(b.tithePending ?? {}).some(v => v > 0))) {
+            // Collect tithes when idle (don't interrupt eating or active tasks)
+            if (!u.taskType && !u.targetNode &&
+                this.scene.buildings.some(b => b.built && Object.values(b.tithePending ?? {}).some(v => v > 0))) {
                 u.taskType = 'collect_tithe';
             }
 
@@ -750,20 +754,18 @@ export default class UnitManager {
                 u.lastSeek = time;
                 this.pickRole(u, time);
                 
-                // Fallback: If picking role didn't immediately assign a task (e.g. no work available), ensure we don't just loop
+                // Immediately seek a task for the newly assigned role
                 if (u.role && !u.taskType) {
                     if (u.role === 'farmer') this.seekFarmerTask(u);
                     else if (u.role === 'builder') this.seekBuilderTask(u);
-                    // Add other task seekers here if needed
+                    else if (u.role in (this.WORKSHOP_ROLES ?? {})) this.seekWorkshopTask(u);
+                    else if (u.role === 'forager') this.seekNodeTask(u, ['berry_bush', 'wild_garden', 'olive_grove']);
+                    else if (u.role === 'woodcutter') this.seekNodeTask(u, ['small_tree', 'large_tree']);
+                    else if (u.role === 'miner') this.seekNodeTask(u, ['small_boulder', 'large_boulder', 'ore_vein']);
                 }
             }
         }
 
-
-        // Collect tithe if pending and no high-priority task
-        if (this.scene.buildings.some(b => b.built && Object.values(b.tithePending ?? {}).some(v => v > 0))) {
-            u.taskType = 'collect_tithe'; return;
-        }
 
         // Design fix: if unit has a role but no task/node for 12s, re-evaluate
         // Prevents permanent lock when e.g. all farms are fallow and no nodes in range
@@ -1447,9 +1449,10 @@ export default class UnitManager {
         if (u.age >= 2) {
             cands.push({ role:'woodcutter', score: (30 + need('wood')  * 60 + (u.skills.woodcutting?.level ?? 1) * 15) - cnt('woodcutter') * 22 });
             cands.push({ role:'miner',      score: (25 + need('stone') * 60 + (u.skills.mining?.level      ?? 1) * 15) - cnt('miner')      * 22 });
-            // Shepherd: score based on untamed sheep presence and wool/fiber need
+            // Shepherd: requires a built pasture and visible wild sheep
+            const hasPasture = this.scene.buildings.some(b => b.type === 'pasture' && b.built && !b.faction);
             const wildSheep = this.scene.sheep?.filter(s => !s.isTamed && !s.isDead).length ?? 0;
-            if (wildSheep > 0)
+            if (hasPasture && wildSheep > 0)
                 cands.push({ role:'shepherd', score: (20 + wildSheep * 8 + need('wool') * 40 + (u.skills.animalTrap?.level ?? 1) * 10) - cnt('shepherd') * 18 });
         }
 
@@ -1702,6 +1705,16 @@ export default class UnitManager {
         if (u.workProgress >= 3.0) {
             u.workProgress = 0;
             b.inbox[def.input] -= 1;
+            
+            // Record production for tithe/wage
+            b.dailyProduction = b.dailyProduction ?? {};
+            b.dailyProduction[def.output] = (b.dailyProduction[def.output] ?? 0) + 1;
+            
+            // Set aside 1 unit as wage share if building is private or has pending wages
+            b.wagePending = b.wagePending ?? {};
+            b.wagePending[u.id] = b.wagePending[u.id] ?? {};
+            b.wagePending[u.id][def.output] = (b.wagePending[u.id][def.output] ?? 0) + 1;
+
             b.inventory = b.inventory ?? {};
             b.inventory[def.output] = (b.inventory[def.output] ?? 0) + 1;
             if (b.isPublic) {
@@ -1713,8 +1726,8 @@ export default class UnitManager {
     }
 
     handleEatTask(u, dt) {
-        const FOOD_PRIORITY = ['bread', 'sausages', 'flour', 'olives', 'wheat', 'meat'];
-        const NUTRITION_MAP = { bread: 1.0, sausages: 1.0, flour: 0.5, olives: 0.4, wheat: 0.3, meat: 0.3 };
+        const FOOD_PRIORITY = ['bread', 'sausages', 'flour', 'olives', 'wheat', 'meat', 'berries'];
+        const NUTRITION_MAP = { bread: 1.0, sausages: 1.0, flour: 0.5, olives: 0.4, wheat: 0.3, meat: 0.3, berries: 0.2 };
 
         // Try to eat from the nearest food building's inventory
         const FOOD_BLDG_TYPES = new Set(['bakery', 'butcher', 'granary', 'warehouse', 'townhall', 'house']);
@@ -1739,7 +1752,9 @@ export default class UnitManager {
                     if (this.PUBLIC_STORAGE.has(foodBldg.type) && foodBldg.isPublic) {
                         this.scene.resources[food] = Math.max(0, (this.scene.resources[food] ?? 0) - 1);
                     }
-                    u.fullness = Math.min(1.0, (u.fullness ?? 0) + NUTRITION_MAP[food]);
+                    const nut = NUTRITION_MAP[food];
+                    u.fullness = Math.min(1.0, (u.fullness ?? 0) + nut);
+                    u.dailyNutrition = Math.min(1.0, (u.dailyNutrition ?? 0) + nut);
                     this.scene.uiManager.showFloatText(u.x, u.y - 14, `🍞 ${food}`, '#ffee88');
                     break;
                 }
@@ -1750,7 +1765,9 @@ export default class UnitManager {
             for (const food of FOOD_PRIORITY) {
                 if ((this.scene.resources[food] ?? 0) >= 1) {
                     this.scene.resources[food]--;
-                    u.fullness = Math.min(1.0, (u.fullness ?? 0) + NUTRITION_MAP[food]);
+                    const nut = NUTRITION_MAP[food];
+                    u.fullness = Math.min(1.0, (u.fullness ?? 0) + nut);
+                    u.dailyNutrition = Math.min(1.0, (u.dailyNutrition ?? 0) + nut);
                     this.scene.uiManager.showFloatText(u.x, u.y - 14, `🍞 ${food}`, '#ffee88');
                     fed = true;
                     break;
