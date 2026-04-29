@@ -674,13 +674,31 @@ export default class UnitManager {
                 } else if (workplace?.isPublic || isNodeWorker) {
                     // State daily wage: 1 food from public commons
                     const WAGE_FOOD = ['bread', 'sausages', 'flour', 'olives', 'wheat', 'meat'];
+                    let paid = false;
                     for (const food of WAGE_FOOD) {
                         if ((this.scene.resources[food] ?? 0) >= 1) {
                             this.scene.resources[food]--;
                             u.carrying[food] = (u.carrying[food] ?? 0) + 1;
                             this.scene.uiManager.showFloatText(u.x, u.y - 16, `💰 ${food}`, '#ffee88');
+                            paid = true;
                             break;
                         }
+                    }
+                    // Task e1k: Deferred debt if public food is empty
+                    if (!paid) {
+                        u.wageDebt = (u.wageDebt ?? 0) + 1;
+                        this.scene.uiManager.showFloatText(u.x, u.y - 16, 'debt +1 food', '#ff8888');
+                    }
+
+                    // Task e1k: Collect commissions
+                    if (u.commission) {
+                        for (const [res, amt] of Object.entries(u.commission)) {
+                            if (amt > 0) {
+                                u.carrying[res] = (u.carrying[res] ?? 0) + amt;
+                                this.scene.uiManager.showFloatText(u.x, u.y - 24, `+${amt} ${res} comm.`, '#88eeaa');
+                            }
+                        }
+                        u.commission = {};
                     }
                 }
                 u._wageCollected = true;
@@ -1167,9 +1185,17 @@ export default class UnitManager {
 
             n.stock -= pick; u.carrying[res] += pick;
             
-            // Track daily production for resource nodes as well
+            // Track daily production for resource nodes
             n.dailyProduction = n.dailyProduction ?? {};
             n.dailyProduction[res] = (n.dailyProduction[res] ?? 0) + pick;
+
+            // Task e1k: Hired workers get a 10% commission on materials
+            const pile = this.scene.buildings.find(b =>
+                (b.type === 'woodshed' || b.type === 'stonepile') && b.built && b.isPublic && b.hiring);
+            if (pile) {
+                u.commission = u.commission ?? {};
+                u.commission[res] = (u.commission[res] ?? 0) + Math.max(1, Math.floor(pick * 0.1));
+            }
 
             this._gainSkillXp(u, skillKey);
             this.scene.uiManager.showFloatText(u.x, u.y - 14, `+${pick}${res[0].toUpperCase()}`, '#ffffff');
