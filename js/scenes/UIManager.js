@@ -333,7 +333,13 @@ export default class UIManager {
                 const pop = this.scene.units.filter(u => u.homeBldgId === b.id && !u.isEnemy && u.hp > 0).length;
                 status = `👥 ${pop}/${def.capacity}`;
             }
-            if (def.stores) {
+            
+            const maxVol = BLDG_VOLUME[b.type];
+            if (maxVol) {
+                const curVol = this.scene.economyManager.getBuildingCurrentVolume(b);
+                const volStr = `📦 ${curVol.toFixed(0)}/${maxVol} cubits`;
+                status = status ? `${status}  ${volStr}` : volStr;
+            } else if (def.stores) {
                 const p = Object.entries(def.stores)
                     .map(([r, cap]) => `${r.slice(0,3)}:${this.scene.resources[r] ?? 0}/${cap}`)
                     .join(' ');
@@ -561,9 +567,21 @@ export default class UIManager {
             this._infTxt(ox + pad, oy + 55, `FED ${Math.round(nut * 100)}%`,
                 { fontSize: '9px', color: '#666655' });
 
+            // Physical Stats (Encumbrance/Volume)
+            const curW = this.scene.unitManager.getUnitCarryWeight(u);
+            const maxW = this.scene.unitManager.getUnitMaxWeight(u);
+            const curV = this.scene.unitManager.getUnitCarryVolume(u);
+            const maxV = this.scene.unitManager.getUnitMaxVolume(u);
+            const eq   = u.equipment ? ` [${u.equipment}]` : '';
+
+            this._infTxt(ox + pad, oy + 65, `⚖ ${curW.toFixed(1)}/${maxW} lbs${eq}`,
+                { fontSize: '9px', color: '#8899aa' });
+            this._infTxt(ox + pad, oy + 76, `📦 ${curV.toFixed(1)}/${maxV} cubits`,
+                { fontSize: '9px', color: '#aa9988' });
+
             if (u.type === 'worker') {
                 const role = u.role ? u.role[0].toUpperCase() + u.role.slice(1) : 'Idle';
-                this._infTxt(ox + pad, oy + 67, `Role: ${role}`,
+                this._infTxt(ox + pad, oy + 88, `Role: ${role}`,
                     { fontSize: '10px', color: '#aaaacc' });
 
                 // Phenotype swatches + height
