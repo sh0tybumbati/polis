@@ -1465,15 +1465,21 @@ export default class UnitManager {
         const site = this.scene.buildings.find(b => {
             if (b.built || b.faction === 'enemy') return false;
             if (b.resourcesSpent) return true; // already paid, any builder can join
-            const cost = BLDG[b.type]?.cost;
-            return !cost || this.scene.economyManager.afford(cost);
+            // Task fix: don't block seeking based on public affordance;
+            // handleBuildTask now manages public/private resource fallback.
+            return true;
         });
         if (!site) return;
+        
+        // Only spend from public if we are the first one there and haven't already marked it spent
         if (!site.resourcesSpent) {
             const cost = BLDG[site.type]?.cost;
-            if (cost) this.scene.economyManager.spend(cost);
-            site.resourcesSpent = true;
+            if (cost && this.scene.economyManager.afford(cost)) {
+                this.scene.economyManager.spend(cost);
+                site.resourcesSpent = true;
+            }
         }
+        
         u.taskType = 'build'; u.taskBldgId = site.id;
         u.moveTo = { x: (site.tx + site.size/2) * TILE, y: MAP_OY + (site.ty + site.size/2) * TILE };
     }
