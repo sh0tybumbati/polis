@@ -431,4 +431,38 @@ export const APPLIANCE_DEF = {
 export const FM_TYPES = ['phalanx', 'wedge', 'screen'];
 export const FM_LABELS = ['Phalanx', 'Wedge', 'Screen'];
 
+// ─── Physical Economy Constants (Volume/Weight) ──────────────────────────────
+
+export const RES_STATS = {
+    wood:        { weight: 4,    volume: 2 },
+    stone:       { weight: 10,   volume: 1.5 },
+    sticks:      { weight: 1,    volume: 0.5 },
+    stones:      { weight: 2,    volume: 0.25 },
+    wheat:       { weight: 0.5,  volume: 0.8 },
+    flour:       { weight: 0.25, volume: 0.4 },
+    bread:       { weight: 1,    volume: 0.5 },
+    meat:        { weight: 2,    volume: 1 },
+    sausages:    { weight: 1,    volume: 0.3 },
+    olives:      { weight: 0.1,  volume: 0.1 },
+    berries:     { weight: 0.05, volume: 0.05 },
+    wool:        { weight: 0.5,  volume: 2 },
+    hide:        { weight: 3,    volume: 1.5 },
+    ore:         { weight: 12,   volume: 1 },
+    ingot:       { weight: 5,    volume: 0.2 },
+    leather:     { weight: 2,    volume: 0.5 },
+    leatherKit:  { weight: 5,    volume: 1 },
+    bronzeKit:   { weight: 10,   volume: 1 },
+    planks:      { weight: 3,    volume: 1.5 },
+    stoneBlocks: { weight: 8,    volume: 1 },
+};
+
+export const BLDG_VOLUME = {
+    granary:   1000,
+    woodshed:  800,
+    stonepile: 600,
+    warehouse: 2000,
+    house:     150,
+    townhall:  500,
+};
+
 // ─────────────────────────────────────────────────────────────────────────────
