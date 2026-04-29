@@ -1486,8 +1486,11 @@ export default class UnitManager {
         }
 
         if (u.age >= 2) {
-            cands.push({ role:'woodcutter', score: (30 + need('wood')  * 60 + (u.skills.woodcutting?.level ?? 1) * 15) - cnt('woodcutter') * 22 });
-            cands.push({ role:'miner',      score: (25 + need('stone') * 60 + (u.skills.mining?.level      ?? 1) * 15) - cnt('miner')      * 22 });
+            const hireWood = this.scene.buildings.some(b => b.type === 'woodshed' && b.built && b.isPublic && b.hiring) ? 100 : 0;
+            const hireStone = this.scene.buildings.some(b => b.type === 'stonepile' && b.built && b.isPublic && b.hiring) ? 100 : 0;
+
+            cands.push({ role:'woodcutter', score: (30 + hireWood + need('wood')  * 60 + (u.skills.woodcutting?.level ?? 1) * 15) - cnt('woodcutter') * 22 });
+            cands.push({ role:'miner',      score: (25 + hireStone + need('stone') * 60 + (u.skills.mining?.level      ?? 1) * 15) - cnt('miner')      * 22 });
             // Shepherd: requires a built pasture and visible wild sheep
             const hasPasture = this.scene.buildings.some(b => b.type === 'pasture' && b.built && !b.faction);
             const wildSheep = this.scene.sheep?.filter(s => !s.isTamed && !s.isDead).length ?? 0;

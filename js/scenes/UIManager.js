@@ -397,12 +397,25 @@ export default class UIManager {
 
         // State ownership toggle (built non-house buildings)
         if (b.built && b.type !== 'house' && b.type !== 'townhall' && !b.faction) {
+            const isPublicStorage = b.type === 'woodshed' || b.type === 'stonepile';
+            const ty = oy + H - 34;
+            const bw = isPublicStorage ? (W - pad * 2 - 8) / 2 : (W - pad * 2 - 4);
+
             const label = b.isPublic ? '🏛 State  (toggle)' : '🏠 Private  (toggle)';
             const col   = b.isPublic ? 0x1a3040 : 0x2a2018;
-            this._infBtn(ox + pad, oy + H - 34, W - pad * 2 - 4, 20, label, col, () => {
+            this._infBtn(ox + pad, ty, bw, 20, label, col, () => {
                 b.isPublic = !b.isPublic;
                 this.updateUI();
             });
+
+            if (isPublicStorage && b.isPublic) {
+                const hLabel = b.hiring ? '👤 Hired (toggle)' : '👥 Hire? (toggle)';
+                const hCol   = b.hiring ? 0x1a4030 : 0x2a2818;
+                this._infBtn(ox + pad + bw + 4, ty, bw, 20, hLabel, hCol, () => {
+                    b.hiring = !b.hiring;
+                    this.updateUI();
+                });
+            }
         }
 
         // Townhall: show archon + tithe
