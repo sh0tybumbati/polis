@@ -4,6 +4,7 @@ import {
     BLDG_VOLUME,
 } from '../config/gameConstants.js';
 import UIPanel from './UIPanel.js';
+import { ITEMS } from '../content/items/index.js';
 
 export default class UIManager {
     constructor(scene) {
@@ -22,7 +23,7 @@ export default class UIManager {
 
     _computeLayout() {
         const W = this.scene.SW, H = this.scene.SH;
-        const PANEL_H = Math.min(280, Math.max(210, Math.floor(H * 0.24)));
+        const PANEL_H = Math.min(340, Math.max(240, Math.floor(H * 0.30)));
         const TOP_H   = MAP_OY;   // must match MAP_OY so camera bounds align
         const KEY_H   = 10;   // decorative border strip
         const TAB_H   = 26;   // category tab row inside actions zone
@@ -72,13 +73,14 @@ export default class UIManager {
 
         const ts = { fontFamily: 'monospace', stroke: '#000000', strokeThickness: 2, align: 'center' };
         const cy = TOP_H / 2 - 2;
+        const tbFs = this._fs(12);
 
         // Controls cluster width: enemyCount(~60) + gap + pause(28) + speed(28) + margins ≈ 150px
         const CTRL_W = 150;
         // 4 resource columns in the left (W - CTRL_W) region, day info in the gap
         const resW = W - CTRL_W;
         const cols = 4, colW = resW / cols;
-        const mk = (i, color, fz = '11px') =>
+        const mk = (i, color, fz = tbFs) =>
             this._ui(this.scene.add.text(colW * i + colW / 2, cy, '',
                 { ...ts, fontSize: fz, color }).setOrigin(0.5, 0.5).setDepth(21));
 
@@ -90,17 +92,17 @@ export default class UIManager {
 
         // Day + timer sits between resource cols and controls, centred in gap
         this.scene.dayInfo = this._ui(this.scene.add.text(resW + 8, cy, '', {
-            ...ts, fontSize: '10px', color: '#c8a030',
+            ...ts, fontSize: this._fs(11), color: '#c8a030',
         }).setOrigin(0, 0.5).setDepth(21));
 
         // Enemy count + pause + speed — top-right cluster
         this.scene.enemyCount = this._ui(this.scene.add.text(W - 110, cy, '', {
-            fontFamily: 'monospace', fontSize: '11px', color: '#ee6655',
+            fontFamily: 'monospace', fontSize: this._fs(12), color: '#ee6655',
             stroke: '#000', strokeThickness: 2,
         }).setOrigin(0.5, 0.5).setDepth(21));
 
         const pBtn = this._ui(this.scene.add.text(W - 68, cy, '⏸', {
-            fontFamily: 'monospace', fontSize: '15px', color: '#cccccc',
+            fontFamily: 'monospace', fontSize: this._fs(18), color: '#cccccc',
         }).setOrigin(0.5, 0.5).setDepth(21).setInteractive());
         pBtn.on('pointerdown', () => {
             this.scene.isPaused = !this.scene.isPaused;
@@ -108,7 +110,7 @@ export default class UIManager {
         });
 
         const sBtn = this._ui(this.scene.add.text(W - 36, cy, '1×', {
-            fontFamily: 'monospace', fontSize: '12px', color: '#ffdd44',
+            fontFamily: 'monospace', fontSize: this._fs(14), color: '#ffdd44',
         }).setOrigin(0.5, 0.5).setDepth(21).setInteractive());
         sBtn.on('pointerdown', () => {
             this.scene.tickSpeed = (this.scene.tickSpeed % 5) + 1;
@@ -272,7 +274,7 @@ export default class UIManager {
         g.lineStyle(1, 0xc8a030, 0.35).strokeRect(x, y, w, h);
 
         const t = this._infTxt(x + w / 2, y + h / 2, label,
-            { fontSize: '10px', color: '#d4c8a8', align: 'center',
+            { fontSize: this._fs(11), color: '#d4c8a8', align: 'center',
               wordWrap: { width: w - 4 } }).setOrigin(0.5);
 
         const z = this._inf(this.scene.add.zone(x + w / 2, y + h / 2, w, h)
@@ -280,6 +282,10 @@ export default class UIManager {
         z.on('pointerdown', cb);
         return z;
     }
+
+    // Font scale based on screen width — keeps text readable on small mobile screens
+    _fontScale() { return Math.min(1.5, Math.max(1.0, this.L.W / 420)); }
+    _fs(n)       { return `${Math.round(n * this._fontScale())}px`; }
 
     _renderInfoPane() {
         this._clearInfo();
@@ -310,10 +316,10 @@ export default class UIManager {
         }
 
         this._infTxt(ox + pad, oy + 6, def.label,
-            { fontSize: '11px', color: '#c8a030' });
+            { fontSize: this._fs(13), color: '#c8a030' });
         if (def.desc) {
-            this._infTxt(ox + pad, oy + 17, def.desc,
-                { fontSize: '8px', color: '#aaaaaa' });
+            this._infTxt(ox + pad, oy + 20, def.desc,
+                { fontSize: this._fs(9), color: '#aaaaaa' });
         }
 
         // Status line
@@ -327,7 +333,7 @@ export default class UIManager {
             if (b.type !== 'house' && b.type !== 'townhall') {
                 const label = b.isPublic ? '[STATE]' : '[PRIVATE]';
                 const col   = b.isPublic ? '#c8a030' : '#6a5840';
-                this._infTxt(ox + W - pad, oy + 6, label, { fontSize: '8px', color: col }).setOrigin(1, 0);
+                this._infTxt(ox + W - pad, oy + 6, label, { fontSize: this._fs(9), color: col }).setOrigin(1, 0);
             }
             
             if (def.capacity) {
@@ -347,18 +353,18 @@ export default class UIManager {
                 status = status ? `${status}  ${p}` : p;
             }
         }
-        if (status) this._infTxt(ox + pad, oy + 28, status,
-            { fontSize: '9px', color: '#9a9077' });
+        if (status) this._infTxt(ox + pad, oy + 31, status,
+            { fontSize: this._fs(10), color: '#9a9077' });
 
         // Show pending tithes and wages
-        let pendingY = oy + 40;
+        let pendingY = oy + 44;
         if (Object.values(b.tithePending ?? {}).some(v => v > 0)) {
             const titheStr = Object.entries(b.tithePending).filter(([,v]) => v > 0)
-                .map(([r, v]) => `${v} ${r}`).join(', ');
-            this._infTxt(ox + pad, pendingY, `🌾 tithe: ${titheStr}`, { fontSize: '9px', color: '#c8a030' });
-            pendingY += 11;
+                .map(([r, v]) => `${v} ${r.split('.').pop()}`).join(', ');
+            this._infTxt(ox + pad, pendingY, `🌾 tithe: ${titheStr}`, { fontSize: this._fs(10), color: '#c8a030' });
+            pendingY += 13;
         }
-        const totalWages = Object.values(b.wagePending ?? {}).reduce((s, resMap) => 
+        const totalWages = Object.values(b.wagePending ?? {}).reduce((s, resMap) =>
             s + Object.values(resMap).reduce((a, b) => a + b, 0), 0);
         if (totalWages > 0) {
             const wageStr = Object.values(b.wagePending).reduce((acc, resMap) => {
@@ -366,8 +372,9 @@ export default class UIManager {
                 return acc;
             }, {});
             const wageDesc = Object.entries(wageStr).filter(([, v]) => v > 0)
-                .map(([r, v]) => `${v} ${r}`).join(', ');
-            this._infTxt(ox + pad, pendingY, `💰 wages: ${wageDesc}`, { fontSize: '9px', color: '#aac870' });
+                .map(([r, v]) => `${v} ${r.split('.').pop()}`).join(', ');
+            this._infTxt(ox + pad, pendingY, `💰 wages: ${wageDesc}`, { fontSize: this._fs(10), color: '#aac870' });
+            pendingY += 13;
         }
 
         // HP bar for enemy buildings
@@ -381,30 +388,31 @@ export default class UIManager {
                 !u.isEnemy && u.hp > 0 && u.taskBldgId === b.id && u.role);
             if (assigned.length > 0) {
                 let wy = pendingY + 2;
-                this._infTxt(ox + pad, wy, '👷 workers:', { fontSize: '9px', color: '#c8a030' });
-                wy += 11;
+                this._infTxt(ox + pad, wy, '👷 workers:', { fontSize: this._fs(10), color: '#c8a030' });
+                wy += 13;
                 for (const w of assigned) {
-                    const phase = w.workshopPhase ? ` (${w.workshopPhase})` : w.taskType ? ` [${w.taskType}]` : '';
-                    this._infTxt(ox + pad + 4, wy, `${w.name} — ${w.role}${phase}`,
-                        { fontSize: '8px', color: '#a09070' });
-                    wy += 10;
-                    if (wy > oy + H - 40) break;
+                    const sub = w.workshopSubrole ? ` [${w.workshopSubrole}]` : w.workshopPhase ? ` (${w.workshopPhase})` : '';
+                    this._infTxt(ox + pad + 4, wy, `${w.name} — ${w.role}${sub}`,
+                        { fontSize: this._fs(9), color: '#a09070' });
+                    wy += 12;
+                    if (wy > oy + H - 52) break;
                 }
             } else if (b.built && !b.faction) {
                 const wy = pendingY + 2;
-                this._infTxt(ox + pad, wy, '👷 no workers assigned', { fontSize: '9px', color: '#886644' });
+                this._infTxt(ox + pad, wy, '👷 no workers assigned', { fontSize: this._fs(10), color: '#886644' });
             }
         }
 
         // State ownership toggle (built non-house buildings)
         if (b.built && b.type !== 'house' && b.type !== 'townhall' && !b.faction) {
             const isPublicStorage = b.type === 'woodshed' || b.type === 'stonepile';
-            const ty = oy + H - 34;
+            const BTN_H = 28;
+            const ty = oy + H - BTN_H - 4;
             const bw = isPublicStorage ? (W - pad * 2 - 8) / 2 : (W - pad * 2 - 4);
 
             const label = b.isPublic ? '🏛 State  (toggle)' : '🏠 Private  (toggle)';
             const col   = b.isPublic ? 0x1a3040 : 0x2a2018;
-            this._infBtn(ox + pad, ty, bw, 20, label, col, () => {
+            this._infBtn(ox + pad, ty, bw, BTN_H, label, col, () => {
                 b.isPublic = !b.isPublic;
                 this.updateUI();
             });
@@ -412,7 +420,7 @@ export default class UIManager {
             if (isPublicStorage && b.isPublic) {
                 const hLabel = b.hiring ? '👤 Hired (toggle)' : '👥 Hire? (toggle)';
                 const hCol   = b.hiring ? 0x1a4030 : 0x2a2818;
-                this._infBtn(ox + pad + bw + 4, ty, bw, 20, hLabel, hCol, () => {
+                this._infBtn(ox + pad + bw + 4, ty, bw, BTN_H, hLabel, hCol, () => {
                     b.hiring = !b.hiring;
                     this.updateUI();
                 });
@@ -467,12 +475,12 @@ export default class UIManager {
             ? (patriarch ? `Archon: ${patriarch.name}` : 'Town Hall')
             : (patriarch ? `Oikos of ${patriarch.name}` : `House #${b.id}`);
 
-        this._infTxt(ox + pad, oy + 4, familyName, { fontSize: '11px', color: '#c8a030' });
+        this._infTxt(ox + pad, oy + 4, familyName, { fontSize: this._fs(13), color: '#c8a030' });
         if (BLDG[b.type]?.desc) {
-            this._infTxt(ox + pad, oy + 14, BLDG[b.type].desc, { fontSize: '8px', color: '#aaaaaa' });
+            this._infTxt(ox + pad, oy + 18, BLDG[b.type].desc, { fontSize: this._fs(9), color: '#aaaaaa' });
         }
         this._infTxt(ox + W - pad - 22, oy + 6, `${allRes.length}/${BLDG[b.type]?.capacity ?? '?'}`,
-            { fontSize: '10px', color: '#6a5c40' });
+            { fontSize: this._fs(11), color: '#6a5c40' });
 
         const div = this._inf(this.scene.add.graphics().setDepth(22));
         div.lineStyle(1, 0x5a4820, 0.5).lineBetween(ox + pad, oy + 24, ox + W - pad, oy + 24);
@@ -545,18 +553,50 @@ export default class UIManager {
         ry += 4;
         const div2 = this._inf(this.scene.add.graphics().setDepth(22));
         div2.lineStyle(1, 0x5a4820, 0.4).lineBetween(ox + pad, ry, ox + W - pad, ry);
-        ry += 4;
-        const inv = b.inventory ?? {};
-        const invEntries = Object.entries(inv).filter(([, v]) => v > 0);
-        const invStr = invEntries.length
-            ? invEntries.map(([r, v]) => `${v}${r.slice(0,4)}`).join(' ')
-            : 'empty';
-        this._infTxt(ox + pad, ry, `📦 ${invStr}`, { fontSize: '9px', color: invEntries.length ? '#aac890' : '#4a4030' });
-        ry += 12;
+        ry += 5;
+
+        if (b.type === 'townhall') {
+            // Commons: top public resources
+            const r = this.scene.resources ?? {};
+            const commons = Object.entries(r).filter(([, v]) => v > 0)
+                .sort((a, c) => c[1] - a[1]).slice(0, 5);
+            const commonsStr = commons.length
+                ? commons.map(([k, v]) => `${v} ${k.split('.').pop().slice(0, 5)}`).join('  ')
+                : 'empty';
+            this._infTxt(ox + pad, ry, '⚖ Commons', { fontSize: this._fs(9), color: '#c8a030' });
+            ry += 12;
+            this._infTxt(ox + pad + 4, ry, commonsStr, { fontSize: this._fs(9), color: '#aac890' });
+            ry += 13;
+
+            // Archon's household inventory (their home building, if different from townhall)
+            const archon = this.scene.units.find(u => u.isArchon && u.hp > 0);
+            const archonHome = archon?.homeBldgId
+                ? this.scene.buildings.find(bldg => bldg.id === archon.homeBldgId && bldg.id !== b.id)
+                : null;
+            if (archonHome) {
+                const hInv = Object.entries(archonHome.inventory ?? {}).filter(([, v]) => v > 0);
+                const hStr = hInv.length
+                    ? hInv.map(([k, v]) => `${v} ${k.split('.').pop().slice(0, 5)}`).join('  ')
+                    : 'empty';
+                this._infTxt(ox + pad, ry, '🏠 Archon House', { fontSize: this._fs(9), color: '#c8a070' });
+                ry += 12;
+                this._infTxt(ox + pad + 4, ry, hStr, { fontSize: this._fs(9), color: '#aa9060' });
+                ry += 13;
+            }
+        } else {
+            const inv = b.inventory ?? {};
+            const invEntries = Object.entries(inv).filter(([, v]) => v > 0);
+            const invStr = invEntries.length
+                ? invEntries.map(([r, v]) => `${v} ${r.split('.').pop().slice(0, 5)}`).join('  ')
+                : 'empty';
+            this._infTxt(ox + pad, ry, `📦 ${invStr}`, { fontSize: this._fs(10), color: invEntries.length ? '#aac890' : '#4a4030' });
+            ry += 13;
+        }
+
         const slotLine = (b.applianceItems ?? []).length
             ? b.applianceItems.map(a => a.label ?? a).join(', ')
             : 'no appliances';
-        this._infTxt(ox + pad, ry, `[${slotLine}]`, { fontSize: '9px', color: '#5a6840' });
+        this._infTxt(ox + pad, ry, `[${slotLine}]`, { fontSize: this._fs(9), color: '#5a6840' });
     }
 
     _renderUnitInfo(sel, ox, oy, W, H, pad) {
@@ -683,24 +723,24 @@ export default class UIManager {
     _renderNodeInfo(ox, oy, W, H, pad) {
         const n = this.scene.selectedNode;
         const label = n.type.replace(/_/g, ' ');
-        this._infTxt(ox + pad, oy + 6, label, { fontSize: '12px', color: '#c8a030' });
-        this._infTxt(ox + pad, oy + 20, `Stock: ${n.stock}`, { fontSize: '10px', color: '#9a9077' });
+        this._infTxt(ox + pad, oy + 6, label, { fontSize: this._fs(13), color: '#c8a030' });
+        this._infTxt(ox + pad, oy + 22, `Stock: ${n.stock}`, { fontSize: this._fs(11), color: '#9a9077' });
         const res = n.resource ?? n.type;
-        this._infTxt(ox + pad, oy + 32, `Yields: ${res}`, { fontSize: '10px', color: '#7a9060' });
-        this._infBtn(ox + pad, oy + 46, W - pad * 2 - 4, 26, 'Send workers', 0x2a4022, () => {
+        this._infTxt(ox + pad, oy + 36, `Yields: ${res.split('.').pop()}`, { fontSize: this._fs(10), color: '#7a9060' });
+        this._infBtn(ox + pad, oy + 52, W - pad * 2 - 4, 32, 'Send workers', 0x2a4022, () => {
             if (this.scene.selIds.size > 0) this.scene.orderWorkersToNode(n);
         });
-        this._infBtn(ox + pad, oy + 76, W - pad * 2 - 4, 22, 'Close  ✕', 0x221a10, () => {
+        this._infBtn(ox + pad, oy + 90, W - pad * 2 - 4, 28, 'Close  ✕', 0x221a10, () => {
             this.scene.selectedNode = null; this.updateUI();
         });
     }
 
     _renderIdleInfo(ox, oy, W, H, pad) {
         this._infTxt(ox + pad, oy + 6, 'No selection',
-            { fontSize: '10px', color: '#4a4030' });
+            { fontSize: this._fs(11), color: '#4a4030' });
 
         const workers = this.scene.units.filter(u => !u.isEnemy && u.type === 'worker' && u.hp > 0);
-        this._infTxt(ox + pad, oy + 20, `👥 ${workers.length} citizens`, { fontSize: '10px', color: '#887755' });
+        this._infTxt(ox + pad, oy + 22, `👥 ${workers.length} citizens`, { fontSize: this._fs(12), color: '#887755' });
 
         const census = {};
         for (const u of workers) {
@@ -708,11 +748,11 @@ export default class UIManager {
             census[role] = (census[role] ?? 0) + 1;
         }
 
-        const sorted = Object.entries(census).sort((a, b) => b[1] - a[1]).slice(0, 10);
-        let ry = oy + 32;
+        const sorted = Object.entries(census).sort((a, b) => b[1] - a[1]).slice(0, 8);
+        let ry = oy + 38;
         for (const [role, count] of sorted) {
-            this._infTxt(ox + pad, ry, `${role}  ×${count}`, { fontSize: '9px', color: '#9a9077' });
-            ry += 11;
+            this._infTxt(ox + pad, ry, `${role}  ×${count}`, { fontSize: this._fs(10), color: '#9a9077' });
+            ry += 13;
         }
 
         // Show expanded resources
@@ -912,6 +952,12 @@ export default class UIManager {
             }});
         }
 
+        if (b.built && !b.faction && Object.values(b.inventory ?? {}).some(v => v > 0)) {
+            items.push({ label: '📦 Inventory', color: 0x1a2030, callback: () => {
+                this.showInventoryModal(b);
+            }});
+        }
+
         items.push({ label: 'Demolish', color: 0x551111, callback: () => { s.demolishBuilding(b); } });
         items.push({ label: '✕ Close',  color: 0x2a1c10, callback: close });
         return items;
@@ -1106,6 +1152,145 @@ export default class UIManager {
         });
 
         return items;
+    }
+
+    // ─── Inventory modal ─────────────────────────────────────────────────────
+
+    showInventoryModal(b) {
+        if (this._invModal) { this._invModal.forEach(o => o.destroy()); this._invModal = null; }
+        const W = this.scene.SW, H = this.scene.SH;
+        const mw = Math.min(W * 0.94, 500), mh = Math.min(H * 0.84, 580);
+        const mx = (W - mw) / 2, my = (H - mh) / 2;
+        const objs = [];
+
+        const bg = this._ui(this.scene.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0.65).setDepth(40).setInteractive());
+        const panel = this._ui(this.scene.add.rectangle(W / 2, H / 2, mw, mh, 0x16120a, 1).setDepth(41).setInteractive());
+        const border = this._ui(this.scene.add.graphics().setDepth(42));
+        border.lineStyle(2, 0xc8a030, 0.8).strokeRect(mx, my, mw, mh);
+        objs.push(bg, panel, border);
+
+        const def = BLDG[b.type];
+        const titleTxt = this._ui(this.scene.add.text(mx + mw / 2, my + 15,
+            `📦 ${def?.label ?? b.type}`, {
+                fontSize: '16px', color: '#ffdd88', fontFamily: 'monospace',
+            }).setOrigin(0.5, 0).setDepth(43));
+        objs.push(titleTxt);
+
+        const closeAll = () => { objs.forEach(o => o.destroy()); this._invModal = null; };
+        const closeBtn = this._ui(this.scene.add.text(mx + mw - 14, my + 15, '✕', {
+            fontSize: '20px', color: '#ffdd88', fontFamily: 'monospace',
+        }).setOrigin(0.5).setDepth(43).setInteractive());
+        closeBtn.on('pointerdown', closeAll);
+        bg.on('pointerdown', closeAll);
+        objs.push(closeBtn);
+
+        // Volume bar
+        const maxVol = BLDG_VOLUME[b.type] ?? 0;
+        let contentY = my + 42;
+        if (maxVol > 0) {
+            const curVol = this.scene.economyManager.getBuildingCurrentVolume(b);
+            const ratio = Math.min(1, curVol / maxVol);
+            const barX = mx + 12, barW = mw - 24, barH = 10;
+            const vg = this._ui(this.scene.add.graphics().setDepth(43));
+            vg.fillStyle(0x221100, 0.8).fillRect(barX, contentY, barW, barH);
+            vg.fillStyle(ratio > 0.85 ? 0xcc4422 : 0x3a7a6a).fillRect(barX, contentY, Math.round(barW * ratio), barH);
+            vg.lineStyle(1, 0xc8a030, 0.3).strokeRect(barX, contentY, barW, barH);
+            objs.push(vg);
+            contentY += barH + 4;
+            const volTxt = this._ui(this.scene.add.text(mx + mw / 2, contentY,
+                `${curVol.toFixed(0)} / ${maxVol} cubits`, {
+                    fontSize: '11px', color: '#7a9090', fontFamily: 'monospace',
+                }).setOrigin(0.5, 0).setDepth(43));
+            objs.push(volTxt);
+            contentY += 16;
+        }
+
+        const sep1 = this._ui(this.scene.add.graphics().setDepth(42));
+        sep1.lineStyle(1, 0x4a3810, 0.5).lineBetween(mx + 12, contentY, mx + mw - 12, contentY);
+        objs.push(sep1);
+        contentY += 8;
+
+        // Inventory items grouped by taxonomy category
+        const inv = b.inventory ?? {};
+        const CATS = { Food: [], Materials: [], Textile: [], Equipment: [] };
+        const other = [];
+        for (const [key, qty] of Object.entries(inv)) {
+            if (qty <= 0) continue;
+            const cat = key.split('.')[0];
+            (CATS[cat] ?? other).push({ key, qty });
+        }
+        if (other.length) CATS.Other = other;
+
+        const colLabel = mx + 16, colQty = mx + mw - 16;
+        const lineH = 26;
+
+        let hasAny = false;
+        for (const [cat, items] of Object.entries(CATS)) {
+            if (!items.length) continue;
+            hasAny = true;
+            const catTxt = this._ui(this.scene.add.text(colLabel, contentY, cat.toUpperCase(), {
+                fontSize: '11px', color: '#c8a030', fontFamily: 'monospace',
+            }).setDepth(43));
+            objs.push(catTxt);
+            contentY += 18;
+
+            for (const { key, qty } of items) {
+                const label = ITEMS[key]?.label ?? key.split('.').pop();
+                const itemTxt = this._ui(this.scene.add.text(colLabel + 10, contentY, label, {
+                    fontSize: '13px', color: '#d4c8a8', fontFamily: 'monospace',
+                }).setDepth(43));
+                const qtyTxt = this._ui(this.scene.add.text(colQty, contentY + 2, `×${qty}`, {
+                    fontSize: '14px', color: '#ffdd88', fontFamily: 'monospace',
+                }).setOrigin(1, 0).setDepth(43));
+                objs.push(itemTxt, qtyTxt);
+                contentY += lineH;
+                if (contentY > my + mh - 70) { objs.push(
+                    this._ui(this.scene.add.text(colLabel, contentY, '…more', {
+                        fontSize: '11px', color: '#776655', fontFamily: 'monospace',
+                    }).setDepth(43))); break; }
+            }
+            contentY += 6;
+        }
+
+        if (!hasAny) {
+            objs.push(this._ui(this.scene.add.text(mx + mw / 2, contentY + 10, 'empty', {
+                fontSize: '14px', color: '#4a4030', fontFamily: 'monospace',
+            }).setOrigin(0.5, 0).setDepth(43)));
+            contentY += 30;
+        }
+
+        // Inbox section
+        const inboxEntries = Object.entries(b.inbox ?? {}).filter(([, v]) => v > 0);
+        if (inboxEntries.length) {
+            contentY += 4;
+            const sep2 = this._ui(this.scene.add.graphics().setDepth(42));
+            sep2.lineStyle(1, 0x4a3810, 0.5).lineBetween(mx + 12, contentY, mx + mw - 12, contentY);
+            objs.push(sep2);
+            contentY += 8;
+            objs.push(this._ui(this.scene.add.text(colLabel, contentY, 'INBOX  (awaiting processing)', {
+                fontSize: '11px', color: '#887755', fontFamily: 'monospace',
+            }).setDepth(43)));
+            contentY += 18;
+            for (const [key, qty] of inboxEntries) {
+                const label = ITEMS[key]?.label ?? key.split('.').pop();
+                objs.push(this._ui(this.scene.add.text(colLabel + 10, contentY,
+                    `${label}   ×${qty}`, { fontSize: '12px', color: '#aa9966', fontFamily: 'monospace' }).setDepth(43)));
+                contentY += lineH;
+            }
+        }
+
+        // Wage pending summary
+        const wageTotal = Object.values(b.wagePending ?? {}).reduce((s, m) =>
+            s + Object.values(m).reduce((a, v) => a + v, 0), 0);
+        if (wageTotal > 0) {
+            contentY += 4;
+            objs.push(this._ui(this.scene.add.text(colLabel, contentY,
+                `💰 ${wageTotal} units pending wages`, {
+                    fontSize: '11px', color: '#aac870', fontFamily: 'monospace',
+                }).setDepth(43)));
+        }
+
+        this._invModal = objs;
     }
 
     // ─── Float / Phase messages ──────────────────────────────────────────────
