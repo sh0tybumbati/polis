@@ -287,20 +287,6 @@ export const UNIT_NAMES = {
   veteran: 'Veteran'
 };
 
-export const UDEF = {
-  worker:    { hp: 10, atk: 1, speed: 40, range: 0, color: 0xccccaa, vetLevels: false },
-  clubman:   { hp: 16, atk: 4, speed: 40, range: 24, color: 0x886644 },
-  archer:    { hp: 12, atk: 5, speed: 62, range: 120, color: 0x558866 },
-  spearman:  { hp: 18, atk: 5, speed: 38, range: 28, color: 0x6688cc },
-  cavalry:   { hp: 25, atk: 7, speed: 80, range: 36, color: 0xaa8833 },
-  slinger:   { hp: 14, atk: 4, speed: 50, range: 100, color: 0x775599 },
-  peltast:   { hp: 20, atk: 6, speed: 42, range: 30, color: 0xcc8844 },
-  hoplite:   { hp: 25, atk: 8, speed: 40, range: 32, color: 0xddaa44 },
-  toxotes:   { hp: 18, atk: 7, speed: 65, range: 140, color: 0xddaa44 },
-  scout:     { hp: 10, atk: 1, speed: 70, range: 0, color: 0x336655, isScout: true, vetLevels: false },
-  berserker: { hp: 30, atk: 10, speed: 50, range: 36, color: 0xbb5533 },
-};
-
 // ─── Veteran Levels ──────────────────────────────────────────────────────────
 
 export const VET_LEVELS = [

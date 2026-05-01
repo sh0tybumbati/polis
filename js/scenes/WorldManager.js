@@ -1,7 +1,8 @@
 import {
-    DAY_DURATION, NIGHT_DURATION, BLDG, TILE, MAP_OY, UDEF, VET_LEVELS, pickVetName,
+    DAY_DURATION, NIGHT_DURATION, BLDG, TILE, MAP_OY, VET_LEVELS, pickVetName,
     APPLIANCE_DEF,
 } from '../config/gameConstants.js';
+import { UNITS } from '../content/units/index.js';
 import { NODES } from '../content/nodes/index.js';
 import { ITEMS } from '../content/items/index.js';
 
@@ -128,7 +129,7 @@ export default class WorldManager {
         if (!recruit) return;
 
         const soldierType = this.scene.day >= 10 ? 'spearman' : 'clubman';
-        const def = UDEF[soldierType];
+        const def = UNITS[soldierType];
         recruit.type    = soldierType;
         recruit.atk     = def.atk;
         recruit.range   = def.range;
@@ -421,7 +422,7 @@ export default class WorldManager {
 
     applyEquipmentUpgrades() {
         for (const u of this.scene.units) {
-            if (u.type === 'worker' || !UDEF[u.type]?.vetLevels) continue;
+            if (u.type === 'worker' || !UNITS[u.type]?.vetLevels) continue;
             u.nightsSurvived = (u.nightsSurvived ?? 0) + 1;
             for (let i = VET_LEVELS.length - 1; i >= 0; i--) {
                 if (u.nightsSurvived >= VET_LEVELS[i].nights && (u.vetLevel ?? 0) <= i) {

@@ -1,5 +1,5 @@
 import {
-    UDEF, TILE, MAP_OY, MAP_W, MAP_H, MAP_BOTTOM,
+    TILE, MAP_OY, MAP_W, MAP_H, MAP_BOTTOM,
     TILE_SPD, T_GRASS, T_ROCK, HIGH_GROUND_BONUS,
     VET_LEVELS, BLDG, BUILD_WORK,
     pickName,
@@ -13,6 +13,7 @@ import { NODES } from '../content/nodes/index.js';
 import { ANIMALS } from '../content/animals/index.js';
 import { ITEMS } from '../content/items/index.js';
 import { JOBS, WORKSHOP_JOBS } from '../content/jobs/index.js';
+import { UNITS } from '../content/units/index.js';
 import { MathUtils } from '../utils/MathUtils.js';
 
 export default class UnitManager {
@@ -21,7 +22,7 @@ export default class UnitManager {
     }
 
     spawnUnit(type, x, y, isEnemy) {
-        const def = UDEF[type];
+        const def = UNITS[type];
         const gender = Math.random() < 0.5 ? 'male' : 'female';
 
         // Genealogy & genetics (workers only — soldiers use def defaults)
@@ -78,7 +79,7 @@ export default class UnitManager {
         child.passions   = blendPassions(father.passions ?? randomPassions(), mother.passions ?? randomPassions());
         child.maxHp   = 10 + child.attributes.con;
         child.hp      = child.maxHp;
-        child.speed   = UDEF.worker.speed * (1 + (child.attributes.agi - 5) * 0.04);
+        child.speed   = UNITS.worker.speed * (1 + (child.attributes.agi - 5) * 0.04);
         child.carryMax = 3 + Math.round(child.attributes.str / 2);
 
         this._applyRareTraits(child);
@@ -229,11 +230,9 @@ export default class UnitManager {
     }
 
     redrawUnit(u) {
-        const def = UDEF[u.type];
         u.gfx.clear().setPosition(u.x, u.y);
         u.gfx.fillStyle(0x000000, 0.18).fillEllipse(0, 9, 22, 7);
 
-        // Handle name label for children
         const showLabel = u.age < 2 && !u.isEnemy && u.hp > 0;
         if (showLabel) {
             if (!u.nameLabel) {
@@ -246,118 +245,8 @@ export default class UnitManager {
             u.nameLabel.destroy(); u.nameLabel = null;
         }
 
-        if (u.type === 'worker') {
-            const age = u.age ?? 2;
-            const bodyCol = u.phenotype?.skinHex ?? def.color;
-            
-            // Task 15: Pulse indicator for idle adult workers
-            if (u.role === null && u.age >= 2 && !u.isEnemy) {
-                u.gfx.lineStyle(1, 0xddcc22, 0.5 + 0.4 * Math.sin(Date.now() / 400))
-                   .strokeCircle(0, 0, 12);
-            }
-            
-            if (age === 0) {
-                u.gfx.fillStyle(bodyCol).fillCircle(0, 0, 5);
-                if (u.selected) u.gfx.lineStyle(2, 0xffdd44).strokeCircle(0, 0, 7);
-            } else if (age === 1) {
-                u.gfx.fillStyle(bodyCol).fillTriangle(0, -6, -5, 3, 5, 3);
-                if (u.selected) u.gfx.lineStyle(2, 0xffdd44).strokeTriangle(0, -8, -7, 4, 7, 4);
-            } else {
-                u.gfx.fillStyle(bodyCol).fillTriangle(0, -9, -8, 5, 8, 5);
-                if (u.selected) u.gfx.lineStyle(2, 0xffdd44).strokeTriangle(0, -11, -10, 6, 10, 6);
-            }
-            if (u.role && age >= 1) {
-                const rc = u.role === 'builder'   ? 0xffdd44
-                         : u.role === 'farmer'    ? 0x66dd44
-                         : u.role === 'forager'   ? 0xee4466
-                         : u.role === 'miner'     ? 0x9999bb
-                         : u.role === 'shepherd'  ? 0xf0ece0
-                         : u.role === 'hunter'    ? 0xdd8833
-                         : 0xaa7733;
-                u.gfx.fillStyle(rc).fillCircle(age === 1 ? 5 : 7, age === 1 ? -6 : -9, 2);
-            }
-            // Archon crown — three small gold spikes above the head
-            if (u.isArchon && age >= 2) {
-                u.gfx.fillStyle(0xffdd00, 1);
-                u.gfx.fillTriangle(-5, -11, -3, -11, -4, -15);
-                u.gfx.fillTriangle(-1, -11,  1, -11,  0, -16);
-                u.gfx.fillTriangle( 3, -11,  5, -11,  4, -15);
-                u.gfx.lineStyle(0.5, 0xaa8800, 0.8);
-                u.gfx.strokeTriangle(-5, -11, -3, -11, -4, -15);
-                u.gfx.strokeTriangle(-1, -11,  1, -11,  0, -16);
-                u.gfx.strokeTriangle( 3, -11,  5, -11,  4, -15);
-            }
-            if (u.carrying) {
-                const tot = this.totalCarrying(u);
-                if (tot > 0) {
-                    const cc = u.carrying['Food.Grain.Wheat.Bread'] > 0  ? 0xffdd88
-                             : u.carrying['Food.Meat.Venison.Sausages'] > 0 ? 0xffaa44
-                             : u.carrying['Food.Produce.Olive'] > 0 ? 0x88cc44
-                             : u.carrying['Food.Meat.Venison'] > 0   ? 0xdd5533
-                             : u.carrying['Food.Grain.Wheat'] > 0  ? 0xddcc66
-                             : u.carrying['Materials.Stone.Limestone'] > 0  ? 0xaaaadd
-                             : u.carrying['Materials.Stone.Limestone.Stones'] > 0 ? 0xbbbbcc
-                             : u.carrying['Textile.Fiber.Wool'] > 0   ? 0xeeddcc
-                             : u.carrying['Textile.Hide.Deer'] > 0   ? 0xcc8855
-                             : u.carrying['Materials.Metal.Copper.Ore'] > 0    ? 0x55aa55
-                             : u.carrying['Materials.Wood.Pine.Sticks'] > 0 ? 0xaa8844
-                             : 0xcc9944;
-                    u.gfx.fillStyle(cc).fillCircle(age === 0 ? 4 : 6, age === 0 ? 3 : 5, 2);
-                }
-            }
-            const wp = u.workProgress || 0;
-            if (wp > 0) {
-                const ratio = Math.min(1, wp / 25);
-                const by = age === 0 ? -10 : age === 1 ? -13 : -17;
-                const col = u.taskType === 'build' ? 0xffdd44 : 0x55dd55;
-                u.gfx.fillStyle(0x111111, 0.7).fillRect(-11, by, 22, 3);
-                u.gfx.fillStyle(col).fillRect(-11, by, Math.round(22 * ratio), 3);
-            }
-        } else if (u.type === 'archer') {
-            u.gfx.fillStyle(def.color).fillTriangle(0, -12, -9, 0, 9, 0).fillTriangle(0, 10, -9, 0, 9, 0);
-            u.gfx.fillStyle(0x228855, 0.7).fillTriangle(0, 10, -4, 0, 4, 0);
-            if (u.selected) u.gfx.lineStyle(2, 0xffdd44).strokeTriangle(0, -14, -11, 1, 11, 1).strokeTriangle(0, 13, -11, 1, 11, 1);
-        } else if (u.type === 'spearman') {
-            u.gfx.fillStyle(def.color).fillTriangle(0, -11, -9, 6, 9, 6);
-            u.gfx.lineStyle(2, 0x8899ff, 0.8).lineBetween(0, -15, 0, 8);
-            if (u.selected) u.gfx.lineStyle(2, 0xffdd44).strokeTriangle(0, -13, -11, 7, 11, 7);
-        } else if (u.type === 'cavalry') {
-            u.gfx.fillStyle(def.color).fillTriangle(0, -13, -11, 0, 11, 0).fillTriangle(0, 11, -11, 0, 11, 0);
-            u.gfx.lineStyle(2, 0xffee88, 0.7).strokeTriangle(0, -13, -11, 0, 11, 0);
-            if (u.selected) u.gfx.lineStyle(2, 0xffdd44).strokeTriangle(0, -15, -13, 1, 13, 1).strokeTriangle(0, 13, -13, 1, 13, 1);
-        } else if (u.type === 'clubman') {
-            u.gfx.fillStyle(def.color).fillCircle(0, 0, 8);
-            u.gfx.fillStyle(0xaa8855, 0.9).fillRect(6, -3, 7, 5);
-            if (u.selected) u.gfx.lineStyle(2, 0xffdd44).strokeCircle(0, 0, 11);
-        } else if (u.type === 'slinger') {
-            u.gfx.fillStyle(def.color).fillTriangle(0, -9, -7, 0, 7, 0).fillTriangle(0, 8, -7, 0, 7, 0);
-            if (u.selected) u.gfx.lineStyle(2, 0xffdd44).strokeTriangle(0, -11, -9, 1, 9, 1).strokeTriangle(0, 10, -9, 1, 9, 1);
-        } else if (u.type === 'peltast') {
-            u.gfx.fillStyle(def.color).fillCircle(0, 0, 9);
-            u.gfx.lineStyle(2, 0xcc8844, 0.9).strokeCircle(0, 0, 9);
-            u.gfx.fillStyle(0xaa7733, 0.8).fillRect(6, -2, 6, 4);
-            if (u.selected) u.gfx.lineStyle(2, 0xffdd44).strokeCircle(0, 0, 12);
-        } else if (u.type === 'hoplite') {
-            u.gfx.fillStyle(def.color).fillCircle(0, 0, 11);
-            u.gfx.lineStyle(2, 0xddaa44, 0.9).strokeCircle(0, 0, 11);
-            u.gfx.fillStyle(0xddaa44, 0.5).fillEllipse(-4, 1, 10, 13);
-            if (u.selected) u.gfx.lineStyle(2, 0xffdd44).strokeCircle(0, 0, 14);
-        } else if (u.type === 'toxotes') {
-            u.gfx.fillStyle(def.color).fillTriangle(0, -13, -10, 0, 10, 0).fillTriangle(0, 11, -10, 0, 10, 0);
-            u.gfx.lineStyle(2, 0xddaa44, 0.8).strokeTriangle(0, -13, -10, 0, 10, 0).strokeTriangle(0, 11, -10, 0, 10, 0);
-            if (u.selected) u.gfx.lineStyle(2, 0xffdd44).strokeTriangle(0, -15, -12, 1, 12, 1).strokeTriangle(0, 13, -12, 1, 12, 1);
-        } else if (u.type === 'scout') {
-            u.gfx.fillStyle(0x1a3328).fillTriangle(0, -9, -7, 4, 7, 4).fillTriangle(0, 7, -7, 4, 7, 4);
-            u.gfx.lineStyle(1, 0x33aa77, 0.9).strokeTriangle(0, -9, -7, 4, 7, 4).strokeTriangle(0, 7, -7, 4, 7, 4);
-            u.gfx.fillStyle(0x55ffaa, 0.85).fillCircle(0, 0, 2);
-            if (u.selected) u.gfx.lineStyle(2, 0xffdd44).strokeCircle(0, 0, 11);
-        } else if (u.type === 'berserker') {
-            u.gfx.fillStyle(def.color).fillCircle(0, 0, 13);
-            u.gfx.lineStyle(2, 0xff8844, 0.9).strokeCircle(0, 0, 13);
-            if (u.selected) u.gfx.lineStyle(2, 0xffdd44).strokeCircle(0, 0, 16);
-        }
+        UNITS[u.type]?.draw(u.gfx, u, { totalCarrying: u => this.totalCarrying(u) });
 
-        // Hero crown: gold crown above the hero unit
         if (u.isHero) {
             u.gfx.fillStyle(0xffdd44, 0.95);
             u.gfx.fillTriangle(-7, -20, -4, -15, -7, -15);
@@ -367,7 +256,6 @@ export default class UnitManager {
             u.gfx.fillStyle(0xff4444, 0.9).fillCircle(-5, -17, 2).fillCircle(0, -20, 2).fillCircle(5, -17, 2);
         }
 
-        // Idle alert: amber "!" above adult player workers with nothing to do
         if (!u.isEnemy && u.type === 'worker' && (u.age ?? 0) >= 2 &&
             !u.role && !u.taskType && !u.targetNode && !u.moveTo && this.totalCarrying(u) === 0) {
             const flash = Math.floor(Date.now() / 600) % 2 === 0;
