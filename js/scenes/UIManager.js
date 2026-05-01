@@ -958,7 +958,16 @@ export default class UIManager {
             }});
         }
 
-        items.push({ label: 'Demolish', color: 0x551111, callback: () => { s.demolishBuilding(b); } });
+        if (b.deconstructing) {
+            items.push({ label: '🔨 Deconstructing…', color: 0x441100, active: true, callback: () => {} });
+            items.push({ label: '✗ Cancel Demo', color: 0x332211, callback: () => {
+                s.buildingManager.cancelDeconstruct(b);
+            }});
+        } else {
+            items.push({ label: '🔨 Demolish', color: 0x441111, callback: () => {
+                s.buildingManager.orderDeconstruct(b);
+            }});
+        }
         items.push({ label: '✕ Close',  color: 0x2a1c10, callback: close });
         return items;
     }

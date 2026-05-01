@@ -219,22 +219,61 @@ export default class BuildingManager {
         return handled;
     }
 
-    demolishBuilding(bldg, refundFraction = 0.5) {
+    // Place a deconstruction order — workers will tear it down and refund materials.
+    orderDeconstruct(bldg) {
         if (bldg.type === 'townhall') {
             this.scene.uiManager.showFloatText(
                 (bldg.tx + 1) * TILE, MAP_OY + bldg.ty * TILE - 10,
                 'Cannot demolish Town Hall', '#cc4422');
             return;
         }
-        if (bldg.resNeeded) {
-            const cost = BLDG[bldg.type].cost || {};
-            for (const [r, n] of Object.entries(cost)) {
-                const spent = n - (bldg.resNeeded[r] || 0);
-                if (spent > 0) {
-                    const refund = Math.floor(spent * refundFraction);
-                    this.scene.economyManager.addResource(r, refund);
-                }
+        if (bldg.deconstructing) return;
+        bldg.deconstructing = true;
+        bldg.deconstructWork = BUILD_WORK[bldg.type] ?? 10;
+        this.redrawBuilding(bldg);
+        // Auto-assign any idle builders nearby
+        const idle = this.scene.units.filter(u =>
+            !u.isEnemy && u.type === 'worker' && u.age >= 2 && u.hp > 0 &&
+            (u.role === 'builder' || !u.role) && !u.taskType);
+        for (const u of idle.slice(0, 2)) {
+            u.role = 'builder';
+            u.taskType = 'deconstruct';
+            u.taskBldgId = bldg.id;
+        }
+        this.scene.uiManager.showFloatText(
+            (bldg.tx + bldg.size / 2) * TILE, MAP_OY + bldg.ty * TILE - 10,
+            'Deconstruction ordered', '#ffaa44');
+        this.scene.updateUI();
+    }
+
+    cancelDeconstruct(bldg) {
+        bldg.deconstructing = false;
+        bldg.deconstructWork = undefined;
+        // Release any assigned workers
+        for (const u of this.scene.units) {
+            if (u.taskType === 'deconstruct' && u.taskBldgId === bldg.id) {
+                u.taskType = null;
             }
+        }
+        this.redrawBuilding(bldg);
+        this.scene.updateUI();
+    }
+
+    demolishBuilding(bldg, refundFraction = 0.5) {
+        if (bldg.type === 'townhall') return;
+        // Refund a portion of build cost based on how much was spent
+        const cost = BLDG[bldg.type]?.cost ?? {};
+        const resNeeded = bldg.resNeeded ?? {};
+        for (const [r, n] of Object.entries(cost)) {
+            const spent = n - (resNeeded[r] ?? 0);
+            if (spent > 0) {
+                const refund = Math.floor(spent * refundFraction);
+                if (refund > 0) this.scene.economyManager.addResource(r, refund);
+            }
+        }
+        // Also refund any inventory still in the building
+        for (const [r, qty] of Object.entries(bldg.inventory ?? {})) {
+            if (qty > 0) this.scene.economyManager.addResource(r, Math.floor(qty * refundFraction));
         }
         this.occupy(bldg.tx, bldg.ty, bldg.size, 0);
         this.scene.buildings = this.scene.buildings.filter(b => b.id !== bldg.id);
@@ -276,6 +315,22 @@ export default class BuildingManager {
                 bldg.gfx.fillStyle(0x88aa44).fillRect(px + 4, py - 8, bw * progress, 5);
             }
         }
+        // Deconstruction overlay — red hatching + progress bar
+        if (bldg.deconstructing && bldg.built) {
+            const px = bldg.tx * TILE, py = MAP_OY + bldg.ty * TILE, s = bldg.size * TILE;
+            bldg.gfx.fillStyle(0xcc2211, 0.22).fillRect(px, py, s, s);
+            bldg.gfx.lineStyle(2, 0xee3322, 0.55)
+                .lineBetween(px, py, px + s, py + s)
+                .lineBetween(px + s, py, px, py + s);
+            bldg.gfx.lineStyle(2, 0xee3322, 0.7).strokeRect(px + 1, py + 1, s - 2, s - 2);
+            // Deconstruct progress bar
+            const total = BUILD_WORK[bldg.type] ?? 10;
+            const ratio = Math.max(0, Math.min(1, 1 - (bldg.deconstructWork ?? 0) / total));
+            const bw = s - 8;
+            bldg.gfx.fillStyle(0x333322, 0.8).fillRect(px + 4, py - 8, bw, 5);
+            bldg.gfx.fillStyle(0xee4422).fillRect(px + 4, py - 8, bw * ratio, 5);
+        }
+
         bldg.barGfx = this.scene._w(this.scene.add.graphics().setDepth(4));
         this.redrawBuildingBar(bldg);
     }

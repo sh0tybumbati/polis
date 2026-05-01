@@ -706,6 +706,7 @@ export default class UnitManager {
 
         if (u.taskType === 'eat') this.handleEatTask(u, dt);
         else if (u.taskType === 'build') this.handleBuildTask(u, dt);
+        else if (u.taskType === 'deconstruct') this.handleDeconstructTask(u, dt);
         else if (u.taskType === 'repair') this.handleRepairTask(u, dt);
         else if (u.taskType === 'harvest_farm') this.handleHarvestFarmTask(u, dt);
         else if (u.taskType === 'plant') this.handlePlantTask(u, dt);
@@ -931,6 +932,30 @@ export default class UnitManager {
                 u._soldRes = null;
             }
             if (b.buildWork <= 0) { this.scene.buildingManager.completeBuildingConstruction(b); u.taskType = null; }
+        }
+    }
+
+    handleDeconstructTask(u, dt) {
+        const b = this.scene.buildings.find(b => b.id === u.taskBldgId && b.built && b.deconstructing);
+        if (!b) { u.taskType = null; return; }
+
+        const cx = (b.tx + b.size / 2) * TILE, cy = MAP_OY + (b.ty + b.size / 2) * TILE;
+        if (this.moveToward(u, cx, cy, 28, dt)) return;
+        u.isInside = false;
+
+        const attrMult = this.getAttrMult(u, ['str']);
+        const workSpeed = (1.0 + (u.skills.masonry?.level ?? 1) * 0.2) * attrMult;
+        u.workProgress = (u.workProgress ?? 0) + dt * workSpeed;
+        if (u.workProgress >= 25.0) {
+            u.workProgress = 0;
+            b.deconstructWork -= 5;
+            this._gainSkillXp(u, 'masonry');
+            this.scene.buildingManager.redrawBuilding(b);
+            if (b.deconstructWork <= 0) {
+                u.taskType = null;
+                this.scene.buildingManager.demolishBuilding(b, 0.5);
+                this.scene.uiManager.showFloatText(cx, cy - 12, 'Deconstructed', '#ffaa44');
+            }
         }
     }
 
@@ -1384,16 +1409,22 @@ export default class UnitManager {
     }
 
     seekBuilderTask(u) {
+        // Deconstruction jobs take priority over new construction
+        const deconSite = this.scene.buildings.find(b =>
+            b.built && b.deconstructing && !b.faction &&
+            !this.scene.units.some(w => w.id !== u.id && w.taskType === 'deconstruct' && w.taskBldgId === b.id));
+        if (deconSite) {
+            u.taskType = 'deconstruct'; u.taskBldgId = deconSite.id;
+            return;
+        }
+
         const site = this.scene.buildings.find(b => {
             if (b.built || b.faction === 'enemy') return false;
-            if (b.resourcesSpent) return true; // already paid, any builder can join
-            // Task fix: don't block seeking based on public affordance;
-            // handleBuildTask now manages public/private resource fallback.
+            if (b.resourcesSpent) return true;
             return true;
         });
         if (!site) return;
-        
-        // Only spend from public if we are the first one there and haven't already marked it spent
+
         if (!site.resourcesSpent) {
             const cost = BLDG[site.type]?.cost;
             if (cost && this.scene.economyManager.afford(cost)) {
@@ -1401,7 +1432,7 @@ export default class UnitManager {
                 site.resourcesSpent = true;
             }
         }
-        
+
         u.taskType = 'build'; u.taskBldgId = site.id;
         u.moveTo = { x: (site.tx + site.size/2) * TILE, y: MAP_OY + (site.ty + site.size/2) * TILE };
     }
