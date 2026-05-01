@@ -249,6 +249,8 @@ export const BLDG = {
   warehouse:  { label: '📦 Warehouse',     color: 0x554433, cost: { 'Materials.Stone.Limestone': 3 }, materialQty: 10, size: 3,
                 desc: 'Massive storage for industrial materials.',
                 stores: { 'Textile.Hide.Deer.Leather': 50, 'Textile.Fiber.Wool': 50, 'Materials.Metal.Copper.Ore': 50, 'Materials.Metal.Copper.Ingot': 50, 'Equipment.Bronze.Kit': 20, 'Materials.Wood.Pine.Plank': 40, 'Materials.Stone.Limestone.Block': 30 } },
+  agora:      { label: '🏪 Agora',         color: 0xd4a030, cost: { 'Materials.Stone.Limestone': 6, 'Materials.Wood.Pine': 3 }, size: 2,
+                desc: 'Marketplace. Set standing trade orders; caravans fulfill them.' },
 };
 
 // Compute the actual build cost for a type given the player's material choice ('wood' or 'stone')
@@ -261,7 +263,7 @@ export function computeBuildCost(type, material = 'Materials.Wood.Pine') {
     return base;
 }
 
-export const BUILD_WORK = { house: 14, granary: 14, woodshed: 12, stonepile: 8, farm: 16, garden: 12, barracks: 22, archery: 18, stable: 24, palisade: 4, watchtower: 14, gate: 8, wall: 6, tannery: 18, mine: 20, smelter: 24, blacksmith: 22, mill: 16, bakery: 14, butcher: 12, olive_press: 16, temple: 24, oracle: 18, pasture: 15, warehouse: 20, carpenter: 18, masons: 20 };
+export const BUILD_WORK = { house: 14, granary: 14, woodshed: 12, stonepile: 8, farm: 16, garden: 12, barracks: 22, archery: 18, stable: 24, palisade: 4, watchtower: 14, gate: 8, wall: 6, tannery: 18, mine: 20, smelter: 24, blacksmith: 22, mill: 16, bakery: 14, butcher: 12, olive_press: 16, temple: 24, oracle: 18, pasture: 15, warehouse: 20, carpenter: 18, masons: 20, agora: 18 };
 
 // ─── Day/Night Cycle Constants ──────────────────────────────────────────────
 
@@ -332,7 +334,7 @@ export function _counterMod(attackerType, defenderType) {
 // ─── Building Categories (for UI) ────────────────────────────────────────────
 
 export const BLDG_CATS = {
-  Economy: ['house', 'farm', 'garden', 'granary', 'woodshed', 'stonepile', 'carpenter', 'masons', 'tannery', 'mine', 'smelter', 'blacksmith', 'mill', 'bakery', 'butcher', 'olive_press', 'pasture', 'warehouse'],
+  Economy: ['house', 'farm', 'garden', 'granary', 'woodshed', 'stonepile', 'carpenter', 'masons', 'tannery', 'mine', 'smelter', 'blacksmith', 'mill', 'bakery', 'butcher', 'olive_press', 'pasture', 'warehouse', 'agora'],
   Military: ['barracks', 'archery', 'stable', 'watchtower', 'wall', 'palisade', 'gate'],
   Culture: ['temple', 'oracle'],
 };

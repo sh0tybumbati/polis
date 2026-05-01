@@ -902,6 +902,20 @@ export default class UIManager {
             }});
         }
 
+        if (b.type === 'agora' && b.built) {
+            items.push({ label: '📋 Trade Orders', color: 0x1a2a10, callback: () => {
+                this.showAgoraPanel(b);
+            }});
+            const orders = b.tradeOrders ?? [];
+            if (orders.length > 0) {
+                items.push({ label: `${orders.length} order${orders.length > 1 ? 's' : ''}`, sublabel: 'active', color: 0x1a2010, dimmed: true, callback: () => {} });
+            }
+            if ((b.tradeLog ?? []).length > 0) {
+                const last = b.tradeLog[0];
+                items.push({ label: 'Last trade', sublabel: `D${last.day}`, color: 0x1a2818, dimmed: true, callback: () => {} });
+            }
+        }
+
         if (b.type === 'townhall') {
             const can = afford({ 'Food.Grain.Wheat': 5 });
             items.push({ label: 'Train Scout', sublabel: '5w', color: can ? 0x334455 : 0x2a1c10, dimmed: !can, callback: () => {
@@ -1315,46 +1329,253 @@ export default class UIManager {
         });
     }
 
-    showCaravanOffer(offer) {
-        if (this._caravanModal) return; // already showing
-        const { W, H } = this.L;
-        const mw = Math.min(300, W - 40), mh = 130;
-        const mx = (W - mw) / 2, my = (H - mh) / 2 - 30;
+    showAgoraPanel(b) {
+        if (this._agoraModal) { this._agoraModal.forEach(o => o.destroy()); this._agoraModal = null; }
+        const W = this.scene.SW, H = this.scene.SH;
+        const mw = Math.min(W * 0.94, 480), mh = Math.min(H * 0.88, 600);
+        const mx = (W - mw) / 2, my = (H - mh) / 2;
         const objs = [];
 
-        const bg = this._ui(this.scene.add.rectangle(mx + mw/2, my + mh/2, mw, mh, 0x1a1408, 0.95).setDepth(20).setStrokeStyle(2, 0xddaa44));
-        objs.push(bg);
+        const bg = this._ui(this.scene.add.rectangle(W/2, H/2, W, H, 0x000000, 0.6).setDepth(40).setInteractive());
+        const panel = this._ui(this.scene.add.rectangle(mx + mw/2, my + mh/2, mw, mh, 0x14100a, 1).setDepth(41).setInteractive());
+        const border = this._ui(this.scene.add.graphics().setDepth(42));
+        border.lineStyle(2, 0xc8a030, 0.8).strokeRect(mx, my, mw, mh);
+        objs.push(bg, panel, border);
 
-        const title = this._ui(this.scene.add.text(mx + mw/2, my + 14, '🛒 Merchants arrive!', { fontSize: '13px', color: '#ffdd88', fontStyle: 'bold' }).setOrigin(0.5, 0).setDepth(20));
-        objs.push(title);
+        objs.push(this._ui(this.scene.add.text(mx + mw/2, my + 14, '🏪 Agora — Trade Orders',
+            { fontSize: '15px', color: '#ffdd88', fontFamily: 'monospace' }).setOrigin(0.5, 0).setDepth(43)));
 
-        const offerText = this._ui(this.scene.add.text(mx + mw/2, my + 40, offer.label, { fontSize: '13px', color: '#ffffff' }).setOrigin(0.5, 0).setDepth(20));
-        objs.push(offerText);
+        const closeAll = () => { objs.forEach(o => o.destroy()); this._agoraModal = null; };
+        const closeBtn = this._ui(this.scene.add.text(mx + mw - 14, my + 14, '✕',
+            { fontSize: '20px', color: '#ffdd88', fontFamily: 'monospace' }).setOrigin(0.5).setDepth(43).setInteractive());
+        closeBtn.on('pointerdown', closeAll);
+        objs.push(closeBtn);
+
+        const TRADEABLE = Object.values(ITEMS ?? {})
+            .filter(it => it.basePrice && it.supertype !== 'Equipment')
+            .sort((a, x) => a.supertype.localeCompare(x.supertype) || a.basePrice - x.basePrice);
+
+        b.tradeOrders = b.tradeOrders ?? [];
+        b.tradeLog    = b.tradeLog    ?? [];
+
+        const rebuild = () => {
+            // Clear existing content (keep first 4 static objects: bg, panel, border, title, close)
+            objs.slice(5).forEach(o => o.destroy());
+            objs.length = 5;
+
+            let cy = my + 40;
+
+            // ── Standing Orders ────────────────────────────────────────────
+            objs.push(this._ui(this.scene.add.text(mx + 14, cy, 'STANDING ORDERS', {
+                fontSize: '11px', color: '#c8a030', fontFamily: 'monospace',
+            }).setDepth(43)));
+            cy += 16;
+
+            if (b.tradeOrders.length === 0) {
+                objs.push(this._ui(this.scene.add.text(mx + 14, cy, '(none — add one below)',
+                    { fontSize: '11px', color: '#554433', fontFamily: 'monospace' }).setDepth(43)));
+                cy += 16;
+            } else {
+                for (let i = 0; i < b.tradeOrders.length; i++) {
+                    const order = b.tradeOrders[i];
+                    objs.push(this._ui(this.scene.add.text(mx + 14, cy,
+                        `${order.qty}× ${order.giveLabel} → ${order.receiveQty}× ${order.wantLabel}`,
+                        { fontSize: '12px', color: '#d4c8a8', fontFamily: 'monospace' }).setDepth(43)));
+                    const delBtn = this._ui(this.scene.add.text(mx + mw - 16, cy, '✕',
+                        { fontSize: '13px', color: '#cc4444', fontFamily: 'monospace' }).setOrigin(1, 0).setDepth(43).setInteractive());
+                    delBtn.on('pointerdown', () => {
+                        b.tradeOrders.splice(i, 1);
+                        rebuild();
+                    });
+                    objs.push(delBtn);
+                    cy += 18;
+                }
+            }
+
+            // ── Add New Order ──────────────────────────────────────────────
+            cy += 6;
+            const sepG = this._ui(this.scene.add.graphics().setDepth(42));
+            sepG.lineStyle(1, 0x4a3810, 0.6).lineBetween(mx + 10, cy, mx + mw - 10, cy);
+            objs.push(sepG);
+            cy += 8;
+            objs.push(this._ui(this.scene.add.text(mx + 14, cy, 'ADD ORDER  (give → want)',
+                { fontSize: '11px', color: '#c8a030', fontFamily: 'monospace' }).setDepth(43)));
+            cy += 16;
+
+            // Item picker state
+            if (!this._agoraPick) this._agoraPick = { giveIdx: 0, wantIdx: 1, qty: 5 };
+            const pick = this._agoraPick;
+
+            const em = this.scene.economyManager;
+            const makeArrow = (x, y, dir, cb) => {
+                const btn = this._ui(this.scene.add.text(x, y, dir, { fontSize: '16px', color: '#c8a030', fontFamily: 'monospace' }).setOrigin(0.5).setDepth(43).setInteractive());
+                btn.on('pointerdown', cb);
+                objs.push(btn);
+            };
+
+            // Give item picker
+            const giveItem = TRADEABLE[pick.giveIdx % TRADEABLE.length];
+            const giveVal  = em.getItemValue(giveItem.key);
+            makeArrow(mx + 16, cy + 8, '◀', () => { pick.giveIdx = (pick.giveIdx - 1 + TRADEABLE.length) % TRADEABLE.length; rebuild(); });
+            objs.push(this._ui(this.scene.add.text(mx + 30, cy, `GIVE: ${giveItem.label}`, { fontSize: '12px', color: '#ffdd88', fontFamily: 'monospace' }).setDepth(43)));
+            objs.push(this._ui(this.scene.add.text(mx + 30, cy + 13, `${this.scene.resources[giveItem.key] ?? 0} in commons  (${giveVal.toFixed(1)} ob)`, { fontSize: '10px', color: '#7a9070', fontFamily: 'monospace' }).setDepth(43)));
+            makeArrow(mx + mw/2 - 14, cy + 8, '▶', () => { pick.giveIdx = (pick.giveIdx + 1) % TRADEABLE.length; rebuild(); });
+            cy += 30;
+
+            // Qty picker
+            makeArrow(mx + 16, cy + 6, '◀', () => { pick.qty = Math.max(1, pick.qty - 1); rebuild(); });
+            objs.push(this._ui(this.scene.add.text(mx + 30, cy, `QTY: ${pick.qty}`, { fontSize: '12px', color: '#d4c8a8', fontFamily: 'monospace' }).setDepth(43)));
+            makeArrow(mx + mw/2 - 14, cy + 6, '▶', () => { pick.qty = Math.min(50, pick.qty + 1); rebuild(); });
+            cy += 22;
+
+            // Want item picker
+            const wantItem = TRADEABLE[pick.wantIdx % TRADEABLE.length];
+            const wantVal  = em.getItemValue(wantItem.key);
+            const receiveQty = Math.max(1, Math.round((pick.qty * giveVal * 0.80) / wantVal));
+            makeArrow(mx + 16, cy + 8, '◀', () => { pick.wantIdx = (pick.wantIdx - 1 + TRADEABLE.length) % TRADEABLE.length; rebuild(); });
+            objs.push(this._ui(this.scene.add.text(mx + 30, cy, `WANT: ${wantItem.label}`, { fontSize: '12px', color: '#aaddff', fontFamily: 'monospace' }).setDepth(43)));
+            objs.push(this._ui(this.scene.add.text(mx + 30, cy + 13, `expect ~${receiveQty}×  (${wantVal.toFixed(1)} ob ea)`, { fontSize: '10px', color: '#7090aa', fontFamily: 'monospace' }).setDepth(43)));
+            makeArrow(mx + mw/2 - 14, cy + 8, '▶', () => { pick.wantIdx = (pick.wantIdx + 1) % TRADEABLE.length; rebuild(); });
+            cy += 32;
+
+            const addBtn = this._ui(this.scene.add.rectangle(mx + mw/2 - 40, cy + 14, mw/2 - 20, 28, giveItem.key !== wantItem.key ? 0x1a4020 : 0x2a1a10, 0.9).setDepth(43).setInteractive());
+            const addTxt = this._ui(this.scene.add.text(mx + mw/2 - 40, cy + 14,
+                giveItem.key !== wantItem.key ? '+ Add Order' : '(same item!)',
+                { fontSize: '13px', color: giveItem.key !== wantItem.key ? '#88ffaa' : '#665544', fontFamily: 'monospace' }).setOrigin(0.5).setDepth(44));
+            objs.push(addBtn, addTxt);
+            if (giveItem.key !== wantItem.key) {
+                addBtn.on('pointerdown', () => {
+                    b.tradeOrders.push({
+                        give: giveItem.key, giveLabel: giveItem.label,
+                        want: wantItem.key, wantLabel: wantItem.label,
+                        qty: pick.qty, receiveQty,
+                    });
+                    rebuild();
+                });
+            }
+            cy += 36;
+
+            // ── Trade Log ─────────────────────────────────────────────────
+            if (b.tradeLog.length > 0) {
+                cy += 6;
+                const sepG2 = this._ui(this.scene.add.graphics().setDepth(42));
+                sepG2.lineStyle(1, 0x4a3810, 0.5).lineBetween(mx + 10, cy, mx + mw - 10, cy);
+                objs.push(sepG2);
+                cy += 8;
+                objs.push(this._ui(this.scene.add.text(mx + 14, cy, 'RECENT TRADES',
+                    { fontSize: '11px', color: '#887755', fontFamily: 'monospace' }).setDepth(43)));
+                cy += 15;
+                for (const t of b.tradeLog.slice(0, 4)) {
+                    objs.push(this._ui(this.scene.add.text(mx + 14, cy,
+                        `Day ${t.day}: ${t.gave.qty}× ${ITEMS[t.gave.key]?.label ?? t.gave.key} → ${t.got.qty}× ${ITEMS[t.got.key]?.label ?? t.got.key}`,
+                        { fontSize: '11px', color: '#7a9060', fontFamily: 'monospace' }).setDepth(43)));
+                    cy += 14;
+                }
+            }
+        };
+
+        rebuild();
+        this._agoraModal = objs;
+    }
+
+    showCaravanOffer({ offers = [], autoExecuted = [], agoraExists = false } = {}) {
+        if (this._caravanModal) return;
+        const { W, H } = this.L;
+        const rowH = 52;
+        const headerH = agoraExists && autoExecuted.length ? 70 : 44;
+        const mh = Math.min(H * 0.85, headerH + offers.length * rowH + 36);
+        const mw = Math.min(W * 0.92, 440);
+        const mx = (W - mw) / 2, my = (H - mh) / 2;
+        const objs = [];
+
+        const bg = this._ui(this.scene.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0.5).setDepth(38).setInteractive());
+        const panel = this._ui(this.scene.add.rectangle(mx + mw/2, my + mh/2, mw, mh, 0x1a1408, 0.97).setDepth(39).setInteractive());
+        const border = this._ui(this.scene.add.graphics().setDepth(39));
+        border.lineStyle(2, 0xddaa44, 0.9).strokeRect(mx, my, mw, mh);
+        objs.push(bg, panel, border);
 
         const closeAll = () => { objs.forEach(o => o.destroy()); this._caravanModal = null; };
 
-        const canAfford = Object.entries(offer.give).every(([r, n]) => (this.scene.resources[r] ?? 0) >= n);
-        const acceptCol = canAfford ? 0x336622 : 0x443322;
-        const acceptBg = this._ui(this.scene.add.rectangle(mx + mw/2 - 45, my + 88, 80, 28, acceptCol, 1).setDepth(20).setInteractive());
-        const acceptTxt = this._ui(this.scene.add.text(mx + mw/2 - 45, my + 88, 'Accept', { fontSize: '12px', color: canAfford ? '#aaffaa' : '#888866' }).setOrigin(0.5).setDepth(21));
-        objs.push(acceptBg, acceptTxt);
+        objs.push(this._ui(this.scene.add.text(mx + mw/2, my + 12,
+            agoraExists ? '🛒 Merchants at the Agora!' : '🛒 Merchants arrive!',
+            { fontSize: '15px', color: '#ffdd88', fontFamily: 'monospace' }).setOrigin(0.5, 0).setDepth(40)));
 
-        acceptBg.on('pointerup', () => {
-            if (!canAfford) return;
-            this.scene.economyManager.spend(offer.give);
-            for (const [r, n] of Object.entries(offer.receive)) this.scene.economyManager.addResource(r, n);
-            this.scene.updateUI();
-            this.showPhaseMessage('Trade accepted!', 0x88ee88);
-            closeAll();
-        });
+        const closeBtn = this._ui(this.scene.add.text(mx + mw - 12, my + 14, '✕',
+            { fontSize: '18px', color: '#ffdd88', fontFamily: 'monospace' }).setOrigin(0.5).setDepth(40).setInteractive());
+        closeBtn.on('pointerdown', closeAll);
+        objs.push(closeBtn);
 
-        const declineBg = this._ui(this.scene.add.rectangle(mx + mw/2 + 45, my + 88, 80, 28, 0x442222, 1).setDepth(20).setInteractive());
-        const declineTxt = this._ui(this.scene.add.text(mx + mw/2 + 45, my + 88, 'Decline', { fontSize: '12px', color: '#ffaaaa' }).setOrigin(0.5).setDepth(21));
-        objs.push(declineBg, declineTxt);
-        declineBg.on('pointerup', closeAll);
+        let contentY = my + 34;
 
-        // Auto-dismiss after 15s
-        this.scene.time.delayedCall(15000, () => { if (this._caravanModal) closeAll(); });
+        // Auto-executed standing orders
+        if (autoExecuted.length) {
+            objs.push(this._ui(this.scene.add.text(mx + 12, contentY,
+                `✅ Standing orders filled: ${autoExecuted.join('; ')}`,
+                { fontSize: '10px', color: '#88ee88', fontFamily: 'monospace', wordWrap: { width: mw - 24 } }
+            ).setDepth(40)));
+            contentY += 26;
+            const sep = this._ui(this.scene.add.graphics().setDepth(39));
+            sep.lineStyle(1, 0x5a4810, 0.6).lineBetween(mx + 10, contentY, mx + mw - 10, contentY);
+            objs.push(sep);
+            contentY += 8;
+        }
+
+        if (offers.length === 0) {
+            objs.push(this._ui(this.scene.add.text(mx + mw/2, contentY + 10,
+                'No trades available right now.',
+                { fontSize: '12px', color: '#887755', fontFamily: 'monospace' }).setOrigin(0.5, 0).setDepth(40)));
+            contentY += 40;
+        }
+
+        // Each offer as a row with Accept button
+        for (const offer of offers) {
+            const canAfford = Object.entries(offer.give).every(([r, n]) => (this.scene.resources[r] ?? 0) >= n);
+            const rowBg = this._ui(this.scene.add.rectangle(mx + mw/2, contentY + rowH/2, mw - 8, rowH - 4, canAfford ? 0x1a2010 : 0x1a1208, 0.8).setDepth(39));
+            objs.push(rowBg);
+
+            objs.push(this._ui(this.scene.add.text(mx + 14, contentY + 6, offer.label,
+                { fontSize: '13px', color: canAfford ? '#e0d088' : '#887755', fontFamily: 'monospace' }
+            ).setDepth(40)));
+
+            if (offer.valueGiven > 0) {
+                const fairness = offer.valueReceived / offer.valueGiven;
+                const fairCol = fairness >= 0.85 ? '#88cc88' : fairness >= 0.65 ? '#cccc66' : '#cc8866';
+                objs.push(this._ui(this.scene.add.text(mx + 14, contentY + 22,
+                    `value: ${offer.valueGiven} → ${offer.valueReceived} obols (${Math.round(fairness * 100)}%)`,
+                    { fontSize: '10px', color: fairCol, fontFamily: 'monospace' }
+                ).setDepth(40)));
+            }
+
+            const btnCol = canAfford ? 0x336622 : 0x2a1c10;
+            const btnBg = this._ui(this.scene.add.rectangle(mx + mw - 52, contentY + rowH/2, 76, 28, btnCol, 1).setDepth(40).setInteractive());
+            const btnTxt = this._ui(this.scene.add.text(mx + mw - 52, contentY + rowH/2, canAfford ? 'Accept' : 'Can\'t',
+                { fontSize: '12px', color: canAfford ? '#aaffaa' : '#665544', fontFamily: 'monospace' }).setOrigin(0.5).setDepth(41));
+            objs.push(btnBg, btnTxt);
+
+            if (canAfford) {
+                btnBg.on('pointerup', () => {
+                    this.scene.economyManager.spend(offer.give);
+                    for (const [r, n] of Object.entries(offer.receive)) this.scene.economyManager.addResource(r, n);
+                    this.scene.updateUI();
+                    this.showPhaseMessage('Trade accepted!', 0x88ee88);
+                    closeAll();
+                });
+            }
+
+            const lineSep = this._ui(this.scene.add.graphics().setDepth(39));
+            lineSep.lineStyle(1, 0x3a2808, 0.5).lineBetween(mx + 8, contentY + rowH - 2, mx + mw - 8, contentY + rowH - 2);
+            objs.push(lineSep);
+            contentY += rowH;
+        }
+
+        // Dismiss button
+        const dismissBg = this._ui(this.scene.add.rectangle(mx + mw/2, contentY + 14, 120, 26, 0x332211, 1).setDepth(40).setInteractive());
+        const dismissTxt = this._ui(this.scene.add.text(mx + mw/2, contentY + 14, 'Send Away',
+            { fontSize: '12px', color: '#aa8866', fontFamily: 'monospace' }).setOrigin(0.5).setDepth(41));
+        objs.push(dismissBg, dismissTxt);
+        dismissBg.on('pointerup', closeAll);
+
+        this.scene.time.delayedCall(20000, () => { if (this._caravanModal) closeAll(); });
         this._caravanModal = objs;
     }
 

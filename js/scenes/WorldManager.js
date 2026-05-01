@@ -473,15 +473,27 @@ export default class WorldManager {
 
     _spawnCaravan() {
         if (this.scene.phase === 'LOSE' || this.scene.phase === 'WIN') return;
-        // Pick a random trade offer
-        const offers = [
-            { give: { 'Materials.Stone.Limestone': 4 }, receive: { 'Food.Grain.Wheat': 20 }, label: '4 stone → 20 wheat' },
-            { give: { 'Materials.Wood.Pine': 5 },       receive: { 'Food.Grain.Wheat': 18 }, label: '5 wood → 18 wheat' },
-            { give: { 'Food.Grain.Wheat': 10 },         receive: { 'Materials.Stone.Limestone': 6 }, label: '10 wheat → 6 stone' },
-            { give: { 'Food.Grain.Wheat': 8 },          receive: { 'Materials.Wood.Pine': 8 },  label: '8 wheat → 8 wood' },
-            { give: { 'Materials.Stone.Limestone': 3 }, receive: { 'Materials.Wood.Pine': 6 },  label: '3 stone → 6 wood' },
-        ];
-        const offer = offers[Math.floor(Math.random() * offers.length)];
-        this.scene.uiManager.showCaravanOffer(offer);
+
+        const em = this.scene.economyManager;
+
+        // If an Agora exists, auto-execute any matching standing orders first
+        const agora = this.scene.buildings.find(b => b.type === 'agora' && b.built && !b.faction);
+        const autoExecuted = [];
+        if (agora) {
+            for (const order of (agora.tradeOrders ?? [])) {
+                const giveQty = this.scene.resources[order.give] ?? 0;
+                if (giveQty < order.qty) continue;
+                em.takeFromCommons(order.give, order.qty);
+                em.addResource(order.want, order.receiveQty);
+                agora.tradeLog = agora.tradeLog ?? [];
+                agora.tradeLog.unshift({ day: this.scene.day, gave: { key: order.give, qty: order.qty }, got: { key: order.want, qty: order.receiveQty } });
+                if (agora.tradeLog.length > 8) agora.tradeLog.pop();
+                autoExecuted.push(`${order.qty}× ${order.giveLabel} → ${order.receiveQty}× ${order.wantLabel}`);
+            }
+        }
+
+        // Generate smart dynamic offers
+        const offers = em.generateTradeOffers(3);
+        this.scene.uiManager.showCaravanOffer({ offers, autoExecuted, agoraExists: !!agora });
     }
 }

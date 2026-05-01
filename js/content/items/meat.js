@@ -6,5 +6,6 @@ export default {
     nutrition: 0.3,
     weight:    2,
     volume:    1,
+    basePrice: 4,
     stackable: true,
 };

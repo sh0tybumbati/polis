@@ -26,13 +26,14 @@ import palisade   from './palisade.js';
 import wall       from './wall.js';
 import gate       from './gate.js';
 import warehouse  from './warehouse.js';
+import agora      from './agora.js';
 
 const defs = [
     farm, mill, bakery, butcher, tannery, smelter, blacksmith,
     carpenter, masons, pasture, watchtower, olive_press, garden,
     house, townhall, granary, woodshed, stonepile,
     barracks, archery, stable, mine, temple, oracle,
-    palisade, wall, gate, warehouse,
+    palisade, wall, gate, warehouse, agora,
 ];
 
 export const BUILDINGS = Object.fromEntries(defs.map(d => [d.id, d]));

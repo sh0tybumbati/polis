@@ -123,6 +123,79 @@ export default class EconomyManager {
         return Object.entries(cost).every(([r, n]) => (this.scene.resources[r] ?? 0) >= n);
     }
 
+    // Dynamic item value: scarce items worth much more. Formula: base × (1 + 5/max(5,qty))
+    getItemValue(key) {
+        const base = ITEMS[key]?.basePrice ?? 1;
+        const qty  = this.scene.resources[key] ?? 0;
+        return base * (1 + 5 / Math.max(5, qty));
+    }
+
+    // Items the player has in abundance (good to trade away)
+    getSurplus(minQty = 12) {
+        const r = this.scene.resources ?? {};
+        return Object.entries(r)
+            .filter(([, qty]) => qty >= minQty)
+            .sort((a, b) => b[1] - a[1]);
+    }
+
+    // Items the player is short on (good to acquire)
+    getDeficit(maxQty = 6) {
+        const r = this.scene.resources ?? {};
+        // Only consider items the economy knows about (have been produced at least once)
+        return Object.entries(r)
+            .filter(([key, qty]) => qty < maxQty && ITEMS[key]?.basePrice)
+            .sort((a, b) => a[1] - b[1]);
+    }
+
+    // Generate count smart trade offers based on supply/demand.
+    // Caravan margin: they want ~25% profit (player gets 80 cents on the dollar).
+    generateTradeOffers(count = 3) {
+        const MARGIN = 0.80; // player gets 80% fair value
+        const surplus = this.getSurplus(10);
+        const deficit = this.getDeficit(8);
+        const offers  = [];
+
+        for (const [giveKey, giveQty] of surplus) {
+            if (offers.length >= count) break;
+            if (!ITEMS[giveKey]?.basePrice) continue;
+
+            // Pick the most-needed deficit item to receive
+            const wantEntry = deficit.find(([wk]) => wk !== giveKey);
+            if (!wantEntry) continue;
+            const [wantKey] = wantEntry;
+
+            const giveVal = this.getItemValue(giveKey);
+            const wantVal = this.getItemValue(wantKey);
+
+            // How much to give: cap at half surplus
+            const giveAmt  = Math.min(Math.floor(giveQty / 2), 20);
+            if (giveAmt < 1) continue;
+            const receiveAmt = Math.max(1, Math.round((giveAmt * giveVal * MARGIN) / wantVal));
+
+            const giveLabel  = ITEMS[giveKey]?.label  ?? giveKey.split('.').pop();
+            const wantLabel  = ITEMS[wantKey]?.label  ?? wantKey.split('.').pop();
+
+            offers.push({
+                give:    { [giveKey]: giveAmt },
+                receive: { [wantKey]: receiveAmt },
+                label:   `${giveAmt}× ${giveLabel} → ${receiveAmt}× ${wantLabel}`,
+                valueGiven:    Math.round(giveAmt * giveVal),
+                valueReceived: Math.round(receiveAmt * wantVal),
+            });
+        }
+
+        // Fallback offers if nothing was generated
+        if (offers.length === 0) {
+            const r = this.scene.resources ?? {};
+            if ((r['Materials.Stone.Limestone'] ?? 0) >= 4)
+                offers.push({ give: { 'Materials.Stone.Limestone': 4 }, receive: { 'Food.Grain.Wheat': 10 }, label: '4 Stone → 10 Wheat', valueGiven: 0, valueReceived: 0 });
+            else
+                offers.push({ give: { 'Food.Grain.Wheat': 8 }, receive: { 'Materials.Wood.Pine': 5 }, label: '8 Wheat → 5 Logs', valueGiven: 0, valueReceived: 0 });
+        }
+
+        return offers;
+    }
+
     spend(cost) {
         for (const [res, n] of Object.entries(cost)) this.takeFromCommons(res, n);
         this.scene.updateUI();
