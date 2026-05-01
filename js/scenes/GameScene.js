@@ -251,7 +251,8 @@ export default class GameScene extends Phaser.Scene {
 
             this.day = s.day; this.phase = s.phase; this.timerMs = s.timerMs;
             this.nightsSurvived = s.nightsSurvived ?? 0; this.mealsDone = s.mealsDone ?? 0;
-            Object.assign(this.resources, migrateKeys(s.resources));
+            // Kept for old-save migration: buildings without inventory get seeded from s.resources below
+            const legacyResources = migrateKeys(s.resources ?? {});
             Object.assign(this.storageMax, migrateKeys(s.storageMax));
             Object.assign(this.discoveries, s.discoveries ?? {});
             this.enemyAware = s.enemyAware ?? false;
@@ -264,10 +265,22 @@ export default class GameScene extends Phaser.Scene {
             this.trafficMap = Array.from({ length: MAP_H }, () => new Array(MAP_W).fill(0));
 
             this.resNodes  = (s.resNodes  ?? []).map(n => ({ ...n, gfx: null, labelObj: null }));
-            this.buildings = (s.buildings ?? []).map(b => ({ inbox: {}, ...b, gfx: null, barGfx: null, labelObj: null }));
+            this.buildings = (s.buildings ?? []).map(b => ({
+                inbox: {}, ...b,
+                inventory: migrateKeys(b.inventory ?? {}),
+                gfx: null, barGfx: null, labelObj: null,
+            }));
             this.units     = (s.units     ?? []).map(u => ({ ...u, carrying: migrateKeys(u.carrying), gfx: null, nameLabel: null }));
             this.deer      = (s.deer      ?? []).map(d => ({ ...d, gfx: null }));
             this.sheep     = (s.sheep     ?? []).map(ss => ({ ...ss, gfx: null, followUnit: null }));
+            // If no building has inventory (old saves pre-localization), seed townhall from legacy resources
+            const anyInventory = this.buildings.some(b => b.isPublic && Object.values(b.inventory ?? {}).some(v => v > 0));
+            if (!anyInventory) {
+                const th = this.buildings.find(b => b.type === 'townhall' && b.isPublic);
+                if (th) th.inventory = { ...legacyResources };
+            }
+            // Derive scene.resources from building inventories (source of truth after this point)
+            this.economyManager.syncResources();
             return true;
         } catch(e) { console.warn('[load] failed:', e); return false; }
     }
@@ -329,6 +342,13 @@ export default class GameScene extends Phaser.Scene {
         const townhall = this.placeBuiltBuilding('townhall', mx, by);
         townhall.isPublic = true;
         this.updateStorageCap();
+
+        // Deposit starting resources into townhall inventory so localized production works
+        townhall.inventory = townhall.inventory ?? {};
+        for (const [key, qty] of Object.entries(this.resources)) {
+            if (qty > 0) townhall.inventory[key] = (townhall.inventory[key] ?? 0) + qty;
+        }
+        this.economyManager.syncResources();
 
         // Founder — lives in the townhall, role locked to builder, boosted attributes
         const thx = (townhall.tx + townhall.size / 2) * TILE;

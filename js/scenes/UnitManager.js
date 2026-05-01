@@ -573,7 +573,7 @@ export default class UnitManager {
                     let paid = false;
                     for (const food of WAGE_FOOD) {
                         if ((this.scene.resources[food] ?? 0) >= 1) {
-                            this.scene.resources[food]--;
+                            this.scene.economyManager.takeFromCommons(food, 1);
                             u.carrying[food] = (u.carrying[food] ?? 0) + 1;
                             this.scene.uiManager.showFloatText(u.x, u.y - 16, `💰 ${food}`, '#ffee88');
                             paid = true;
@@ -821,7 +821,7 @@ export default class UnitManager {
             if (u.tameProgress >= 8000) {
                 // Cost 1 wheat from public resources
                 if ((this.scene.resources['Food.Grain.Wheat'] ?? 0) >= ANIMALS.sheep.tameCost) {
-                    this.scene.resources['Food.Grain.Wheat'] -= ANIMALS.sheep.tameCost;
+                    this.scene.economyManager.takeFromCommons('Food.Grain.Wheat', ANIMALS.sheep.tameCost);
                     sheep.isTamed = true;
                     sheep.followUnit = u.id;
                     u.tameProgress = 0;
@@ -899,7 +899,7 @@ export default class UnitManager {
             if (this.totalCarrying(u) === 0) {
                 // Try public first
                 if ((this.scene.resources[res] ?? 0) >= 1) {
-                    this.scene.resources[res] -= 1;
+                    this.scene.economyManager.takeFromCommons(res, 1);
                     u.carrying[res] += 1;
                 } else {
                     // Fallback to private: mark as 'sold' for later compensation
@@ -1027,7 +1027,7 @@ export default class UnitManager {
         
         for (const [key, qty] of Object.entries(u.carrying)) {
             if (qty > 0) {
-                this.scene.resources[key] = (this.scene.resources[key] ?? 0) + qty;
+                this.scene.economyManager.addResource(key, qty);
                 u.carrying[key] = 0;
                 this.scene.uiManager.showFloatText(u.x, u.y - 14, `deposited ${qty} ${key}`, '#aaffcc');
             }
@@ -1447,23 +1447,6 @@ export default class UnitManager {
     get WORKSHOP_ROLES() { return WORKSHOP_JOBS; }
     get FETCH_SOURCES()  { return Object.fromEntries(Object.values(JOBS).filter(j => j.fetchSources).map(j => [j.id, j.fetchSources])); }
 
-    // Find nearest building of given types that has qty > 0 of the given resource in inventory
-    _findSourceBuilding(input, types) {
-        let best = null, bd = Infinity;
-        for (const b of this.scene.buildings) {
-            if (!b.built || b.faction === 'enemy') continue;
-            if (!types.includes(b.type)) continue;
-            // Check both b.inventory and scene.resources for public storage types
-            const inBldg  = (b.inventory?.[input] ?? 0);
-            const inCommons = this.PUBLIC_STORAGE.has(b.type)
-                ? (this.scene.resources[input] ?? 0) : 0;
-            if (inBldg <= 0 && inCommons <= 0) continue;
-            const bx = (b.tx + b.size / 2) * TILE, by = MAP_OY + (b.ty + b.size / 2) * TILE;
-            const d = Phaser.Math.Distance.Between(0, 0, bx, by); // proximity score (use worker pos in seek)
-            if (d < bd) { bd = d; best = b; }
-        }
-        return best;
-    }
 
     get SELF_SUPPLY() { return Object.fromEntries(Object.values(JOBS).filter(j => j.selfSupply).map(j => [j.id, j.selfSupply])); }
 
@@ -1507,9 +1490,7 @@ export default class UnitManager {
         for (const b of this.scene.buildings) {
             if (!b.built || b.faction === 'enemy') continue;
             if (!types.includes(b.type)) continue;
-            const inBldg    = (b.inventory?.[input] ?? 0);
-            const inCommons = this.PUBLIC_STORAGE.has(b.type) ? (this.scene.resources[input] ?? 0) : 0;
-            if (inBldg <= 0 && inCommons <= 0) continue;
+            if ((b.inventory?.[input] ?? 0) <= 0) continue;
             const bx = (b.tx + b.size / 2) * TILE, by2 = MAP_OY + (b.ty + b.size / 2) * TILE;
             const d = Phaser.Math.Distance.Between(x, y, bx, by2);
             if (d < bd) { bd = d; best = b; }
@@ -1536,27 +1517,19 @@ export default class UnitManager {
             const door = this._bldgDoor(src);
             if (this.moveToward(u, door.x, door.y, 28, dt)) return;
 
-            // At source door — take resources
+            // At source door — take resources from building inventory
             src.inventory = src.inventory ?? {};
-            let take = 0;
-            if ((src.inventory[def.input] ?? 0) > 0) {
-                take = Math.min(def.carryQty, src.inventory[def.input]);
-                src.inventory[def.input] -= take;
-                if (this.PUBLIC_STORAGE.has(src.type)) {
-                    this.scene.resources[def.input] = Math.max(0, (this.scene.resources[def.input] ?? 0) - take);
-                }
-            } else if (this.PUBLIC_STORAGE.has(src.type) && (this.scene.resources[def.input] ?? 0) > 0) {
-                take = Math.min(def.carryQty, this.scene.resources[def.input]);
-                this.scene.resources[def.input] -= take;
-            }
-            if (take === 0) {
-                // Source ran dry — try to find another
+            const avail = src.inventory[def.input] ?? 0;
+            if (avail <= 0) {
                 const sourceTypes = this.FETCH_SOURCES[u.role] ?? [];
                 const newSrc = this._findSourceBuildingNear(u.x, u.y, def.input, sourceTypes);
                 if (!newSrc) { u.taskType = null; u.workshopPhase = null; return; }
                 u.fetchBldgId = newSrc.id;
                 return;
             }
+            const take = Math.min(def.carryQty, avail);
+            src.inventory[def.input] -= take;
+            this.scene.economyManager.syncResources();
             u.carrying[def.input] = (u.carrying[def.input] ?? 0) + take;
             u.workshopPhase = 'goWork';
             return;
@@ -1613,9 +1586,7 @@ export default class UnitManager {
 
             b.inventory = b.inventory ?? {};
             b.inventory[def.output] = (b.inventory[def.output] ?? 0) + 1;
-            if (b.isPublic) {
-                this.scene.resources[def.output] = (this.scene.resources[def.output] ?? 0) + 1;
-            }
+            if (b.isPublic) this.scene.economyManager.syncResources();
             this._gainSkillXp(u, def.skill);
             this.scene.uiManager.showFloatText(u.x, u.y - 14, `+1 ${def.output}`, '#ffe066');
         }
@@ -1649,7 +1620,7 @@ export default class UnitManager {
                     if ((foodBldg.inventory?.[food] ?? 0) >= 1) {
                         foodBldg.inventory[food]--;
                         if (this.PUBLIC_STORAGE.has(foodBldg.type) && foodBldg.isPublic) {
-                            this.scene.resources[food] = Math.max(0, (this.scene.resources[food] ?? 0) - 1);
+                            this.scene.economyManager.syncResources();
                         }
                         const nut = NUTRITION_MAP[food];
                         u.fullness = Math.min(1.0, (u.fullness ?? 0) + nut);
@@ -1668,7 +1639,7 @@ export default class UnitManager {
                 let found = false;
                 for (const food of FOOD_PRIORITY) {
                     if ((this.scene.resources[food] ?? 0) >= 1) {
-                        this.scene.resources[food]--;
+                        this.scene.economyManager.takeFromCommons(food, 1);
                         const nut = NUTRITION_MAP[food];
                         u.fullness = Math.min(1.0, (u.fullness ?? 0) + nut);
                         u.dailyNutrition = Math.min(1.0, (u.dailyNutrition ?? 0) + nut);

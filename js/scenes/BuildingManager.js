@@ -172,9 +172,7 @@ export default class BuildingManager {
             for (const [r, n] of Object.entries(s)) max[r] = (max[r] || 0) + n;
         }
         this.scene.storageMax = max;
-        for (const r in this.scene.resources) {
-            this.scene.resources[r] = Math.min(this.scene.resources[r] || 0, max[r] || 0);
-        }
+        this.scene.economyManager.syncResources();
         this.scene.updateUI();
     }
 

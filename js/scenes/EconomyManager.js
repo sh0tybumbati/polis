@@ -56,6 +56,7 @@ export default class EconomyManager {
         }
 
         b.inventory[key] = (b.inventory[key] ?? 0) + keep;
+        if (b.isPublic) this.syncResources();
         this.scene.updateUI();
     }
 
@@ -81,14 +82,49 @@ export default class EconomyManager {
     }
 
 
+    // Recompute scene.resources as a derived aggregate of all public building inventories.
+    // Call after any mutation to b.inventory so reads stay consistent.
+    syncResources() {
+        const totals = {};
+        for (const b of this.scene.buildings) {
+            if (!b.built || b.faction || !b.isPublic) continue;
+            for (const [res, qty] of Object.entries(b.inventory ?? {})) {
+                if (qty > 0) totals[res] = (totals[res] ?? 0) + qty;
+            }
+        }
+        for (const key of Object.keys(this.scene.resources)) {
+            this.scene.resources[key] = totals[key] ?? 0;
+        }
+        for (const [key, val] of Object.entries(totals)) {
+            this.scene.resources[key] = val;
+        }
+    }
+
+    // Take 'amount' of 'res' from public building inventories, nearest first.
+    // Returns how much was actually taken.
+    takeFromCommons(res, amount) {
+        let remaining = amount;
+        for (const b of this.scene.buildings) {
+            if (remaining <= 0) break;
+            if (!b.built || b.faction || !this.PUBLIC_STORAGE.has(b.type)) continue;
+            const avail = b.inventory?.[res] ?? 0;
+            const take = Math.min(remaining, avail);
+            if (take > 0) {
+                b.inventory[res] -= take;
+                remaining -= take;
+            }
+        }
+        const taken = amount - remaining;
+        if (taken > 0) this.syncResources();
+        return taken;
+    }
+
     afford(cost) {
         return Object.entries(cost).every(([r, n]) => (this.scene.resources[r] ?? 0) >= n);
     }
 
     spend(cost) {
-        Object.entries(cost).forEach(([r, n]) => {
-            this.scene.resources[r] -= n;
-        });
+        for (const [res, n] of Object.entries(cost)) this.takeFromCommons(res, n);
         this.scene.updateUI();
     }
 
@@ -123,30 +159,28 @@ export default class EconomyManager {
     }
 
     addResource(res, amount) {
-        // Find public buildings with space
         let remaining = amount;
         const volPer = ITEMS[res]?.volume ?? 0;
-        
         for (const b of this.scene.buildings) {
             if (remaining <= 0) break;
             if (b.built && b.isPublic && BLDG_VOLUME[b.type]) {
                 const freeVol = BLDG_VOLUME[b.type] - this.getBuildingCurrentVolume(b);
-                const canFit = Math.floor(freeVol / volPer);
+                const canFit = volPer > 0 ? Math.floor(freeVol / volPer) : remaining;
                 const toAdd = Math.min(remaining, canFit);
                 if (toAdd > 0) {
                     b.inventory = b.inventory ?? {};
                     b.inventory[res] = (b.inventory[res] ?? 0) + toAdd;
-                    this.scene.resources[res] = (this.scene.resources[res] ?? 0) + toAdd;
                     remaining -= toAdd;
                 }
             }
         }
         const totalAdded = amount - remaining;
-        if (totalAdded > 0) this.scene.updateUI();
+        if (totalAdded > 0) { this.syncResources(); this.scene.updateUI(); }
         return totalAdded;
     }
 
     tick(delta) {
+        this.syncResources();
         this.tickProduction(delta);
         this.tickBuildingOperations(delta);
         this.tickResourceNodes(delta);

@@ -866,7 +866,7 @@ export default class UIManager {
             const can = afford({ 'Food.Grain.Wheat': 5 });
             items.push({ label: 'Train Scout', sublabel: '5w', color: can ? 0x334455 : 0x2a1c10, dimmed: !can, callback: () => {
                 if (!can) { this.showPhaseMessage('Not enough wheat!', 0xff4444); return; }
-                s.resources['Food.Grain.Wheat'] -= 5;
+                s.economyManager.takeFromCommons('Food.Grain.Wheat', 5);
                 const cx = (b.tx+b.size/2)*TILE, cy = MAP_OY+(b.ty+b.size/2)*TILE;
                 s.spawnUnit('scout', cx, cy, false);
                 this.updateUI();
@@ -1147,10 +1147,8 @@ export default class UIManager {
 
         acceptBg.on('pointerup', () => {
             if (!canAfford) return;
-            Object.entries(offer.give).forEach(([r, n]) => this.scene.resources[r] -= n);
-            Object.entries(offer.receive).forEach(([r, n]) => {
-                this.scene.resources[r] = (this.scene.resources[r] ?? 0) + n;
-            });
+            this.scene.economyManager.spend(offer.give);
+            for (const [r, n] of Object.entries(offer.receive)) this.scene.economyManager.addResource(r, n);
             this.scene.updateUI();
             this.showPhaseMessage('Trade accepted!', 0x88ee88);
             closeAll();
