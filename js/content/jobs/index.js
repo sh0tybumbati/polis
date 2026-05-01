@@ -13,9 +13,10 @@ import smelter    from './smelter.js';
 import smith      from './smith.js';
 import carpenter  from './carpenter.js';
 import mason      from './mason.js';
+import merchant   from './merchant.js';
 
 const defs = [builder, farmer, forager, woodcutter, miner, shepherd, hunter,
-               miller, baker, butcher, tanner, smelter, smith, carpenter, mason];
+               miller, baker, butcher, tanner, smelter, smith, carpenter, mason, merchant];
 
 export const JOBS = Object.fromEntries(defs.map(d => [d.id, d]));
 export const WORKSHOP_JOBS = Object.fromEntries(defs.filter(d => d.building).map(d => [d.id, d]));

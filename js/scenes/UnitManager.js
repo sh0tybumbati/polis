@@ -702,6 +702,8 @@ export default class UnitManager {
             if (time - u.lastSeek > 1500) { u.lastSeek = time; this.seekFarmerTask(u); }
         } else if (u.role in WORKSHOP_JOBS) {
             if (!u.taskType && time - u.lastSeek > 2000) { u.lastSeek = time; this.seekWorkshopTask(u); }
+        } else if (u.role === 'merchant') {
+            if (!u.taskType && time - u.lastSeek > 3000) { u.lastSeek = time; this.seekMerchantTask(u); }
         }
 
         if (u.taskType === 'eat') this.handleEatTask(u, dt);
@@ -713,6 +715,7 @@ export default class UnitManager {
         else if (u.taskType === 'collect_tithe') this.handleCollectTitheTask(u, dt);
         else if (u.taskType === 'deposit_tithe') this.handleDepositTitheTask(u, dt);
         else if (u.taskType === 'workshop') this.handleWorkshopTask(u, dt);
+        else if (u.taskType === 'merchant') this.handleMerchantTask(u, dt);
         else if (u.taskType === 'garrison') this.handleGarrisonTask(u, dt);
 
         if (!u.taskType && u.role) {
@@ -957,6 +960,84 @@ export default class UnitManager {
                 this.scene.uiManager.showFloatText(cx, cy - 12, 'Deconstructed', '#ffaa44');
             }
         }
+    }
+
+    seekMerchantTask(u) {
+        const agora = this.scene.buildings.find(b => b.type === 'agora' && b.built && !b.faction);
+        if (!agora) { u.role = null; return; }
+        u.taskType = 'merchant';
+        u.taskBldgId = agora.id;
+        u.merchantPhase = 'seek';
+    }
+
+    handleMerchantTask(u, dt) {
+        const agora = this.scene.buildings.find(b => b.id === u.taskBldgId && b.built);
+        if (!agora) { u.taskType = null; u.merchantPhase = null; return; }
+
+        const cx = (agora.tx + agora.size / 2) * TILE;
+        const cy = MAP_OY + (agora.ty + agora.size / 2) * TILE;
+
+        // Walk to agora
+        if (this.moveToward(u, cx, cy, 28, dt)) return;
+        u.isInside = true;
+
+        // Seek an executable order
+        if (u.merchantPhase === 'seek' || !u.merchantPhase) {
+            const orders = agora.tradeOrders ?? [];
+            const order = orders.find(o => (this.scene.resources[o.give] ?? 0) >= o.qty);
+            if (!order) {
+                // Nothing to trade — idle at agora
+                u.workProgress = 0;
+                return;
+            }
+            // Reserve the goods from commons
+            this.scene.economyManager.takeFromCommons(order.give, order.qty);
+            u._merchantOrder = order;
+            u.merchantPhase = 'simulate';
+            u.workProgress = 0;
+            this.scene.uiManager.showFloatText(u.x, u.y - 14, `Trading ${order.giveLabel}…`, '#ddaa44');
+            return;
+        }
+
+        // Simulate finding a buyer (work timer)
+        if (u.merchantPhase === 'simulate') {
+            const def = JOBS.merchant;
+            const attrMult = this.getAttrMult(u, ['int', 'agi']);
+            const spd = (1.0 + (u.skills.trading?.level ?? 1) * 0.15) * attrMult;
+            u.workProgress = (u.workProgress ?? 0) + dt * spd;
+            if (u.workProgress >= def.simulateMs) {
+                u.workProgress = 0;
+                const order = u._merchantOrder;
+                if (order) {
+                    // Calculate receive qty at local market rate
+                    const em = this.scene.economyManager;
+                    const giveVal  = em.getItemValue(order.give);
+                    const wantVal  = em.getItemValue(order.want);
+                    const receiveQty = Math.max(1, Math.round(
+                        (order.qty * giveVal * def.valueRatio) / wantVal));
+
+                    em.addResource(order.want, receiveQty);
+
+                    // Log the trade on the agora
+                    agora.tradeLog = agora.tradeLog ?? [];
+                    agora.tradeLog.unshift({
+                        day: this.scene.day,
+                        gave: { key: order.give, qty: order.qty },
+                        got:  { key: order.want, qty: receiveQty },
+                    });
+                    if (agora.tradeLog.length > 8) agora.tradeLog.pop();
+
+                    this._gainSkillXp(u, 'trading');
+                    this.scene.uiManager.showFloatText(u.x, u.y - 14,
+                        `+${receiveQty} ${order.wantLabel}`, '#88ffaa');
+                    u._merchantOrder = null;
+                }
+                u.merchantPhase = 'seek';
+            }
+            return;
+        }
+
+        u.merchantPhase = 'seek';
     }
 
     handleHarvestFarmTask(u, dt) {

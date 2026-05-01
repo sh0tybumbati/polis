@@ -343,6 +343,15 @@ export default class EconomyManager {
     }
 
     tickHouseBirths(delta) {
+        // Asymptotic growth: birth interval scales with total adult population.
+        // Formula: effectiveMs = baseMs × max(1, adultPop / POP_BASELINE)
+        // At pop=8: base rate. At pop=16: 2× slower. At pop=4: 2× faster.
+        const POP_BASELINE = 8;
+        const totalAdults = this.scene.units.filter(u =>
+            !u.isEnemy && u.type === 'worker' && u.age >= 2 && u.hp > 0).length;
+        const growthScale = Math.max(0.5, totalAdults / POP_BASELINE);
+        const effectiveSpawnMs = BLDG.house.spawnMs * growthScale;
+
         for (const house of this.scene.buildings) {
             if (!house.built || house.faction || !BLDG[house.type]?.capacity) continue;
 
@@ -363,7 +372,7 @@ export default class EconomyManager {
             }
 
             house.spawnTimer = (house.spawnTimer ?? 0) + delta;
-            if (house.spawnTimer >= BLDG.house.spawnMs) {
+            if (house.spawnTimer >= effectiveSpawnMs) {
                 house.spawnTimer = 0;
                 this.scene.unitManager.spawnChild(father, mother);
             }

@@ -28,6 +28,7 @@ export default {
                      : u.role === 'miner'    ? 0x9999bb
                      : u.role === 'shepherd' ? 0xf0ece0
                      : u.role === 'hunter'   ? 0xdd8833
+                     : u.role === 'merchant' ? 0xffaa22
                      : 0xaa7733;
             const rx = age === 1 ? 5 : 7, ry = age === 1 ? -6 : -9;
             gfx.fillStyle(rc).fillCircle(rx, ry, 2);
