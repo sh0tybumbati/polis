@@ -167,24 +167,6 @@ export const DESIRE_THRESHOLD  = 120;   // traffic count before a desire path ap
 export const HUNGER_THRESHOLD  = 28;    // game-seconds between meals (~3 meals per 90s day)
 export const TRAFFIC_DECAY_PER_DAY = 18; // subtracted from every tile each day transition
 
-// ─── Deer / Hunting Constants ────────────────────────────────────────────────
-
-export const DEER_MAX        = 8;    // max live deer on map at once
-export const DEER_MEAT       = 8;    // food units per carcass
-export const DEER_HIDE       = 2;    // hides per carcass
-export const DEER_FLEE_R     = 3.5 * TILE; // flee when a friendly unit is this close
-export const DEER_SPEED      = 52;   // px/s (outpaces workers at 40, slower than archers at 62)
-export const DEER_ATK_RANGE  = TILE * 0.9; // melee kill range for hunter workers
-
-// ─── Sheep / Pasture Constants ───────────────────────────────────────────────
-
-export const SHEEP_MAX       = 10;   // max wild sheep on map
-export const SHEEP_SPEED     = 38;   // px/s (slow, catchable by workers)
-export const SHEEP_FLEE_R    = 2.5 * TILE;
-export const SHEEP_TAME_COST = 1;    // food spent to tame one wild sheep
-export const SHEEP_WOOL_MS   = 35000;// ms per wool clip per adult sheep in pasture
-export const SHEEP_MEAT      = 4;    // food from slaughtering one adult sheep
-
 // ─── Building Definitions ────────────────────────────────────────────────────
 
 export const BLDG = {

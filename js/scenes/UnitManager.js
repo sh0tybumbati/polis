@@ -2,7 +2,7 @@ import {
     UDEF, TILE, MAP_OY, MAP_W, MAP_H, MAP_BOTTOM,
     TILE_SPD, T_GRASS, T_ROCK, HIGH_GROUND_BONUS,
     VET_LEVELS, BLDG, BUILD_WORK,
-    DEER_ATK_RANGE, SHEEP_TAME_COST, NUTRITION, pickName,
+    NUTRITION, pickName,
     ENABLE_PROACTIVE_AI, BLDG_CATS, DESIRE_THRESHOLD, ROAD_DESIRE, ROAD_NONE, HUNGER_THRESHOLD,
     RES_STATS, ARCHON_BUILD_ORDER,
     randomAttributes, blendAttributes, randomPhenotype, blendPhenotype,
@@ -10,6 +10,7 @@ import {
     emptySkills,
 } from '../config/gameConstants.js';
 import { NODES } from '../content/nodes/index.js';
+import { ANIMALS } from '../content/animals/index.js';
 import { MathUtils } from '../utils/MathUtils.js';
 
 export default class UnitManager {
@@ -886,7 +887,7 @@ export default class UnitManager {
 
         // Chase and attack live deer
         const dist = Phaser.Math.Distance.Between(u.x, u.y, deer.x, deer.y);
-        if (dist <= DEER_ATK_RANGE) {
+        if (dist <= ANIMALS.deer.atkRange) {
             const now = this.scene.time.now;
             if (now - (u.lastAtk ?? 0) > 1200) {
                 u.lastAtk = now;
@@ -932,8 +933,8 @@ export default class UnitManager {
             u.tameProgress = (u.tameProgress ?? 0) + dt;
             if (u.tameProgress >= 8000) {
                 // Cost 1 wheat from public resources
-                if ((this.scene.resources.wheat ?? 0) >= SHEEP_TAME_COST) {
-                    this.scene.resources.wheat -= SHEEP_TAME_COST;
+                if ((this.scene.resources.wheat ?? 0) >= ANIMALS.sheep.tameCost) {
+                    this.scene.resources.wheat -= ANIMALS.sheep.tameCost;
                     sheep.isTamed = true;
                     sheep.followUnit = u.id;
                     u.tameProgress = 0;

@@ -1,4 +1,5 @@
-import { TILE, MAP_OY, SHEEP_WOOL_MS } from '../../config/gameConstants.js';
+import { TILE, MAP_OY } from '../../config/gameConstants.js';
+import { ANIMALS } from '../animals/index.js';
 const g = b => { const px = b.tx*TILE, py = MAP_OY+b.ty*TILE, s = b.size*TILE; return { px, py, s, cx: px+s/2, cy: py+s/2 }; };
 
 export default {
@@ -7,7 +8,7 @@ export default {
         const pastured = ctx.sheep?.filter(s => s.pastureId === b.id && s.isTamed && !s.isDead) ?? [];
         for (const s of pastured) {
             s.woolTimer = (s.woolTimer ?? 0) + delta;
-            if (s.woolTimer >= SHEEP_WOOL_MS && s.woolReady !== false) {
+            if (s.woolTimer >= ANIMALS.sheep.woolMs && s.woolReady !== false) {
                 s.woolTimer = 0;
                 if (ctx.hasStorageSpace('wool')) {
                     ctx.addResource('wool', 1);
