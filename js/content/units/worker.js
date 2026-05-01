@@ -29,7 +29,13 @@ export default {
                      : u.role === 'shepherd' ? 0xf0ece0
                      : u.role === 'hunter'   ? 0xdd8833
                      : 0xaa7733;
-            gfx.fillStyle(rc).fillCircle(age === 1 ? 5 : 7, age === 1 ? -6 : -9, 2);
+            const rx = age === 1 ? 5 : 7, ry = age === 1 ? -6 : -9;
+            gfx.fillStyle(rc).fillCircle(rx, ry, 2);
+            // subrole indicator: small dot below role dot
+            if (u.workshopSubrole === 'procure')
+                gfx.fillStyle(0x44aaff, 0.9).fillCircle(rx, ry + 4, 1.5);
+            else if (u.workshopSubrole === 'process')
+                gfx.fillStyle(0xff8844, 0.9).fillCircle(rx, ry + 4, 1.5);
         }
 
         if (u.isArchon && age >= 2) {

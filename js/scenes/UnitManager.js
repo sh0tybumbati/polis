@@ -1454,35 +1454,36 @@ export default class UnitManager {
         const def = this.WORKSHOP_ROLES[u.role];
         if (!def) { u.role = null; return; }
 
-        // Find source building with input available
-        const sourceTypes = this.FETCH_SOURCES[u.role] ?? [];
-        const source = this._findSourceBuildingNear(u.x, u.y, def.input, sourceTypes);
+        // Find a building with an open procure OR process slot
+        const bldg = this.scene.buildings.find(b => {
+            if (b.type !== def.building || !b.built || b.faction) return false;
+            const hasProcurer = this.scene.units.some(w => w.id !== u.id && w.role === u.role && w.workshopSubrole === 'procure' && w.taskBldgId === b.id);
+            const hasProcessor = this.scene.units.some(w => w.id !== u.id && w.role === u.role && w.workshopSubrole === 'process' && w.taskBldgId === b.id);
+            return !hasProcurer || !hasProcessor;
+        });
+        if (!bldg) return;
 
-        if (!source) {
-            // Self-supply: temporarily become a gatherer to restock the source building
-            const supply = this.SELF_SUPPLY[u.role];
-            if (supply) {
-                const node = this.findNearNode(u, 8000, supply.nodes);
-                if (node) {
-                    u._prevRole  = u.role;
-                    u.role       = u.role === 'mason' ? 'miner' : 'woodcutter';
-                    u.targetNode = node;
-                    return;
+        const hasProcurer = this.scene.units.some(w => w.id !== u.id && w.role === u.role && w.workshopSubrole === 'procure' && w.taskBldgId === bldg.id);
+        u.workshopSubrole = hasProcurer ? 'process' : 'procure';
+
+        if (u.workshopSubrole === 'procure') {
+            const sourceTypes = this.FETCH_SOURCES[u.role] ?? [];
+            const source = this._findSourceBuildingNear(u.x, u.y, def.input, sourceTypes);
+            if (!source) {
+                const supply = this.SELF_SUPPLY[u.role];
+                if (supply) {
+                    const node = this.findNearNode(u, 8000, supply.nodes);
+                    if (node) { u._prevRole = u.role; u.role = u.role === 'mason' ? 'miner' : 'woodcutter'; u.targetNode = node; return; }
                 }
+                return;
             }
-            // No source yet — wait; _roleIdleTimer will reassign if stuck too long
-            return;
+            u.taskType = 'workshop'; u.taskBldgId = bldg.id;
+            u.fetchBldgId = source.id; u.workshopPhase = 'goFetch';
+        } else {
+            u.taskType = 'workshop'; u.taskBldgId = bldg.id;
+            u.workshopPhase = 'process';
+            u.isInside = !(BLDG[bldg.type]?.outdoor ?? false);
         }
-
-        const bldg = this.scene.buildings.find(b =>
-            b.type === def.building && b.built && !b.faction &&
-            !this.scene.units.some(w => w.id !== u.id && w.role === u.role && w.taskBldgId === b.id));
-        if (!bldg) return; // all slots occupied — wait
-
-        u.taskType      = 'workshop';
-        u.taskBldgId    = bldg.id;
-        u.fetchBldgId   = source.id;
-        u.workshopPhase = 'goFetch';
     }
 
     _findSourceBuildingNear(x, y, input, types) {
@@ -1503,11 +1504,79 @@ export default class UnitManager {
         const b   = this.scene.buildings.find(b => b.id === u.taskBldgId && b.built);
         if (!b || !def) { u.taskType = null; u.workshopPhase = null; u.isInside = false; return; }
 
-        // === goFetch: walk to source building, pick up input ===
+        // === PROCURER: goFetch → goWork → loop back to goFetch ===
+        if (u.workshopSubrole === 'procure') {
+            if (u.workshopPhase === 'goFetch' || !u.workshopPhase) {
+                const src = this.scene.buildings.find(s => s.id === u.fetchBldgId && s.built);
+                if (!src) {
+                    const sourceTypes = this.FETCH_SOURCES[u.role] ?? [];
+                    const newSrc = this._findSourceBuildingNear(u.x, u.y, def.input, sourceTypes);
+                    if (!newSrc) { u.taskType = null; u.workshopPhase = null; return; }
+                    u.fetchBldgId = newSrc.id;
+                    return;
+                }
+                const door = this._bldgDoor(src);
+                if (this.moveToward(u, door.x, door.y, 28, dt)) return;
+
+                src.inventory = src.inventory ?? {};
+                const avail = src.inventory[def.input] ?? 0;
+                if (avail <= 0) {
+                    const sourceTypes = this.FETCH_SOURCES[u.role] ?? [];
+                    const newSrc = this._findSourceBuildingNear(u.x, u.y, def.input, sourceTypes);
+                    if (!newSrc) { u.taskType = null; u.workshopPhase = null; return; }
+                    u.fetchBldgId = newSrc.id;
+                    return;
+                }
+                const take = Math.min(def.carryQty, avail);
+                src.inventory[def.input] -= take;
+                this.scene.economyManager.syncResources();
+                u.carrying[def.input] = (u.carrying[def.input] ?? 0) + take;
+                u.workshopPhase = 'goWork';
+                return;
+            }
+
+            if (u.workshopPhase === 'goWork') {
+                const door = this._bldgDoor(b);
+                if (this.moveToward(u, door.x, door.y, 28, dt)) return;
+
+                const carry = u.carrying[def.input] ?? 0;
+                if (carry > 0) {
+                    b.inbox = b.inbox ?? {};
+                    b.inbox[def.input] = (b.inbox[def.input] ?? 0) + carry;
+                    u.carrying[def.input] = 0;
+                }
+                // Loop back — procurer never processes
+                u.workshopPhase = 'goFetch';
+                const sourceTypes = this.FETCH_SOURCES[u.role] ?? [];
+                const nextSrc = this._findSourceBuildingNear(u.x, u.y, def.input, sourceTypes);
+                if (!nextSrc) { u.taskType = null; u.workshopPhase = null; return; }
+                u.fetchBldgId = nextSrc.id;
+                return;
+            }
+            return;
+        }
+
+        // === PROCESSOR: stay at bench, consume inbox → output ===
+        if (u.workshopSubrole === 'process') {
+            const cx = (b.tx + b.size / 2) * TILE;
+            const cy = MAP_OY + (b.ty + b.size / 2) * TILE;
+            if (this.moveToward(u, cx, cy, 10, dt)) return;
+
+            u.isInside = !(BLDG[b.type]?.outdoor ?? false);
+
+            if ((b.inbox?.[def.input] ?? 0) <= 0) {
+                // Idle — wait for procurer to refill inbox
+                return;
+            }
+
+            this._doProcessTick(u, b, def, dt);
+            return;
+        }
+
+        // === FALLBACK (old saves, no subrole): original full-cycle logic ===
         if (u.workshopPhase === 'goFetch') {
-            const src = this.scene.buildings.find(b => b.id === u.fetchBldgId && b.built);
+            const src = this.scene.buildings.find(s => s.id === u.fetchBldgId && s.built);
             if (!src) {
-                // re-seek source
                 const sourceTypes = this.FETCH_SOURCES[u.role] ?? [];
                 const newSrc = this._findSourceBuildingNear(u.x, u.y, def.input, sourceTypes);
                 if (!newSrc) { u.taskType = null; u.workshopPhase = null; return; }
@@ -1517,7 +1586,6 @@ export default class UnitManager {
             const door = this._bldgDoor(src);
             if (this.moveToward(u, door.x, door.y, 28, dt)) return;
 
-            // At source door — take resources from building inventory
             src.inventory = src.inventory ?? {};
             const avail = src.inventory[def.input] ?? 0;
             if (avail <= 0) {
@@ -1535,7 +1603,6 @@ export default class UnitManager {
             return;
         }
 
-        // === goWork: carry input to workshop, deposit to inbox ===
         if (u.workshopPhase === 'goWork') {
             const door = this._bldgDoor(b);
             if (this.moveToward(u, door.x, door.y, 28, dt)) return;
@@ -1551,12 +1618,10 @@ export default class UnitManager {
             return;
         }
 
-        // === process: move to building center and work while inbox has stock ===
         const cx = (b.tx + b.size / 2) * TILE;
         const cy = MAP_OY + (b.ty + b.size / 2) * TILE;
         if (this.moveToward(u, cx, cy, 10, dt)) return;
 
-        // Inbox empty — go fetch more
         if ((b.inbox?.[def.input] ?? 0) <= 0) {
             u.isInside = false;
             const sourceTypes = this.FETCH_SOURCES[u.role] ?? [];
@@ -1567,19 +1632,20 @@ export default class UnitManager {
             return;
         }
 
-        // Process one unit of input → output per work tick
+        this._doProcessTick(u, b, def, dt);
+    }
+
+    _doProcessTick(u, b, def, dt) {
         const attrMult = this.getAttrMult(u, ['dex', 'int']);
         const workSpeed = (1.0 + (u.skills[def.skill]?.level ?? 1) * 0.2) * attrMult;
         u.workProgress = (u.workProgress ?? 0) + dt * workSpeed;
         if (u.workProgress >= 3.0) {
             u.workProgress = 0;
             b.inbox[def.input] -= 1;
-            
-            // Record production for tithe/wage
+
             b.dailyProduction = b.dailyProduction ?? {};
             b.dailyProduction[def.output] = (b.dailyProduction[def.output] ?? 0) + 1;
-            
-            // Set aside 1 unit as wage share if building is private or has pending wages
+
             b.wagePending = b.wagePending ?? {};
             b.wagePending[u.id] = b.wagePending[u.id] ?? {};
             b.wagePending[u.id][def.output] = (b.wagePending[u.id][def.output] ?? 0) + 1;
