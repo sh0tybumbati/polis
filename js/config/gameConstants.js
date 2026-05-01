@@ -108,6 +108,12 @@ export function blendPassions(p1, p2) {
 export const ENABLE_NEW_UI = false;
 export const ENABLE_PROACTIVE_AI = true;
 
+// ─── Archon AI Constants ─────────────────────────────────────────────────────
+export const ARCHON_BUILD_ORDER = [
+    'granary', 'woodshed', 'stonepile', // Tier 1: Storage
+    'mill', 'carpenter', 'masons'      // Tier 2: Processing
+];
+
 // ─── World & Map Constants ───────────────────────────────────────────────────
 
 export const TILE      = 32;
@@ -324,27 +330,6 @@ export const UDEF = {
   toxotes:   { hp: 18, atk: 7, speed: 65, range: 140, color: 0xddaa44 },
   scout:     { hp: 10, atk: 1, speed: 70, range: 0, color: 0x336655, isScout: true, vetLevels: false },
   berserker: { hp: 30, atk: 10, speed: 50, range: 36, color: 0xbb5533 },
-};
-
-// ─── Resource Node Definitions ───────────────────────────────────────────────
-
-export const NODE_DEF = {
-  tree: { resource: 'wood', stock: 10, respawnDays: 6 },
-  berry_bush: { resource: 'berries', stock: 24, respawnDays: 0 },
-  small_tree: { resource: 'wood', stock: 10, respawnDays: 6 },
-  large_tree: { resource: 'wood', stock: 18, respawnDays: 0 },
-  small_boulder: { resource: 'stone', stock: 12, respawnDays: 12 },
-  large_boulder: { resource: 'stone', stock: 24, respawnDays: 0 },
-  wild_garden: { resource: 'olives', stock: 10, respawnDays: 4 },
-  olive_grove: { resource: 'olives', stock: 12, respawnDays: 5 },
-  scrub: { resource: 'wool', stock: 4, large: true, respawnDays: 4 },
-  ore_vein: { resource: 'ore', stock: 20, large: true, respawnDays: 25 },
-};
-
-export const NODE_ROLE = {
-  tree: 'woodcutter', berry_bush: 'forager', small_tree: 'woodcutter', large_tree: 'woodcutter',
-  small_boulder: 'miner', large_boulder: 'miner', wild_garden: 'forager', olive_grove: 'forager',
-  scrub: 'shepherd', ore_vein: 'miner'
 };
 
 // ─── Veteran Levels ──────────────────────────────────────────────────────────

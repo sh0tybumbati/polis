@@ -1,14 +1,15 @@
 import {
     UDEF, TILE, MAP_OY, MAP_W, MAP_H, MAP_BOTTOM,
     TILE_SPD, T_GRASS, T_ROCK, HIGH_GROUND_BONUS,
-    VET_LEVELS, BLDG, NODE_DEF, NODE_ROLE, BUILD_WORK,
+    VET_LEVELS, BLDG, BUILD_WORK,
     DEER_ATK_RANGE, SHEEP_TAME_COST, NUTRITION, pickName,
     ENABLE_PROACTIVE_AI, BLDG_CATS, DESIRE_THRESHOLD, ROAD_DESIRE, ROAD_NONE, HUNGER_THRESHOLD,
-    RES_STATS,
+    RES_STATS, ARCHON_BUILD_ORDER,
     randomAttributes, blendAttributes, randomPhenotype, blendPhenotype,
     randomPassions, blendPassions,
     emptySkills,
 } from '../config/gameConstants.js';
+import { NODES } from '../content/nodes/index.js';
 import { MathUtils } from '../utils/MathUtils.js';
 
 export default class UnitManager {
@@ -49,6 +50,7 @@ export default class UnitManager {
             attributes, phenotype, passions,
             skills: emptySkills(),
             workProgress: 0,
+            fullness: 1.0,
             gfx: this.scene._w(this.scene.add.graphics().setDepth(6)),
         };
         this.redrawUnit(unit);
@@ -423,7 +425,11 @@ export default class UnitManager {
     }
 
     tickPlayer(u, time, dt) {
-        if (u.type === 'worker') { this.tickWorker(u, time, dt); return; }
+        if (u.type === 'worker') {
+            if (u.isArchon && ENABLE_PROACTIVE_AI) this._runArchonAI(u, dt);
+            this.tickWorker(u, time, dt);
+            return;
+        }
         // Garrisoned combat unit — walk to tower; melee guards also fight assaulters
         if (u.taskType === 'garrison') {
             this.handleGarrisonTask(u, dt);
@@ -733,13 +739,18 @@ export default class UnitManager {
 
         // Day: active work
         if (this.scene.phase === 'DAY') {
-            // Fullness
+            // Fullness: villagers eat at dawn if they have room, or during day if very hungry
             if (u.taskType !== 'garrison' && u.taskType !== 'eat') {
-                if (this.scene.phase === 'DAY' && (u.fullness ?? 1.0) < 0.5) {
+                const dayElapsed = 1.0 - (this.scene.timerMs / 90000);
+                const isDawn = dayElapsed < 0.15;
+                const needsFood = isDawn ? (u.fullness < 0.95) : (u.fullness < 0.4);
+
+                if (this.scene.phase === 'DAY' && needsFood) {
                      this.pushTask(u, 'eat');
                      u.workshopPhase = null;
                 } else {
-                     u.fullness = Math.max(0, (u.fullness ?? 1.0) - dt * 0.000005);
+                     // Decay so they lose ~1.2 fullness per full day phase (90s)
+                     u.fullness = Math.max(0, (u.fullness ?? 1.0) - dt * 0.000014);
                 }
             }
 
@@ -1174,7 +1185,7 @@ export default class UnitManager {
 
         if (u.workProgress >= threshold) {
             u.workProgress = 0;
-            const res = NODE_DEF[n.type]?.resource;
+            const res = NODES[n.type]?.resource;
             
             let pick = 0;
             while (pick < n.stock && this.canUnitCarryMore(u, res, pick + 1)) {
@@ -1426,7 +1437,7 @@ export default class UnitManager {
         u.workProgress = (u.workProgress ?? 0) + dt;
         if (u.workProgress >= 25.0) {
             u.workProgress = 0;
-            const res = NODE_DEF[n.type]?.resource ?? 'wheat';
+            const res = NODES[n.type]?.resource ?? 'wheat';
             
             let pick = 0;
             while (pick < n.stock && this.canUnitCarryMore(u, res, pick + 1)) {
@@ -1476,8 +1487,13 @@ export default class UnitManager {
             return 1.0 - Math.min(1.0, (this.scene.resources[res] || 0) / cap);
         };
 
-        if (u.age >= 2 && this.scene.buildings.some(b => !b.built))
-            cands.push({ role:'builder', score: (100 + (u.skills.masonry?.level ?? 1) * 10) - cnt('builder') * 20 });
+        if (u.age >= 2) {
+            const unbuilt = this.scene.buildings.filter(b => !b.built && !b.faction);
+            if (unbuilt.length > 0) {
+                const urgencyBonus = unbuilt.length * 15;
+                cands.push({ role:'builder', score: (100 + urgencyBonus + (u.skills.masonry?.level ?? 1) * 10) - cnt('builder') * 20 });
+            }
+        }
 
         // Strong bonus if worker's home domain has a farm with stock
         const home = u.homeBldgId ? this.scene.buildings.find(b => b.id === u.homeBldgId) : null;
@@ -1818,35 +1834,46 @@ export default class UnitManager {
             const door = this._bldgDoor(foodBldg);
             if (this.moveToward(u, door.x, door.y, 40, dt)) return;
 
-            for (const food of FOOD_PRIORITY) {
-                if ((foodBldg.inventory?.[food] ?? 0) >= 1) {
-                    foodBldg.inventory[food]--;
-                    // Keep commons in sync for public buildings
-                    if (this.PUBLIC_STORAGE.has(foodBldg.type) && foodBldg.isPublic) {
-                        this.scene.resources[food] = Math.max(0, (this.scene.resources[food] ?? 0) - 1);
+            // Eat until full (or out of food)
+            let ate = false;
+            while (u.fullness < 0.95) {
+                let found = false;
+                for (const food of FOOD_PRIORITY) {
+                    if ((foodBldg.inventory?.[food] ?? 0) >= 1) {
+                        foodBldg.inventory[food]--;
+                        if (this.PUBLIC_STORAGE.has(foodBldg.type) && foodBldg.isPublic) {
+                            this.scene.resources[food] = Math.max(0, (this.scene.resources[food] ?? 0) - 1);
+                        }
+                        const nut = NUTRITION_MAP[food];
+                        u.fullness = Math.min(1.0, (u.fullness ?? 0) + nut);
+                        u.dailyNutrition = Math.min(1.0, (u.dailyNutrition ?? 0) + nut);
+                        ate = true; found = true;
+                        break;
                     }
-                    const nut = NUTRITION_MAP[food];
-                    u.fullness = Math.min(1.0, (u.fullness ?? 0) + nut);
-                    u.dailyNutrition = Math.min(1.0, (u.dailyNutrition ?? 0) + nut);
-                    this.scene.uiManager.showFloatText(u.x, u.y - 14, `🍞 ${food}`, '#ffee88');
-                    break;
                 }
+                if (!found) break;
             }
+            if (ate) this.scene.uiManager.showFloatText(u.x, u.y - 14, '🍱 full', '#ffee88');
         } else {
             // No food building — try commons directly
-            let fed = false;
-            for (const food of FOOD_PRIORITY) {
-                if ((this.scene.resources[food] ?? 0) >= 1) {
-                    this.scene.resources[food]--;
-                    const nut = NUTRITION_MAP[food];
-                    u.fullness = Math.min(1.0, (u.fullness ?? 0) + nut);
-                    u.dailyNutrition = Math.min(1.0, (u.dailyNutrition ?? 0) + nut);
-                    this.scene.uiManager.showFloatText(u.x, u.y - 14, `🍞 ${food}`, '#ffee88');
-                    fed = true;
-                    break;
+            let ate = false;
+            while (u.fullness < 0.95) {
+                let found = false;
+                for (const food of FOOD_PRIORITY) {
+                    if ((this.scene.resources[food] ?? 0) >= 1) {
+                        this.scene.resources[food]--;
+                        const nut = NUTRITION_MAP[food];
+                        u.fullness = Math.min(1.0, (u.fullness ?? 0) + nut);
+                        u.dailyNutrition = Math.min(1.0, (u.dailyNutrition ?? 0) + nut);
+                        ate = true; found = true;
+                        break;
+                    }
                 }
+                if (!found) break;
             }
-            if (!fed) {
+            if (ate) {
+                this.scene.uiManager.showFloatText(u.x, u.y - 14, '🍱 full', '#ffee88');
+            } else {
                 this.scene.uiManager.showFloatText(u.x, u.y - 14, 'hungry!', '#ff6644');
             }
         }
@@ -1883,6 +1910,47 @@ export default class UnitManager {
         const target = needs.find(n => n.urgency > 0 && !this.scene.buildings.some(b => b.type === n.type && !b.built));
         if (target && this.scene.economyManager.afford(BLDG[target.type].cost)) {
             // Logic to find site and place...
+        }
+    }
+
+    _runArchonAI(u, dt) {
+        // Rate limit: evaluate once every 5 seconds
+        u._archonAiTimer = (u._archonAiTimer ?? 0) + dt;
+        if (u._archonAiTimer < 5.0) return;
+        u._archonAiTimer = 0;
+
+        // If something is already being built, the Archon waits
+        if (this.scene.buildings.some(b => !b.built && !b.faction)) return;
+
+        for (const type of ARCHON_BUILD_ORDER) {
+            // Check if building already exists
+            if (this.scene.buildings.some(b => b.type === type && !b.faction)) continue;
+
+            const def = BLDG[type];
+            if (!def) continue;
+
+            // Archon only places if state can afford it
+            const cost = def.cost || {};
+            // Simplified check: can we afford basic cost?
+            if (!this.scene.economyManager.afford(cost)) continue;
+
+            // Find a site
+            const site = this.scene.buildingManager.findPublicBuildSite(type);
+            if (site) {
+                console.log(`[Archon AI] ${u.name} decides to build a public ${type} at ${site.tx}, ${site.ty}`);
+                // Use a temporary state to trigger placeBuilding logic
+                const prevType = this.scene.bldgType;
+                this.scene.bldgType = type;
+                this.scene.buildingManager.placeBuilding(site.tx, site.ty);
+                this.scene.bldgType = prevType;
+                
+                // Ensure it's marked public (it should be by default now, but let's be certain for Archon tasks)
+                const newBldg = this.scene.buildings[this.scene.buildings.length - 1];
+                if (newBldg && newBldg.type === type) newBldg.isPublic = true;
+                
+                this.scene.uiManager.showFloatText(u.x, u.y - 25, `⚜ Archon: "Build a ${type}!"`, '#ffdd44');
+                break; // One building placement at a time
+            }
         }
     }
 

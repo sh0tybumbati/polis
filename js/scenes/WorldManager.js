@@ -1,7 +1,8 @@
 import {
     DAY_DURATION, NIGHT_DURATION, BLDG, TILE, MAP_OY, UDEF, VET_LEVELS, pickVetName,
-    APPLIANCE_DEF, NUTRITION, NODE_DEF,
+    APPLIANCE_DEF, NUTRITION,
 } from '../config/gameConstants.js';
+import { NODES } from '../content/nodes/index.js';
 
 export default class WorldManager {
     constructor(scene) {
@@ -251,13 +252,14 @@ export default class WorldManager {
         const units = this.scene.units.filter(u => !u.isEnemy && u.hp > 0);
         let starvingCount = 0;
         for (const u of units) {
-            const nut = u.dailyNutrition ?? 0;
-            if (nut >= 0.8) {
+            // Use fullness instead of dailyNutrition
+            const f = u.fullness ?? 1.0;
+            if (f >= 0.8) {
                 // Well fed — small HP regen if damaged
                 if (u.hp < u.maxHp) u.hp = Math.min(u.maxHp, u.hp + 1);
-            } else if (nut >= 0.5) {
+            } else if (f >= 0.5) {
                 // Adequate — no effect
-            } else if (nut >= 0.2) {
+            } else if (f >= 0.2) {
                 // Hungry — lose 1 HP
                 u.hp -= 1;
                 starvingCount++;
@@ -268,6 +270,7 @@ export default class WorldManager {
                 starvingCount++;
                 this.scene.uiManager.showFloatText(u.x, u.y - 14, 'starving!', '#ff4444');
             }
+            // dailyNutrition is no longer the primary health driver
             u.dailyNutrition = 0;
         }
         this.scene.foodPressure = starvingCount > 0;
@@ -298,7 +301,7 @@ export default class WorldManager {
 
             this.tickNodeRespawn();
             this.ageUpUnits();
-            this.scene.units.forEach(u => { u.dailyNutrition = 0; u._wageCollected = false; u.hunger = 0; });
+            this.scene.units.forEach(u => { u._wageCollected = false; });
             this.scene.economyManager.collectFirstFruits(); // Restored: calculate daily tithe delivery preparation
 
             if ((this.scene.day - 1) % 8 === 0) {
@@ -316,7 +319,7 @@ export default class WorldManager {
         for (const n of this.scene.resNodes) {
             if (n.stock <= 0) {
                 n.respawnTimer = (n.respawnTimer ?? 0) + 1;
-                const def = NODE_DEF[n.type];
+                const def = NODES[n.type];
                 if (def && def.respawnDays > 0 && n.respawnTimer >= def.respawnDays) {
                     n.stock = def.stock;
                     n.respawnTimer = 0;

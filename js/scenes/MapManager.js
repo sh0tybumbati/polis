@@ -3,8 +3,9 @@ import {
     T_SAND, T_GRASS, T_ROCK, T_FOREST, T_WATER,
     TILE_A, TILE_B, BIOME_A, BIOME_B,
     ROAD_NONE, ROAD_DESIRE, ROAD_PAVED, ROAD_SPD, TILE_SPD,
-    NODE_DEF, BLDG
+    BLDG
 } from '../config/gameConstants.js';
+import { NODES } from '../content/nodes/index.js';
 import { MathUtils } from '../utils/MathUtils.js';
 
 export default class MapManager {
@@ -110,7 +111,7 @@ export default class MapManager {
                     if (allowed && !allowed(tx, ty)) continue;
                     const wx = tx * TILE + TILE / 2, wy = MAP_OY + ty * TILE + TILE / 2;
                     if (this.scene.resNodes.some(n => Phaser.Math.Distance.Between(wx, wy, n.x, n.y) < 40)) continue;
-                    const def = NODE_DEF[type];
+                    const def = NODES[type];
                     this.scene.resNodes.push({ id: this.scene.getId(), type, x: wx, y: wy,
                         stock: def.stock, maxStock: def.stock, gfx: null, labelObj: null,
                         dormantTimer: 0, sapling: false, saplingTimer: 0 });
@@ -135,7 +136,7 @@ export default class MapManager {
             const wx = tx * TILE + TILE / 2, wy = MAP_OY + ty * TILE + TILE / 2;
             if (this.scene.resNodes.some(n => n.type === 'scrub' && Phaser.Math.Distance.Between(wx, wy, n.x, n.y) < 48)) continue;
             this.scene.resNodes.push({ id: this.scene.getId(), type: 'scrub', x: wx, y: wy,
-                stock: NODE_DEF.scrub.stock, maxStock: NODE_DEF.scrub.stock,
+                stock: NODES.scrub.stock, maxStock: NODES.scrub.stock,
                 gfx: null, labelObj: null, dormantTimer: 0, sapling: false, saplingTimer: 0 });
             scrubPlaced++;
         }
@@ -399,12 +400,12 @@ export default class MapManager {
 
         if (n.stock <= 0 && !n.felled) return;
 
-        const def   = NODE_DEF[n.type];
+        const def   = NODES[n.type];
         const ratio = n.stock / n.maxStock;
 
         if (n.type === 'scrub') {
             n.gfx = this.scene._w(this.scene.add.graphics().setDepth(2)).setPosition(n.x, n.y);
-            this.drawNodeBody(n.gfx, n, 0.45 + ratio * 0.55);
+            NODES[n.type]?.draw(n.gfx, n, 0.45 + ratio * 0.55);
             return;
         }
 
@@ -413,7 +414,7 @@ export default class MapManager {
 
         n.gfx = this.scene._w(this.scene.add.graphics().setDepth(2));
         n.gfx.setPosition(n.x, n.y);
-        this.drawNodeBody(n.gfx, n, alpha);
+        NODES[n.type]?.draw(n.gfx, n, alpha);
 
         if (n.felled === false && n.fellWork !== undefined) {
             const maxFell = n.type === 'large_tree' ? 28 : 16;
@@ -446,78 +447,5 @@ export default class MapManager {
             fontSize: '9px', color: '#ffffff', fontFamily: 'monospace',
             stroke: '#000000', strokeThickness: 2,
         }).setOrigin(0.5).setDepth(3));
-    }
-
-    drawNodeBody(gfx, n, alpha) {
-        const type = n.type;
-        if (type === 'berry_bush') {
-            gfx.fillStyle(0x338818, alpha).fillCircle(-5, 2, 9);
-            gfx.fillStyle(0x44aa22, alpha).fillCircle(4, 1, 10);
-            gfx.fillStyle(0x55bb33, alpha).fillCircle(-1, -4, 8);
-            [[-3,-2],[3,1],[0,3],[-5,4],[5,-2]].forEach(([bx,by]) =>
-                gfx.fillStyle(0xcc2244, Math.min(1, alpha + 0.2)).fillCircle(bx, by, 2.5));
-        } else if (type === 'small_boulder') {
-            gfx.fillStyle(0x887766, alpha).fillEllipse(2, 3, 28, 19);
-            gfx.fillStyle(0x9a8877, alpha).fillEllipse(-3, -1, 14, 9);
-            gfx.lineStyle(1, 0x665544, alpha * 0.5).lineBetween(-2, 1, 4, 8);
-        } else if (type === 'large_boulder') {
-            gfx.fillStyle(0x776655, alpha).fillEllipse(2, 4, 44, 30);
-            gfx.fillStyle(0x887766, alpha).fillEllipse(-6, -3, 22, 14);
-            gfx.fillStyle(0x665544, alpha).fillEllipse(8, 6, 14, 10);
-            gfx.lineStyle(1, 0x554433, alpha * 0.6)
-                .lineBetween(-8, 2, -2, 12).lineBetween(4, -4, 10, 6);
-        } else if (type === 'small_tree') {
-            if (n.felled) {
-                // Felled log pile
-                gfx.fillStyle(0x6a4422, alpha).fillEllipse(0, 4, 28, 10);
-                gfx.fillStyle(0x8a5a30, alpha).fillEllipse(-6, 2, 10, 8).fillEllipse(6, 2, 10, 8);
-                gfx.fillStyle(0x5a3318, alpha * 0.6).fillEllipse(0, 5, 22, 6);
-            } else {
-                gfx.fillStyle(0x6a4422, alpha).fillRect(-3, 7, 6, 13);
-                gfx.fillStyle(0x1a5a12, alpha).fillCircle(0, -1, 14);
-                gfx.fillStyle(0x2a7a1e, alpha).fillCircle(-5, 3, 10);
-                gfx.fillStyle(0x2a7a1e, alpha).fillCircle(5, 3, 10);
-                gfx.fillStyle(0x338a28, alpha).fillCircle(0, -5, 10);
-            }
-        } else if (type === 'large_tree') {
-            if (n.felled) {
-                // Felled log pile (bigger)
-                gfx.fillStyle(0x5a3318, alpha).fillEllipse(0, 5, 40, 14);
-                gfx.fillStyle(0x7a4a28, alpha).fillEllipse(-10, 2, 16, 11).fillEllipse(10, 2, 16, 11);
-                gfx.fillStyle(0x4a2810, alpha * 0.6).fillEllipse(0, 6, 32, 8);
-            } else {
-                gfx.fillStyle(0x5a3318, alpha).fillRect(-5, 10, 10, 18);
-                gfx.fillStyle(0x144a0e, alpha).fillCircle(0, -5, 22);
-                gfx.fillStyle(0x1a6a12, alpha).fillCircle(-8, 4, 16);
-                gfx.fillStyle(0x1a6a12, alpha).fillCircle(8, 4, 16);
-                gfx.fillStyle(0x2a8020, alpha).fillCircle(0, -10, 16);
-                gfx.fillStyle(0x338a28, alpha).fillCircle(0, -3, 12);
-            }
-        } else if (type === 'scrub') {
-            gfx.fillStyle(0x7a8830, alpha).fillEllipse(-6, 2, 14, 8);
-            gfx.fillStyle(0x6a7828, alpha).fillEllipse(4, 0, 12, 7);
-            gfx.fillStyle(0x8a9838, alpha).fillEllipse(-2, -3, 10, 6);
-            gfx.fillStyle(0x5a6820, alpha * 0.6).fillRect(-7, 4, 3, 5);
-            gfx.fillStyle(0x5a6820, alpha * 0.6).fillRect(3, 3, 3, 4);
-        } else if (type === 'ore_vein') {
-            gfx.fillStyle(0x554433, alpha).fillEllipse(0, 2, 46, 32);
-            gfx.fillStyle(0x446644, alpha * 0.9).fillEllipse(-8, -2, 16, 10);
-            gfx.fillStyle(0x447744, alpha * 0.8).fillEllipse(6, 4, 12, 8);
-            gfx.lineStyle(2, 0x55aa55, alpha * 0.7)
-                .lineBetween(-10, 0, -4, 8).lineBetween(2, -4, 8, 6).lineBetween(-2, 2, 4, -4);
-        } else if (type === 'olive_grove') {
-            gfx.fillStyle(0x7a6644, alpha).fillRect(-4, 6, 8, 16);
-            gfx.fillStyle(0x3a4a1e, alpha * 0.9).fillEllipse(-10, -4, 24, 18);
-            gfx.fillStyle(0x4a5a28, alpha).fillEllipse(8, -6, 22, 16);
-            gfx.fillStyle(0x5a6a30, alpha * 0.85).fillEllipse(0, -10, 20, 14);
-            [[-6,-2],[4,0],[-2,4],[8,-4]].forEach(([ox,oy]) =>
-                gfx.fillStyle(0x224411, alpha).fillCircle(ox, oy, 2.5));
-        } else if (type === 'wild_garden') {
-            gfx.fillStyle(0x3a6a18, alpha).fillEllipse(-4, 3, 16, 10);
-            gfx.fillStyle(0x4a7a22, alpha).fillEllipse(5, 1, 14, 9);
-            gfx.fillStyle(0x2a5a10, alpha * 0.8).fillEllipse(0, -2, 10, 7);
-            [[-5,-1],[4,3],[0,0],[-2,5]].forEach(([fx,fy]) =>
-                gfx.fillStyle(0xddcc44, alpha * 0.9).fillCircle(fx, fy, 2));
-        }
     }
 }
