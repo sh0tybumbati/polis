@@ -1,6 +1,6 @@
 export default {
     id: 'ore_vein',
-    resource: 'ore',
+    resource: 'Materials.Metal.Copper.Ore',
     stock: 20,
     respawnDays: 25,
     large: true,

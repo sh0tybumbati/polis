@@ -1,5 +1,5 @@
 export default {
-    key:       'leather',
+    key:       'Textile.Hide.Deer.Leather',
     label:     'Leather',
     icon:      '🦌',
     supertype: 'Textile',

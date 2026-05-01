@@ -1,6 +1,6 @@
 export default {
     id: 'small_tree',
-    resource: 'wood',
+    resource: 'Materials.Wood.Pine',
     stock: 10,
     respawnDays: 6,
     role: 'woodcutter',

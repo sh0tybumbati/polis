@@ -1,5 +1,5 @@
 export default {
-    key:       'bronzeKit',
+    key:       'Equipment.Bronze.Kit',
     label:     'Bronze Kit',
     icon:      '🔩',
     supertype: 'Equipment',

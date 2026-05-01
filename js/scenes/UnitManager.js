@@ -41,7 +41,7 @@ export default class UnitManager {
             speed, atk: def.atk, range: def.range,
             wallSide: 0, homeBldgId: null, age: 2,
             taskType: null, taskBldgId: null, targetNode: null,
-            carrying: { wheat: 0, flour: 0, bread: 0, meat: 0, sausages: 0, olives: 0, stone: 0, wood: 0, sticks: 0, stones: 0, wool: 0, hide: 0, ore: 0 }, carryMax,
+            carrying: { 'Food.Grain.Wheat': 0, 'Food.Grain.Wheat.Flour': 0, 'Food.Grain.Wheat.Bread': 0, 'Food.Meat.Venison': 0, 'Food.Meat.Venison.Sausages': 0, 'Food.Produce.Olive': 0, 'Materials.Stone.Limestone': 0, 'Materials.Wood.Pine': 0, 'Materials.Wood.Pine.Sticks': 0, 'Materials.Stone.Limestone.Stones': 0, 'Textile.Fiber.Wool': 0, 'Textile.Hide.Deer': 0, 'Materials.Metal.Copper.Ore': 0 }, carryMax,
             role: null, replantTimer: 0, trainTimer: 0, lastSeek: 0,
             roleMemory: {}, targetDeer: null, targetSheep: null,
             nightsSurvived: 0, vetLevel: 0, isInside: false, _wageCollected: false,
@@ -289,17 +289,17 @@ export default class UnitManager {
             if (u.carrying) {
                 const tot = this.totalCarrying(u);
                 if (tot > 0) {
-                    const cc = u.carrying.bread > 0  ? 0xffdd88
-                             : u.carrying.sausages > 0 ? 0xffaa44
-                             : u.carrying.olives > 0 ? 0x88cc44
-                             : u.carrying.meat > 0   ? 0xdd5533
-                             : u.carrying.wheat > 0  ? 0xddcc66
-                             : u.carrying.stone > 0  ? 0xaaaadd
-                             : u.carrying.stones > 0 ? 0xbbbbcc
-                             : u.carrying.wool > 0   ? 0xeeddcc
-                             : u.carrying.hide > 0   ? 0xcc8855
-                             : u.carrying.ore > 0    ? 0x55aa55
-                             : u.carrying.sticks > 0 ? 0xaa8844
+                    const cc = u.carrying['Food.Grain.Wheat.Bread'] > 0  ? 0xffdd88
+                             : u.carrying['Food.Meat.Venison.Sausages'] > 0 ? 0xffaa44
+                             : u.carrying['Food.Produce.Olive'] > 0 ? 0x88cc44
+                             : u.carrying['Food.Meat.Venison'] > 0   ? 0xdd5533
+                             : u.carrying['Food.Grain.Wheat'] > 0  ? 0xddcc66
+                             : u.carrying['Materials.Stone.Limestone'] > 0  ? 0xaaaadd
+                             : u.carrying['Materials.Stone.Limestone.Stones'] > 0 ? 0xbbbbcc
+                             : u.carrying['Textile.Fiber.Wool'] > 0   ? 0xeeddcc
+                             : u.carrying['Textile.Hide.Deer'] > 0   ? 0xcc8855
+                             : u.carrying['Materials.Metal.Copper.Ore'] > 0    ? 0x55aa55
+                             : u.carrying['Materials.Wood.Pine.Sticks'] > 0 ? 0xaa8844
                              : 0xcc9944;
                     u.gfx.fillStyle(cc).fillCircle(age === 0 ? 4 : 6, age === 0 ? 3 : 5, 2);
                 }
@@ -680,7 +680,7 @@ export default class UnitManager {
                     workplace.wagePending[u.id] = {};
                 } else if (workplace?.isPublic || isNodeWorker) {
                     // State daily wage: 1 food from public commons
-                    const WAGE_FOOD = ['bread', 'sausages', 'flour', 'olives', 'wheat', 'meat'];
+                    const WAGE_FOOD = ['Food.Grain.Wheat.Bread', 'Food.Meat.Venison.Sausages', 'Food.Grain.Wheat.Flour', 'Food.Produce.Olive', 'Food.Grain.Wheat', 'Food.Meat.Venison'];
                     let paid = false;
                     for (const food of WAGE_FOOD) {
                         if ((this.scene.resources[food] ?? 0) >= 1) {
@@ -857,17 +857,17 @@ export default class UnitManager {
         if (deer.isDead) {
             // Harvest carcass: take meat and hide
             let meatPick = 0;
-            while (meatPick < deer.meatLeft && this.canUnitCarryMore(u, 'meat', meatPick + 1)) {
+            while (meatPick < deer.meatLeft && this.canUnitCarryMore(u, 'Food.Meat.Venison', meatPick + 1)) {
                 meatPick++;
             }
             let hidePick = 0;
-            while (hidePick < deer.hideLeft && this.canUnitCarryMore(u, 'hide', hidePick + 1, meatPick)) {
+            while (hidePick < deer.hideLeft && this.canUnitCarryMore(u, 'Textile.Hide.Deer', hidePick + 1, meatPick)) {
                 // The 4th param 'meatPick' would need to be handled by canUnitCarryMore or manual weight calc
                 // Let's just do manual check here for simplicity since it's mixed harvest
-                const curW = this.getUnitCarryWeight(u) + meatPick * ITEMS.meat.weight;
-                const curV = this.getUnitCarryVolume(u) + meatPick * ITEMS.meat.volume;
-                const nextW = curW + (hidePick + 1) * ITEMS.hide.weight;
-                const nextV = curV + (hidePick + 1) * ITEMS.hide.volume;
+                const curW = this.getUnitCarryWeight(u) + meatPick * ITEMS['Food.Meat.Venison'].weight;
+                const curV = this.getUnitCarryVolume(u) + meatPick * ITEMS['Food.Meat.Venison'].volume;
+                const nextW = curW + (hidePick + 1) * ITEMS['Textile.Hide.Deer'].weight;
+                const nextV = curV + (hidePick + 1) * ITEMS['Textile.Hide.Deer'].volume;
                 if (nextW <= this.getUnitMaxWeight(u) && nextV <= this.getUnitMaxVolume(u)) hidePick++;
                 else break;
             }
@@ -875,8 +875,8 @@ export default class UnitManager {
             if (meatPick > 0 || hidePick > 0) {
                 deer.meatLeft -= meatPick;
                 deer.hideLeft -= hidePick;
-                u.carrying.meat = (u.carrying.meat ?? 0) + meatPick;
-                u.carrying.hide = (u.carrying.hide ?? 0) + hidePick;
+                u.carrying['Food.Meat.Venison'] = (u.carrying['Food.Meat.Venison'] ?? 0) + meatPick;
+                u.carrying['Textile.Hide.Deer'] = (u.carrying['Textile.Hide.Deer'] ?? 0) + hidePick;
                 
                 // Track production
                 this.scene.natureManager.redrawDeer(deer);
@@ -934,8 +934,8 @@ export default class UnitManager {
             u.tameProgress = (u.tameProgress ?? 0) + dt;
             if (u.tameProgress >= 8000) {
                 // Cost 1 wheat from public resources
-                if ((this.scene.resources.wheat ?? 0) >= ANIMALS.sheep.tameCost) {
-                    this.scene.resources.wheat -= ANIMALS.sheep.tameCost;
+                if ((this.scene.resources['Food.Grain.Wheat'] ?? 0) >= ANIMALS.sheep.tameCost) {
+                    this.scene.resources['Food.Grain.Wheat'] -= ANIMALS.sheep.tameCost;
                     sheep.isTamed = true;
                     sheep.followUnit = u.id;
                     u.tameProgress = 0;
@@ -964,7 +964,7 @@ export default class UnitManager {
         if (dist <= TILE * 1.2) {
             target.woolReady = false;
             target.woolTimer = 0;
-            u.carrying.wool = (u.carrying.wool ?? 0) + 1;
+            u.carrying['Textile.Fiber.Wool'] = (u.carrying['Textile.Fiber.Wool'] ?? 0) + 1;
             this.scene.natureManager.redrawSheep(target);
             this._gainSkillXp(u, 'animalTrap');
             u.targetSheep = null;
@@ -990,7 +990,7 @@ export default class UnitManager {
         if (u.workProgress >= 25.0) {
             u.workProgress = 0;
             // Costs half the build materials — spend stone if available
-            const repairCost = { stone: 1 };
+            const repairCost = { 'Materials.Stone.Limestone': 1 };
             if (this.scene.economyManager.afford(repairCost)) {
                 this.scene.economyManager.spend(repairCost);
                 b.hp = Math.min(b.maxHp, b.hp + Math.ceil(b.maxHp / 10));
@@ -1062,15 +1062,15 @@ export default class UnitManager {
             u.workProgress = 0;
             
             let pick = 0;
-            while (pick < b.stock && this.canUnitCarryMore(u, 'wheat', pick + 1)) {
+            while (pick < b.stock && this.canUnitCarryMore(u, 'Food.Grain.Wheat', pick + 1)) {
                 pick++;
             }
             if (pick === 0) { u.taskType = null; return; }
 
-            b.stock -= pick; 
-            u.carrying.wheat += pick;
+            b.stock -= pick;
+            u.carrying['Food.Grain.Wheat'] += pick;
             b.dailyProduction = b.dailyProduction ?? {};
-            b.dailyProduction.wheat = (b.dailyProduction.wheat ?? 0) + pick;
+            b.dailyProduction['Food.Grain.Wheat'] = (b.dailyProduction['Food.Grain.Wheat'] ?? 0) + pick;
             this._gainSkillXp(u, 'farming');
             // Redraw full building graphic when a crop row boundary is crossed
             const rows = b.maxStock > 0 ? Math.round(b.stock / b.maxStock * 5) : 0;
@@ -1213,12 +1213,12 @@ export default class UnitManager {
             this.scene.uiManager.showFloatText(u.x, u.y - 14, `+${pick}${res[0].toUpperCase()}`, '#ffffff');
 
             // Debris byproducts: trees drop sticks, boulders drop stones
-            if (res === 'wood' && this.scene.economyManager.hasStorageSpace('sticks')) {
+            if (res === 'Materials.Wood.Pine' && this.scene.economyManager.hasStorageSpace('Materials.Wood.Pine.Sticks')) {
                 const debris = Math.floor(pick * (0.5 + Math.random() * 0.5));
-                if (debris > 0) this.scene.economyManager.addResource('sticks', debris);
-            } else if (res === 'stone' && this.scene.economyManager.hasStorageSpace('stones')) {
+                if (debris > 0) this.scene.economyManager.addResource('Materials.Wood.Pine.Sticks', debris);
+            } else if (res === 'Materials.Stone.Limestone' && this.scene.economyManager.hasStorageSpace('Materials.Stone.Limestone.Stones')) {
                 const debris = Math.floor(pick * (0.5 + Math.random() * 0.5));
-                if (debris > 0) this.scene.economyManager.addResource('stones', debris);
+                if (debris > 0) this.scene.economyManager.addResource('Materials.Stone.Limestone.Stones', debris);
             }
 
             if (n.stock <= 0) {
@@ -1402,11 +1402,11 @@ export default class UnitManager {
             const fx = (eFarm.tx + 1) * TILE, fy = MAP_OY + (eFarm.ty + 1) * TILE;
             if (Phaser.Math.Distance.Between(u.x, u.y, fx, fy) < 28) {
                 let pick = 0;
-                while (pick < eFarm.stock && this.canUnitCarryMore(u, 'wheat', pick + 1)) {
+                while (pick < eFarm.stock && this.canUnitCarryMore(u, 'Food.Grain.Wheat', pick + 1)) {
                     pick++;
                 }
                 eFarm.stock -= pick;
-                u.carrying.wheat = (u.carrying.wheat ?? 0) + pick;
+                u.carrying['Food.Grain.Wheat'] = (u.carrying['Food.Grain.Wheat'] ?? 0) + pick;
             } else {
                 this.moveToward(u, fx, fy, 10, dt);
                 return;
@@ -1439,7 +1439,7 @@ export default class UnitManager {
         u.workProgress = (u.workProgress ?? 0) + dt;
         if (u.workProgress >= 25.0) {
             u.workProgress = 0;
-            const res = NODES[n.type]?.resource ?? 'wheat';
+            const res = NODES[n.type]?.resource ?? 'Food.Grain.Wheat';
             
             let pick = 0;
             while (pick < n.stock && this.canUnitCarryMore(u, res, pick + 1)) {
@@ -1506,8 +1506,8 @@ export default class UnitManager {
         const domainFarmBonus = ownFarm ? 60 : 0;
 
         // Food need: highest shortage across the grain chain and olive supply
-        const grainNeed  = Math.max(need('wheat'), need('flour'), need('bread'));
-        const olivNeed   = need('olives');
+        const grainNeed  = Math.max(need('Food.Grain.Wheat'), need('Food.Grain.Wheat.Flour'), need('Food.Grain.Wheat.Bread'));
+        const olivNeed   = need('Food.Produce.Olive');
         const foodNeed   = Math.max(grainNeed, olivNeed);
 
         cands.push({ role:'farmer',    score: (60 + domainFarmBonus + grainNeed * 50 + (u.skills.farming?.level    ?? 1) * 15) - cnt('farmer')    * 25 });
@@ -1532,13 +1532,13 @@ export default class UnitManager {
             const hireWood = this.scene.buildings.some(b => b.type === 'woodshed' && b.built && b.isPublic && b.hiring) ? 100 : 0;
             const hireStone = this.scene.buildings.some(b => b.type === 'stonepile' && b.built && b.isPublic && b.hiring) ? 100 : 0;
 
-            cands.push({ role:'woodcutter', score: (30 + hireWood + need('wood')  * 60 + (u.skills.woodcutting?.level ?? 1) * 15) - cnt('woodcutter') * 22 });
-            cands.push({ role:'miner',      score: (25 + hireStone + need('stone') * 60 + (u.skills.mining?.level      ?? 1) * 15) - cnt('miner')      * 22 });
+            cands.push({ role:'woodcutter', score: (30 + hireWood + need('Materials.Wood.Pine')  * 60 + (u.skills.woodcutting?.level ?? 1) * 15) - cnt('woodcutter') * 22 });
+            cands.push({ role:'miner',      score: (25 + hireStone + need('Materials.Stone.Limestone') * 60 + (u.skills.mining?.level      ?? 1) * 15) - cnt('miner')      * 22 });
             // Shepherd: requires a built pasture and visible wild sheep
             const hasPasture = this.scene.buildings.some(b => b.type === 'pasture' && b.built && !b.faction);
             const wildSheep = this.scene.sheep?.filter(s => !s.isTamed && !s.isDead).length ?? 0;
             if (hasPasture && wildSheep > 0)
-                cands.push({ role:'shepherd', score: (20 + wildSheep * 8 + need('wool') * 40 + (u.skills.animalTrap?.level ?? 1) * 10) - cnt('shepherd') * 18 });
+                cands.push({ role:'shepherd', score: (20 + wildSheep * 8 + need('Textile.Fiber.Wool') * 40 + (u.skills.animalTrap?.level ?? 1) * 10) - cnt('shepherd') * 18 });
         }
 
         cands.sort((a, b) => b.score - a.score);
@@ -1610,14 +1610,14 @@ export default class UnitManager {
     // Config for all workshop roles: role → { building, input, skill, needKey, baseScore }
     get WORKSHOP_ROLES() {
         return {
-            miller:    { building: 'mill',       input: 'wheat',  output: 'flour',       carryQty: 5, skill: 'mill',        needKey: 'flour',       baseScore: 50 },
-            baker:     { building: 'bakery',      input: 'flour',  output: 'bread',       carryQty: 7, skill: 'bake',        needKey: 'bread',       baseScore: 45 },
-            butcher:   { building: 'butcher',     input: 'meat',   output: 'sausages',    carryQty: 4, skill: 'butcher',     needKey: 'sausages',    baseScore: 40 },
-            tanner:    { building: 'tannery',     input: 'hide',   output: 'leather',     carryQty: 6, skill: 'tan',         needKey: 'leather',     baseScore: 35 },
-            smelter:   { building: 'smelter',     input: 'ore',    output: 'ingot',       carryQty: 6, skill: 'smelt',       needKey: 'ingot',       baseScore: 35 },
-            smith:     { building: 'blacksmith',  input: 'ingot',  output: 'bronzeKit',   carryQty: 3, skill: 'forge',       needKey: 'bronzeKit',   baseScore: 30 },
-            carpenter: { building: 'carpenter',   input: 'wood',   output: 'planks',      carryQty: 6, skill: 'woodcutting', needKey: 'planks',      baseScore: 30 },
-            mason:     { building: 'masons',      input: 'stone',  output: 'stoneBlocks', carryQty: 4, skill: 'masonry',     needKey: 'stoneBlocks', baseScore: 28 },
+            miller:    { building: 'mill',       input: 'Food.Grain.Wheat',          output: 'Food.Grain.Wheat.Flour',         carryQty: 5, skill: 'mill',        needKey: 'Food.Grain.Wheat.Flour',         baseScore: 50 },
+            baker:     { building: 'bakery',      input: 'Food.Grain.Wheat.Flour',    output: 'Food.Grain.Wheat.Bread',         carryQty: 7, skill: 'bake',        needKey: 'Food.Grain.Wheat.Bread',         baseScore: 45 },
+            butcher:   { building: 'butcher',     input: 'Food.Meat.Venison',         output: 'Food.Meat.Venison.Sausages',     carryQty: 4, skill: 'butcher',     needKey: 'Food.Meat.Venison.Sausages',     baseScore: 40 },
+            tanner:    { building: 'tannery',     input: 'Textile.Hide.Deer',         output: 'Textile.Hide.Deer.Leather',      carryQty: 6, skill: 'tan',         needKey: 'Textile.Hide.Deer.Leather',      baseScore: 35 },
+            smelter:   { building: 'smelter',     input: 'Materials.Metal.Copper.Ore', output: 'Materials.Metal.Copper.Ingot', carryQty: 6, skill: 'smelt',       needKey: 'Materials.Metal.Copper.Ingot',   baseScore: 35 },
+            smith:     { building: 'blacksmith',  input: 'Materials.Metal.Copper.Ingot', output: 'Equipment.Bronze.Kit',       carryQty: 3, skill: 'forge',       needKey: 'Equipment.Bronze.Kit',           baseScore: 30 },
+            carpenter: { building: 'carpenter',   input: 'Materials.Wood.Pine',       output: 'Materials.Wood.Pine.Plank',      carryQty: 6, skill: 'woodcutting', needKey: 'Materials.Wood.Pine.Plank',      baseScore: 30 },
+            mason:     { building: 'masons',      input: 'Materials.Stone.Limestone', output: 'Materials.Stone.Limestone.Block', carryQty: 4, skill: 'masonry',   needKey: 'Materials.Stone.Limestone.Block', baseScore: 28 },
         };
     }
 
@@ -1817,7 +1817,7 @@ export default class UnitManager {
     }
 
     handleEatTask(u, dt) {
-        const FOOD_PRIORITY = ['bread', 'sausages', 'flour', 'olives', 'wheat', 'meat', 'berries'];
+        const FOOD_PRIORITY = ['Food.Grain.Wheat.Bread', 'Food.Meat.Venison.Sausages', 'Food.Grain.Wheat.Flour', 'Food.Produce.Olive', 'Food.Grain.Wheat', 'Food.Meat.Venison', 'Food.Produce.Berry'];
         const NUTRITION_MAP = Object.fromEntries(Object.values(ITEMS).filter(d => d.nutrition != null).map(d => [d.key, d.nutrition]));
 
         // Try to eat from the nearest food building's inventory
@@ -1905,7 +1905,7 @@ export default class UnitManager {
     runCityPlannerAI(u) {
         // Simple version for now
         const needs = [
-            { type: 'farm', urgency: (this.scene.resources.wheat / (this.scene.storageMax.wheat || 1)) < 0.4 ? 10 : 0 },
+            { type: 'farm', urgency: (this.scene.resources['Food.Grain.Wheat'] / (this.scene.storageMax['Food.Grain.Wheat'] || 1)) < 0.4 ? 10 : 0 },
             { type: 'house', urgency: (this.scene.units.length / (this.scene.storageMax.pop || 10)) > 0.8 ? 8 : 0 }
         ];
         needs.sort((a,b) => b.urgency - a.urgency);

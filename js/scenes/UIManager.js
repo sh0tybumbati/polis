@@ -208,14 +208,14 @@ export default class UIManager {
         const avgNut = units.length > 0
             ? units.reduce((s, u) => s + (u.dailyNutrition ?? 0), 0) / units.length : 1;
         const foodWarn = units.length > 0 && avgNut < 0.3 && this.scene.mealsDone > 0;
-        const w = r.wheat ?? 0, fl = r.flour ?? 0, br = r.bread ?? 0;
-        const mt = r.meat ?? 0, sa = r.sausages ?? 0;
-        const ct = this.scene.buildings.reduce((s, b) => s + (b.inbox?.cuts ?? 0), 0);
+        const w = r['Food.Grain.Wheat'] ?? 0, fl = r['Food.Grain.Wheat.Flour'] ?? 0, br = r['Food.Grain.Wheat.Bread'] ?? 0;
+        const mt = r['Food.Meat.Venison'] ?? 0, sa = r['Food.Meat.Venison.Sausages'] ?? 0;
+        const ct = this.scene.buildings.reduce((s, b) => s + (b.inbox?.['Food.Meat.Venison.Cuts'] ?? 0), 0);
         const meatStr = (mt || ct || sa) ? `  🥩${mt} 🔪${ct} 🌭${sa}` : '';
         this.scene.foodText?.setText(`🌾${w} 🍚${fl} 🍞${br}${meatStr}`)
             .setColor(foodWarn ? '#ff6655' : '#7add77');
-        this.scene.woodText?.setText(`🪵 ${r.wood ?? 0}/${sm.wood ?? 0}`);
-        this.scene.stoneText?.setText(`⛏ ${r.stone ?? 0}/${sm.stone ?? 0}`);
+        this.scene.woodText?.setText(`🪵 ${r['Materials.Wood.Pine'] ?? 0}/${sm['Materials.Wood.Pine'] ?? 0}`);
+        this.scene.stoneText?.setText(`⛏ ${r['Materials.Stone.Limestone'] ?? 0}/${sm['Materials.Stone.Limestone'] ?? 0}`);
 
         const adults = units.filter(u => u.type === 'worker' && u.age >= 2).length;
         const popCap = this.scene.buildings
@@ -720,19 +720,19 @@ export default class UIManager {
         const sm = this.scene.storageMax ?? {};
         const r  = this.scene.resources  ?? {};
         const extras = [
-            { k: 'planks',      icon: '🪵→' },
-            { k: 'stoneBlocks', icon: '🧱→' },
-            { k: 'sticks',      icon: '🪃' },
-            { k: 'stones',      icon: '🪨' },
-            { k: 'wool',        icon: '🧶' },
-            { k: 'meat',        icon: '🥩' },
-            { k: 'sausages',    icon: '🌭' },
-            { k: 'wheat',       icon: '🌿' },
-            { k: 'flour',       icon: '⚙→' },
-            { k: 'olives',      icon: '🫒' },
-            { k: 'seeds',       icon: '🌱' },
-            { k: 'hide',        icon: '🐾' },
-            { k: 'ore',         icon: '🔩' },
+            { k: 'Materials.Wood.Pine.Plank',         icon: '🪵→' },
+            { k: 'Materials.Stone.Limestone.Block',   icon: '🧱→' },
+            { k: 'Materials.Wood.Pine.Sticks',        icon: '🪃' },
+            { k: 'Materials.Stone.Limestone.Stones',  icon: '🪨' },
+            { k: 'Textile.Fiber.Wool',                icon: '🧶' },
+            { k: 'Food.Meat.Venison',                 icon: '🥩' },
+            { k: 'Food.Meat.Venison.Sausages',        icon: '🌭' },
+            { k: 'Food.Grain.Wheat',                  icon: '🌿' },
+            { k: 'Food.Grain.Wheat.Flour',            icon: '⚙→' },
+            { k: 'Food.Produce.Olive',                icon: '🫒' },
+            { k: 'seeds',                             icon: '🌱' },
+            { k: 'Textile.Hide.Deer',                 icon: '🐾' },
+            { k: 'Materials.Metal.Copper.Ore',        icon: '🔩' },
         ];
         extras.forEach(({ k, icon }) => {
             if ((sm[k] ?? 0) > 0) {
@@ -831,8 +831,8 @@ export default class UIManager {
                         this.updateUI();
                     }});
             };
-            train('clubman',  { food: 3 },           'Clubman');
-            train('spearman', { food: 5, stone: 1 },  'Spearman');
+            train('clubman',  { 'Food.Grain.Wheat': 3 },                                    'Clubman');
+            train('spearman', { 'Food.Grain.Wheat': 5, 'Materials.Stone.Limestone': 1 },  'Spearman');
         }
 
         if (b.type === 'archery') {
@@ -847,15 +847,15 @@ export default class UIManager {
                         this.updateUI();
                     }});
             };
-            train('slinger', { food: 3 },          'Slinger');
-            train('archer',  { food: 5, wood: 1 }, 'Archer');
+            train('slinger', { 'Food.Grain.Wheat': 3 },                             'Slinger');
+            train('archer',  { 'Food.Grain.Wheat': 5, 'Materials.Wood.Pine': 1 }, 'Archer');
         }
 
         if (b.type === 'stable') {
-            const can = afford({ food: 8, wood: 2 });
+            const can = afford({ 'Food.Grain.Wheat': 8, 'Materials.Wood.Pine': 2 });
             items.push({ label: 'Cavalry', sublabel: '8f 2w', color: can ? 0x4a3010 : 0x2a1c10, dimmed: !can, callback: () => {
                 if (!can) return;
-                s.economyManager.spend({ food: 8, wood: 2 });
+                s.economyManager.spend({ 'Food.Grain.Wheat': 8, 'Materials.Wood.Pine': 2 });
                 const cx = (b.tx+b.size/2)*TILE, cy = MAP_OY+(b.ty+b.size/2)*TILE;
                 s.spawnUnit('cavalry', cx, cy, false);
                 this.updateUI();
@@ -863,10 +863,10 @@ export default class UIManager {
         }
 
         if (b.type === 'townhall') {
-            const can = afford({ wheat: 5 });
+            const can = afford({ 'Food.Grain.Wheat': 5 });
             items.push({ label: 'Train Scout', sublabel: '5w', color: can ? 0x334455 : 0x2a1c10, dimmed: !can, callback: () => {
                 if (!can) { this.showPhaseMessage('Not enough wheat!', 0xff4444); return; }
-                s.resources.wheat -= 5;
+                s.resources['Food.Grain.Wheat'] -= 5;
                 const cx = (b.tx+b.size/2)*TILE, cy = MAP_OY+(b.ty+b.size/2)*TILE;
                 s.spawnUnit('scout', cx, cy, false);
                 this.updateUI();
@@ -1021,9 +1021,9 @@ export default class UIManager {
     }
 
     _renderMaterialToggle(x, y, w, h) {
-        const mat  = this.scene.bldgMaterial ?? 'wood';
+        const mat  = this.scene.bldgMaterial ?? 'Materials.Wood.Pine';
         const half = Math.floor(w / 2);
-        [['wood', '🪵 Wood', x], ['stone', '🧱 Stone', x + half]].forEach(([m, label, bx]) => {
+        [['Materials.Wood.Pine', '🪵 Wood', x], ['Materials.Stone.Limestone', '🧱 Stone', x + half]].forEach(([m, label, bx]) => {
             const active = mat === m;
             const bg = this._tab(this.scene.add.graphics().setDepth(22));
             bg.fillStyle(active ? 0x4a3018 : 0x1a1208, active ? 0.95 : 0.7)
@@ -1066,7 +1066,7 @@ export default class UIManager {
     }
 
     _buildMenuItems() {
-        const mat  = this.scene.bldgMaterial ?? 'wood';
+        const mat  = this.scene.bldgMaterial ?? 'Materials.Wood.Pine';
         const bldgs = BLDG_CATS[this.scene.buildCat] ?? [];
         const items = bldgs.map(type => {
             const def      = BLDG[type];

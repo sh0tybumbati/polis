@@ -8,12 +8,12 @@ export default {
         if (!baker) { b.bakeTimer = 0; return; }
         b.inbox = b.inbox ?? {};
         b.bakeTimer = (b.bakeTimer ?? 0) + delta;
-        if (b.bakeTimer >= 12000 && (b.inbox.flour ?? 0) >= 6 && ctx.hasStorageSpace('bread')) {
-            b.inbox.flour -= 6;
+        if (b.bakeTimer >= 12000 && (b.inbox['Food.Grain.Wheat.Flour'] ?? 0) >= 6 && ctx.hasStorageSpace('Food.Grain.Wheat.Bread')) {
+            b.inbox['Food.Grain.Wheat.Flour'] -= 6;
             b.bakeTimer = 0;
-            ctx.addResource('bread', 3);
+            ctx.addResource('Food.Grain.Wheat.Bread', 3);
             const home = ctx.buildings.find(h => h.id === baker.homeBldgId && h.built && h.inventory);
-            if (home) home.inventory.bread = (home.inventory.bread ?? 0) + 1;
+            if (home) home.inventory['Food.Grain.Wheat.Bread'] = (home.inventory['Food.Grain.Wheat.Bread'] ?? 0) + 1;
             ctx.gainXp(baker, 'bake');
             ctx.floatText(b, '🍞 bread ×4', '#ffdd88');
         }

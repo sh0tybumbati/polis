@@ -1,5 +1,5 @@
 export default {
-    key:       'sausages',
+    key:       'Food.Meat.Venison.Sausages',
     label:     'Sausages',
     icon:      '🌭',
     supertype: 'Food',

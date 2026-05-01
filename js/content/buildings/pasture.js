@@ -10,8 +10,8 @@ export default {
             s.woolTimer = (s.woolTimer ?? 0) + delta;
             if (s.woolTimer >= ANIMALS.sheep.woolMs && s.woolReady !== false) {
                 s.woolTimer = 0;
-                if (ctx.hasStorageSpace('wool')) {
-                    ctx.addResource('wool', 1);
+                if (ctx.hasStorageSpace('Textile.Fiber.Wool')) {
+                    ctx.addResource('Textile.Fiber.Wool', 1);
                     ctx.floatText(b, '🧶 wool', '#e8e0c0');
                 }
             }

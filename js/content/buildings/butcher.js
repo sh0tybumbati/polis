@@ -8,18 +8,18 @@ export default {
         if (!worker) { b.cutsTimer = 0; b.sausageTimer = 0; return; }
         b.inbox = b.inbox ?? {};
         b.cutsTimer = (b.cutsTimer ?? 0) + delta;
-        if (b.cutsTimer >= 8000 && (b.inbox.meat ?? 0) >= 2) {
-            b.inbox.meat -= 2;
-            b.inbox.cuts = (b.inbox.cuts ?? 0) + 3;
+        if (b.cutsTimer >= 8000 && (b.inbox['Food.Meat.Venison'] ?? 0) >= 2) {
+            b.inbox['Food.Meat.Venison'] -= 2;
+            b.inbox['Food.Meat.Venison.Cuts'] = (b.inbox['Food.Meat.Venison.Cuts'] ?? 0) + 3;
             b.cutsTimer = 0;
             ctx.gainXp(worker, 'butcher');
             ctx.floatText(b, '🥩 cuts', '#dd8866');
         }
         b.sausageTimer = (b.sausageTimer ?? 0) + delta;
-        if (b.sausageTimer >= 12000 && (b.inbox.cuts ?? 0) >= 3 && ctx.hasStorageSpace('sausages')) {
-            b.inbox.cuts -= 3;
+        if (b.sausageTimer >= 12000 && (b.inbox['Food.Meat.Venison.Cuts'] ?? 0) >= 3 && ctx.hasStorageSpace('Food.Meat.Venison.Sausages')) {
+            b.inbox['Food.Meat.Venison.Cuts'] -= 3;
             b.sausageTimer = 0;
-            ctx.addResource('sausages', 2);
+            ctx.addResource('Food.Meat.Venison.Sausages', 2);
             ctx.gainXp(worker, 'butcher');
             ctx.floatText(b, '🌭 sausages', '#ffaa44');
         }

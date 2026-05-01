@@ -1,5 +1,5 @@
 export default {
-    key:       'sticks',
+    key:       'Materials.Wood.Pine.Sticks',
     label:     'Sticks',
     icon:      '🪵',
     supertype: 'Materials',

@@ -1,5 +1,5 @@
 export default {
-    key:       'flour',
+    key:       'Food.Grain.Wheat.Flour',
     label:     'Flour',
     icon:      '🌾',
     supertype: 'Food',

@@ -1,6 +1,6 @@
 export default {
     id: 'olive_grove',
-    resource: 'olives',
+    resource: 'Food.Produce.Olive',
     stock: 12,
     respawnDays: 5,
     role: 'forager',

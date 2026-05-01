@@ -8,18 +8,18 @@ export default {
         if (!tanner) { b.tanTimer = 0; b.kitTimer = 0; return; }
         b.inbox = b.inbox ?? {};
         b.tanTimer = (b.tanTimer ?? 0) + delta;
-        if (b.tanTimer >= 8000 && (b.inbox.hide ?? 0) >= 3 && ctx.hasStorageSpace('leather')) {
-            b.inbox.hide -= 3;
+        if (b.tanTimer >= 8000 && (b.inbox['Textile.Hide.Deer'] ?? 0) >= 3 && ctx.hasStorageSpace('Textile.Hide.Deer.Leather')) {
+            b.inbox['Textile.Hide.Deer'] -= 3;
             b.tanTimer = 0;
-            ctx.addResource('leather', 1);
+            ctx.addResource('Textile.Hide.Deer.Leather', 1);
             ctx.gainXp(tanner, 'tan');
             ctx.floatText(b, '🐾→leather', '#c0884c');
         }
         b.kitTimer = (b.kitTimer ?? 0) + delta;
-        if (b.kitTimer >= 12000 && (ctx.resources.leather ?? 0) >= 4 && (ctx.resources.leatherKit ?? 0) < 10) {
-            ctx.resources.leather -= 4;
+        if (b.kitTimer >= 12000 && (ctx.resources['Textile.Hide.Deer.Leather'] ?? 0) >= 4 && (ctx.resources['Equipment.Leather.Kit'] ?? 0) < 10) {
+            ctx.resources['Textile.Hide.Deer.Leather'] -= 4;
             b.kitTimer = 0;
-            ctx.resources.leatherKit = (ctx.resources.leatherKit ?? 0) + 1;
+            ctx.resources['Equipment.Leather.Kit'] = (ctx.resources['Equipment.Leather.Kit'] ?? 0) + 1;
         }
     },
     draw(gfx, b) {

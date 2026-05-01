@@ -1,5 +1,5 @@
 export default {
-    key:       'leatherKit',
+    key:       'Equipment.Leather.Kit',
     label:     'Leather Kit',
     icon:      '🦌',
     supertype: 'Equipment',

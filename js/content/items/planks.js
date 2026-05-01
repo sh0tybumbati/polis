@@ -1,5 +1,5 @@
 export default {
-    key:       'planks',
+    key:       'Materials.Wood.Pine.Plank',
     label:     'Planks',
     icon:      '🪵',
     supertype: 'Materials',

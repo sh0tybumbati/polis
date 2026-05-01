@@ -1,5 +1,5 @@
 export default {
-    key:       'ore',
+    key:       'Materials.Metal.Copper.Ore',
     label:     'Ore',
     icon:      '⛏',
     supertype: 'Materials',

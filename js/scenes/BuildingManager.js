@@ -58,7 +58,7 @@ export default class BuildingManager {
         this.occupy(tx, ty, def.size, isWallType ? 98 : 99);
         const b = this.makeBldgObj(this.scene.bldgType, tx, ty, false);
         b.isPublic = true; // Task fix: buildings default to public
-        const cost = computeBuildCost(this.scene.bldgType, this.scene.bldgMaterial ?? 'wood');
+        const cost = computeBuildCost(this.scene.bldgType, this.scene.bldgMaterial ?? 'Materials.Wood.Pine');
         if (Object.keys(cost).length) b.resNeeded = { ...cost };
         this.scene.buildings.push(b);
         if (this.scene.bldgType === 'house') this.assignDomain(b);
@@ -100,6 +100,44 @@ export default class BuildingManager {
 
     getDomainAt(tx, ty) {
         return this.scene.domains.find(d => tx >= d.x1 && tx <= d.x2 && ty >= d.y1 && ty <= d.y2);
+    }
+
+    findPublicBuildSite(type) {
+        const def = BLDG[type];
+        if (!def) return null;
+        const size = def.size;
+
+        const th = this.scene.buildings.find(b => b.type === 'townhall' && !b.faction);
+        if (!th) return null;
+
+        // Spiral search or radial search around townhall
+        const startX = th.tx, startY = th.ty;
+        const maxR = 20;
+        
+        for (let r = 3; r <= maxR; r++) {
+            for (let dy = -r; dy <= r; dy++) {
+                for (let dx = -r; dx <= r; dx++) {
+                    // Only check the perimeter of the current radius r
+                    if (Math.abs(dx) !== r && Math.abs(dy) !== r) continue;
+                    
+                    const tx = startX + dx;
+                    const ty = startY + dy;
+                    
+                    if (this.isFree(tx, ty, size)) {
+                        // Ensure it's not inside any family domain
+                        let inDomain = false;
+                        for (let y = ty; y < ty + size; y++) {
+                            for (let x = tx; x < tx + size; x++) {
+                                if (this.getDomainAt(x, y)) { inDomain = true; break; }
+                            }
+                            if (inDomain) break;
+                        }
+                        if (!inDomain) return { tx, ty };
+                    }
+                }
+            }
+        }
+        return null;
     }
 
     completeBuildingConstruction(bldg) {

@@ -1,6 +1,6 @@
 export default {
     id: 'small_boulder',
-    resource: 'stone',
+    resource: 'Materials.Stone.Limestone',
     stock: 12,
     respawnDays: 12,
     role: 'miner',

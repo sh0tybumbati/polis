@@ -8,12 +8,12 @@ export default {
         if (!miller) { b.millTimer = 0; return; }
         b.inbox = b.inbox ?? {};
         b.millTimer = (b.millTimer ?? 0) + delta;
-        if (b.millTimer >= 10000 && (b.inbox.wheat ?? 0) >= 1 && ctx.hasStorageSpace('flour')) {
-            b.inbox.wheat -= 1;
+        if (b.millTimer >= 10000 && (b.inbox['Food.Grain.Wheat'] ?? 0) >= 1 && ctx.hasStorageSpace('Food.Grain.Wheat.Flour')) {
+            b.inbox['Food.Grain.Wheat'] -= 1;
             b.millTimer = 0;
-            ctx.addResource('flour', 3);
+            ctx.addResource('Food.Grain.Wheat.Flour', 3);
             const home = ctx.buildings.find(h => h.id === miller.homeBldgId && h.built && h.inventory);
-            if (home) home.inventory.flour = (home.inventory.flour ?? 0) + 1;
+            if (home) home.inventory['Food.Grain.Wheat.Flour'] = (home.inventory['Food.Grain.Wheat.Flour'] ?? 0) + 1;
             ctx.gainXp(miller, 'mill');
             ctx.floatText(b, '🌾→flour ×4', '#ddcc88');
         }

@@ -171,7 +171,7 @@ export default class WorldManager {
 
     _nearestFoodBuilding(u) {
         const FOOD_TYPES = new Set(['bakery', 'butcher', 'granary', 'warehouse', 'townhall']);
-        const FOOD_KEYS  = ['bread', 'sausages', 'flour', 'olives', 'wheat', 'meat'];
+        const FOOD_KEYS  = ['Food.Grain.Wheat.Bread', 'Food.Meat.Venison.Sausages', 'Food.Grain.Wheat.Flour', 'Food.Produce.Olive', 'Food.Grain.Wheat', 'Food.Meat.Venison'];
         let best = null, bd = Infinity;
         for (const b of this.scene.buildings) {
             if (!b.built || b.faction || !FOOD_TYPES.has(b.type)) continue;
@@ -186,7 +186,7 @@ export default class WorldManager {
     // Consume best available food from inv for one unit, return nutrition gained.
     // Priority: bread/sausages (1.0) → flour (0.5) → olives (0.4) → raw wheat/meat (0.3)
     _feedFrom(u, inv) {
-        const FOOD_PRIORITY = ['bread','sausages','flour','olives','wheat','meat'];
+        const FOOD_PRIORITY = ['Food.Grain.Wheat.Bread', 'Food.Meat.Venison.Sausages', 'Food.Grain.Wheat.Flour', 'Food.Produce.Olive', 'Food.Grain.Wheat', 'Food.Meat.Venison'];
         for (const key of FOOD_PRIORITY) {
             if ((inv[key] ?? 0) >= 1) {
                 inv[key]--;
@@ -474,11 +474,11 @@ export default class WorldManager {
         if (this.scene.phase === 'LOSE' || this.scene.phase === 'WIN') return;
         // Pick a random trade offer
         const offers = [
-            { give: { stone: 4 }, receive: { food: 20 }, label: '4 stone → 20 food' },
-            { give: { wood: 5 },  receive: { food: 18 }, label: '5 wood → 18 food' },
-            { give: { food: 10 }, receive: { stone: 6 }, label: '10 food → 6 stone' },
-            { give: { food: 8 },  receive: { wood: 8 },  label: '8 food → 8 wood' },
-            { give: { stone: 3 }, receive: { wood: 6 },  label: '3 stone → 6 wood' },
+            { give: { 'Materials.Stone.Limestone': 4 }, receive: { 'Food.Grain.Wheat': 20 }, label: '4 stone → 20 wheat' },
+            { give: { 'Materials.Wood.Pine': 5 },       receive: { 'Food.Grain.Wheat': 18 }, label: '5 wood → 18 wheat' },
+            { give: { 'Food.Grain.Wheat': 10 },         receive: { 'Materials.Stone.Limestone': 6 }, label: '10 wheat → 6 stone' },
+            { give: { 'Food.Grain.Wheat': 8 },          receive: { 'Materials.Wood.Pine': 8 },  label: '8 wheat → 8 wood' },
+            { give: { 'Materials.Stone.Limestone': 3 }, receive: { 'Materials.Wood.Pine': 6 },  label: '3 stone → 6 wood' },
         ];
         const offer = offers[Math.floor(Math.random() * offers.length)];
         this.scene.uiManager.showCaravanOffer(offer);

@@ -1,5 +1,5 @@
 export default {
-    key:       'wool',
+    key:       'Textile.Fiber.Wool',
     label:     'Wool',
     icon:      '🧶',
     supertype: 'Textile',

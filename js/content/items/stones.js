@@ -1,5 +1,5 @@
 export default {
-    key:       'stones',
+    key:       'Materials.Stone.Limestone.Stones',
     label:     'Stones',
     icon:      '⛏',
     supertype: 'Materials',

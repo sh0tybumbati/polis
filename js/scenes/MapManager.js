@@ -6,6 +6,7 @@ import {
     BLDG
 } from '../config/gameConstants.js';
 import { NODES } from '../content/nodes/index.js';
+import { ITEMS } from '../content/items/index.js';
 import { MathUtils } from '../utils/MathUtils.js';
 
 export default class MapManager {
@@ -431,18 +432,14 @@ export default class MapManager {
         const bw = def.large ? 38 : 26;
         const by = def.large ? 20 : 14;
         n.gfx.fillStyle(0x000000, 0.55).fillRect(-bw/2, by, bw, 4);
-        const foodRes = new Set(['wheat','olives','meat','flour','bread','cuts','sausages']);
-        const barColor = foodRes.has(def.resource) ? 0x88dd44
-                       : def.resource === 'ore'   ? 0x55aa55
-                       : def.resource === 'wool'  ? 0xe8e0c0
-                       : def.resource === 'stone' ? 0x9999aa : 0xaa7733;
+        const isFood = def.resource.startsWith('Food.');
+        const barColor = isFood ? 0x88dd44
+                       : def.resource.startsWith('Materials.Metal') ? 0x55aa55
+                       : def.resource === 'Textile.Fiber.Wool' ? 0xe8e0c0
+                       : def.resource.startsWith('Materials.Stone') ? 0x9999aa : 0xaa7733;
         n.gfx.fillStyle(barColor, 0.9).fillRect(-bw/2, by, bw * ratio, 4);
 
-        const sym = def.resource === 'wheat'  ? '🌾'
-                  : def.resource === 'olives' ? '🫒'
-                  : def.resource === 'ore'    ? '⛏'
-                  : def.resource === 'wool'   ? '🧶'
-                  : def.resource === 'stone'  ? '⛏' : '🪵';
+        const sym = ITEMS[def.resource]?.icon ?? '📦';
         n.labelObj = this.scene._w(this.scene.add.text(n.x, n.y - (def.large ? 28 : 20), `${sym}${n.stock}`, {
             fontSize: '9px', color: '#ffffff', fontFamily: 'monospace',
             stroke: '#000000', strokeThickness: 2,

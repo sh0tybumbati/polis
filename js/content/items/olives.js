@@ -1,5 +1,5 @@
 export default {
-    key:       'olives',
+    key:       'Food.Produce.Olive',
     label:     'Olives',
     icon:      '🫒',
     supertype: 'Food',

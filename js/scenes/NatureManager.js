@@ -181,7 +181,7 @@ export default class NatureManager {
         if ((b.males ?? 0) > 0) b.males--;
         else b.females--;
         const meat = ANIMALS.sheep.meat;
-        this.scene.economyManager.addResource('meat', meat);
+        this.scene.economyManager.addResource('Food.Meat.Venison', meat);
         this.scene.uiManager.showFloatText((b.tx + b.size / 2) * TILE, MAP_OY + b.ty * TILE - 8,
             `+${meat} meat`, '#cc6633');
         this.scene.updateUI();

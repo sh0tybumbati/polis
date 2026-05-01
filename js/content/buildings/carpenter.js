@@ -8,10 +8,10 @@ export default {
         if (!worker) { b.carpenterTimer = 0; return; }
         b.inbox = b.inbox ?? {};
         b.carpenterTimer = (b.carpenterTimer ?? 0) + delta;
-        if (b.carpenterTimer >= 12000 && (b.inbox.wood ?? 0) >= 3 && ctx.hasStorageSpace('planks')) {
-            b.inbox.wood -= 3;
+        if (b.carpenterTimer >= 12000 && (b.inbox['Materials.Wood.Pine'] ?? 0) >= 3 && ctx.hasStorageSpace('Materials.Wood.Pine.Plank')) {
+            b.inbox['Materials.Wood.Pine'] -= 3;
             b.carpenterTimer = 0;
-            ctx.addResource('planks', 4);
+            ctx.addResource('Materials.Wood.Pine.Plank', 4);
             ctx.gainXp(worker, 'woodcutting');
             ctx.floatText(b, '🪵 planks', '#c0a050');
         }

@@ -8,13 +8,13 @@ export default {
         if (!smith) { b.forgeTimer = 0; return; }
         b.inbox = b.inbox ?? {};
         b.forgeTimer = (b.forgeTimer ?? 0) + delta;
-        if (b.forgeTimer >= 15000 && (b.inbox.ingot ?? 0) >= 1
-            && (ctx.resources.leather ?? 0) >= 1
-            && (ctx.resources.bronzeKit ?? 0) < 10) {
-            b.inbox.ingot--;
-            ctx.resources.leather--;
+        if (b.forgeTimer >= 15000 && (b.inbox['Materials.Metal.Copper.Ingot'] ?? 0) >= 1
+            && (ctx.resources['Textile.Hide.Deer.Leather'] ?? 0) >= 1
+            && (ctx.resources['Equipment.Bronze.Kit'] ?? 0) < 10) {
+            b.inbox['Materials.Metal.Copper.Ingot']--;
+            ctx.resources['Textile.Hide.Deer.Leather']--;
             b.forgeTimer = 0;
-            ctx.resources.bronzeKit = (ctx.resources.bronzeKit ?? 0) + 1;
+            ctx.resources['Equipment.Bronze.Kit'] = (ctx.resources['Equipment.Bronze.Kit'] ?? 0) + 1;
             ctx.gainXp(smith, 'forge');
             ctx.floatText(b, '⚒ kit', '#ddaa44');
         }

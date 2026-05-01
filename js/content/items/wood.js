@@ -1,5 +1,5 @@
 export default {
-    key:       'wood',
+    key:       'Materials.Wood.Pine',
     label:     'Logs',
     icon:      '🪵',
     supertype: 'Materials',

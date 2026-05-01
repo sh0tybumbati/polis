@@ -8,10 +8,10 @@ export default {
         if (!worker) { b.masonsTimer = 0; return; }
         b.inbox = b.inbox ?? {};
         b.masonsTimer = (b.masonsTimer ?? 0) + delta;
-        if (b.masonsTimer >= 14000 && (b.inbox.stone ?? 0) >= 1 && ctx.hasStorageSpace('stoneBlocks')) {
-            b.inbox.stone -= 1;
+        if (b.masonsTimer >= 14000 && (b.inbox['Materials.Stone.Limestone'] ?? 0) >= 1 && ctx.hasStorageSpace('Materials.Stone.Limestone.Block')) {
+            b.inbox['Materials.Stone.Limestone'] -= 1;
             b.masonsTimer = 0;
-            ctx.addResource('stoneBlocks', 4);
+            ctx.addResource('Materials.Stone.Limestone.Block', 4);
             ctx.gainXp(worker, 'masonry');
             ctx.floatText(b, '🪨 blocks', '#aaaaa0');
         }

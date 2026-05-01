@@ -293,9 +293,9 @@ export default class EconomyManager {
                 switch (app.id) {
                     case 'millstone':
                         house._millTimer = (house._millTimer ?? 0) + delta;
-                        if (house._millTimer >= 18000 && (inv.wheat ?? 0) >= 1) {
-                            inv.wheat--;
-                            inv.flour = (inv.flour ?? 0) + 2;
+                        if (house._millTimer >= 18000 && (inv['Food.Grain.Wheat'] ?? 0) >= 1) {
+                            inv['Food.Grain.Wheat']--;
+                            inv['Food.Grain.Wheat.Flour'] = (inv['Food.Grain.Wheat.Flour'] ?? 0) + 2;
                             house._millTimer = 0;
                             this.scene.uiManager.showFloatText(
                                 (house.tx + 1) * TILE, MAP_OY + house.ty * TILE - 8,
@@ -305,9 +305,9 @@ export default class EconomyManager {
 
                     case 'hearth':
                         house._hearthTimer = (house._hearthTimer ?? 0) + delta;
-                        if (house._hearthTimer >= 24000 && (inv.flour ?? 0) >= 2) {
-                            inv.flour -= 2;
-                            inv.bread = (inv.bread ?? 0) + 1;
+                        if (house._hearthTimer >= 24000 && (inv['Food.Grain.Wheat.Flour'] ?? 0) >= 2) {
+                            inv['Food.Grain.Wheat.Flour'] -= 2;
+                            inv['Food.Grain.Wheat.Bread'] = (inv['Food.Grain.Wheat.Bread'] ?? 0) + 1;
                             house._hearthTimer = 0;
                             this.scene.uiManager.showFloatText(
                                 (house.tx + 1) * TILE, MAP_OY + house.ty * TILE - 8,
@@ -317,11 +317,11 @@ export default class EconomyManager {
 
                     case 'loom':
                         house._loomTimer = (house._loomTimer ?? 0) + delta;
-                        if (house._loomTimer >= 20000 && (inv.wool ?? 0) >= 2) {
-                            inv.wool -= 2;
+                        if (house._loomTimer >= 20000 && (inv['Textile.Fiber.Wool'] ?? 0) >= 2) {
+                            inv['Textile.Fiber.Wool'] -= 2;
                             house._loomTimer = 0;
                             // Woven cloth goes to public commons
-                            this.addResource('wool', 1);
+                            this.addResource('Textile.Fiber.Wool', 1);
                             this.scene.uiManager.showFloatText(
                                 (house.tx + 1) * TILE, MAP_OY + house.ty * TILE - 8,
                                 '🧶 spun', '#eeddcc');
@@ -360,8 +360,8 @@ export default class EconomyManager {
 
         const isDesire = this.scene.roadMap[ty]?.[tx] === 1;
         if (!isDesire) {
-            if (!this.afford({ stone: 1 })) return;
-            this.spend({ stone: 1 });
+            if (!this.afford({ 'Materials.Stone.Limestone': 1 })) return;
+            this.spend({ 'Materials.Stone.Limestone': 1 });
         }
 
         this.scene.roadMap[ty][tx] = 2;

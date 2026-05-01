@@ -8,10 +8,10 @@ export default {
         if (!smelter) { b.smeltTimer = 0; return; }
         b.inbox = b.inbox ?? {};
         b.smeltTimer = (b.smeltTimer ?? 0) + delta;
-        if (b.smeltTimer >= 10000 && (b.inbox.ore ?? 0) >= 2 && ctx.hasStorageSpace('ingot')) {
-            b.inbox.ore -= 2;
+        if (b.smeltTimer >= 10000 && (b.inbox['Materials.Metal.Copper.Ore'] ?? 0) >= 2 && ctx.hasStorageSpace('Materials.Metal.Copper.Ingot')) {
+            b.inbox['Materials.Metal.Copper.Ore'] -= 2;
             b.smeltTimer = 0;
-            ctx.addResource('ingot', 1);
+            ctx.addResource('Materials.Metal.Copper.Ingot', 1);
             ctx.gainXp(smelter, 'smelt');
             ctx.floatText(b, '⛏→ingot', '#ffaa44');
         }

@@ -26,20 +26,40 @@ export default class GameScene extends Phaser.Scene {
         this.buildings = [];
         this.units     = [];
         this.selIds    = new Set();
-        this.resources  = { stone: 15, wood: 0, sticks: 0, stones: 0, wool: 0, wheat: 10, flour: 0, bread: 0, meat: 0, sausages: 0, olives: 0, seeds: 0, hide: 0, ore: 0, ingot: 0, leather: 0, leatherKit: 0, bronzeKit: 0, planks: 0, stoneBlocks: 0 };
-        this.storageMax = { stone: 0,  wood: 0, sticks: 0, stones: 0, wool: 0, wheat: 0,  flour: 0, bread: 0, meat: 0, sausages: 0, olives: 0, seeds: 0, hide: 0, ore: 0, ingot: 0, leather: 0, leatherKit: 0, bronzeKit: 0, planks: 0, stoneBlocks: 0 };
+        this.resources  = {
+            'Food.Grain.Wheat': 10, 'Food.Grain.Wheat.Flour': 0, 'Food.Grain.Wheat.Bread': 0,
+            'Food.Meat.Venison': 0, 'Food.Meat.Venison.Cuts': 0, 'Food.Meat.Venison.Sausages': 0,
+            'Food.Produce.Olive': 0, 'Food.Produce.Berry': 0,
+            'Materials.Wood.Pine': 0, 'Materials.Wood.Pine.Sticks': 0, 'Materials.Wood.Pine.Plank': 0,
+            'Materials.Stone.Limestone': 15, 'Materials.Stone.Limestone.Stones': 0, 'Materials.Stone.Limestone.Block': 0,
+            'Materials.Metal.Copper.Ore': 0, 'Materials.Metal.Copper.Ingot': 0,
+            'Textile.Fiber.Wool': 0, 'Textile.Hide.Deer': 0, 'Textile.Hide.Deer.Leather': 0,
+            'Equipment.Leather.Kit': 0, 'Equipment.Bronze.Kit': 0,
+            seeds: 0,
+        };
+        this.storageMax = {
+            'Food.Grain.Wheat': 0, 'Food.Grain.Wheat.Flour': 0, 'Food.Grain.Wheat.Bread': 0,
+            'Food.Meat.Venison': 0, 'Food.Meat.Venison.Cuts': 0, 'Food.Meat.Venison.Sausages': 0,
+            'Food.Produce.Olive': 0, 'Food.Produce.Berry': 0,
+            'Materials.Wood.Pine': 0, 'Materials.Wood.Pine.Sticks': 0, 'Materials.Wood.Pine.Plank': 0,
+            'Materials.Stone.Limestone': 0, 'Materials.Stone.Limestone.Stones': 0, 'Materials.Stone.Limestone.Block': 0,
+            'Materials.Metal.Copper.Ore': 0, 'Materials.Metal.Copper.Ingot': 0,
+            'Textile.Fiber.Wool': 0, 'Textile.Hide.Deer': 0, 'Textile.Hide.Deer.Leather': 0,
+            'Equipment.Leather.Kit': 0, 'Equipment.Bronze.Kit': 0,
+            seeds: 0,
+        };
         this.discoveries = { oliveGrove: false, wildGarden: false };
         this.mealsDone       = 0;
         this.foodPressure    = false;
         this.titheRate       = 10;   // % of private inventory contributed to commons at dawn
         this.enemyAware      = false;
         this.enemyScoutTimer = 0;     
-        this.enemyRes   = { food: 25, stone: 20, wood: 10 };
+        this.enemyRes   = { food: 25, 'Materials.Stone.Limestone': 20, 'Materials.Wood.Pine': 10 };
         this.day        = 1;
         this.phase      = 'DAY';
         this.nightsSurvived = 0;
         this.bldgType     = null;
-        this.bldgMaterial = 'wood';
+        this.bldgMaterial = 'Materials.Wood.Pine';
         this.fmType    = 'phalanx';
         this.floorPiles = [];
         this.selectedBuilding = null;
@@ -212,10 +232,27 @@ export default class GameScene extends Phaser.Scene {
             const s = JSON.parse(raw);
             if (s.v !== 2) { localStorage.removeItem('polis_save'); return false; }
 
+            const KEY_MIGRATION = {
+                wheat: 'Food.Grain.Wheat', flour: 'Food.Grain.Wheat.Flour', bread: 'Food.Grain.Wheat.Bread',
+                meat: 'Food.Meat.Venison', cuts: 'Food.Meat.Venison.Cuts', sausages: 'Food.Meat.Venison.Sausages',
+                olives: 'Food.Produce.Olive', berries: 'Food.Produce.Berry',
+                wood: 'Materials.Wood.Pine', sticks: 'Materials.Wood.Pine.Sticks', planks: 'Materials.Wood.Pine.Plank',
+                stone: 'Materials.Stone.Limestone', stones: 'Materials.Stone.Limestone.Stones', stoneBlocks: 'Materials.Stone.Limestone.Block',
+                ore: 'Materials.Metal.Copper.Ore', ingot: 'Materials.Metal.Copper.Ingot',
+                wool: 'Textile.Fiber.Wool', hide: 'Textile.Hide.Deer', leather: 'Textile.Hide.Deer.Leather',
+                leatherKit: 'Equipment.Leather.Kit', bronzeKit: 'Equipment.Bronze.Kit',
+            };
+            function migrateKeys(obj) {
+                if (!obj) return obj;
+                const out = {};
+                for (const [k, v] of Object.entries(obj)) out[KEY_MIGRATION[k] ?? k] = v;
+                return out;
+            }
+
             this.day = s.day; this.phase = s.phase; this.timerMs = s.timerMs;
             this.nightsSurvived = s.nightsSurvived ?? 0; this.mealsDone = s.mealsDone ?? 0;
-            Object.assign(this.resources, s.resources);
-            Object.assign(this.storageMax, s.storageMax);
+            Object.assign(this.resources, migrateKeys(s.resources));
+            Object.assign(this.storageMax, migrateKeys(s.storageMax));
             Object.assign(this.discoveries, s.discoveries ?? {});
             this.enemyAware = s.enemyAware ?? false;
             Object.assign(this.enemyRes, s.enemyRes ?? {});
@@ -228,7 +265,7 @@ export default class GameScene extends Phaser.Scene {
 
             this.resNodes  = (s.resNodes  ?? []).map(n => ({ ...n, gfx: null, labelObj: null }));
             this.buildings = (s.buildings ?? []).map(b => ({ inbox: {}, ...b, gfx: null, barGfx: null, labelObj: null }));
-            this.units     = (s.units     ?? []).map(u => ({ ...u, gfx: null, nameLabel: null }));
+            this.units     = (s.units     ?? []).map(u => ({ ...u, carrying: migrateKeys(u.carrying), gfx: null, nameLabel: null }));
             this.deer      = (s.deer      ?? []).map(d => ({ ...d, gfx: null }));
             this.sheep     = (s.sheep     ?? []).map(ss => ({ ...ss, gfx: null, followUnit: null }));
             return true;

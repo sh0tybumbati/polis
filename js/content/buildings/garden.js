@@ -5,9 +5,9 @@ export default {
     id: 'garden',
     tick(b, delta, ctx) {
         b.growTimer = (b.growTimer ?? 0) + delta;
-        if (b.growTimer >= 15000 && ctx.hasStorageSpace('olives')) {
+        if (b.growTimer >= 15000 && ctx.hasStorageSpace('Food.Produce.Olive')) {
             b.growTimer = 0;
-            ctx.addResource('olives', 2);
+            ctx.addResource('Food.Produce.Olive', 2);
             ctx.floatText(b, '🌿 harvest', '#44bb66');
             if (Math.random() < 0.4 && (ctx.resources.seeds ?? 0) >= 1) {
                 ctx.resources.seeds -= 1;

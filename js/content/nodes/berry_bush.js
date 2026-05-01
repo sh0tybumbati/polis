@@ -1,6 +1,6 @@
 export default {
     id: 'berry_bush',
-    resource: 'berries',
+    resource: 'Food.Produce.Berry',
     stock: 24,
     respawnDays: 3,
     role: 'forager',

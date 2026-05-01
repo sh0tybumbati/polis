@@ -1,5 +1,5 @@
 export default {
-    key:       'bread',
+    key:       'Food.Grain.Wheat.Bread',
     label:     'Bread',
     icon:      '🍞',
     supertype: 'Food',

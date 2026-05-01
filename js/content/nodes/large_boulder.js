@@ -1,6 +1,6 @@
 export default {
     id: 'large_boulder',
-    resource: 'stone',
+    resource: 'Materials.Stone.Limestone',
     stock: 24,
     respawnDays: 0,
     large: true,

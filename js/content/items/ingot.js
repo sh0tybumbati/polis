@@ -1,5 +1,5 @@
 export default {
-    key:       'ingot',
+    key:       'Materials.Metal.Copper.Ingot',
     label:     'Bronze Ingot',
     icon:      '🔩',
     supertype: 'Materials',

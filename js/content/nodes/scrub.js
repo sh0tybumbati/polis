@@ -1,6 +1,6 @@
 export default {
     id: 'scrub',
-    resource: 'wool',
+    resource: 'Textile.Fiber.Wool',
     stock: 4,
     respawnDays: 4,
     large: true,
