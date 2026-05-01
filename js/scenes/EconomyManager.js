@@ -1,7 +1,8 @@
 import {
-    BLDG, TILE, MAP_OY, APPLIANCE_DEF, RES_STATS, BLDG_VOLUME,
+    BLDG, TILE, MAP_OY, APPLIANCE_DEF, BLDG_VOLUME,
 } from '../config/gameConstants.js';
 import { BUILDINGS } from '../content/buildings/index.js';
+import { ITEMS } from '../content/items/index.js';
 
 export default class EconomyManager {
     constructor(scene) {
@@ -95,18 +96,18 @@ export default class EconomyManager {
         let total = 0;
         const inv = b.inventory ?? {};
         for (const [res, qty] of Object.entries(inv)) {
-            total += qty * (RES_STATS[res]?.volume ?? 0);
+            total += qty * (ITEMS[res]?.volume ?? 0);
         }
         // Also include inbox for workshops
         const inbox = b.inbox ?? {};
         for (const [res, qty] of Object.entries(inbox)) {
-            total += qty * (RES_STATS[res]?.volume ?? 0);
+            total += qty * (ITEMS[res]?.volume ?? 0);
         }
         return total;
     }
 
     hasStorageSpace(res, amount = 1, b = null) {
-        const vol = (RES_STATS[res]?.volume ?? 0) * amount;
+        const vol = (ITEMS[res]?.volume ?? 0) * amount;
         if (b) {
             const maxVol = BLDG_VOLUME[b.type] ?? Infinity;
             return this.getBuildingCurrentVolume(b) + vol <= maxVol;
@@ -124,7 +125,7 @@ export default class EconomyManager {
     addResource(res, amount) {
         // Find public buildings with space
         let remaining = amount;
-        const volPer = RES_STATS[res]?.volume ?? 0;
+        const volPer = ITEMS[res]?.volume ?? 0;
         
         for (const b of this.scene.buildings) {
             if (remaining <= 0) break;

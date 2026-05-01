@@ -2,15 +2,16 @@ import {
     UDEF, TILE, MAP_OY, MAP_W, MAP_H, MAP_BOTTOM,
     TILE_SPD, T_GRASS, T_ROCK, HIGH_GROUND_BONUS,
     VET_LEVELS, BLDG, BUILD_WORK,
-    NUTRITION, pickName,
+    pickName,
     ENABLE_PROACTIVE_AI, BLDG_CATS, DESIRE_THRESHOLD, ROAD_DESIRE, ROAD_NONE, HUNGER_THRESHOLD,
-    RES_STATS, ARCHON_BUILD_ORDER,
+    ARCHON_BUILD_ORDER,
     randomAttributes, blendAttributes, randomPhenotype, blendPhenotype,
     randomPassions, blendPassions,
     emptySkills,
 } from '../config/gameConstants.js';
 import { NODES } from '../content/nodes/index.js';
 import { ANIMALS } from '../content/animals/index.js';
+import { ITEMS } from '../content/items/index.js';
 import { MathUtils } from '../utils/MathUtils.js';
 
 export default class UnitManager {
@@ -863,10 +864,10 @@ export default class UnitManager {
             while (hidePick < deer.hideLeft && this.canUnitCarryMore(u, 'hide', hidePick + 1, meatPick)) {
                 // The 4th param 'meatPick' would need to be handled by canUnitCarryMore or manual weight calc
                 // Let's just do manual check here for simplicity since it's mixed harvest
-                const curW = this.getUnitCarryWeight(u) + meatPick * RES_STATS.meat.weight;
-                const curV = this.getUnitCarryVolume(u) + meatPick * RES_STATS.meat.volume;
-                const nextW = curW + (hidePick + 1) * RES_STATS.hide.weight;
-                const nextV = curV + (hidePick + 1) * RES_STATS.hide.volume;
+                const curW = this.getUnitCarryWeight(u) + meatPick * ITEMS.meat.weight;
+                const curV = this.getUnitCarryVolume(u) + meatPick * ITEMS.meat.volume;
+                const nextW = curW + (hidePick + 1) * ITEMS.hide.weight;
+                const nextV = curV + (hidePick + 1) * ITEMS.hide.volume;
                 if (nextW <= this.getUnitMaxWeight(u) && nextV <= this.getUnitMaxVolume(u)) hidePick++;
                 else break;
             }
@@ -1817,7 +1818,7 @@ export default class UnitManager {
 
     handleEatTask(u, dt) {
         const FOOD_PRIORITY = ['bread', 'sausages', 'flour', 'olives', 'wheat', 'meat', 'berries'];
-        const NUTRITION_MAP = { bread: 1.0, sausages: 1.0, flour: 0.5, olives: 0.4, wheat: 0.3, meat: 0.3, berries: 0.2 };
+        const NUTRITION_MAP = Object.fromEntries(Object.values(ITEMS).filter(d => d.nutrition != null).map(d => [d.key, d.nutrition]));
 
         // Try to eat from the nearest food building's inventory
         const FOOD_BLDG_TYPES = new Set(['bakery', 'butcher', 'granary', 'warehouse', 'townhall', 'house']);
@@ -1987,7 +1988,7 @@ export default class UnitManager {
     getUnitCarryWeight(u) {
         let total = 0;
         for (const [res, qty] of Object.entries(u.carrying || {})) {
-            total += qty * (RES_STATS[res]?.weight ?? 0);
+            total += qty * (ITEMS[res]?.weight ?? 0);
         }
         return total;
     }
@@ -1995,7 +1996,7 @@ export default class UnitManager {
     getUnitCarryVolume(u) {
         let total = 0;
         for (const [res, qty] of Object.entries(u.carrying || {})) {
-            total += qty * (RES_STATS[res]?.volume ?? 0);
+            total += qty * (ITEMS[res]?.volume ?? 0);
         }
         return total;
     }
@@ -2015,8 +2016,8 @@ export default class UnitManager {
     }
 
     canUnitCarryMore(u, res, qty = 1) {
-        const w = (RES_STATS[res]?.weight ?? 0) * qty;
-        const v = (RES_STATS[res]?.volume ?? 0) * qty;
+        const w = (ITEMS[res]?.weight ?? 0) * qty;
+        const v = (ITEMS[res]?.volume ?? 0) * qty;
         return (this.getUnitCarryWeight(u) + w <= this.getUnitMaxWeight(u)) &&
                (this.getUnitCarryVolume(u) + v <= this.getUnitMaxVolume(u));
     }

@@ -263,19 +263,6 @@ export function computeBuildCost(type, material = 'wood') {
 
 export const BUILD_WORK = { house: 14, granary: 14, woodshed: 12, stonepile: 8, farm: 16, garden: 12, barracks: 22, archery: 18, stable: 24, palisade: 4, watchtower: 14, gate: 8, wall: 6, tannery: 18, mine: 20, smelter: 24, blacksmith: 22, mill: 16, bakery: 14, butcher: 12, olive_press: 16, temple: 24, oracle: 18, pasture: 15, warehouse: 20, carpenter: 18, masons: 20 };
 
-// ─── Nutrition scores (daily need = 1.0) ─────────────────────────────────────
-// fireMeal accumulates u.dailyNutrition; checked at night for HP effects
-export const NUTRITION = {
-    wheat:    0.3,   // raw grain — edible but unsatisfying
-    flour:    0.5,   // ground meal / pasta
-    bread:    1.0,   // baked loaf — full day's nutrition
-    meat:     0.3,   // raw carcass — barely processed
-    cuts:     0.5,   // butcher's cuts — like flour
-    sausages: 1.0,   // cured sausages — full day's nutrition
-    olives:   0.4,   // gathered / pressed
-    berries:  0.2,   // gathered wild
-};
-
 // ─── Day/Night Cycle Constants ──────────────────────────────────────────────
 
 export const DAY_DURATION    = 90000;   // 90s day
@@ -397,31 +384,6 @@ export const APPLIANCE_DEF = {
 
 export const FM_TYPES = ['phalanx', 'wedge', 'screen'];
 export const FM_LABELS = ['Phalanx', 'Wedge', 'Screen'];
-
-// ─── Physical Economy Constants (Volume/Weight) ──────────────────────────────
-
-export const RES_STATS = {
-    wood:        { weight: 4,    volume: 2 },
-    stone:       { weight: 10,   volume: 1.5 },
-    sticks:      { weight: 1,    volume: 0.5 },
-    stones:      { weight: 2,    volume: 0.25 },
-    wheat:       { weight: 0.5,  volume: 0.8 },
-    flour:       { weight: 0.25, volume: 0.4 },
-    bread:       { weight: 1,    volume: 0.5 },
-    meat:        { weight: 2,    volume: 1 },
-    sausages:    { weight: 1,    volume: 0.3 },
-    olives:      { weight: 0.1,  volume: 0.1 },
-    berries:     { weight: 0.05, volume: 0.05 },
-    wool:        { weight: 0.5,  volume: 2 },
-    hide:        { weight: 3,    volume: 1.5 },
-    ore:         { weight: 12,   volume: 1 },
-    ingot:       { weight: 5,    volume: 0.2 },
-    leather:     { weight: 2,    volume: 0.5 },
-    leatherKit:  { weight: 5,    volume: 1 },
-    bronzeKit:   { weight: 10,   volume: 1 },
-    planks:      { weight: 3,    volume: 1.5 },
-    stoneBlocks: { weight: 8,    volume: 1 },
-};
 
 export const BLDG_VOLUME = {
     granary:   1000,

@@ -1,8 +1,9 @@
 import {
     DAY_DURATION, NIGHT_DURATION, BLDG, TILE, MAP_OY, UDEF, VET_LEVELS, pickVetName,
-    APPLIANCE_DEF, NUTRITION,
+    APPLIANCE_DEF,
 } from '../config/gameConstants.js';
 import { NODES } from '../content/nodes/index.js';
+import { ITEMS } from '../content/items/index.js';
 
 export default class WorldManager {
     constructor(scene) {
@@ -189,7 +190,7 @@ export default class WorldManager {
         for (const key of FOOD_PRIORITY) {
             if ((inv[key] ?? 0) >= 1) {
                 inv[key]--;
-                return NUTRITION[key];
+                return ITEMS[key]?.nutrition ?? 0;
             }
         }
         return 0;
