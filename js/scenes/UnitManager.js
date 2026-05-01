@@ -12,6 +12,7 @@ import {
 import { NODES } from '../content/nodes/index.js';
 import { ANIMALS } from '../content/animals/index.js';
 import { ITEMS } from '../content/items/index.js';
+import { JOBS, WORKSHOP_JOBS } from '../content/jobs/index.js';
 import { MathUtils } from '../utils/MathUtils.js';
 
 export default class UnitManager {
@@ -664,7 +665,7 @@ export default class UnitManager {
             if (!u._wageCollected) {
                 const workplace = u.taskBldgId
                     ? this.scene.buildings.find(b => b.id === u.taskBldgId && b.built) : null;
-                const isProductionRole = u.role in (this.WORKSHOP_ROLES ?? {});
+                const isProductionRole = u.role in WORKSHOP_JOBS;
                 
                 // Task fix: check for node-based roles (woodcutter/miner)
                 const isNodeWorker = u.role === 'woodcutter' || u.role === 'miner' || u.role === 'forager';
@@ -789,10 +790,8 @@ export default class UnitManager {
                 if (u.role && !u.taskType) {
                     if (u.role === 'farmer') this.seekFarmerTask(u);
                     else if (u.role === 'builder') this.seekBuilderTask(u);
-                    else if (u.role in (this.WORKSHOP_ROLES ?? {})) this.seekWorkshopTask(u);
-                    else if (u.role === 'forager') this.seekNodeTask(u, ['berry_bush', 'wild_garden', 'olive_grove']);
-                    else if (u.role === 'woodcutter') this.seekNodeTask(u, ['small_tree', 'large_tree']);
-                    else if (u.role === 'miner') this.seekNodeTask(u, ['small_boulder', 'large_boulder', 'ore_vein']);
+                    else if (u.role in WORKSHOP_JOBS) this.seekWorkshopTask(u);
+                    else if (JOBS[u.role]?.nodeTypes) this.seekNodeTask(u, JOBS[u.role].nodeTypes);
                 }
             }
         }
@@ -813,7 +812,7 @@ export default class UnitManager {
             if (time - u.lastSeek > 1500) { u.lastSeek = time; this.seekBuilderTask(u); }
         } else if (u.role === 'farmer') {
             if (time - u.lastSeek > 1500) { u.lastSeek = time; this.seekFarmerTask(u); }
-        } else if (u.role in (this.WORKSHOP_ROLES ?? {})) {
+        } else if (u.role in WORKSHOP_JOBS) {
             if (!u.taskType && time - u.lastSeek > 2000) { u.lastSeek = time; this.seekWorkshopTask(u); }
         }
 
@@ -833,9 +832,8 @@ export default class UnitManager {
             else if (u.role === 'shepherd') this.tickShepherd(u, dt);
             else if (!u.targetNode && time - u.lastSeek > 1500) {
                 u.lastSeek = time;
-                if (u.role === 'forager') this.seekNodeTask(u, ['berry_bush', 'wild_garden', 'olive_grove']);
-                else if (u.role === 'woodcutter') this.seekNodeTask(u, ['small_tree', 'large_tree']);
-                else if (u.role === 'miner') this.seekNodeTask(u, ['small_boulder', 'large_boulder', 'ore_vein']);
+                const nodeTypes = JOBS[u.role]?.nodeTypes;
+                if (nodeTypes) this.seekNodeTask(u, nodeTypes);
             }
         }
 
@@ -1237,16 +1235,8 @@ export default class UnitManager {
         return new Set(['granary', 'warehouse', 'stonepile', 'woodshed', 'townhall']);
     }
 
-    // Where each role's gathered resources should be deposited
     get DEPOSIT_ROUTES() {
-        return {
-            farmer:     ['granary'],
-            woodcutter: ['woodshed'],
-            hunter:     ['butcher'],
-            miner:      ['stonepile', 'smelter'],
-            // forager, shepherd → private (house)
-            // warehouse/townhall only receive via explicit public worker routing
-        };
+        return Object.fromEntries(Object.values(JOBS).filter(j => j.depositTypes?.length > 0).map(j => [j.id, j.depositTypes]));
     }
 
     // Find nearest built building of one of the given types
@@ -1275,8 +1265,8 @@ export default class UnitManager {
             }
         }
 
-        // Private roles: forager, shepherd → home oikos
-        const privateRoles = new Set(['forager', 'shepherd']);
+        // Private roles → home oikos
+        const privateRoles = new Set(Object.values(JOBS).filter(j => j.private).map(j => j.id));
         if (privateRoles.has(u.role) && u.homeBldgId) {
             const home = this.scene.buildings.find(b => b.id === u.homeBldgId && b.built && b.type === 'house');
             if (home) {
@@ -1481,69 +1471,28 @@ export default class UnitManager {
     pickRole(u, time) {
         u.lastSeek = time;
         const workers = this.scene.units.filter(w => w.type==='worker' && !w.isEnemy && w.hp>0);
-        const cnt = r => workers.filter(w => w.role===r).length;
-        const cands = [];
-        const need = res => {
-            const cap = this.scene.storageMax[res] || 0;
-            if (cap <= 0) return 0;
-            return 1.0 - Math.min(1.0, (this.scene.resources[res] || 0) / cap);
+        const ctx = {
+            cnt: r => workers.filter(w => w.role===r).length,
+            need: res => {
+                const cap = this.scene.storageMax[res] || 0;
+                if (cap <= 0) return 0;
+                return 1.0 - Math.min(1.0, (this.scene.resources[res] || 0) / cap);
+            },
+            buildings: this.scene.buildings,
+            units: workers,
+            resources: this.scene.resources,
+            sheep: this.scene.sheep ?? [],
+            domains: this.scene.domains ?? [],
+            getDomainAt: (tx, ty) => this.scene.buildingManager.getDomainAt(tx, ty),
         };
-
-        if (u.age >= 2) {
-            const unbuilt = this.scene.buildings.filter(b => !b.built && !b.faction);
-            if (unbuilt.length > 0) {
-                const urgencyBonus = unbuilt.length * 15;
-                cands.push({ role:'builder', score: (100 + urgencyBonus + (u.skills.masonry?.level ?? 1) * 10) - cnt('builder') * 20 });
-            }
+        const cands = [];
+        for (const job of Object.values(JOBS)) {
+            if (!job.score) continue;
+            const s = job.score(u, ctx);
+            if (s > 0) cands.push({ role: job.id, score: s });
         }
-
-        // Strong bonus if worker's home domain has a farm with stock
-        const home = u.homeBldgId ? this.scene.buildings.find(b => b.id === u.homeBldgId) : null;
-        const homeDomain = home?.domainId ? this.scene.domains.find(d => d.id === home.domainId) : null;
-        const ownFarm = homeDomain ? this.scene.buildings.find(b =>
-            b.type === 'farm' && b.built && b.stock > 0 &&
-            this.scene.buildingManager.getDomainAt(b.tx, b.ty)?.id === homeDomain.id) : null;
-        const domainFarmBonus = ownFarm ? 60 : 0;
-
-        // Food need: highest shortage across the grain chain and olive supply
-        const grainNeed  = Math.max(need('Food.Grain.Wheat'), need('Food.Grain.Wheat.Flour'), need('Food.Grain.Wheat.Bread'));
-        const olivNeed   = need('Food.Produce.Olive');
-        const foodNeed   = Math.max(grainNeed, olivNeed);
-
-        cands.push({ role:'farmer',    score: (60 + domainFarmBonus + grainNeed * 50 + (u.skills.farming?.level    ?? 1) * 15) - cnt('farmer')    * 25 });
-        cands.push({ role:'forager',   score: (40 + foodNeed  * 40 + (u.skills.farming?.level    ?? 1) * 15) - cnt('forager')   * 22 });
-
-        // Workshop roles: score each if an unoccupied building exists
-        for (const [role, def] of Object.entries(this.WORKSHOP_ROLES)) {
-            const hasSlot = this.scene.buildings.some(b =>
-                b.type === def.building && b.built && !b.faction &&
-                !this.scene.units.some(w => w.role === role && w.taskBldgId === b.id));
-            if (!hasSlot) continue;
-            // Boost score if input is already available; still candidate if building exists but input scarce
-            const sourceTypes = this.FETCH_SOURCES[role] ?? [];
-            const hasInput = (this.scene.resources[def.input] ?? 0) > 0
-                || this.scene.buildings.some(b =>
-                    b.built && !b.faction && sourceTypes.includes(b.type) && (b.inventory?.[def.input] ?? 0) > 0);
-            const inputBonus = hasInput ? 30 : 0;
-            cands.push({ role, score: def.baseScore + inputBonus + need(def.needKey) * 80 + (u.skills[def.skill]?.level ?? 1) * 15 });
-        }
-
-        if (u.age >= 2) {
-            const hireWood = this.scene.buildings.some(b => b.type === 'woodshed' && b.built && b.isPublic && b.hiring) ? 100 : 0;
-            const hireStone = this.scene.buildings.some(b => b.type === 'stonepile' && b.built && b.isPublic && b.hiring) ? 100 : 0;
-
-            cands.push({ role:'woodcutter', score: (30 + hireWood + need('Materials.Wood.Pine')  * 60 + (u.skills.woodcutting?.level ?? 1) * 15) - cnt('woodcutter') * 22 });
-            cands.push({ role:'miner',      score: (25 + hireStone + need('Materials.Stone.Limestone') * 60 + (u.skills.mining?.level      ?? 1) * 15) - cnt('miner')      * 22 });
-            // Shepherd: requires a built pasture and visible wild sheep
-            const hasPasture = this.scene.buildings.some(b => b.type === 'pasture' && b.built && !b.faction);
-            const wildSheep = this.scene.sheep?.filter(s => !s.isTamed && !s.isDead).length ?? 0;
-            if (hasPasture && wildSheep > 0)
-                cands.push({ role:'shepherd', score: (20 + wildSheep * 8 + need('Textile.Fiber.Wool') * 40 + (u.skills.animalTrap?.level ?? 1) * 10) - cnt('shepherd') * 18 });
-        }
-
         cands.sort((a, b) => b.score - a.score);
-        const best = cands.length > 0 ? cands[0] : null;
-        if (best) u.role = best.role;
+        if (cands.length > 0) u.role = cands[0].role;
     }
 
     seekBuilderTask(u) {
@@ -1607,33 +1556,8 @@ export default class UnitManager {
         u.moveTo = { x: (farm.tx + farm.size/2) * TILE, y: MAP_OY + (farm.ty + farm.size/2) * TILE };
     }
 
-    // Config for all workshop roles: role → { building, input, skill, needKey, baseScore }
-    get WORKSHOP_ROLES() {
-        return {
-            miller:    { building: 'mill',       input: 'Food.Grain.Wheat',          output: 'Food.Grain.Wheat.Flour',         carryQty: 5, skill: 'mill',        needKey: 'Food.Grain.Wheat.Flour',         baseScore: 50 },
-            baker:     { building: 'bakery',      input: 'Food.Grain.Wheat.Flour',    output: 'Food.Grain.Wheat.Bread',         carryQty: 7, skill: 'bake',        needKey: 'Food.Grain.Wheat.Bread',         baseScore: 45 },
-            butcher:   { building: 'butcher',     input: 'Food.Meat.Venison',         output: 'Food.Meat.Venison.Sausages',     carryQty: 4, skill: 'butcher',     needKey: 'Food.Meat.Venison.Sausages',     baseScore: 40 },
-            tanner:    { building: 'tannery',     input: 'Textile.Hide.Deer',         output: 'Textile.Hide.Deer.Leather',      carryQty: 6, skill: 'tan',         needKey: 'Textile.Hide.Deer.Leather',      baseScore: 35 },
-            smelter:   { building: 'smelter',     input: 'Materials.Metal.Copper.Ore', output: 'Materials.Metal.Copper.Ingot', carryQty: 6, skill: 'smelt',       needKey: 'Materials.Metal.Copper.Ingot',   baseScore: 35 },
-            smith:     { building: 'blacksmith',  input: 'Materials.Metal.Copper.Ingot', output: 'Equipment.Bronze.Kit',       carryQty: 3, skill: 'forge',       needKey: 'Equipment.Bronze.Kit',           baseScore: 30 },
-            carpenter: { building: 'carpenter',   input: 'Materials.Wood.Pine',       output: 'Materials.Wood.Pine.Plank',      carryQty: 6, skill: 'woodcutting', needKey: 'Materials.Wood.Pine.Plank',      baseScore: 30 },
-            mason:     { building: 'masons',      input: 'Materials.Stone.Limestone', output: 'Materials.Stone.Limestone.Block', carryQty: 4, skill: 'masonry',   needKey: 'Materials.Stone.Limestone.Block', baseScore: 28 },
-        };
-    }
-
-    // Where each workshop role fetches its input from (building types, in priority order)
-    get FETCH_SOURCES() {
-        return {
-            miller:    ['granary', 'warehouse', 'townhall'],
-            baker:     ['mill', 'granary', 'warehouse'],
-            butcher:   ['butcher', 'warehouse', 'townhall'],
-            tanner:    ['butcher', 'tannery', 'warehouse'],
-            smelter:   ['mine', 'smelter', 'warehouse'],
-            smith:     ['smelter', 'blacksmith', 'warehouse'],
-            carpenter: ['woodshed', 'warehouse', 'townhall'],
-            mason:     ['stonepile', 'warehouse', 'townhall'],
-        };
-    }
+    get WORKSHOP_ROLES() { return WORKSHOP_JOBS; }
+    get FETCH_SOURCES()  { return Object.fromEntries(Object.values(JOBS).filter(j => j.fetchSources).map(j => [j.id, j.fetchSources])); }
 
     // Find nearest building of given types that has qty > 0 of the given resource in inventory
     _findSourceBuilding(input, types) {
@@ -1653,14 +1577,7 @@ export default class UnitManager {
         return best;
     }
 
-    // Roles that can self-gather when their source buildings are empty
-    get SELF_SUPPLY() {
-        return {
-            carpenter: { nodes: ['large_tree', 'small_tree'], depositTypes: ['woodshed', 'warehouse', 'townhall'] },
-            mason:     { nodes: ['boulder', 'ore_vein'],      depositTypes: ['stonepile', 'warehouse', 'townhall'] },
-            smelter:   { nodes: ['ore_vein'],                 depositTypes: ['smelter', 'warehouse'] },
-        };
-    }
+    get SELF_SUPPLY() { return Object.fromEntries(Object.values(JOBS).filter(j => j.selfSupply).map(j => [j.id, j.selfSupply])); }
 
     seekWorkshopTask(u) {
         const def = this.WORKSHOP_ROLES[u.role];
