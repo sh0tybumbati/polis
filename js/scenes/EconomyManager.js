@@ -106,7 +106,7 @@ export default class EconomyManager {
         let remaining = amount;
         for (const b of this.scene.buildings) {
             if (remaining <= 0) break;
-            if (!b.built || b.faction || !this.PUBLIC_STORAGE.has(b.type)) continue;
+            if (!b.built || b.faction || !b.isPublic) continue;
             const avail = b.inventory?.[res] ?? 0;
             const take = Math.min(remaining, avail);
             if (take > 0) {
