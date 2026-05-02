@@ -164,6 +164,8 @@ export default class InputManager {
 
             // Left click: select
             s.deselect();
+            s.selectedBuilding = null;
+            s.selectedNode = null;
             if (hit && !hit.isEnemy) { s.selectUnit(hit.id, ptr.event?.shiftKey ?? false); return; }
             if (bldg) { s.selectedBuilding = bldg; s.updateUI(); return; }
             if (node) { s.selectedNode = node; s.updateUI(); return; }

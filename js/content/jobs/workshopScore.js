@@ -10,5 +10,7 @@ export function workshopScore(u, ctx, def) {
     const hasInput = (ctx.resources[def.input] ?? 0) > 0
         || ctx.buildings.some(b => b.built && !b.faction
             && def.fetchSources.includes(b.type) && (b.inventory?.[def.input] ?? 0) > 0);
-    return def.baseScore + (hasInput ? 30 : 0) + ctx.need(def.needKey) * 80 + (u.skills[def.skill]?.level ?? 1) * 15;
+    const hireBonus = ctx.buildings.some(b =>
+        b.type === def.building && b.built && b.isPublic && b.hiring) ? 100 : 0;
+    return def.baseScore + hireBonus + (hasInput ? 30 : 0) + ctx.need(def.needKey) * 80 + (u.skills[def.skill]?.level ?? 1) * 15;
 }

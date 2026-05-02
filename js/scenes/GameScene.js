@@ -337,19 +337,19 @@ export default class GameScene extends Phaser.Scene {
     spawnStartingState() {
         const mx = Math.floor(MAP_W / 2) - 1;
         const by = MAP_H - 16;
+        const cx = mx + 1, cy = by + 1; // townhall centre tile
 
         // Townhall at centre (administrative only — no storage, no residents)
         const townhall = this.placeBuiltBuilding('townhall', mx, by);
         townhall.isPublic = true;
 
-        // Archon's oikos — house adjacent to the townhall
-        const archonHouse = this.placeBuiltBuilding('house', mx - 2, by);
-        archonHouse.isPublic = false;
+        // Agora just south of townhall — public gathering and social space
+        const agora = this.placeBuiltBuilding('agora', mx, by + 3);
+        agora.isPublic = true;
 
         // Starting granary — holds initial resources
         const startGranary = this.placeBuiltBuilding('granary', mx + 2, by);
         startGranary.isPublic = true;
-        this.updateStorageCap();
 
         // Deposit starting resources into the granary
         startGranary.inventory = startGranary.inventory ?? {};
@@ -358,15 +358,32 @@ export default class GameScene extends Phaser.Scene {
         }
         this.economyManager.syncResources();
 
+        // ── 5-pointed star layout ────────────────────────────────────────────
+        // 5 oikos evenly spaced at 72° intervals, R=11 tiles from townhall centre.
+        // Archon at north (top), then clockwise: NE, SE, SW, NW.
+        const R = 11;
+        const starPoints = [0, 72, 144, 216, 288].map(deg => {
+            const rad = deg * Math.PI / 180;
+            const hx = Math.max(1, Math.min(MAP_W - 3, cx + Math.round(R * Math.sin(rad)) - 1));
+            const hy = Math.max(1, Math.min(MAP_H - 5, cy - Math.round(R * Math.cos(rad)) - 1));
+            return { hx, hy };
+        });
+
+        // Archon's oikos — north point of the star
+        const { hx: ahx, hy: ahy } = starPoints[0];
+        this.placeBuiltBuilding('farm', ahx, ahy - 2);
+        const archonHouse = this.placeBuiltBuilding('house', ahx, ahy);
+        archonHouse.isPublic = false;
+
         // Founder — lives in archon's oikos
         const thx = (archonHouse.tx + archonHouse.size / 2) * TILE;
         const thy = MAP_OY + (archonHouse.ty + archonHouse.size / 2) * TILE;
         const founder = this.spawnUnit('worker', thx, thy, false);
-        founder.gender   = 'male';
-        founder.age      = 2;
+        founder.gender     = 'male';
+        founder.age        = 2;
         founder.homeBldgId = archonHouse.id;
-        founder.isArchon = true;
-        founder.role     = 'builder';
+        founder.isArchon   = true;
+        founder.role       = 'builder';
         if (founder.attributes) {
             for (const k of Object.keys(founder.attributes))
                 founder.attributes[k] = Math.min(10, founder.attributes[k] + 2);
@@ -375,12 +392,13 @@ export default class GameScene extends Phaser.Scene {
         this.redrawUnit(founder);
         this.showFloatText(thx, thy - 20, `${founder.name}, Archon`, '#ffdd44');
 
-        // Consort — lives in archon's oikos
+        // Consort — lives in archon's oikos, works the farm
         const consort = this.spawnUnit('worker', thx + 8, thy, false);
         consort.gender     = 'female';
         consort.age        = 2;
         consort.homeBldgId = archonHouse.id;
         consort.spouseId   = founder.id;
+        consort.role       = 'farmer';
         founder.spouseId   = consort.id;
         if (consort.attributes) {
             for (const k of Object.keys(consort.attributes))
@@ -389,22 +407,10 @@ export default class GameScene extends Phaser.Scene {
         this.redrawUnit(consort);
         this.showFloatText(thx + 8, thy - 20, `${consort.name}, Consort`, '#ffeecc');
 
-        // 4 farm+house pairs scattered at ~10 tile corners around the townhall
-        const r = () => Phaser.Math.Between(-2, 2);
-        const cx = mx + 1, cy = by + 1; // townhall centre tile
-        const pairs = [
-            { fx: cx - 9  + r(), fy: cy - 8 + r() },  // NW
-            { fx: cx + 7  + r(), fy: cy - 8 + r() },  // NE
-            { fx: cx - 9  + r(), fy: cy + 5 + r() },  // SW
-            { fx: cx + 7  + r(), fy: cy + 5 + r() },  // SE
-        ].map(p => ({
-            fx: Math.max(1, Math.min(MAP_W - 3, p.fx)),
-            fy: Math.max(1, Math.min(MAP_H - 5, p.fy)),
-        }));
-
-        const houses = pairs.map(({ fx, fy }) => {
-            this.placeBuiltBuilding('farm', fx, fy);
-            return this.placeBuiltBuilding('house', fx, fy + 2);
+        // 4 remaining oikos — NE, SE, SW, NW points of the star
+        const houses = starPoints.slice(1).map(({ hx, hy }) => {
+            this.placeBuiltBuilding('farm', hx, hy - 2);
+            return this.placeBuiltBuilding('house', hx, hy);
         });
         this.updateStorageCap();
 
@@ -417,7 +423,7 @@ export default class GameScene extends Phaser.Scene {
             male.gender   = 'male';   male.age   = 2; male.homeBldgId   = h.id;
             female.gender = 'female'; female.age = 2; female.homeBldgId = h.id;
             male.spouseId = female.id; female.spouseId = male.id;
-            male.role = 'farmer'; // one per household works their own farm
+            male.role = 'farmer';
             this.redrawUnit(male); this.redrawUnit(female);
         }
 

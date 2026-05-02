@@ -297,6 +297,7 @@ Every unit becomes a persistent individual with biological heritage. This is the
 | INT | Skill XP rate multiplier: `1 + (int - 5) × 0.1` |
 | WIL | Routing threshold: `max(0.05, 0.45 - wil × 0.04)` |
 - [x] All attribute effects wired
+- [ ] **Attribute atrophy** — attributes decay slowly during prolonged idleness; use-it-or-lose-it; rate TBD
 
 ### Starting Tetrad
 - [x] Replace 2-worker start with 4 married couples (8 adults), 4 starter 2×2 homes, 4 attached farms
@@ -355,6 +356,28 @@ Every unit becomes a persistent individual with biological heritage. This is the
 - [x] Appliance slot summary line
 - [x] Buttons: "View Genealogy" (stub), Demolish, Close
 - [ ] Genealogy tree: 2-generation ancestor view (deferred)
+
+---
+
+## Polish & UX Sprint  ← NEAR TERM
+
+*Small targeted improvements; can be worked alongside any milestone.*
+
+### HUD & Feedback
+- [ ] **Season name in HUD** — add Spring/Summer/Autumn/Winter label next to day counter (`SEASON_DAYS = 8`)
+- [ ] **Auto-save flash** — brief `💾 saved` overlay after `_saveGame()` writes; fades out over 1.5s
+- [ ] **Construction progress bar** — green bar above building footprint while `!b.built`
+- [ ] **Idle worker pulse** — slow yellow ring on workers with no role (`u.role === null`, age ≥ 2)
+
+### Unit & Building Info
+- [ ] **Worker nutrition bar** — second bar below HP in unit panel; colour shifts green → yellow → red by `dailyNutrition`
+- [ ] **Per-building ownership badge** — `[STATE]` / `[PRIVATE]` label right-aligned in building info panel; skip for houses
+- [ ] **Tithe & wages pending** — show `🌾 tithe: X` and `💰 wages: X` in building info panel when non-zero
+- [ ] **Census panel** — idle-state left panel lists citizens grouped by role (Farmer ×3, Miller ×2, Idle ×4…); cap 10 lines
+
+### World
+- [ ] **Resource node respawn** — depleted nodes regrow after N days: berry_bush 3, wild_garden 4, olive_grove 5, small_tree 6, ore_vein 25; large_tree and large_boulder do not respawn
+- [ ] **Fog reveal from all player buildings** — non-watchtower buildings default to radius 3 (fix accidental `?? 10` in `revealFog()`)
 
 ---
 
@@ -449,6 +472,10 @@ Every unit becomes a persistent individual with biological heritage. This is the
 - [ ] Land clearing required before any foundation (trees/scrub must be removed)
 - [ ] Wooden Cart: ×8 carry capacity, road-only for full speed, ×0.5 on rough terrain
 
+### Heavy Logistics
+- [ ] **Leather Backpack** — ×2 carry capacity; requires Leatherworks to craft
+- [ ] **Wooden Cart** — ×8 carry capacity; road-only for full speed, ×0.5 on rough terrain
+
 ### Asymptotic Node Growth
 - [ ] `growth_next = current + (rate / current)` for all node regrowth
 - [ ] Large nodes yield more per tick but grow slower
@@ -480,15 +507,15 @@ Every unit becomes a persistent individual with biological heritage. This is the
 - [ ] Genealogy tree: 2-generation ancestor view in Family Menu
 
 ### City Planner AI
-- [ ] Builder reaching skill 8 becomes City Planner
+- [ ] Builder reaching **skill 8** becomes City Planner (promoted automatically, unique unit)
 - [ ] Autonomously plans roads, building districts within explored territory
-- [ ] Auto-zones: separates Industrial from Residential; respects Oikos domains
-- [ ] Relocation: lays new foundation → deconstructs old → hauls materials → rebuilds
+- [ ] Auto-zones: separates Industrial (Tannery, Smelter, Mine) from Residential; respects 8×8 Oikos domains
+- [ ] **Relocation**: lays new foundation → deconstructs old → hauls materials → rebuilds; costs ×0.75 work, ~12% material loss
 
 ### Migration Petitions
 - [ ] Random families appear at map border every N days
-- [ ] Player accepts or rejects; City Planner ghosts a new residential plot on accept
-- [ ] Rejection builds mild reputation penalty
+- [ ] Player accepts → City Planner immediately ghosts a new residential plot in available domain space
+- [ ] Player rejects → family moves on; rejection accumulates reputation penalty
 
 ---
 

@@ -3,7 +3,9 @@ export const GAME_CONFIG = {
   backgroundColor: '#060c06',
   parent: 'game',
   scale: {
-    mode: Phaser.Scale.RESIZE,
+    mode: Phaser.Scale.FIT,
+    width: 480,
+    height: 854,
     autoCenter: Phaser.Scale.CENTER_BOTH,
   },
   render: {

@@ -165,15 +165,40 @@ Growth slows as entities age but never stops. Yield = `floor(growth_variable)`.
 - Berry bushes enter a **dormant state** when depleted (not removed); regrow after ~2 days.
 - Scrub spreads to adjacent tiles; grazing depletes it; scarcity soft-caps animal population.
 
+### Resource Node Respawn
+All finite nodes eventually recover. Respawn timers (in days): berry_bush 3, wild_garden 4, olive_grove 5, small_tree 6, ore_vein 25. Large trees and large boulders are **permanent depletions** — they do not respawn, making their location strategically significant.
+
 ---
 
 ## The City Planner
 
-A builder unit reaching **5 stars** becomes a City Planner:
+A builder unit reaching **skill 8** becomes a City Planner (promoted automatically, becomes a unique named unit):
 - Autonomously plans roads and building districts within explored territory.
 - **Auto-zones**: separates Industrial (Tannery, Smelter, Mine) from Residential (Homes, Bakery, Butcher).
 - Respects the 8×8 Oikos buffer for each family.
 - **Relocation**: lays new foundation → deconstructs old → hauls materials → builds. Costs ×0.75 work, ~12% material loss.
+
+---
+
+## The Archon (Player Role)
+
+The player acts as the **Archon** — the chief magistrate of the polis. The Archon does not command individual citizens directly; instead they set policy levers that shape how the city self-organises.
+
+### Policy Levers
+
+| Tool | Location | Effect |
+|---|---|---|
+| **Firstfruits** | Automatic | 1 unit of each resource skimmed to commons on every private deposit |
+| **Harvest Tithe** | Townhall panel | 0–40% (step 5%) skimmed from all private inventories at dawn |
+| **Hiring** | Building panel | Toggle a building public/private; public buildings pay state wages |
+| **Corvée Labor** | *(future)* Townhall | Each adult owes N public workdays per season |
+| **Migration Petitions** | Border events | Accept families (City Planner plots housing) or reject (reputation penalty) |
+
+### Limits of Authority
+
+The Archon cannot directly command individual citizens. Workers choose roles via the job-scoring system; families manage their own Oikos. The player's power is indirect — set the incentives, and the city responds.
+
+This gap between the Archon's intent and the city's emergent behaviour is the central tension of the game.
 
 ---
 

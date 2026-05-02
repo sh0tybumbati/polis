@@ -199,6 +199,12 @@ export default class UnitManager {
         return 1.0 + (avg - 5) * 0.1;
     }
 
+    // Rest need feeds into work speed. Exhausted workers (rest=0) work at 50% speed.
+    getRestMult(u) {
+        if (u.isEnemy || u.type !== 'worker') return 1.0;
+        return 0.5 + (u.needs?.rest ?? 1.0) * 0.5;
+    }
+
     _applyRareTraits(u) {
         const r = Math.random();
         if (r < 0.005) {
@@ -280,11 +286,15 @@ export default class UnitManager {
         const skill = u.skills?.[skillName];
         if (!skill) return;
         const intMult  = u.attributes ? 1 + (u.attributes.int - 5) * 0.1 : 1.0;
-        const passMult = u.passions?.[skillName] === 'burning' ? 2.5
-                       : u.passions?.[skillName] === 'interested' ? 1.5 : 1.0;
+        // Joy dampens/amplifies passion bonus. Joyless workers still feel passion, just less keenly.
+        const joyMult  = u.type === 'worker' ? 0.7 + (u.needs?.joy    ?? 1.0) * 0.3 : 1.0;
+        const passMult = (u.passions?.[skillName] === 'burning' ? 2.5
+                       : u.passions?.[skillName] === 'interested' ? 1.5 : 1.0) * joyMult;
+        // Social need gates knowledge transfer. Isolated workers learn slower.
+        const socialMult = u.type === 'worker' ? 0.7 + (u.needs?.social ?? 1.0) * 0.3 : 1.0;
         // Cumulative XP required to reach each level (index = level-1)
         const XP_THRESHOLDS = [0, 25, 75, 175, 400, 900, 2000, 4500, 10000, 22000];
-        skill.xp += intMult * passMult;
+        skill.xp += intMult * passMult * socialMult;
         let newLevel = 1;
         for (let i = XP_THRESHOLDS.length - 1; i >= 0; i--) {
             if (skill.xp >= XP_THRESHOLDS[i]) { newLevel = i + 1; break; }
@@ -1013,7 +1023,7 @@ export default class UnitManager {
         u.isInside = false;
         
         const attrMult = this.getAttrMult(u, ['str']);
-        const workSpeed = (1.0 + (u.skills.masonry?.level ?? 1) * 0.2) * attrMult;
+        const workSpeed = (1.0 + (u.skills.masonry?.level ?? 1) * 0.2) * attrMult * this.getRestMult(u);
         u.workProgress = (u.workProgress ?? 0) + dt * workSpeed;
         if (u.workProgress >= 25.0) {
             u.workProgress = 0;
@@ -1038,7 +1048,7 @@ export default class UnitManager {
         u.isInside = false;
 
         const attrMult = this.getAttrMult(u, ['str']);
-        const workSpeed = (1.0 + (u.skills.masonry?.level ?? 1) * 0.2) * attrMult;
+        const workSpeed = (1.0 + (u.skills.masonry?.level ?? 1) * 0.2) * attrMult * this.getRestMult(u);
         u.workProgress = (u.workProgress ?? 0) + dt * workSpeed;
         if (u.workProgress >= 25.0) {
             u.workProgress = 0;
@@ -1094,7 +1104,7 @@ export default class UnitManager {
         if (u.merchantPhase === 'simulate') {
             const def = JOBS.merchant;
             const attrMult = this.getAttrMult(u, ['int', 'agi']);
-            const spd = (1.0 + (u.skills.trading?.level ?? 1) * 0.15) * attrMult;
+            const spd = (1.0 + (u.skills.trading?.level ?? 1) * 0.15) * attrMult * this.getRestMult(u);
             u.workProgress = (u.workProgress ?? 0) + dt * spd;
             if (u.workProgress >= def.simulateMs) {
                 u.workProgress = 0;
@@ -1138,7 +1148,7 @@ export default class UnitManager {
         if (this.moveToward(u, cx, cy, 28, dt)) return;
         u.isInside = false;
         const attrMult = this.getAttrMult(u, ['dex']);
-        const workSpeed = (1.0 + (u.skills.farming?.level ?? 1) * 0.2) * attrMult;
+        const workSpeed = (1.0 + (u.skills.farming?.level ?? 1) * 0.2) * attrMult * this.getRestMult(u);
         u.workProgress = (u.workProgress ?? 0) + dt * workSpeed;
         // Task 88n: burst harvest (threshold 2.0s)
         if (u.workProgress >= 2.0) {
@@ -1243,7 +1253,7 @@ export default class UnitManager {
             // Target: 5s felling
             if (n.fellWork === undefined) n.fellWork = n.type === 'large_tree' ? 5.0 : 5.0;
             const attrMult = this.getAttrMult(u, ['str']);
-            const skillSpeed = (1.0 + (u.skills.woodcutting?.level ?? 1) * 0.2) * attrMult;
+            const skillSpeed = (1.0 + (u.skills.woodcutting?.level ?? 1) * 0.2) * attrMult * this.getRestMult(u);
             n.fellWork -= dt * skillSpeed;
             if (n.fellWork <= 0) {
                 n.felled = true;
@@ -1262,8 +1272,8 @@ export default class UnitManager {
                        : (n.type.includes('boulder') || n.type.includes('ore')) ? this.getAttrMult(u, ['str'])
                        : this.getAttrMult(u, ['dex']);
 
-        const workSpeed = (1.0 + (u.skills[skillKey]?.level ?? 1) * 0.2) * attrMult;
-        
+        const workSpeed = (1.0 + (u.skills[skillKey]?.level ?? 1) * 0.2) * attrMult * this.getRestMult(u);
+
         // Timing: Wood (felled)=2s, Berries=1s, Stone/Ore=3s
         const threshold = isTree ? 2.0 : (n.type === 'berry_bush' ? 1.0 : 3.0);
         u.workProgress = (u.workProgress ?? 0) + dt * workSpeed;
@@ -1969,7 +1979,7 @@ export default class UnitManager {
 
     _doProcessTick(u, b, def, dt) {
         const attrMult = this.getAttrMult(u, ['dex', 'int']);
-        const workSpeed = (1.0 + (u.skills[def.skill]?.level ?? 1) * 0.2) * attrMult;
+        const workSpeed = (1.0 + (u.skills[def.skill]?.level ?? 1) * 0.2) * attrMult * this.getRestMult(u);
         u.workProgress = (u.workProgress ?? 0) + dt * workSpeed;
         if (u.workProgress >= 3.0) {
             u.workProgress = 0;
@@ -2247,6 +2257,8 @@ export default class UnitManager {
                 && Phaser.Math.Distance.Between(u.x, u.y, (b.tx+b.size/2)*TILE, MAP_OY+(b.ty+b.size/2)*TILE) < 5 * TILE);
             if (nearOnion) onionMult = 1.25;
             if (this.scene.foodPressure) onionMult *= 0.7;
+            // Hunger slows movement. Starving workers (food=0) move at 60% speed.
+            onionMult *= 0.6 + (u.needs?.food ?? 1.0) * 0.4;
         }
 
         u.x += Math.cos(a) * u.speed * spd * onionMult * dt;
