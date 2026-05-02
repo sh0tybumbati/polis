@@ -364,20 +364,20 @@ Every unit becomes a persistent individual with biological heritage. This is the
 *Small targeted improvements; can be worked alongside any milestone.*
 
 ### HUD & Feedback
-- [ ] **Season name in HUD** — add Spring/Summer/Autumn/Winter label next to day counter (`SEASON_DAYS = 8`)
-- [ ] **Auto-save flash** — brief `💾 saved` overlay after `_saveGame()` writes; fades out over 1.5s
-- [ ] **Construction progress bar** — green bar above building footprint while `!b.built`
-- [ ] **Idle worker pulse** — slow yellow ring on workers with no role (`u.role === null`, age ≥ 2)
+- [x] **Season name in HUD** — day info shows `☀ D5  Spring` etc. via `SEASONS[seasonIdx]`
+- [x] **Auto-save flash** — `showSaveFlash()` called from `_saveGame()`; fades over 1.5s
+- [x] **Construction progress bar** — drawn by `redrawBuildingBar`: orange for resources needed, yellow for build work
+- [x] **Idle worker pulse** — slow yellow ring on idle adult workers via `_redrawIdlePulse` in UnitManager
 
 ### Unit & Building Info
-- [ ] **Worker nutrition bar** — second bar below HP in unit panel; colour shifts green → yellow → red by `dailyNutrition`
-- [ ] **Per-building ownership badge** — `[STATE]` / `[PRIVATE]` label right-aligned in building info panel; skip for houses
-- [ ] **Tithe & wages pending** — show `🌾 tithe: X` and `💰 wages: X` in building info panel when non-zero
-- [ ] **Census panel** — idle-state left panel lists citizens grouped by role (Farmer ×3, Miller ×2, Idle ×4…); cap 10 lines
+- [x] **Worker nutrition bar** — superseded by `needs.food` bar in unit Needs tab
+- [x] **Per-building ownership badge** — `[STATE]` / `[PRIVATE]` shown in building Info tab
+- [x] **Tithe & wages pending** — shown in building Info tab when non-zero
+- [x] **Census panel** — exists; opened by tapping population counter in top bar
 
 ### World
-- [ ] **Resource node respawn** — depleted nodes regrow after N days: berry_bush 3, wild_garden 4, olive_grove 5, small_tree 6, ore_vein 25; large_tree and large_boulder do not respawn
-- [ ] **Fog reveal from all player buildings** — non-watchtower buildings default to radius 3 (fix accidental `?? 10` in `revealFog()`)
+- [x] **Resource node respawn** — `WorldManager.tickNodeRespawn()` runs each dawn; `NODES[type].respawnDays` defined per type; shows "🌱 regrown" float
+- [x] **Fog reveal from all player buildings** — `MapManager` uses `BLDG[b.type]?.fogRadius ?? 3`
 
 ---
 

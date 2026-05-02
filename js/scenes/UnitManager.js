@@ -79,9 +79,9 @@ function _passionBonus(u, skill) {
 export default class UnitManager {
     constructor(scene) {
         this.scene = scene;
-        // Shared selection-indicator layer drawn below units (depth 5).
-        // Cleared and redrawn every tick so it follows unit positions.
-        this.selGfx = scene.add.graphics().setDepth(5);
+        // Idle-worker pulse ring layer (depth 4) and selection layer (depth 5).
+        this.idleGfx = scene.add.graphics().setDepth(4);
+        this.selGfx  = scene.add.graphics().setDepth(5);
     }
 
     spawnUnit(type, x, y, isEnemy) {
@@ -345,6 +345,17 @@ export default class UnitManager {
         }
     }
 
+    _redrawIdlePulse(time) {
+        this.idleGfx.clear();
+        const alpha = 0.15 + 0.22 * Math.abs(Math.sin(time * 0.0018));
+        for (const u of this.scene.units) {
+            if (u.isEnemy || u.type !== 'worker' || (u.age ?? 2) < 2 || u.role || u.hp <= 0 || !u.gfx.visible) continue;
+            const scale = UnitManager.ageScale(u.age ?? 2);
+            this.idleGfx.lineStyle(1.5, 0xddcc44, alpha)
+                .strokeEllipse(u.x, u.y + 7 * scale, 26 * scale, 11 * scale);
+        }
+    }
+
     // Age → uniform scale applied to the sprite. All unit types use a single
     // adult-sized shape; the engine shrinks it for children and youth.
     static ageScale(age) {
@@ -402,6 +413,7 @@ export default class UnitManager {
 
             if (!this._isUnitCulled(u)) this.redrawUnit(u);
         }
+        this._redrawIdlePulse(time);
 
         this._redrawSelections();
 
