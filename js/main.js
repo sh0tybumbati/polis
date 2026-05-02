@@ -2,10 +2,11 @@ import { GAME_CONFIG } from './config/gameConfig.js';
 import { SCENE_KEYS } from './config/sceneKeys.js';
 
 // Import scene classes
-import BootScene from './scenes/BootScene.js';
-import MenuScene from './scenes/MenuScene.js';
-import GameScene from './scenes/GameScene.js';
-import EndScene  from './scenes/EndScene.js';
+import BootScene        from './scenes/BootScene.js';
+import MenuScene        from './scenes/MenuScene.js';
+import GameScene        from './scenes/GameScene.js';
+import EndScene         from './scenes/EndScene.js';
+import SpriteEditorScene from './scenes/SpriteEditorScene.js';
 
 // Canvas covers the physical screen; the world (128×80 tiles) is larger — camera scrolls over it.
 const game = new Phaser.Game({
@@ -16,5 +17,6 @@ const game = new Phaser.Game({
     MenuScene,
     GameScene,
     EndScene,
+    SpriteEditorScene,
   ],
 });

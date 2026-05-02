@@ -172,9 +172,15 @@ export default class InputManager {
             if (s.selectedNode) { s.selectedNode = null; s.updateUI(); }
         });
 
+        s.input.on('wheel', (ptr, _objs, _dx, dy) => {
+            const cam = s.cameras.main;
+            cam.setZoom(Phaser.Math.Clamp(cam.zoom * (dy > 0 ? 0.9 : 1.1), 0.3, 3));
+        });
+
         s.input.keyboard?.on('keydown-ESC', () => { s.bldgType = null; s.roadMode = false; s.deselect(); s.selectedBuilding = null; s.hoverGfx.clear(); s.updateUI(); });
         s.input.keyboard?.on('keydown-A', () => s.units.filter(u => !u.isEnemy).forEach(u => s.selectUnit(u.id, true)));
         s.input.keyboard?.on('keydown-F', () => { const sel = s.units.filter(u => u.selected && !u.isEnemy); if (sel.length) s.moveSelectedTo((MAP_W / 2) * TILE, MAP_OY + (MAP_H - 10) * TILE); });
+        s.input.keyboard?.on('keydown-BACKTICK', () => s.scene.launch('SpriteEditorScene'));
     }
 
     drawBuildGhost(ptr) {

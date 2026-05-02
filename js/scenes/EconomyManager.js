@@ -353,9 +353,9 @@ export default class EconomyManager {
         const effectiveSpawnMs = BLDG.house.spawnMs * growthScale;
 
         for (const house of this.scene.buildings) {
-            if (!house.built || house.faction || !BLDG[house.type]?.capacity) continue;
+            if (!house.built || house.faction || house.type !== 'house') continue;
 
-            const cap = BLDG[house.type].capacity ?? 6;
+            const cap = this.scene.buildingManager.getHouseCapacity(house);
             const residents = this.scene.units.filter(u =>
                 u.homeBldgId === house.id && !u.isEnemy && u.hp > 0);
             const adults = residents.filter(u => u.age >= 2);
@@ -395,6 +395,7 @@ export default class EconomyManager {
     }
 
     tickHouseProduction(delta) {
+        const bm = this.scene.buildingManager;
         for (const house of this.scene.buildings) {
             if (!house.built || house.faction || house.type !== 'house') continue;
             const apps = house.applianceItems;
@@ -405,9 +406,15 @@ export default class EconomyManager {
                 u.homeBldgId === house.id && !u.isEnemy && u.hp > 0 && u.age >= 2);
             if (!hasResident) continue;
 
+            // Room gating: undefined rooms = legacy, all appliances work
+            const rooms = house.rooms;
+            const hasKitchen  = !rooms || rooms.includes('kitchen');
+            const hasWorkshop = !rooms || rooms.includes('workshop');
+
             for (const app of apps) {
                 switch (app.id) {
                     case 'millstone':
+                        if (!hasKitchen) break;
                         house._millTimer = (house._millTimer ?? 0) + delta;
                         if (house._millTimer >= 18000 && (inv['Food.Grain.Wheat'] ?? 0) >= 1) {
                             inv['Food.Grain.Wheat']--;
@@ -420,6 +427,7 @@ export default class EconomyManager {
                         break;
 
                     case 'hearth':
+                        if (!hasKitchen) break;
                         house._hearthTimer = (house._hearthTimer ?? 0) + delta;
                         if (house._hearthTimer >= 24000 && (inv['Food.Grain.Wheat.Flour'] ?? 0) >= 2) {
                             inv['Food.Grain.Wheat.Flour'] -= 2;
@@ -432,11 +440,11 @@ export default class EconomyManager {
                         break;
 
                     case 'loom':
+                        if (!hasWorkshop) break;
                         house._loomTimer = (house._loomTimer ?? 0) + delta;
                         if (house._loomTimer >= 20000 && (inv['Textile.Fiber.Wool'] ?? 0) >= 2) {
                             inv['Textile.Fiber.Wool'] -= 2;
                             house._loomTimer = 0;
-                            // Woven cloth goes to public commons
                             this.addResource('Textile.Fiber.Wool', 1);
                             this.scene.uiManager.showFloatText(
                                 (house.tx + 1) * TILE, MAP_OY + house.ty * TILE - 8,
@@ -445,6 +453,7 @@ export default class EconomyManager {
                         break;
 
                     case 'workbench':
+                        if (!hasWorkshop) break;
                         house._benchTimer = (house._benchTimer ?? 0) + delta;
                         if (house._benchTimer >= 30000) {
                             house._benchTimer = 0;
@@ -455,6 +464,7 @@ export default class EconomyManager {
                         break;
 
                     case 'anvil':
+                        if (!hasWorkshop) break;
                         house._anvilTimer = (house._anvilTimer ?? 0) + delta;
                         if (house._anvilTimer >= 30000) {
                             house._anvilTimer = 0;

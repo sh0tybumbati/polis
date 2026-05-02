@@ -172,9 +172,8 @@ export const TRAFFIC_DECAY_PER_DAY = 18; // subtracted from every tile each day 
 export const BLDG = {
   // ── Starting (pre-built, not in toolbar) ──────────────────────────────────
   townhall:   { label: '🏛 Town Hall',    color: 0xaa7733, cost: null, size: 2,
-                desc: 'Administrative center and residence of the Archon.',
-                capacity: 4,
-                stores: { 'Food.Grain.Wheat': 40, 'Food.Grain.Wheat.Flour': 20, 'Food.Grain.Wheat.Bread': 10, 'Food.Meat.Venison': 10, 'Food.Meat.Venison.Sausages': 10, 'Food.Produce.Olive': 10, 'Food.Produce.Berry': 20, 'Materials.Stone.Limestone': 40, 'Materials.Wood.Pine': 40 }, hidden: true },
+                desc: 'Administrative center of the polis. The Archon lives in their own oikos.',
+                hidden: true },
   // ── Buildable ─────────────────────────────────────────────────────────────
   // cost = minimum non-substitutable materials; materialQty = flexible (wood OR stone)
   house:      { label: '🏠 House',         color: 0xcc8844, cost: {},               materialQty: 5,  size: 2,
@@ -250,7 +249,7 @@ export const BLDG = {
                 desc: 'Massive storage for industrial materials.',
                 stores: { 'Textile.Hide.Deer.Leather': 50, 'Textile.Fiber.Wool': 50, 'Materials.Metal.Copper.Ore': 50, 'Materials.Metal.Copper.Ingot': 50, 'Equipment.Bronze.Kit': 20, 'Materials.Wood.Pine.Plank': 40, 'Materials.Stone.Limestone.Block': 30 } },
   agora:      { label: '🏪 Agora',         color: 0xd4a030, cost: { 'Materials.Stone.Limestone': 6, 'Materials.Wood.Pine': 3 }, size: 2,
-                desc: 'Marketplace. Set standing trade orders; caravans fulfill them.' },
+                desc: 'Marketplace at the center of the polis. Set standing trade orders; caravans fulfill them.' },
 };
 
 // Compute the actual build cost for a type given the player's material choice ('wood' or 'stone')
@@ -367,6 +366,25 @@ export const APPLIANCE_DEF = {
   anvil:     { label: 'Anvil',     source: 'blacksmith', skillReq: { forge: 5 },
                costWorkshop: { 'Materials.Metal.Copper.Ingot': 3 },           costRaw: { 'Materials.Metal.Copper.Ingot': 3 } },
 };
+
+// ─── Oikos Room Definitions ──────────────────────────────────────────────────
+// rooms array on a house instance: undefined = legacy (all appliances work, cap=6)
+// Each room occupies a slot (max 6 slots per house).
+export const ROOM_DEFS = {
+    bedroom:   { label: '🛏 Bedroom',   icon: '🛏', capacityBonus: 2,  storageBonus: 0,
+                 cost: { 'Materials.Wood.Pine.Sticks': 8 },
+                 desc: '+2 resident capacity' },
+    kitchen:   { label: '🔥 Kitchen',   icon: '🔥', capacityBonus: 0,  storageBonus: 40,
+                 cost: { 'Materials.Stone.Limestone.Stones': 6 },
+                 desc: 'Enables hearth & millstone appliances; +40 volume' },
+    workshop:  { label: '🔨 Workshop',  icon: '🔨', capacityBonus: 0,  storageBonus: 20,
+                 cost: { 'Materials.Wood.Pine.Sticks': 10 },
+                 desc: 'Enables workbench, loom & anvil appliances; +20 volume' },
+    storeroom: { label: '📦 Storeroom', icon: '📦', capacityBonus: 0,  storageBonus: 80,
+                 cost: { 'Materials.Wood.Pine.Sticks': 6 },
+                 desc: '+80 storage volume' },
+};
+export const ROOM_MAX_SLOTS = 6; // max rooms per house
 
 // ─── Formation Types (for UI) ────────────────────────────────────────────────
 

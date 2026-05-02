@@ -479,7 +479,10 @@ export default class UIManager {
         if (BLDG[b.type]?.desc) {
             this._infTxt(ox + pad, oy + 18, BLDG[b.type].desc, { fontSize: this._fs(9), color: '#aaaaaa' });
         }
-        this._infTxt(ox + W - pad - 22, oy + 6, `${allRes.length}/${BLDG[b.type]?.capacity ?? '?'}`,
+        const cap = b.type === 'house'
+            ? this.scene.buildingManager.getHouseCapacity(b)
+            : (BLDG[b.type]?.capacity ?? '?');
+        this._infTxt(ox + W - pad - 22, oy + 6, `${allRes.length}/${cap}`,
             { fontSize: this._fs(11), color: '#6a5c40' });
 
         const div = this._inf(this.scene.add.graphics().setDepth(22));
@@ -593,10 +596,33 @@ export default class UIManager {
             ry += 13;
         }
 
-        const slotLine = (b.applianceItems ?? []).length
-            ? b.applianceItems.map(a => a.label ?? a).join(', ')
-            : 'no appliances';
-        this._infTxt(ox + pad, ry, `[${slotLine}]`, { fontSize: this._fs(9), color: '#5a6840' });
+        if (b.type === 'house') {
+            // Rooms
+            const rooms = b.rooms;
+            if (rooms) {
+                const slotsFree = 6 - rooms.length;
+                const roomStr = rooms.length
+                    ? rooms.map(r => ({ bedroom:'🛏', kitchen:'🔥', workshop:'🔨', storeroom:'📦' }[r] ?? r).slice(0,2)).join(' ')
+                    : '—';
+                this._infTxt(ox + pad, ry, `Rooms: ${roomStr}  (${slotsFree} free)`,
+                    { fontSize: this._fs(9), color: '#8a7860' });
+                ry += 12;
+            } else {
+                this._infTxt(ox + pad, ry, 'Rooms: legacy layout',
+                    { fontSize: this._fs(9), color: '#6a5840' });
+                ry += 12;
+            }
+            // Appliances
+            const slotLine = (b.applianceItems ?? []).length
+                ? b.applianceItems.map(a => a.label ?? a).join(', ')
+                : 'no appliances';
+            this._infTxt(ox + pad, ry, `[${slotLine}]`, { fontSize: this._fs(9), color: '#5a6840' });
+        } else {
+            const slotLine = (b.applianceItems ?? []).length
+                ? b.applianceItems.map(a => a.label ?? a).join(', ')
+                : 'no appliances';
+            this._infTxt(ox + pad, ry, `[${slotLine}]`, { fontSize: this._fs(9), color: '#5a6840' });
+        }
     }
 
     _renderUnitInfo(sel, ox, oy, W, H, pad) {
@@ -614,12 +640,32 @@ export default class UIManager {
             this._infTxt(ox + pad, oy + 38, `HP ${u.hp}/${u.maxHp}`,
                 { fontSize: '9px', color: '#666655' });
 
-            // Nutrition Bar
-            const nut = Math.min(1, u.dailyNutrition ?? 0);
-            const nutCol = nut > 0.7 ? 0x44aa44 : nut > 0.3 ? 0xddaa22 : 0xcc3311;
-            this._infBar(ox + pad, oy + 48, W - pad * 2 - 4, 5, nut, nutCol);
-            this._infTxt(ox + pad, oy + 55, `FED ${Math.round(nut * 100)}%`,
-                { fontSize: '9px', color: '#666655' });
+            // Needs bars: food / rest / social / joy + mood
+            {
+                const needs = u.needs ?? { food: 1, rest: 1, social: 1, joy: 1 };
+                const mood  = u.mood  ?? 1;
+                const bw = W - pad * 2 - 4;
+                const bh = 4;
+                const rows = [
+                    { label: 'Food',   val: needs.food,   hi: 0x66bb44, lo: 0xcc3311 },
+                    { label: 'Rest',   val: needs.rest,   hi: 0x4488cc, lo: 0xcc6622 },
+                    { label: 'Social', val: needs.social, hi: 0xaa66cc, lo: 0x664488 },
+                    { label: 'Joy',    val: needs.joy,    hi: 0xddaa22, lo: 0x886611 },
+                ];
+                let ny = oy + 48;
+                for (const r of rows) {
+                    const col = r.val > 0.5 ? r.hi : r.val > 0.25 ? 0xddaa22 : r.lo;
+                    this._infBar(ox + pad + 28, ny, bw - 28, bh, r.val, col);
+                    this._infTxt(ox + pad, ny - 1, r.label, { fontSize: '8px', color: '#7a7060' });
+                    ny += 9;
+                }
+                // Mood composite
+                const moodCol = mood > 0.7 ? 0x88ddaa : mood > 0.4 ? 0xddcc44 : 0xcc4433;
+                this._infBar(ox + pad + 28, ny, bw - 28, bh, mood, moodCol);
+                this._infTxt(ox + pad, ny - 1, 'Mood', { fontSize: '8px', color: '#9a8860' });
+                if (u.isSleeping) this._infTxt(ox + W - pad - 4, ny - 1, '💤',
+                    { fontSize: '8px', color: '#88aacc' }).setOrigin(1, 0);
+            }
 
             // Physical Stats (Encumbrance/Volume)
             const curW = this.scene.unitManager.getUnitCarryWeight(u);
@@ -628,29 +674,33 @@ export default class UIManager {
             const maxV = this.scene.unitManager.getUnitMaxVolume(u);
             const eq   = u.equipment ? ` [${u.equipment}]` : '';
 
-            this._infTxt(ox + pad, oy + 65, `⚖ ${curW.toFixed(1)}/${maxW} lbs${eq}`,
+            this._infTxt(ox + pad, oy + 100, `⚖ ${curW.toFixed(1)}/${maxW} lbs${eq}`,
                 { fontSize: '9px', color: '#8899aa' });
-            this._infTxt(ox + pad, oy + 76, `📦 ${curV.toFixed(1)}/${maxV} cubits`,
+            this._infTxt(ox + pad, oy + 111, `📦 ${curV.toFixed(1)}/${maxV} cubits`,
                 { fontSize: '9px', color: '#aa9988' });
 
             if (u.type === 'worker') {
                 const role = u.role ? u.role[0].toUpperCase() + u.role.slice(1) : 'Idle';
-                this._infTxt(ox + pad, oy + 88, `Role: ${role}`,
-                    { fontSize: '10px', color: '#aaaacc' });
+                const intentLabel = { eat: '🍱 eating', sleep: '💤 resting', socialize: '💬 social', leisure: '☀ leisure', work: null };
+                const intentStr = intentLabel[u.currentIntent] ?? '';
+                this._infTxt(ox + pad, oy + 123, `${role}  ${intentStr}`,
+                    { fontSize: '9px', color: '#aaaacc' });
+                this._infTxt(ox + pad, oy + 133, `Calling: ${u.vocation ?? '—'}`,
+                    { fontSize: '8px', color: '#7a7060' });
 
                 // Phenotype swatches + height
-                this._infPhenotype(ox + pad, oy + 80, u.phenotype);
+                this._infPhenotype(ox + pad, oy + 125, u.phenotype);
                 const htPct = u.phenotype ? Math.round((u.phenotype.heightScale - 0.6) / 0.8 * 100) : 50;
-                this._infTxt(ox + pad + 32, oy + 80, `ht ${htPct}%`,
+                this._infTxt(ox + pad + 32, oy + 125, `ht ${htPct}%`,
                     { fontSize: '8px', color: '#6a5840' });
 
                 // All 6 attributes
                 const a = u.attributes;
                 if (a) {
-                    this._infTxt(ox + pad, oy + 93,
+                    this._infTxt(ox + pad, oy + 143,
                         `STR${a.str} DEX${a.dex} CON${a.con}`,
                         { fontSize: '9px', color: '#9a8860' });
-                    this._infTxt(ox + pad, oy + 103,
+                    this._infTxt(ox + pad, oy + 153,
                         `INT${a.int} AGI${a.agi} WIL${a.wil}`,
                         { fontSize: '9px', color: '#9a8860' });
                 }
@@ -658,14 +708,14 @@ export default class UIManager {
                 // Passions
                 const burning = Object.entries(u.passions ?? {}).find(([,v]) => v === 'burning');
                 const interested = Object.entries(u.passions ?? {}).filter(([,v]) => v === 'interested').map(([k]) => k);
-                if (burning) this._infTxt(ox + pad, oy + 97, `♥ ${burning[0]}`, { fontSize: '9px', color: '#c8603a' });
-                if (interested.length) this._infTxt(ox + pad, oy + 107,
+                if (burning) this._infTxt(ox + pad, oy + 143, `♥ ${burning[0]}`, { fontSize: '9px', color: '#c8603a' });
+                if (interested.length) this._infTxt(ox + pad, oy + 153,
                     `~ ${interested.map(s=>s.slice(0,5)).join(', ')}`, { fontSize: '8px', color: '#7a7060' });
 
                 // Skills with level > 1
                 const trainedSkills = Object.entries(u.skills ?? {}).filter(([,v]) => v.level > 1);
                 if (trainedSkills.length) {
-                    let sy = oy + 118;
+                    let sy = oy + 165;
                     const div = this._inf(this.scene.add.graphics().setDepth(22));
                     div.lineStyle(1, 0x3a3020, 0.4).lineBetween(ox + pad, sy - 1, ox + W - pad, sy - 1);
                     trainedSkills.sort((a,b) => b[1].level - a[1].level).slice(0, 4).forEach(([k, v]) => {
@@ -682,7 +732,7 @@ export default class UIManager {
                 const spouse = u.spouseId ? this.scene.units.find(p => p.id === u.spouseId) : null;
                 const myChildren = this.scene.units.filter(c => c.fatherId === u.id || c.motherId === u.id);
 
-                let ly = oy + 160;
+                let ly = oy + 208;
                 if (spouse) {
                     const sIcon = spouse.gender === 'female' ? '♀' : '♂';
                     this._infTxt(ox + pad, ly, `${sIcon} ${spouse.name?.slice(0,10) ?? '?'}`,
@@ -822,6 +872,9 @@ export default class UIManager {
             items.push({ label: 'All', color: 0x223318, callback: () => {
                 this.scene.units.filter(u => !u.isEnemy).forEach(u => this.scene.selectUnit(u.id, true));
             }});
+            items.push({ label: '✏ Sprite Editor', color: 0x101820, callback: () => {
+                this.scene.scene.launch('SpriteEditorScene');
+            }});
         }
 
         const MAT_H   = showTabs ? 18 : 0;
@@ -900,6 +953,36 @@ export default class UIManager {
                 s.spawnUnit('cavalry', cx, cy, false);
                 this.updateUI();
             }});
+        }
+
+        if (b.type === 'house') {
+            const bm = s.buildingManager;
+            const eco = s.economyManager;
+            const canAdd = bm.canAddRoom(b);
+            const roomDefs = [
+                ['bedroom',   '🛏 Bedroom',   { 'Materials.Wood.Pine.Sticks': 8 }],
+                ['kitchen',   '🔥 Kitchen',   { 'Materials.Stone.Limestone.Stones': 6 }],
+                ['workshop',  '🔨 Workshop',  { 'Materials.Wood.Pine.Sticks': 10 }],
+                ['storeroom', '📦 Storeroom', { 'Materials.Wood.Pine.Sticks': 6 }],
+            ];
+            if (!b.rooms) {
+                // First time: offer to initialize rooms
+                items.push({ label: '⚙ Setup Rooms', sublabel: 'convert legacy house', color: 0x2a3020, callback: () => {
+                    b.rooms = [];
+                    this.updateUI();
+                }});
+            } else {
+                for (const [id, label, cost] of roomDefs) {
+                    const can = canAdd && eco.afford(cost);
+                    const sublabel = Object.entries(cost).map(([k,v]) => `${v} ${k.split('.').pop()}`).join(', ');
+                    items.push({ label, sublabel, color: can ? 0x2a3020 : 0x1a1810, dimmed: !can, callback: () => {
+                        bm.addRoom(b, id);
+                    }});
+                }
+                if (!canAdd) {
+                    items.push({ label: 'House full (6/6)', sublabel: 'no more rooms', color: 0x1a1810, dimmed: true, callback: () => {} });
+                }
+            }
         }
 
         if (b.type === 'agora' && b.built) {

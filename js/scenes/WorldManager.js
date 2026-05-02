@@ -254,8 +254,7 @@ export default class WorldManager {
         const units = this.scene.units.filter(u => !u.isEnemy && u.hp > 0);
         let starvingCount = 0;
         for (const u of units) {
-            // Use fullness instead of dailyNutrition
-            const f = u.fullness ?? 1.0;
+            const f = u.needs?.food ?? 1.0;
             if (f >= 0.8) {
                 // Well fed — small HP regen if damaged
                 if (u.hp < u.maxHp) u.hp = Math.min(u.maxHp, u.hp + 1);

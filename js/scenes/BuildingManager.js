@@ -1,5 +1,5 @@
 import {
-    BLDG, BUILD_WORK, TILE, MAP_OY, computeBuildCost
+    BLDG, BUILD_WORK, TILE, MAP_OY, computeBuildCost, ROOM_DEFS, ROOM_MAX_SLOTS, BLDG_VOLUME
 } from '../config/gameConstants.js';
 import { BUILDINGS } from '../content/buildings/index.js';
 
@@ -217,6 +217,48 @@ export default class BuildingManager {
             handled = true;
         }
         return handled;
+    }
+
+    // ── Oikos room helpers ────────────────────────────────────────────────────
+
+    getHouseCapacity(house) {
+        // Legacy (no rooms array): original cap from BLDG def
+        if (!house.rooms) return BLDG[house.type]?.capacity ?? 6;
+        return house.rooms.reduce((sum, r) => sum + (ROOM_DEFS[r]?.capacityBonus ?? 0), 0);
+    }
+
+    getHouseVolume(house) {
+        const base = BLDG_VOLUME[house.type] ?? 150;
+        if (!house.rooms) return base;
+        return base + house.rooms.reduce((sum, r) => sum + (ROOM_DEFS[r]?.storageBonus ?? 0), 0);
+    }
+
+    canAddRoom(house) {
+        return (house.rooms?.length ?? 0) < ROOM_MAX_SLOTS;
+    }
+
+    addRoom(house, roomId) {
+        const def = ROOM_DEFS[roomId];
+        if (!def || !this.canAddRoom(house)) return false;
+        const eco = this.scene.economyManager;
+        if (!eco.afford(def.cost)) {
+            const missing = Object.entries(def.cost)
+                .find(([k, v]) => (this.scene.resources[k] ?? 0) < v);
+            this.scene.uiManager.showFloatText(
+                (house.tx + 1) * TILE, MAP_OY + house.ty * TILE - 10,
+                `Need ${missing?.[1]} ${missing?.[0].split('.').pop()}`, '#cc4422');
+            return false;
+        }
+        for (const [item, qty] of Object.entries(def.cost)) {
+            eco.takeFromCommons(item, qty);
+        }
+        house.rooms = house.rooms ?? [];
+        house.rooms.push(roomId);
+        this.scene.uiManager.showFloatText(
+            (house.tx + 1) * TILE, MAP_OY + house.ty * TILE - 10,
+            `${def.icon} ${def.label} added`, '#88cc88');
+        this.scene.updateUI();
+        return true;
     }
 
     // Place a deconstruction order — workers will tear it down and refund materials.

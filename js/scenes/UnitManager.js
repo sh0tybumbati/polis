@@ -16,9 +16,72 @@ import { JOBS, WORKSHOP_JOBS } from '../content/jobs/index.js';
 import { UNITS } from '../content/units/index.js';
 import { MathUtils } from '../utils/MathUtils.js';
 
+// ── Vocation system ───────────────────────────────────────────────────────────
+
+// Attribute affinities per job. Weights 0–1; multiplied against attribute value (1–10).
+// Max bonus from one weight-1 affinity at attr 10 = 20 pts. Two attrs at max ≈ 40 pts.
+const JOB_AFFINITIES = {
+    builder:   { str: 1.0, con: 0.8 },
+    farmer:    { con: 1.0, wil: 0.8 },
+    forager:   { dex: 1.0, agi: 0.8 },
+    woodcutter:{ str: 0.8, dex: 1.0 },
+    miner:     { str: 1.0, con: 0.8 },
+    shepherd:  { con: 0.8, wil: 1.0 },
+    hunter:    { dex: 1.0, agi: 1.0 },
+    miller:    { int: 1.0, wil: 0.8 },
+    baker:     { int: 0.8, wil: 1.0 },
+    butcher:   { str: 0.8, dex: 1.0 },
+    tanner:    { dex: 1.0, int: 0.8 },
+    smelter:   { str: 1.0, con: 0.8 },
+    smith:     { str: 1.0, dex: 0.8, int: 0.6 },
+    carpenter: { dex: 1.0, int: 0.8 },
+    mason:     { str: 0.8, int: 1.0 },
+    merchant:  { int: 1.0, wil: 0.8 },
+};
+
+// When a unit's vocation building doesn't exist yet, they prefer these fallback roles instead.
+const VOCATION_FALLBACKS = {
+    smith:     ['smelter', 'miner', 'woodcutter'],
+    baker:     ['miller', 'farmer'],
+    butcher:   ['hunter', 'shepherd'],
+    tanner:    ['hunter', 'shepherd'],
+    mason:     ['miner', 'builder'],
+    carpenter: ['woodcutter', 'builder'],
+    smelter:   ['miner'],
+    miller:    ['farmer'],
+    merchant:  ['forager', 'farmer'],
+    farmer:    ['forager'],
+    hunter:    ['forager'],
+    woodcutter:['forager'],
+    miner:     ['builder'],
+    shepherd:  ['farmer'],
+    builder:   [],
+    forager:   [],
+};
+
+// Bonus from matching attributes to job affinities (0–~40 pts).
+function _attrBonus(u, jobId) {
+    const affs  = JOB_AFFINITIES[jobId] ?? {};
+    const attrs = u.attributes ?? {};
+    let total = 0;
+    for (const [attr, w] of Object.entries(affs)) total += (attrs[attr] ?? 5) * w * 2;
+    return total;
+}
+
+// Bonus from passion matching the job's skill (0, 25, or 60 pts).
+function _passionBonus(u, skill) {
+    if (!skill || !u.passions) return 0;
+    const lv = u.passions[skill];
+    return lv === 'burning' ? 60 : lv === 'interested' ? 25 : 0;
+}
+
+
 export default class UnitManager {
     constructor(scene) {
         this.scene = scene;
+        // Shared selection-indicator layer drawn below units (depth 5).
+        // Cleared and redrawn every tick so it follows unit positions.
+        this.selGfx = scene.add.graphics().setDepth(5);
     }
 
     spawnUnit(type, x, y, isEnemy) {
@@ -54,9 +117,11 @@ export default class UnitManager {
             attributes, phenotype, passions,
             skills: emptySkills(),
             workProgress: 0,
-            fullness: 1.0,
+            needs: { food: 1.0, rest: 1.0, social: 0.8, joy: 0.8 },
+            mood: 1.0,
             gfx: this.scene._w(this.scene.add.graphics().setDepth(6)),
         };
+        if (isWorker) this.assignVocation(unit);
         this.redrawUnit(unit);
         this.scene.units.push(unit);
         return unit;
@@ -187,13 +252,13 @@ export default class UnitManager {
     }
 
     _archonSuccession(deceased, alive) {
-        const townhall = this.scene.buildings.find(b => b.type === 'townhall' && !b.faction && b.built);
+        const archonHome = this.scene.buildings.find(b => b.id === deceased.homeBldgId && b.built);
 
-        // Priority: 1) eldest adult child, 2) eldest townhall resident, 3) any adult
-        const children  = alive.filter(u => u.fatherId === deceased.id || u.motherId === deceased.id);
-        const residents = alive.filter(u => u.homeBldgId === townhall?.id);
+        // Priority: 1) eldest adult child, 2) housemates, 3) any adult
+        const children   = alive.filter(u => u.fatherId === deceased.id || u.motherId === deceased.id);
+        const housemates = alive.filter(u => u.homeBldgId === archonHome?.id);
         const pool = children.length ? children
-                   : residents.length ? residents
+                   : housemates.length ? housemates
                    : alive;
 
         if (!pool.length) {
@@ -202,8 +267,9 @@ export default class UnitManager {
         }
 
         const heir = pool.reduce((a, b) => b.age > a.age ? b : a);
-        heir.isArchon    = true;
-        heir.homeBldgId  = townhall?.id ?? deceased.homeBldgId;
+        heir.isArchon   = true;
+        // Heir keeps their existing home; if none, inherit the archon's house
+        if (!heir.homeBldgId && archonHome) heir.homeBldgId = archonHome.id;
 
         this.redrawUnit(heir);
         this.scene.showPhaseMessage(`⚜ ${heir.name} succeeds as Archon`, 0xffdd44);
@@ -229,11 +295,65 @@ export default class UnitManager {
         }
     }
 
-    redrawUnit(u) {
-        u.gfx.clear().setPosition(u.x, u.y);
-        u.gfx.fillStyle(0x000000, 0.18).fillEllipse(0, 9, 22, 7);
+    _isUnitCulled(u) {
+        // Enemy units only appear in tiles the player can currently see (vis=2).
+        // Explored (vis=1) and unexplored (vis=0) tiles hide them completely.
+        if (u.isEnemy) {
+            const tx = Math.floor(u.x / TILE);
+            const ty = Math.floor((u.y - MAP_OY) / TILE);
+            if ((this.scene.visMap[ty]?.[tx] ?? 0) < 2) {
+                u.gfx.setVisible(false);
+                if (u.nameLabel) u.nameLabel.setVisible(false);
+                return true;
+            }
+        }
 
-        const showLabel = u.age < 2 && !u.isEnemy && u.hp > 0;
+        // Viewport culling: skip redraw for units outside the camera view.
+        // Margin allows for large sprites and the selection oval to fade in cleanly.
+        const wv = this.scene.cameras.main.worldView;
+        const M  = 64;
+        if (u.x < wv.left - M || u.x > wv.right  + M ||
+            u.y < wv.top  - M || u.y > wv.bottom  + M) {
+            u.gfx.setVisible(false);
+            if (u.nameLabel) u.nameLabel.setVisible(false);
+            return true;
+        }
+
+        u.gfx.setVisible(true);
+        if (u.nameLabel) u.nameLabel.setVisible(true);
+        return false;
+    }
+
+    _redrawSelections() {
+        this.selGfx.clear();
+        for (const u of this.scene.units) {
+            if (!u.selected || u.hp <= 0 || !u.gfx.visible) continue;
+            const scale = UnitManager.ageScale(u.age ?? 2);
+            const w = 22 * scale, h = 9 * scale;
+            this.selGfx.fillStyle(0x44dd55, 0.28).fillEllipse(u.x, u.y + 7 * scale, w, h);
+            this.selGfx.lineStyle(1, 0x55ff66, 0.75).strokeEllipse(u.x, u.y + 7 * scale, w, h);
+        }
+    }
+
+    // Age → uniform scale applied to the sprite. All unit types use a single
+    // adult-sized shape; the engine shrinks it for children and youth.
+    static ageScale(age) {
+        if (age === 0) return 0.48;
+        if (age === 1) return 0.72;
+        return 1.0;
+    }
+
+    redrawUnit(u) {
+        const age   = u.age ?? 2;
+        const scale = UnitManager.ageScale(age);
+
+        u.gfx.clear().setPosition(u.x, u.y);
+
+        // Shadow ellipse — scales with unit size
+        u.gfx.fillStyle(0x000000, 0.18)
+             .fillEllipse(0, 9 * scale, 22 * scale, 7 * scale);
+
+        const showLabel = age < 2 && !u.isEnemy && u.hp > 0;
         if (showLabel) {
             if (!u.nameLabel) {
                 u.nameLabel = this.scene._w(this.scene.add.text(u.x, u.y - 12, u.name, {
@@ -245,25 +365,9 @@ export default class UnitManager {
             u.nameLabel.destroy(); u.nameLabel = null;
         }
 
-        UNITS[u.type]?.draw(u.gfx, u, { totalCarrying: u => this.totalCarrying(u) });
-
-        if (u.isHero) {
-            u.gfx.fillStyle(0xffdd44, 0.95);
-            u.gfx.fillTriangle(-7, -20, -4, -15, -7, -15);
-            u.gfx.fillTriangle( 0, -23,  0, -15,  0, -15);
-            u.gfx.fillTriangle( 7, -20,  4, -15,  7, -15);
-            u.gfx.fillRect(-7, -15, 14, 5);
-            u.gfx.fillStyle(0xff4444, 0.9).fillCircle(-5, -17, 2).fillCircle(0, -20, 2).fillCircle(5, -17, 2);
-        }
-
-        if (!u.isEnemy && u.type === 'worker' && (u.age ?? 0) >= 2 &&
-            !u.role && !u.taskType && !u.targetNode && !u.moveTo && this.totalCarrying(u) === 0) {
-            const flash = Math.floor(Date.now() / 600) % 2 === 0;
-            if (flash) {
-                u.gfx.fillStyle(0xffaa22, 0.9).fillCircle(0, -19, 4);
-                u.gfx.fillStyle(0x221100, 0.9).fillRect(-1, -22, 2, 5).fillRect(-1, -15, 2, 2);
-            }
-        }
+        const zoom = this.scene.cameras.main.zoom;
+        const lod  = zoom < 0.20 ? 0 : zoom < 0.50 ? 1 : zoom < 1.50 ? 2 : 3;
+        UNITS[u.type]?.draw(u.gfx, u, { totalCarrying: u => this.totalCarrying(u), lod, ageScale: scale });
     }
 
     tick(time, dt) {
@@ -282,11 +386,14 @@ export default class UnitManager {
             u.isEnemy ? this.tickEnemy(u, time, dt) : this.tickPlayer(u, time, dt);
             u.gfx.setPosition(u.x, u.y);
             if (u.nameLabel) u.nameLabel.setPosition(u.x, u.y - 12);
-            
+
             const inTower = u.taskType === 'garrison' || u.aiMode === 'tower_assault';
             u.gfx.setAlpha(inTower ? 0.55 : u.isInside ? 0.15 : 1.0);
-            this.redrawUnit(u);
+
+            if (!this._isUnitCulled(u)) this.redrawUnit(u);
         }
+
+        this._redrawSelections();
 
         this.scene.units.filter(u => u.hp <= 0).forEach(u => {
             this.scene.tweens.add({ targets: u.gfx, alpha: 0, duration: 280, onComplete: () => u.gfx.destroy() });
@@ -547,66 +654,24 @@ export default class UnitManager {
     tickWorker(u, time, dt) {
         if (u.age < 2) { this.tickChild(u, dt); return; }
 
-        // Night: workers go home and rest; garrison units stay at post
-        if (this.scene.phase === 'NIGHT' && u.taskType !== 'garrison' && !u.isRouting) {
-            // Collect wage once per night before heading home
-            if (!u._wageCollected) {
-                const workplace = u.taskBldgId
-                    ? this.scene.buildings.find(b => b.id === u.taskBldgId && b.built) : null;
-                const isProductionRole = u.role in WORKSHOP_JOBS;
-                
-                // Task fix: check for node-based roles (woodcutter/miner)
-                const isNodeWorker = u.role === 'woodcutter' || u.role === 'miner' || u.role === 'forager';
+        this._tickNeeds(u, dt);
 
-                if (isProductionRole && workplace?.wagePending?.[u.id]) {
-                    // Production share: collect per-batch wage set aside in building
-                    for (const [res, amt] of Object.entries(workplace.wagePending[u.id])) {
-                        if (amt > 0) {
-                            u.carrying[res] = (u.carrying[res] ?? 0) + amt;
-                            this.scene.uiManager.showFloatText(u.x, u.y - 16, `💰 ${amt} ${res}`, '#ffee88');
-                        }
-                    }
-                    workplace.wagePending[u.id] = {};
-                } else if (workplace?.isPublic || isNodeWorker) {
-                    // State daily wage: 1 food from public commons
-                    const WAGE_FOOD = ['Food.Grain.Wheat.Bread', 'Food.Meat.Venison.Sausages', 'Food.Grain.Wheat.Flour', 'Food.Produce.Olive', 'Food.Grain.Wheat', 'Food.Meat.Venison'];
-                    let paid = false;
-                    for (const food of WAGE_FOOD) {
-                        if ((this.scene.resources[food] ?? 0) >= 1) {
-                            this.scene.economyManager.takeFromCommons(food, 1);
-                            u.carrying[food] = (u.carrying[food] ?? 0) + 1;
-                            this.scene.uiManager.showFloatText(u.x, u.y - 16, `💰 ${food}`, '#ffee88');
-                            paid = true;
-                            break;
-                        }
-                    }
-                    // Task e1k: Deferred debt if public food is empty
-                    if (!paid) {
-                        u.wageDebt = (u.wageDebt ?? 0) + 1;
-                        this.scene.uiManager.showFloatText(u.x, u.y - 16, 'debt +1 food', '#ff8888');
-                    }
+        // Wage collection: once per night phase (economic mechanic, keep phase-gated)
+        if (this.scene.phase === 'NIGHT' && !u._wageCollected && u.taskType !== 'garrison') {
+            this._collectWage(u);
+            u._wageCollected = true;
+        }
+        if (this.scene.phase === 'DAY') u._wageCollected = false;
 
-                    // Task e1k: Collect commissions
-                    if (u.commission) {
-                        for (const [res, amt] of Object.entries(u.commission)) {
-                            if (amt > 0) {
-                                u.carrying[res] = (u.carrying[res] ?? 0) + amt;
-                                this.scene.uiManager.showFloatText(u.x, u.y - 24, `+${amt} ${res} comm.`, '#88eeaa');
-                            }
-                        }
-                        u.commission = {};
-                    }
-                }
-                u._wageCollected = true;
-            }
-
+        // Rest need: tired villagers go home to sleep
+        const needsRest = (u.needs?.rest ?? 1.0) < 0.25 && !u.isSleeping;
+        if (needsRest && u.taskType !== 'garrison' && !u.isRouting) {
             if (u.homeBldgId) {
                 const home = this.scene.buildings.find(b => b.id === u.homeBldgId && b.built);
                 if (home) {
                     const hcx = (home.tx + home.size / 2) * TILE;
                     const hcy = MAP_OY + (home.ty + home.size / 2) * TILE;
                     if (Phaser.Math.Distance.Between(u.x, u.y, hcx, hcy) > 10) {
-                        // Deposit any carrying to home inventory while walking
                         if (this.totalCarrying(u) > 0 && u.taskType !== 'deposit') {
                             u.taskType = 'deposit'; u.taskBldgId = home.id; u._depositPrivate = true;
                         }
@@ -615,75 +680,101 @@ export default class UnitManager {
                         u.isInside = false;
                     } else {
                         u.isInside = true;
+                        u.isSleeping = true;
+                        // Clear active task so they resume fresh when rested
+                        if (u.taskType && u.taskType !== 'garrison') {
+                            u.taskType = null; u.targetNode = null; u.workProgress = 0;
+                            u.workshopPhase = null; u.fetchBldgId = null;
+                        }
                     }
                 }
             }
-            // Clear any non-garrison task so workers resume fresh at dawn
-            if (u.taskType && u.taskType !== 'garrison') {
-                u.taskType = null; u.targetNode = null; u.workProgress = 0;
-                u.workshopPhase = null; u.fetchBldgId = null;
-            }
-            return;
+            if (u.isSleeping) return;
         }
-        // Exiting building at dawn
+
+        // Wake up when rested
+        if (u.isSleeping && (u.needs?.rest ?? 0) >= 0.95) {
+            u.isSleeping = false;
+            u.isInside = false;
+        }
+        if (u.isSleeping) return;
+
+        // Exit building when not sleeping
         if (u.isInside && u.workshopPhase !== 'process') u.isInside = false;
 
-        // Day: active work
-        if (this.scene.phase === 'DAY') {
-            // Fullness: villagers eat at dawn if they have room, or during day if very hungry
-            if (u.taskType !== 'garrison' && u.taskType !== 'eat') {
-                const dayElapsed = 1.0 - (this.scene.timerMs / 90000);
-                const isDawn = dayElapsed < 0.15;
-                const needsFood = isDawn ? (u.fullness < 0.95) : (u.fullness < 0.4);
+        // Food need: eat interrupt anytime (not just during day)
+        if (u.taskType !== 'garrison' && u.taskType !== 'eat') {
+            if ((u.needs?.food ?? 1.0) < 0.4) {
+                this.pushTask(u, 'eat');
+                u.workshopPhase = null;
+            }
+        }
 
-                if (this.scene.phase === 'DAY' && needsFood) {
-                     this.pushTask(u, 'eat');
-                     u.workshopPhase = null;
-                } else {
-                     // Decay so they lose ~1.2 fullness per full day phase (90s)
-                     u.fullness = Math.max(0, (u.fullness ?? 1.0) - dt * 0.000014);
+        if (u.moveTo) {
+            const d = Phaser.Math.Distance.Between(u.x, u.y, u.moveTo.x, u.moveTo.y);
+            if (d > 3) {
+                const a = Phaser.Math.Angle.Between(u.x, u.y, u.moveTo.x, u.moveTo.y);
+                u.x += Math.cos(a) * u.speed * dt;
+                u.y += Math.sin(a) * u.speed * dt;
+                return;
+            }
+            u.moveTo = null;
+        }
+
+        // Collect tithes when idle
+        if (!u.taskType && !u.targetNode &&
+            this.scene.buildings.some(b => b.built && Object.values(b.tithePending ?? {}).some(v => v > 0))) {
+            u.taskType = 'collect_tithe';
+        }
+
+        // Deposit takes priority
+        if (this.totalCarrying(u) > 0 && !u.targetNode && u.taskType !== 'build' && u.taskType !== 'eat' && u.taskType !== 'collect_tithe') {
+            if (u.taskType !== 'deposit') this.seekDeposit(u);
+            if (u.taskType === 'deposit') { this.handleDepositTask(u, dt); return; }
+        }
+
+        // Rebuild day plan every 3s or when empty
+        if (!u.dayPlan || time - (u._planTime ?? 0) > 3000) {
+            this._rebuildDayPlan(u);
+            u._planTime = time;
+        }
+
+        // Execute head intent when idle
+        if (!u.taskType && !u.targetNode && time - u.lastSeek > 1500) {
+            u.lastSeek = time;
+            const intent = u.dayPlan?.[0]?.intent ?? 'work';
+            u.currentIntent = intent;
+
+            if (intent === 'eat') {
+                this.pushTask(u, 'eat');
+            } else if (intent === 'sleep') {
+                // Proactive sleep: head home before the emergency threshold (< 0.25)
+                if (u.homeBldgId) {
+                    const home = this.scene.buildings.find(b => b.id === u.homeBldgId && b.built);
+                    if (home) {
+                        u.moveTo = { x: (home.tx + home.size / 2) * TILE, y: MAP_OY + (home.ty + home.size / 2) * TILE };
+                    }
                 }
-            }
-
-
-            if (u.moveTo) {
-                const d = Phaser.Math.Distance.Between(u.x, u.y, u.moveTo.x, u.moveTo.y);
-                if (d > 3) {
-                    const a = Phaser.Math.Angle.Between(u.x, u.y, u.moveTo.x, u.moveTo.y);
-                    u.x += Math.cos(a) * u.speed * dt;
-                    u.y += Math.sin(a) * u.speed * dt;
-                    return;
-                }
-                u.moveTo = null;
-            }
-
-            // Collect tithes when idle (don't interrupt eating or active tasks)
-            if (!u.taskType && !u.targetNode &&
-                this.scene.buildings.some(b => b.built && Object.values(b.tithePending ?? {}).some(v => v > 0))) {
-                u.taskType = 'collect_tithe';
-            }
-
-            // Deposit takes priority
-            if (this.totalCarrying(u) > 0 && !u.targetNode && u.taskType !== 'build' && u.taskType !== 'eat' && u.taskType !== 'collect_tithe') {
-                if (u.taskType !== 'deposit') this.seekDeposit(u);
-                if (u.taskType === 'deposit') { this.handleDepositTask(u, dt); return; }
-            }
-
-            // Seek task if idle or have role but no target/task
-            if (!u.taskType && !u.targetNode && time - u.lastSeek > 1500) {
-                u.lastSeek = time;
+            } else if (intent === 'socialize') {
+                this._handleSocializeIntent(u);
+            } else if (intent === 'leisure') {
+                // Placeholder — joy recovers passively while idle
+            } else {
+                // work intent
                 this.pickRole(u, time);
-                
-                // Immediately seek a task for the newly assigned role
                 if (u.role && !u.taskType) {
                     if (u.role === 'farmer') this.seekFarmerTask(u);
                     else if (u.role === 'builder') this.seekBuilderTask(u);
                     else if (u.role in WORKSHOP_JOBS) this.seekWorkshopTask(u);
                     else if (JOBS[u.role]?.nodeTypes) this.seekNodeTask(u, JOBS[u.role].nodeTypes);
                 }
+                // No task found — fall through to socialize if available
+                if (!u.taskType && !u.targetNode) {
+                    const fallback = u.dayPlan?.find(p => p.intent === 'socialize' || p.intent === 'leisure');
+                    if (fallback?.intent === 'socialize') this._handleSocializeIntent(u);
+                }
             }
         }
-
 
         // Design fix: if unit has a role but no task/node for 12s, re-evaluate
         // Prevents permanent lock when e.g. all farms are fallow and no nodes in range
@@ -1126,7 +1217,7 @@ export default class UnitManager {
     }
 
     handleDepositTitheTask(u, dt) {
-        const th = this.scene.buildings.find(b => b.type === 'townhall' && b.built);
+        const th = this._nearestOfTypes(u.x, u.y, ['granary', 'warehouse', 'woodshed', 'stonepile']);
         if (!th) { u.taskType = null; return; }
         const door = this._bldgDoor(th);
         if (this.moveToward(u, door.x, door.y, 30, dt)) return;
@@ -1226,7 +1317,7 @@ export default class UnitManager {
 
     // Building types whose inventories count as public commons (deposit → scene.resources)
     get PUBLIC_STORAGE() {
-        return new Set(['granary', 'warehouse', 'stonepile', 'woodshed', 'townhall']);
+        return new Set(['granary', 'warehouse', 'stonepile', 'woodshed']);
     }
 
     get DEPOSIT_ROUTES() {
@@ -1249,15 +1340,6 @@ export default class UnitManager {
     seekDeposit(u) {
         const hasCarry = Object.keys(u.carrying).some(r => (u.carrying[r] || 0) > 0);
         if (!hasCarry) return;
-
-        // Archon household: home is the townhall — treat it as private oikos
-        if (u.homeBldgId) {
-            const home = this.scene.buildings.find(b => b.id === u.homeBldgId && b.built);
-            if (home?.type === 'townhall') {
-                u.taskType = 'deposit'; u.taskBldgId = home.id; u._depositPrivate = true;
-                return;
-            }
-        }
 
         // Private roles → home oikos
         const privateRoles = new Set(Object.values(JOBS).filter(j => j.private).map(j => j.id));
@@ -1438,6 +1520,126 @@ export default class UnitManager {
         }
     }
 
+    // ── Needs & mood ─────────────────────────────────────────────────────────────
+
+    // ── Day plan ──────────────────────────────────────────────────────────────────
+
+    _rebuildDayPlan(u) {
+        const n = u.needs ?? {};
+        const food = n.food ?? 1, rest = n.rest ?? 1, social = n.social ?? 1, joy = n.joy ?? 1;
+        const plan = [];
+
+        // Priority = how urgently this need wants to be met right now.
+        // eat/sleep can exceed work(30) to preempt it; social/leisure stay below so work wins.
+        if (food < 0.7)   plan.push({ intent: 'eat',       priority: 20 + (1 - food)   * 80 });
+        if (rest < 0.6)   plan.push({ intent: 'sleep',     priority: 15 + (1 - rest)   * 75 });
+                          plan.push({ intent: 'work',       priority: 30 });
+        if (social < 0.7) plan.push({ intent: 'socialize', priority:  5 + (1 - social) * 20 });
+        if (joy < 0.7)    plan.push({ intent: 'leisure',   priority:  3 + (1 - joy)    * 15 });
+
+        plan.sort((a, b) => b.priority - a.priority);
+        u.dayPlan = plan;
+        u.currentIntent = plan[0]?.intent ?? 'work';
+    }
+
+    _handleSocializeIntent(u) {
+        // Walk toward the nearest awake adult; proximity recovery handled in _tickNeeds
+        const target = this.scene.units.reduce((best, w) => {
+            if (w === u || w.isEnemy || w.hp <= 0 || w.age < 2 || w.isSleeping) return best;
+            const d = Phaser.Math.Distance.Between(u.x, u.y, w.x, w.y);
+            return (!best || d < best.d) ? { w, d } : best;
+        }, null);
+
+        if (target && target.d > 24) {
+            u.moveTo = {
+                x: target.w.x + Phaser.Math.Between(-16, 16),
+                y: target.w.y + Phaser.Math.Between(-10, 10),
+            };
+        }
+        // If already close enough, just idle (joy/social recover passively via _tickNeeds)
+    }
+
+    _tickNeeds(u, dt) {
+        if (!u.needs) u.needs = { food: 1.0, rest: 1.0, social: 0.8, joy: 0.8 };
+        const n = u.needs;
+
+        // Food decays while awake; restored by eating
+        // Rate: empties in ~3 full day/night cycles (9 min real time)
+        if (!u.isSleeping) n.food = Math.max(0, n.food - dt * 0.0000019);
+
+        // Rest: decays while awake, recovers while sleeping at home
+        // Rate: needs sleep after ~2 day cycles; recovers fully in ~1 night
+        if (u.isSleeping) {
+            n.rest = Math.min(1.0, n.rest + dt * 0.000011);
+            if (n.rest >= 0.95) u.isSleeping = false; // wake up
+        } else {
+            n.rest = Math.max(0, n.rest - dt * 0.0000028);
+        }
+
+        // Social: decays slowly; partially recovered by proximity to other villagers
+        const nearby = this.scene.units.filter(w =>
+            w !== u && !w.isEnemy && w.hp > 0 &&
+            Phaser.Math.Distance.Between(u.x, u.y, w.x, w.y) < 64).length;
+        if (nearby > 0) {
+            n.social = Math.min(1.0, n.social + dt * 0.000004 * Math.min(nearby, 3));
+        } else {
+            n.social = Math.max(0, n.social - dt * 0.0000012);
+        }
+
+        // Joy: decays while working, recovers slightly when social need is met
+        const isWorking = u.taskType && u.taskType !== 'eat' && !u.isSleeping;
+        if (isWorking) {
+            n.joy = Math.max(0, n.joy - dt * 0.0000015);
+        } else {
+            n.joy = Math.min(1.0, n.joy + dt * 0.000003);
+        }
+
+        // Mood: weighted average of needs
+        u.mood = n.food * 0.35 + n.rest * 0.30 + n.social * 0.20 + n.joy * 0.15;
+    }
+
+    _collectWage(u) {
+        const workplace = u.taskBldgId
+            ? this.scene.buildings.find(b => b.id === u.taskBldgId && b.built) : null;
+        const isProductionRole = u.role in WORKSHOP_JOBS;
+        const isNodeWorker = u.role === 'woodcutter' || u.role === 'miner' || u.role === 'forager';
+
+        if (isProductionRole && workplace?.wagePending?.[u.id]) {
+            for (const [res, amt] of Object.entries(workplace.wagePending[u.id])) {
+                if (amt > 0) {
+                    u.carrying[res] = (u.carrying[res] ?? 0) + amt;
+                    this.scene.uiManager.showFloatText(u.x, u.y - 16, `💰 ${amt} ${res}`, '#ffee88');
+                }
+            }
+            workplace.wagePending[u.id] = {};
+        } else if (workplace?.isPublic || isNodeWorker) {
+            const WAGE_FOOD = ['Food.Grain.Wheat.Bread', 'Food.Meat.Venison.Sausages', 'Food.Grain.Wheat.Flour', 'Food.Produce.Olive', 'Food.Grain.Wheat', 'Food.Meat.Venison'];
+            let paid = false;
+            for (const food of WAGE_FOOD) {
+                if ((this.scene.resources[food] ?? 0) >= 1) {
+                    this.scene.economyManager.takeFromCommons(food, 1);
+                    u.carrying[food] = (u.carrying[food] ?? 0) + 1;
+                    this.scene.uiManager.showFloatText(u.x, u.y - 16, `💰 ${food}`, '#ffee88');
+                    paid = true;
+                    break;
+                }
+            }
+            if (!paid) {
+                u.wageDebt = (u.wageDebt ?? 0) + 1;
+                this.scene.uiManager.showFloatText(u.x, u.y - 16, 'debt +1 food', '#ff8888');
+            }
+            if (u.commission) {
+                for (const [res, amt] of Object.entries(u.commission)) {
+                    if (amt > 0) {
+                        u.carrying[res] = (u.carrying[res] ?? 0) + amt;
+                        this.scene.uiManager.showFloatText(u.x, u.y - 24, `+${amt} ${res} comm.`, '#88eeaa');
+                    }
+                }
+                u.commission = {};
+            }
+        }
+    }
+
     tickChild(u, dt) {
         // Age progression: child(0) → youth(1) after 2 min, youth(1) → adult(2) after 3 min
         u.ageTimer = (u.ageTimer ?? 0) + dt;
@@ -1448,6 +1650,7 @@ export default class UnitManager {
             this.redrawUnit(u);
             const stage = u.age === 1 ? 'youth' : 'adult';
             this.scene.uiManager.showFloatText(u.x, u.y - 20, `${u.name} is now a ${stage}`, '#ddcc88');
+            if (u.age === 2) this.assignVocation(u);
             return;
         }
 
@@ -1482,11 +1685,28 @@ export default class UnitManager {
         const cands = [];
         for (const job of Object.values(JOBS)) {
             if (!job.score) continue;
-            const s = job.score(u, ctx);
-            if (s > 0) cands.push({ role: job.id, score: s });
+            let s = job.score(u, ctx);
+            if (s <= 0) continue;
+            s += _attrBonus(u, job.id);
+            s += _passionBonus(u, job.skill);
+            if (u.vocation) {
+                if (job.id === u.vocation) s += 50;
+                else if ((VOCATION_FALLBACKS[u.vocation] ?? []).includes(job.id)) s += 25;
+            }
+            if (u.role === job.id) s += 35; // role stability — reduce thrashing
+            cands.push({ role: job.id, score: s });
         }
         cands.sort((a, b) => b.score - a.score);
         if (cands.length > 0) u.role = cands[0].role;
+    }
+
+    assignVocation(u) {
+        let best = null, bestScore = -Infinity;
+        for (const [jobId, job] of Object.entries(JOBS)) {
+            const score = _attrBonus(u, jobId) + _passionBonus(u, job.skill) * 1.5;
+            if (score > bestScore) { bestScore = score; best = jobId; }
+        }
+        u.vocation = best;
     }
 
     seekBuilderTask(u) {
@@ -1775,7 +1995,7 @@ export default class UnitManager {
         const NUTRITION_MAP = Object.fromEntries(Object.values(ITEMS).filter(d => d.nutrition != null).map(d => [d.key, d.nutrition]));
 
         // Try to eat from the nearest food building's inventory
-        const FOOD_BLDG_TYPES = new Set(['bakery', 'butcher', 'granary', 'warehouse', 'townhall', 'house']);
+        const FOOD_BLDG_TYPES = new Set(['bakery', 'butcher', 'granary', 'warehouse', 'house']);
         let foodBldg = null, bd = Infinity;
         for (const b of this.scene.buildings) {
             if (!b.built || b.faction || !FOOD_BLDG_TYPES.has(b.type)) continue;
@@ -1791,8 +2011,9 @@ export default class UnitManager {
             if (this.moveToward(u, door.x, door.y, 40, dt)) return;
 
             // Eat until full (or out of food)
+            if (!u.needs) u.needs = { food: 0, rest: 1, social: 0.8, joy: 0.8 };
             let ate = false;
-            while (u.fullness < 0.95) {
+            while ((u.needs.food ?? 0) < 0.95) {
                 let found = false;
                 for (const food of FOOD_PRIORITY) {
                     if ((foodBldg.inventory?.[food] ?? 0) >= 1) {
@@ -1801,7 +2022,7 @@ export default class UnitManager {
                             this.scene.economyManager.syncResources();
                         }
                         const nut = NUTRITION_MAP[food];
-                        u.fullness = Math.min(1.0, (u.fullness ?? 0) + nut);
+                        u.needs.food = Math.min(1.0, (u.needs.food ?? 0) + nut);
                         u.dailyNutrition = Math.min(1.0, (u.dailyNutrition ?? 0) + nut);
                         ate = true; found = true;
                         break;
@@ -1812,14 +2033,15 @@ export default class UnitManager {
             if (ate) this.scene.uiManager.showFloatText(u.x, u.y - 14, '🍱 full', '#ffee88');
         } else {
             // No food building — try commons directly
+            if (!u.needs) u.needs = { food: 0, rest: 1, social: 0.8, joy: 0.8 };
             let ate = false;
-            while (u.fullness < 0.95) {
+            while ((u.needs.food ?? 0) < 0.95) {
                 let found = false;
                 for (const food of FOOD_PRIORITY) {
                     if ((this.scene.resources[food] ?? 0) >= 1) {
                         this.scene.economyManager.takeFromCommons(food, 1);
                         const nut = NUTRITION_MAP[food];
-                        u.fullness = Math.min(1.0, (u.fullness ?? 0) + nut);
+                        u.needs.food = Math.min(1.0, (u.needs.food ?? 0) + nut);
                         u.dailyNutrition = Math.min(1.0, (u.dailyNutrition ?? 0) + nut);
                         ate = true; found = true;
                         break;

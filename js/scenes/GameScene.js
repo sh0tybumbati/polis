@@ -338,42 +338,48 @@ export default class GameScene extends Phaser.Scene {
         const mx = Math.floor(MAP_W / 2) - 1;
         const by = MAP_H - 16;
 
-        // Townhall at centre
+        // Townhall at centre (administrative only — no storage, no residents)
         const townhall = this.placeBuiltBuilding('townhall', mx, by);
         townhall.isPublic = true;
+
+        // Archon's oikos — house adjacent to the townhall
+        const archonHouse = this.placeBuiltBuilding('house', mx - 2, by);
+        archonHouse.isPublic = false;
+
+        // Starting granary — holds initial resources
+        const startGranary = this.placeBuiltBuilding('granary', mx + 2, by);
+        startGranary.isPublic = true;
         this.updateStorageCap();
 
-        // Deposit starting resources into townhall inventory so localized production works
-        townhall.inventory = townhall.inventory ?? {};
+        // Deposit starting resources into the granary
+        startGranary.inventory = startGranary.inventory ?? {};
         for (const [key, qty] of Object.entries(this.resources)) {
-            if (qty > 0) townhall.inventory[key] = (townhall.inventory[key] ?? 0) + qty;
+            if (qty > 0) startGranary.inventory[key] = (startGranary.inventory[key] ?? 0) + qty;
         }
         this.economyManager.syncResources();
 
-        // Founder — lives in the townhall, role locked to builder, boosted attributes
-        const thx = (townhall.tx + townhall.size / 2) * TILE;
-        const thy = MAP_OY + (townhall.ty + townhall.size / 2) * TILE;
+        // Founder — lives in archon's oikos
+        const thx = (archonHouse.tx + archonHouse.size / 2) * TILE;
+        const thy = MAP_OY + (archonHouse.ty + archonHouse.size / 2) * TILE;
         const founder = this.spawnUnit('worker', thx, thy, false);
         founder.gender   = 'male';
         founder.age      = 2;
-        founder.homeBldgId = townhall.id;
+        founder.homeBldgId = archonHouse.id;
         founder.isArchon = true;
         founder.role     = 'builder';
-        // Boost all attributes by 2, capped at 10
         if (founder.attributes) {
             for (const k of Object.keys(founder.attributes))
                 founder.attributes[k] = Math.min(10, founder.attributes[k] + 2);
         }
-        // Seed masonry skill so he builds noticeably faster from the start
         if (founder.skills?.masonry) founder.skills.masonry = { level: 3, xp: 0 };
         this.redrawUnit(founder);
         this.showFloatText(thx, thy - 20, `${founder.name}, Archon`, '#ffdd44');
 
-        // Consort — archon's wife, lives in townhall
+        // Consort — lives in archon's oikos
         const consort = this.spawnUnit('worker', thx + 8, thy, false);
         consort.gender     = 'female';
         consort.age        = 2;
-        consort.homeBldgId = townhall.id;
+        consort.homeBldgId = archonHouse.id;
         consort.spouseId   = founder.id;
         founder.spouseId   = consort.id;
         if (consort.attributes) {
