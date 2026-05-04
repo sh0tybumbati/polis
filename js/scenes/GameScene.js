@@ -3,6 +3,9 @@ import {
     MAP_W, MAP_H, TILE, MAP_OY, MAP_BOTTOM,
     DAY_DURATION, BLDG
 } from '../config/gameConstants.js';
+
+// Set to false to re-enable enemies once systems are tuned
+const ENEMIES_DISABLED = true;
 import MapManager from './MapManager.js';
 import UIManager from './UIManager.js';
 import EconomyManager from './EconomyManager.js';
@@ -27,11 +30,11 @@ export default class GameScene extends Phaser.Scene {
         this.units     = [];
         this.selIds    = new Set();
         this.resources  = {
-            'Food.Grain.Wheat': 10, 'Food.Grain.Wheat.Flour': 0, 'Food.Grain.Wheat.Bread': 0,
+            'Food.Grain.Wheat': 0, 'Food.Grain.Wheat.Flour': 0, 'Food.Grain.Wheat.Bread': 0,
             'Food.Meat.Venison': 0, 'Food.Meat.Venison.Cuts': 0, 'Food.Meat.Venison.Sausages': 0,
             'Food.Produce.Olive': 0, 'Food.Produce.Berry': 0,
             'Materials.Wood.Pine': 0, 'Materials.Wood.Pine.Sticks': 0, 'Materials.Wood.Pine.Plank': 0,
-            'Materials.Stone.Limestone': 15, 'Materials.Stone.Limestone.Stones': 0, 'Materials.Stone.Limestone.Block': 0,
+            'Materials.Stone.Limestone': 0, 'Materials.Stone.Limestone.Stones': 0, 'Materials.Stone.Limestone.Block': 0,
             'Materials.Metal.Copper.Ore': 0, 'Materials.Metal.Copper.Ingot': 0,
             'Textile.Fiber.Wool': 0, 'Textile.Hide.Deer': 0, 'Textile.Hide.Deer.Leather': 0,
             'Equipment.Leather.Kit': 0, 'Equipment.Bronze.Kit': 0,
@@ -59,7 +62,7 @@ export default class GameScene extends Phaser.Scene {
         this.phase      = 'DAY';
         this.nightsSurvived = 0;
         this.bldgType     = null;
-        this.bldgMaterial = 'Materials.Wood.Pine';
+        this.bldgMaterial = 'Materials.Wood.Pine.Sticks'; // sticks are the starting material
         this.fmType    = 'phalanx';
         this.floorPiles = [];
         this.selectedBuilding = null;
@@ -67,6 +70,7 @@ export default class GameScene extends Phaser.Scene {
         this._litTiles   = [];   
         this._minimapTimer = 0;
         this.domains     = [];
+        this.borderGfx   = null;
         this.fordSet     = new Set();
         this.deer        = [];   
         this._edgeEntryTimer = 0; 
@@ -78,8 +82,9 @@ export default class GameScene extends Phaser.Scene {
         this._roadsDirty = false;
         this.timerMs   = DAY_DURATION;
         this.nextId    = 1;
-        this.tickSpeed = 1;
-        this.isPaused  = false;
+        this.tickSpeed       = 1;
+        this.isPaused        = false;
+        this.enemiesDisabled = ENEMIES_DISABLED;
         this.fmGfx = null; this.hoverGfx = null; this.dragGfx = null;
         this._fmDragging = false; this._fmDragStart = null;
         this.buildingBtns = {}; this.fmBtns = {};
@@ -123,6 +128,7 @@ export default class GameScene extends Phaser.Scene {
         console.log('[GameScene] map rows:', this.terrainData.length, 'cam center:', this.cameras.main.scrollX, this.cameras.main.scrollY);
         this.mapManager.drawMap();
 
+        this.borderGfx = this._w(this.add.graphics().setDepth(1));
         this.roadGfx = this._w(this.add.graphics().setDepth(1));
         this.mapManager.drawResourceNodes();
         this.mapManager.initFog();
@@ -156,6 +162,7 @@ export default class GameScene extends Phaser.Scene {
         ).setAlpha(loaded && this.phase === 'NIGHT' ? 0.6 : 0).setDepth(9);
         this.cameras.main.ignore(this.nightOverlay);
 
+        this.mapManager.redrawDomainBorders();
         this.uiManager.createUI();
         this.inputManager.setupInput();
         if (!loaded) this.spawnStartingState();
@@ -205,7 +212,7 @@ export default class GameScene extends Phaser.Scene {
         if (this._gameOver) return;
         try {
             const state = {
-                v: 2,
+                v: 4,
                 day: this.day, phase: this.phase, timerMs: this.timerMs,
                 nightsSurvived: this.nightsSurvived, mealsDone: this.mealsDone,
                 resources: { ...this.resources }, storageMax: { ...this.storageMax },
@@ -230,7 +237,7 @@ export default class GameScene extends Phaser.Scene {
             const raw = localStorage.getItem('polis_save');
             if (!raw) return false;
             const s = JSON.parse(raw);
-            if (s.v !== 2) { localStorage.removeItem('polis_save'); return false; }
+            if (s.v !== 4) { localStorage.removeItem('polis_save'); return false; }
 
             const KEY_MIGRATION = {
                 wheat: 'Food.Grain.Wheat', flour: 'Food.Grain.Wheat.Flour', bread: 'Food.Grain.Wheat.Bread',
@@ -336,98 +343,51 @@ export default class GameScene extends Phaser.Scene {
 
     spawnStartingState() {
         const mx = Math.floor(MAP_W / 2) - 1;
-        const by = MAP_H - 16;
-        const cx = mx + 1, cy = by + 1; // townhall centre tile
+        const by = MAP_H - 14;
 
-        // Townhall at centre (administrative only — no storage, no residents)
-        const townhall = this.placeBuiltBuilding('townhall', mx, by);
-        townhall.isPublic = true;
-
-        // Agora just south of townhall — public gathering and social space
-        const agora = this.placeBuiltBuilding('agora', mx, by + 3);
-        agora.isPublic = true;
-
-        // Starting granary — holds initial resources
-        const startGranary = this.placeBuiltBuilding('granary', mx + 2, by);
-        startGranary.isPublic = true;
-
-        // Deposit starting resources into the granary
-        startGranary.inventory = startGranary.inventory ?? {};
-        for (const [key, qty] of Object.entries(this.resources)) {
-            if (qty > 0) startGranary.inventory[key] = (startGranary.inventory[key] ?? 0) + qty;
-        }
+        // Archon's starting camp — public so early resources are accessible
+        const camp = this.placeBuiltBuilding('camp', mx, by);
+        camp.isPublic = true;
+        camp.inventory = {
+            'Food.Produce.Berry':                10,
+            'Materials.Wood.Pine.Sticks':         8,
+            'Materials.Stone.Limestone.Stones':   6,
+        };
+        this.buildingManager.updateStorageCap();
         this.economyManager.syncResources();
 
-        // ── 5-pointed star layout ────────────────────────────────────────────
-        // 5 oikos evenly spaced at 72° intervals, R=11 tiles from townhall centre.
-        // Archon at north (top), then clockwise: NE, SE, SW, NW.
-        const R = 11;
-        const starPoints = [0, 72, 144, 216, 288].map(deg => {
-            const rad = deg * Math.PI / 180;
-            const hx = Math.max(1, Math.min(MAP_W - 3, cx + Math.round(R * Math.sin(rad)) - 1));
-            const hy = Math.max(1, Math.min(MAP_H - 5, cy - Math.round(R * Math.cos(rad)) - 1));
-            return { hx, hy };
-        });
+        const sx = (camp.tx + camp.size / 2) * TILE, sy = MAP_OY + (camp.ty + camp.size / 2) * TILE;
 
-        // Archon's oikos — north point of the star
-        const { hx: ahx, hy: ahy } = starPoints[0];
-        this.placeBuiltBuilding('farm', ahx, ahy - 2);
-        const archonHouse = this.placeBuiltBuilding('house', ahx, ahy);
-        archonHouse.isPublic = false;
-
-        // Founder — lives in archon's oikos
-        const thx = (archonHouse.tx + archonHouse.size / 2) * TILE;
-        const thy = MAP_OY + (archonHouse.ty + archonHouse.size / 2) * TILE;
-        const founder = this.spawnUnit('worker', thx, thy, false);
+        const founder = this.spawnUnit('worker', sx, sy, false);
         founder.gender     = 'male';
         founder.age        = 2;
-        founder.homeBldgId = archonHouse.id;
         founder.isArchon   = true;
         founder.role       = 'builder';
+        founder.homeBldgId = camp.id;
         if (founder.attributes) {
             for (const k of Object.keys(founder.attributes))
                 founder.attributes[k] = Math.min(10, founder.attributes[k] + 2);
         }
         if (founder.skills?.masonry) founder.skills.masonry = { level: 3, xp: 0 };
         this.redrawUnit(founder);
-        this.showFloatText(thx, thy - 20, `${founder.name}, Archon`, '#ffdd44');
+        this.showFloatText(sx, sy - 20, `${founder.name}, Archon`, '#ffdd44');
 
-        // Consort — lives in archon's oikos, works the farm
-        const consort = this.spawnUnit('worker', thx + 8, thy, false);
+        const consort = this.spawnUnit('worker', sx + 12, sy, false);
         consort.gender     = 'female';
         consort.age        = 2;
-        consort.homeBldgId = archonHouse.id;
         consort.spouseId   = founder.id;
         consort.role       = 'farmer';
+        consort.homeBldgId = camp.id;
         founder.spouseId   = consort.id;
         if (consort.attributes) {
             for (const k of Object.keys(consort.attributes))
                 consort.attributes[k] = Math.min(10, consort.attributes[k] + 1);
         }
         this.redrawUnit(consort);
-        this.showFloatText(thx + 8, thy - 20, `${consort.name}, Consort`, '#ffeecc');
+        this.showFloatText(sx + 12, sy - 20, `${consort.name}, Consort`, '#ffeecc');
 
-        // 4 remaining oikos — NE, SE, SW, NW points of the star
-        const houses = starPoints.slice(1).map(({ hx, hy }) => {
-            this.placeBuiltBuilding('farm', hx, hy - 2);
-            return this.placeBuiltBuilding('house', hx, hy);
-        });
-        this.updateStorageCap();
-
-        // 4 married couples, one per house
-        for (let i = 0; i < 4; i++) {
-            const h = houses[i];
-            const hx = (h.tx + h.size / 2) * TILE, hy = MAP_OY + (h.ty + h.size / 2) * TILE;
-            const male   = this.spawnUnit('worker', hx - 10, hy, false);
-            const female = this.spawnUnit('worker', hx + 10, hy, false);
-            male.gender   = 'male';   male.age   = 2; male.homeBldgId   = h.id;
-            female.gender = 'female'; female.age = 2; female.homeBldgId = h.id;
-            male.spouseId = female.id; female.spouseId = male.id;
-            male.role = 'farmer';
-            this.redrawUnit(male); this.redrawUnit(female);
-        }
-
-        this._placeEnemyVillage();
+        if (!ENEMIES_DISABLED) this._placeEnemyVillage();
+        this.updateUI();
     }
 
     _placeEnemyVillage() {

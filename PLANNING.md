@@ -332,13 +332,13 @@ Every unit becomes a persistent individual with biological heritage. This is the
 - [x] `scene.domains[]` array; `assignDomain(house)` called on house placement
 - [x] Domain = 8×8 grid (3-tile pad around 2×2 house): stored as {x1,y1,x2,y2}
 - [x] `getDomainAt(tx,ty)` helper in BuildingManager
-- [ ] Enforce in `isFree()` once Oikos family assignment is implemented
-- [ ] Clicking any domain structure opens the Family Menu
+- [x] Enforce in `isFree()` once Oikos family assignment is implemented
+- [x] Clicking any domain structure opens the Family Menu
 
 ### Modular Room Expansion
-- [ ] 1×2 drag-expansion attached to any domicile wall face
-- [ ] Each room: +2 capacity, +1 internal appliance slot
-- [ ] Family auto-repairs home when `condition < 80%` using private material stash
+- [ ] 1×2 drag-expansion attached to any domicile wall face (deferred)
+- [x] Each room: +2 capacity, +1 internal appliance slot
+- [x] Family auto-repairs home when `condition < 80%` using private material stash
 
 ### Internal Appliances
 - [x] `applianceSlots: 2`, `applianceItems: []` on house bldg objects
@@ -385,27 +385,31 @@ Every unit becomes a persistent individual with biological heritage. This is the
 
 *Goal: make the game a real, winnable/loseable experience before adding more systems.*
 
+> **Enemies currently disabled** (`ENEMIES_DISABLED = true` in GameScene.js) while systems are tuned. Set to `false` to re-enable.
+
 ### Win / Lose Conditions
-- [ ] Player townhall destroyed → LOSE screen
-- [ ] Enemy townhall destroyed → WIN screen (or escalate to next enemy village)
-- [ ] All player workers dead with no births possible → LOSE
+- [x] Player townhall destroyed → LOSE screen (`WorldManager.checkWinLose`)
+- [x] Enemy townhall destroyed → WIN screen
+- [x] All player workers dead with no births possible → LOSE
 
 ### Building HP
-- [ ] All player buildings get HP on placement (scaled by build work)
-- [ ] Enemy units in raid mode attack nearest player building when no player units in range
+- [x] All buildings get `hp`/`maxHp` on placement (scaled by `BUILD_WORK * 3`)
+- [x] Enemy soldiers attack nearest player building when no player units in range
+- [x] Repair task: worker assigned to damaged building restores HP (1 limestone per cycle, `maxHp/10` restored)
 - [ ] Destroyed buildings leave rubble; workers can clear and rebuild
-- [ ] Repair task: worker assigned to damaged building restores HP at half build cost
 
 ### Enemy Village as Proper Mirror
-- [ ] Enemy workers spawned at start with `homeBldgId` pointing to enemy townhall
-- [ ] Enemy village runs same birth/meal/age system as player (through WorldManager)
-- [ ] Enemy farm gets harvested by enemy workers; enemy meals consume enemy food
+- [x] Enemy workers spawned at start with `homeBldgId` pointing to enemy house
+- [x] Enemy farm harvested by enemy workers; enemy meals consume enemy food pool
+- [x] Enemy barracks trains soldiers when food sufficient (every 40s, `_tickEnemyBarracks`)
+- [ ] Enemy village runs same birth/age system as player (currently static adult population)
 - [ ] Enemy rebuilds destroyed buildings using own workers and resources
-- [ ] Enemy trains from barracks only when `enemyRes.food` is sufficient (already done)
 
 ### Gates & Walls Block Movement
-- [ ] Closed gates are impassable to enemy units
-- [ ] Walls block pathing; enemies must path around or break through
+- [x] Closed gates impassable (`isTileBlocked` returns true for closed gates)
+- [x] Enemy soldiers attack closed gates blocking their path (2 HP/1.2s)
+- [x] Walls occupy map cells (value 98), blocking unit movement
+- [ ] Smart pathfinding around walls (currently units stop; no path-around logic)
 
 ---
 

@@ -1,5 +1,5 @@
 import {
-    BLDG, BUILD_WORK, TILE, MAP_OY, computeBuildCost, ROOM_DEFS, ROOM_MAX_SLOTS, BLDG_VOLUME
+    BLDG, BUILD_WORK, TILE, MAP_OY, computeBuildCost, ROOM_DEFS, ROOM_MAX_SLOTS, BLDG_VOLUME, APPLIANCE_DEF
 } from '../config/gameConstants.js';
 import { BUILDINGS } from '../content/buildings/index.js';
 
@@ -8,12 +8,21 @@ export default class BuildingManager {
         this.scene = scene;
     }
 
-    isFree(tx, ty, size) {
+    isFree(tx, ty, size, bldgType = null) {
         for (let y = ty; y < ty + size; y++) {
             for (let x = tx; x < tx + size; x++) {
                 if (x < 0 || x >= this.scene.mapData[0].length || y < 0 || y >= this.scene.mapData.length) return false;
                 if (this.scene.mapData[y][x] !== 0) return false;
                 if (this.scene.terrainData[y][x] === 4) return false; // T_WATER
+            }
+        }
+        // Houses can't be placed where their domain would overlap an existing domain
+        if (bldgType === 'house') {
+            const pad = 3;
+            for (let y = ty - pad; y <= ty + size - 1 + pad; y++) {
+                for (let x = tx - pad; x <= tx + size - 1 + pad; x++) {
+                    if (this.getDomainAt(x, y)) return false;
+                }
             }
         }
         return true;
@@ -53,15 +62,25 @@ export default class BuildingManager {
 
     placeBuilding(tx, ty) {
         const def = BLDG[this.scene.bldgType];
-        if (!this.isFree(tx, ty, def.size)) return;
+        if (!this.isFree(tx, ty, def.size, this.scene.bldgType)) return;
         const isWallType = ['wall','palisade','gate','watchtower'].includes(this.scene.bldgType);
         this.occupy(tx, ty, def.size, isWallType ? 98 : 99);
         const b = this.makeBldgObj(this.scene.bldgType, tx, ty, false);
-        b.isPublic = true; // Task fix: buildings default to public
         const cost = computeBuildCost(this.scene.bldgType, this.scene.bldgMaterial ?? 'Materials.Wood.Pine');
         if (Object.keys(cost).length) b.resNeeded = { ...cost };
         this.scene.buildings.push(b);
-        if (this.scene.bldgType === 'house') this.assignDomain(b);
+        if (this.scene.bldgType === 'house') {
+            this.assignDomain(b);
+            b.isPublic = false; // houses always private
+        } else {
+            const dom = this.getDomainAt(tx, ty);
+            if (dom) {
+                b.domainId = dom.id;
+                b.isPublic = false; // inside an oikos — private to that family
+            } else {
+                b.isPublic = true; // outside any domain — communal/public
+            }
+        }
         this.redrawBuilding(b);
         this.scene.bldgType = null;
         if (this.scene.hoverGfx) this.scene.hoverGfx.clear();
@@ -95,6 +114,7 @@ export default class BuildingManager {
         };
         this.scene.domains.push(dom);
         house.domainId = dom.id;
+        this.scene.mapManager.redrawDomainBorders();
         return dom;
     }
 
@@ -233,6 +253,11 @@ export default class BuildingManager {
         return base + house.rooms.reduce((sum, r) => sum + (ROOM_DEFS[r]?.storageBonus ?? 0), 0);
     }
 
+    getApplianceSlots(house) {
+        if (!house.rooms) return house.applianceSlots ?? 2;
+        return house.rooms.reduce((sum, r) => sum + (ROOM_DEFS[r]?.applianceBonus ?? 0), 0);
+    }
+
     canAddRoom(house) {
         return (house.rooms?.length ?? 0) < ROOM_MAX_SLOTS;
     }
@@ -301,6 +326,52 @@ export default class BuildingManager {
         this.scene.updateUI();
     }
 
+    upgradeCampToHouse(camp) {
+        const residents = this.scene.units.filter(u => u.homeBldgId === camp.id);
+        const inv = { ...camp.inventory };
+        const oldDomainId = camp.domainId;
+
+        // Remove camp silently (no refund — upgrade consumes it)
+        this.occupy(camp.tx, camp.ty, camp.size, 0);
+        this.scene.buildings = this.scene.buildings.filter(b => b.id !== camp.id);
+        camp.gfx?.destroy(); camp.barGfx?.destroy(); camp.labelObj?.destroy();
+        if (this.scene.selectedBuilding === camp) this.scene.selectedBuilding = null;
+
+        // Place built house at same location
+        const house = this.makeBldgObj('house', camp.tx, camp.ty, true);
+        house.isPublic = camp.isPublic; // Keep public status from camp so its inventory remains accessible to the commons
+        house.inventory = inv;
+        this.occupy(house.tx, house.ty, house.size, 99);
+        this.scene.buildings.push(house);
+
+        if (oldDomainId) {
+            const dom = this.scene.domains.find(d => d.id === oldDomainId);
+            if (dom) {
+                const pad = 3;
+                dom.houseBldgId = house.id;
+                dom.x1 = house.tx - pad;
+                dom.y1 = house.ty - pad;
+                dom.x2 = house.tx + house.size - 1 + pad;
+                dom.y2 = house.ty + house.size - 1 + pad;
+                house.domainId = oldDomainId;
+            } else {
+                this.assignDomain(house);
+            }
+        } else {
+            this.assignDomain(house);
+        }
+
+        for (const u of residents) u.homeBldgId = house.id;
+
+        this.redrawBuilding(house);
+        this.updateStorageCap();
+        this.scene.mapManager.redrawDomainBorders();
+        this.scene.updateUI();
+        this.scene.uiManager.showFloatText(
+            (house.tx + 1) * TILE, MAP_OY + house.ty * TILE - 12,
+            '🏠 Oikos established!', '#ffdd44');
+    }
+
     demolishBuilding(bldg, refundFraction = 0.5) {
         if (bldg.type === 'townhall') return;
         // Refund a portion of build cost based on how much was spent
@@ -318,12 +389,16 @@ export default class BuildingManager {
             if (qty > 0) this.scene.economyManager.addResource(r, Math.floor(qty * refundFraction));
         }
         this.occupy(bldg.tx, bldg.ty, bldg.size, 0);
+        if (bldg.type === 'house' && bldg.domainId) {
+            this.scene.domains = this.scene.domains.filter(d => d.id !== bldg.domainId);
+        }
         this.scene.buildings = this.scene.buildings.filter(b => b.id !== bldg.id);
         bldg.gfx?.destroy();
         bldg.barGfx?.destroy();
         bldg.labelObj?.destroy();
         if (this.scene.selectedBuilding === bldg) this.scene.selectedBuilding = null;
         this.updateStorageCap();
+        this.scene.mapManager.redrawDomainBorders();
         this.scene.updateUI();
     }
 

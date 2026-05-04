@@ -1,154 +1,141 @@
 /**
- * UIPanel — a self-contained paginated button grid.
- * Buttons are square tiles; columns expand to fill available width.
- *
- * Usage:
- *   const panel = new UIPanel(scene, x, y, w, h);
- *   panel.setItems([{ label, sublabel, color, active, dimmed, callback }]);
- *   panel.destroy();
+ * UIPanel — drag-scrollable button grid for the actions zone.
+ * A persistent input zone handles both taps (fire callback) and drag (scroll).
+ * Content objects are recreated on each scroll update; the zone persists.
  */
 export default class UIPanel {
-    constructor(scene, x, y, w, h, _opts = {}) {
-        this.scene  = scene;
+    constructor(scene, x, y, w, h) {
+        this.scene = scene;
         this.x = x; this.y = y; this.w = w; this.h = h;
-        this.navH   = 20;
-        this._page  = 0;
-        this._items = [];
-        this._objs  = [];
+        this._scrollY  = 0;
+        this._items    = [];
+        this._content  = [];
+        this._ds       = { on: false, startY: 0, startScroll: 0, moved: false };
+        this._zone     = this._initZone();
+    }
+
+    _initZone() {
+        const { x, y, w, h } = this;
+        const z = this.scene.add.zone(x + w / 2, y + h / 2, w, h)
+            .setInteractive({ useHandCursor: false }).setDepth(24);
+        this.scene.cameras.main.ignore(z);
+        const ds = this._ds;
+
+        z.on('pointerdown', (ptr) => {
+            ds.on = true;
+            ds.startY = ptr.y;
+            ds.startScroll = this._scrollY;
+            ds.moved = false;
+        });
+        z.on('pointermove', (ptr) => {
+            if (!ds.on) return;
+            if (Math.abs(ptr.y - ds.startY) > 6) ds.moved = true;
+            if (ds.moved) {
+                this._scrollY = Math.max(0, Math.min(this._maxScroll(),
+                    ds.startScroll - (ptr.y - ds.startY)));
+                this._renderContent();
+            }
+        });
+        z.on('pointerup', (ptr) => {
+            if (ds.on && !ds.moved) {
+                const item = this._hitItem(ptr.x, ptr.y);
+                if (item && !item.dimmed) item.callback();
+            }
+            ds.on = false;
+        });
+        z.on('pointerupoutside', () => { ds.on = false; });
+        return z;
     }
 
     setItems(items) {
         this._items = items;
-        this._page  = Math.min(this._page, Math.max(0, Math.ceil(items.length / this._pageSize()) - 1));
-        this._render();
+        this._scrollY = Math.min(this._scrollY, Math.max(0, this._maxScroll()));
+        this._renderContent();
     }
 
-    // Square button size derived from panel height targeting 3 rows
-    _btnSize() {
-        const gap  = 3;
-        const rows = 3;
-        const availH = this.h - this.navH;
-        return Math.max(36, Math.floor((availH - gap * (rows + 1)) / rows));
+    _sz()   { return Math.max(36, Math.floor((this.h - 3 * 4) / 3)); }
+    _cols() { const sz = this._sz(); return Math.max(3, Math.floor((this.w - 3) / (sz + 3))); }
+
+    _maxScroll() {
+        const sz = this._sz(), gap = 3, cols = this._cols();
+        const rows = Math.ceil(this._items.length / cols);
+        return Math.max(0, rows * (sz + gap) + gap - this.h);
     }
 
-    // How many columns fit in the panel width
-    _cols() {
-        const gap = 3;
-        const sz  = this._btnSize();
-        return Math.max(3, Math.floor((this.w - gap) / (sz + gap)));
+    _hitItem(px, py) {
+        const gap = 3, sz = this._sz(), cols = this._cols();
+        const lx = px - (this.x + gap);
+        const ly = py - (this.y + gap) + this._scrollY;
+        if (lx < 0 || ly < 0) return null;
+        const col = Math.floor(lx / (sz + gap));
+        const row = Math.floor(ly / (sz + gap));
+        if (col < 0 || col >= cols) return null;
+        if (lx - col * (sz + gap) >= sz) return null;
+        if (ly - row * (sz + gap) >= sz) return null;
+        return this._items[row * cols + col] ?? null;
     }
 
-    _pageSize() {
-        const gap  = 3;
-        const sz   = this._btnSize();
-        const cols = this._cols();
-        const rows = Math.max(1, Math.floor((this.h - this.navH - gap) / (sz + gap)));
-        return cols * rows;
-    }
+    _renderContent() {
+        this._content.forEach(o => o.destroy());
+        this._content = [];
+        const { x, y, w, h } = this;
+        const gap = 3, sz = this._sz(), cols = this._cols();
+        const fz  = Math.max(10, Math.floor(sz * 0.20)) + 'px';
+        const sfz = Math.max(8,  Math.floor(sz * 0.16)) + 'px';
+        const add = obj => { this.scene.cameras.main.ignore(obj); this._content.push(obj); return obj; };
 
-    _render() {
-        this._destroy();
-        const { x, y, w, h, navH } = this;
-        const gap  = 3;
-        const sz   = this._btnSize();
-        const cols = this._cols();
-        const rows = Math.max(1, Math.floor((h - navH - gap) / (sz + gap)));
-        const pageSize = cols * rows;
-        const page = this._page;
-        const visible = this._items.slice(page * pageSize, (page + 1) * pageSize);
-
-        // Font sizes scale with button size
-        const fz  = Math.max(9, Math.floor(sz * 0.20)) + 'px';
-        const sfz = Math.max(7, Math.floor(sz * 0.16)) + 'px';
-
-        visible.forEach((item, idx) => {
+        this._items.forEach((item, idx) => {
             const col = idx % cols;
             const row = Math.floor(idx / cols);
             const bx  = x + gap + col * (sz + gap);
-            const by  = y + gap + row * (sz + gap);
+            const by  = y + gap + row * (sz + gap) - this._scrollY;
 
-            const bg = this._ui(this.scene.add.graphics().setDepth(22));
+            if (by + sz <= y || by >= y + h) return; // culled outside panel
+
+            const visY  = Math.max(by, y);
+            const visH  = Math.min(by + sz, y + h) - visY;
+            const bg = add(this.scene.add.graphics().setDepth(22));
             bg.fillStyle(item.color ?? 0x2a3040, item.dimmed ? 0.35 : 0.88)
-              .fillRect(bx, by, sz, sz);
+              .fillRect(bx, visY, sz, visH);
             if (item.active) {
                 bg.lineStyle(2, 0xffdd44, 0.9).strokeRect(bx + 1, by + 1, sz - 2, sz - 2);
             } else {
                 bg.lineStyle(1, 0xc8a030, 0.22).strokeRect(bx, by, sz, sz);
             }
 
-            const hasDesc = !!item.desc;
-            const lblY = (item.sublabel || hasDesc) ? by + sz * 0.28 : by + sz * 0.5;
-            this._ui(this.scene.add.text(bx + sz / 2, lblY, item.label, {
+            // Only render text if enough of the button is visible
+            if (visH < sz * 0.35) return;
+            const lblY = item.sublabel ? by + sz * 0.28 : by + sz * 0.5;
+            add(this.scene.add.text(bx + sz / 2, lblY, item.label, {
                 fontFamily: 'monospace', fontSize: fz,
                 color: item.dimmed ? '#554433' : '#d4c8a8',
                 align: 'center', wordWrap: { width: sz - 4 },
             }).setOrigin(0.5).setDepth(22));
 
-            if (item.sublabel) {
-                const subY = hasDesc ? by + sz * 0.48 : by + sz * 0.72;
-                this._ui(this.scene.add.text(bx + sz / 2, subY, item.sublabel, {
+            if (item.sublabel && visH > sz * 0.6) {
+                add(this.scene.add.text(bx + sz / 2, by + sz * 0.72, item.sublabel, {
                     fontFamily: 'monospace', fontSize: sfz,
                     color: item.dimmed ? '#443322' : '#aa9966',
                     align: 'center',
                 }).setOrigin(0.5).setDepth(22));
             }
-
-            if (hasDesc) {
-                const dfz = Math.max(7, Math.floor(sz * 0.14)) + 'px';
-                this._ui(this.scene.add.text(bx + sz / 2, by + sz * 0.75, item.desc, {
-                    fontFamily: 'monospace', fontSize: dfz,
-                    color: item.dimmed ? '#443322' : '#bbbbbb',
-                    align: 'center', wordWrap: { width: sz - 6 }
-                }).setOrigin(0.5).setDepth(22));
-            }
-
-            const zone = this._ui(this.scene.add.zone(bx + sz / 2, by + sz / 2, sz, sz)
-                .setInteractive().setDepth(23));
-            zone.on('pointerdown', item.callback);
         });
 
-        // Navigation row
-        const totalPages = Math.ceil(this._items.length / pageSize);
-        if (totalPages > 1) {
-            const ny = y + h - navH + 4;
-            const dotSpacing = 14;
-            const dotsW = totalPages * dotSpacing;
-            const dotX0  = x + w / 2 - dotsW / 2 + 7;
-
-            for (let p = 0; p < totalPages; p++) {
-                const dx  = dotX0 + p * dotSpacing;
-                const dot = this._ui(this.scene.add.graphics().setDepth(22));
-                dot.fillStyle(p === page ? 0xc8a030 : 0x4a4030)
-                   .fillCircle(dx, ny + 7, p === page ? 4 : 3);
-                const dz = this._ui(this.scene.add.zone(dx, ny + 7, 18, 18).setInteractive().setDepth(23));
-                dz.on('pointerdown', () => { this._page = p; this._render(); });
-            }
-
-            if (page > 0) {
-                const prev = this._ui(this.scene.add.text(x + 4, ny + 7, '◀', {
-                    fontFamily: 'monospace', fontSize: '12px', color: '#c8a030',
-                }).setOrigin(0, 0.5).setInteractive().setDepth(22));
-                prev.on('pointerdown', () => { this._page--; this._render(); });
-            }
-            if (page < totalPages - 1) {
-                const nxt = this._ui(this.scene.add.text(x + w - 4, ny + 7, '▶', {
-                    fontFamily: 'monospace', fontSize: '12px', color: '#c8a030',
-                }).setOrigin(1, 0.5).setInteractive().setDepth(22));
-                nxt.on('pointerdown', () => { this._page++; this._render(); });
-            }
+        // Scrollbar thumb
+        const ms = this._maxScroll();
+        if (ms > 0) {
+            const tH     = h - 8;
+            const thumbH = Math.max(16, Math.round(h * h / (h + ms)));
+            const thumbY = y + 4 + Math.round((tH - thumbH) * this._scrollY / ms);
+            const sg = add(this.scene.add.graphics().setDepth(23));
+            sg.fillStyle(0x3a2e18, 0.5).fillRect(x + w - 5, y + 4, 3, tH);
+            sg.fillStyle(0xc8a030, 0.7).fillRect(x + w - 5, thumbY, 3, thumbH);
         }
     }
 
-    _ui(obj) {
-        this.scene.cameras.main.ignore(obj);
-        this._objs.push(obj);
-        return obj;
+    destroy() {
+        this._content.forEach(o => o.destroy());
+        this._content = [];
+        this._zone.destroy();
     }
-
-    _destroy() {
-        this._objs.forEach(o => o.destroy());
-        this._objs = [];
-    }
-
-    destroy() { this._destroy(); }
 }

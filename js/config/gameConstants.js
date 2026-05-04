@@ -176,6 +176,10 @@ export const BLDG = {
                 hidden: true },
   // ── Buildable ─────────────────────────────────────────────────────────────
   // cost = minimum non-substitutable materials; materialQty = flexible (wood OR stone)
+  camp:       { label: '⛺ Camp',          color: 0x8b7050, cost: {},               materialQty: 4,  size: 2,
+                desc: 'Temporary shelter with basic storage. Upgrade to a house to establish an oikos.',
+                outdoor: true, capacity: 4,
+                stores: { 'Food.Produce.Berry': 40, 'Materials.Wood.Pine.Sticks': 30, 'Materials.Stone.Limestone.Stones': 20 } },
   house:      { label: '🏠 House',         color: 0xcc8844, cost: {},               materialQty: 5,  size: 2,
                 desc: 'Provides housing for up to 6 citizens.',
                 capacity: 6, spawnMs: 200000, stores: { 'Food.Produce.Berry': 120, 'Food.Grain.Wheat.Bread': 10 } },
@@ -262,7 +266,7 @@ export function computeBuildCost(type, material = 'Materials.Wood.Pine') {
     return base;
 }
 
-export const BUILD_WORK = { house: 14, granary: 14, woodshed: 12, stonepile: 8, farm: 16, garden: 12, barracks: 22, archery: 18, stable: 24, palisade: 4, watchtower: 14, gate: 8, wall: 6, tannery: 18, mine: 20, smelter: 24, blacksmith: 22, mill: 16, bakery: 14, butcher: 12, olive_press: 16, temple: 24, oracle: 18, pasture: 15, warehouse: 20, carpenter: 18, masons: 20, agora: 18 };
+export const BUILD_WORK = { camp: 6, house: 14, granary: 14, woodshed: 12, stonepile: 8, farm: 16, garden: 12, barracks: 22, archery: 18, stable: 24, palisade: 4, watchtower: 14, gate: 8, wall: 6, tannery: 18, mine: 20, smelter: 24, blacksmith: 22, mill: 16, bakery: 14, butcher: 12, olive_press: 16, temple: 24, oracle: 18, pasture: 15, warehouse: 20, carpenter: 18, masons: 20, agora: 18 };
 
 // ─── Day/Night Cycle Constants ──────────────────────────────────────────────
 
@@ -333,9 +337,10 @@ export function _counterMod(attackerType, defenderType) {
 // ─── Building Categories (for UI) ────────────────────────────────────────────
 
 export const BLDG_CATS = {
-  Economy: ['house', 'farm', 'garden', 'granary', 'woodshed', 'stonepile', 'carpenter', 'masons', 'tannery', 'mine', 'smelter', 'blacksmith', 'mill', 'bakery', 'butcher', 'olive_press', 'pasture', 'warehouse', 'agora'],
+  Economy: ['camp', 'house', 'farm', 'garden', 'granary', 'woodshed', 'stonepile', 'carpenter', 'masons', 'tannery', 'mine', 'smelter', 'blacksmith', 'mill', 'bakery', 'butcher', 'olive_press', 'pasture', 'warehouse', 'agora'],
   Military: ['barracks', 'archery', 'stable', 'watchtower', 'wall', 'palisade', 'gate'],
   Culture: ['temple', 'oracle'],
+  Debug: [],
 };
 
 // ─── Secondary material conversions ──────────────────────────────────────────
@@ -374,12 +379,12 @@ export const ROOM_DEFS = {
     bedroom:   { label: '🛏 Bedroom',   icon: '🛏', capacityBonus: 2,  storageBonus: 0,
                  cost: { 'Materials.Wood.Pine.Sticks': 8 },
                  desc: '+2 resident capacity' },
-    kitchen:   { label: '🔥 Kitchen',   icon: '🔥', capacityBonus: 0,  storageBonus: 40,
+    kitchen:   { label: '🔥 Kitchen',   icon: '🔥', capacityBonus: 0,  storageBonus: 40, applianceBonus: 1,
                  cost: { 'Materials.Stone.Limestone.Stones': 6 },
-                 desc: 'Enables hearth & millstone appliances; +40 volume' },
-    workshop:  { label: '🔨 Workshop',  icon: '🔨', capacityBonus: 0,  storageBonus: 20,
+                 desc: 'Enables hearth & millstone; +1 appliance slot; +40 volume' },
+    workshop:  { label: '🔨 Workshop',  icon: '🔨', capacityBonus: 0,  storageBonus: 20, applianceBonus: 1,
                  cost: { 'Materials.Wood.Pine.Sticks': 10 },
-                 desc: 'Enables workbench, loom & anvil appliances; +20 volume' },
+                 desc: 'Enables workbench, loom & anvil; +1 appliance slot; +20 volume' },
     storeroom: { label: '📦 Storeroom', icon: '📦', capacityBonus: 0,  storageBonus: 80,
                  cost: { 'Materials.Wood.Pine.Sticks': 6 },
                  desc: '+80 storage volume' },
@@ -392,6 +397,7 @@ export const FM_TYPES = ['phalanx', 'wedge', 'screen'];
 export const FM_LABELS = ['Phalanx', 'Wedge', 'Screen'];
 
 export const BLDG_VOLUME = {
+    camp:      400,
     granary:   1000,
     woodshed:  800,
     stonepile: 600,

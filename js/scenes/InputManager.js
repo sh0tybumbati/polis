@@ -190,7 +190,7 @@ export default class InputManager {
         if (!s.bldgType || ptr.y < MAP_OY || ptr.y > s.SH - (s.uiManager?.L?.PANEL_H ?? 190)) { s.hoverGfx?.clear(); return; }
         const tile = s.tileAt(ptr.worldX, ptr.worldY); if (!tile) { s.hoverGfx?.clear(); return; }
         const def = BLDG[s.bldgType];
-        const free = s.buildingManager.isFree(tile.tx, tile.ty, def.size);
+        const free = s.buildingManager.isFree(tile.tx, tile.ty, def.size, s.bldgType);
         const canAfford = !def.cost || s.economyManager.afford(def.cost);
         const col = !free ? 0xff4444 : canAfford ? 0xffffff : 0xffaa44;
         const size = def.size * TILE, px = tile.tx * TILE, py = MAP_OY + tile.ty * TILE;

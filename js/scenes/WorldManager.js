@@ -1,5 +1,5 @@
 import {
-    DAY_DURATION, NIGHT_DURATION, BLDG, TILE, MAP_OY, VET_LEVELS, pickVetName,
+    DAY_DURATION, NIGHT_DURATION, BLDG, TILE, MAP_OY, MAP_W, MAP_H, VET_LEVELS, pickVetName,
     APPLIANCE_DEF,
 } from '../config/gameConstants.js';
 import { UNITS } from '../content/units/index.js';
@@ -24,8 +24,10 @@ export default class WorldManager {
 
         // Meals are now handled by the worker hunger system in UnitManager (handleEatTask)
 
-        this.tickEnemyAI(delta * this.scene.tickSpeed);
-        this.checkWinLose();
+        if (!this.scene.enemiesDisabled) {
+            this.tickEnemyAI(delta * this.scene.tickSpeed);
+            this.checkWinLose();
+        }
     }
 
     checkWinLose() {
@@ -40,7 +42,7 @@ export default class WorldManager {
 
         if (!outcome) {
             const playerTH = this.scene.buildings.find(b => !b.faction && b.type === 'townhall' && b.built);
-            if (!playerTH || playerTH.hp <= 0) {
+            if (playerTH && playerTH.hp <= 0) {
                 outcome = 'lose'; reason = 'Your townhall has been destroyed.';
             }
         }
@@ -309,6 +311,7 @@ export default class WorldManager {
                 this.scene.buildingManager.redrawAll('farm');
             }
 
+            this._trySpawnMigrant();
             this.scene.updateUI();
             this.scene.showPhaseMessage(`Day ${this.scene.day} begins.`, 0xddaa44);
             if ((this.scene.day - 1) % 8 === 0 && this.scene.day > 1)
@@ -361,6 +364,7 @@ export default class WorldManager {
             }
         }
         this.checkApplianceDesires();
+        this.autoRepairHomes();
         this.applyEquipmentUpgrades();
         this.applyTithe();
     }
@@ -370,7 +374,8 @@ export default class WorldManager {
             b.built && !b.faction && b.type === 'house');
 
         for (const house of houses) {
-            if ((house.applianceItems?.length ?? 0) >= (house.applianceSlots ?? 2)) continue;
+            const slots = this.scene.buildingManager.getApplianceSlots(house);
+            if ((house.applianceItems?.length ?? 0) >= slots) continue;
 
             const residents = this.scene.units.filter(u =>
                 u.homeBldgId === house.id && !u.isEnemy && u.hp > 0 && u.age >= 2);
@@ -415,6 +420,39 @@ export default class WorldManager {
                     house.pendingOrders.push({ appId });
                 }
                 break; // one desire evaluated per house per dawn
+            }
+        }
+    }
+
+    autoRepairHomes() {
+        const REPAIR_PER_DAWN = 5;
+        const REPAIR_THRESHOLD = 0.8;
+        for (const house of this.scene.buildings) {
+            if (!house.built || house.faction || house.type !== 'house') continue;
+            if (house.hp >= house.maxHp * REPAIR_THRESHOLD) continue;
+            const inv = house.inventory ?? {};
+            const sticks = inv['Materials.Wood.Pine.Sticks'] ?? 0;
+            const stones = inv['Materials.Stone.Limestone.Stones'] ?? 0;
+            const available = sticks + stones;
+            if (available <= 0) continue;
+            const missing = house.maxHp - house.hp;
+            const repair = Math.min(REPAIR_PER_DAWN, missing, available);
+            let remaining = repair;
+            if (sticks > 0) {
+                const use = Math.min(sticks, remaining);
+                inv['Materials.Wood.Pine.Sticks'] -= use;
+                remaining -= use;
+            }
+            if (remaining > 0 && stones > 0) {
+                const use = Math.min(stones, remaining);
+                inv['Materials.Stone.Limestone.Stones'] -= use;
+                remaining -= use;
+            }
+            house.hp = Math.min(house.maxHp, house.hp + (repair - remaining));
+            if (repair - remaining > 0) {
+                this.scene.uiManager.showFloatText(
+                    (house.tx + 1) * TILE, MAP_OY + house.ty * TILE - 10,
+                    `🔨 +${repair - remaining} HP`, '#88cc88');
             }
         }
     }
@@ -468,6 +506,62 @@ export default class WorldManager {
             .map(([r, v]) => `${v} ${r.slice(0,4)}`).join(', ');
         if (parts)
             this.scene.showPhaseMessage(`Tithe: ${parts} → commons`, 0xddaa44);
+    }
+
+    _trySpawnMigrant() {
+        // Needs a civic building (townhall or agora) to attract settlers
+        const civic = this.scene.buildings.find(b =>
+            !b.faction && b.built && (b.type === 'townhall' || b.type === 'agora'));
+        if (!civic) return;
+
+        // One couple every 5 days
+        this._migrantCooldown = (this._migrantCooldown ?? 0) + 1;
+        if (this._migrantCooldown < 5) return;
+        this._migrantCooldown = 0;
+
+        // Find a free 2×2 site near the civic building for a camp
+        const site = this._findCampSite(civic);
+        if (!site) return; // map too full — skip this cycle
+
+        // Place a private camp with basic supplies
+        const camp = this.scene.buildingManager.placeBuiltBuilding('camp', site.tx, site.ty);
+        camp.isPublic = false;
+        camp.inventory = {
+            'Food.Produce.Berry':              8,
+            'Materials.Wood.Pine.Sticks':      5,
+            'Materials.Stone.Limestone.Stones': 3,
+        };
+        this.scene.buildingManager.updateStorageCap();
+
+        const hx = (camp.tx + camp.size / 2) * TILE;
+        const hy = MAP_OY + (camp.ty + camp.size / 2) * TILE;
+
+        const male   = this.scene.spawnUnit('worker', hx - 8, hy, false);
+        const female = this.scene.spawnUnit('worker', hx + 8, hy, false);
+        male.gender   = 'male';   male.age = 2; male.homeBldgId = camp.id; male.role = 'farmer';
+        female.gender = 'female'; female.age = 2; female.homeBldgId = camp.id;
+        male.spouseId = female.id; female.spouseId = male.id;
+        this.scene.unitManager.redrawUnit(male);
+        this.scene.unitManager.redrawUnit(female);
+
+        this.scene.uiManager.showFloatText(hx, hy - 28,
+            `✦ ${male.name} & ${female.name} arrive`, '#88eeff');
+    }
+
+    _findCampSite(near) {
+        const bm = this.scene.buildingManager;
+        const cx = near.tx + 1, cy = near.ty + 1;
+        for (let r = 4; r <= 18; r++) {
+            for (let dy = -r; dy <= r; dy++) {
+                for (let dx = -r; dx <= r; dx++) {
+                    if (Math.abs(dx) !== r && Math.abs(dy) !== r) continue;
+                    const tx = cx + dx - 1, ty = cy + dy - 1;
+                    if (tx < 1 || ty < 1 || tx + 2 >= MAP_W || ty + 2 >= MAP_H) continue;
+                    if (bm.isFree(tx, ty, 2)) return { tx, ty };
+                }
+            }
+        }
+        return null;
     }
 
     _spawnCaravan() {

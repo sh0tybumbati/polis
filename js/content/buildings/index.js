@@ -1,3 +1,4 @@
+import camp       from './camp.js';
 import farm       from './farm.js';
 import mill       from './mill.js';
 import bakery     from './bakery.js';
@@ -29,7 +30,7 @@ import warehouse  from './warehouse.js';
 import agora      from './agora.js';
 
 const defs = [
-    farm, mill, bakery, butcher, tannery, smelter, blacksmith,
+    camp, farm, mill, bakery, butcher, tannery, smelter, blacksmith,
     carpenter, masons, pasture, watchtower, olive_press, garden,
     house, townhall, granary, woodshed, stonepile,
     barracks, archery, stable, mine, temple, oracle,
