@@ -113,7 +113,7 @@ export default class UnitManager {
             speed, atk: def.atk, range: def.range,
             wallSide: 0, homeBldgId: null, age: 2,
             taskType: null, taskBldgId: null, targetNode: null,
-            carrying: { 'Food.Grain.Wheat': 0, 'Food.Grain.Wheat.Flour': 0, 'Food.Grain.Wheat.Bread': 0, 'Food.Meat.Venison': 0, 'Food.Meat.Venison.Sausages': 0, 'Food.Produce.Olive': 0, 'Materials.Stone.Limestone': 0, 'Materials.Wood.Pine': 0, 'Materials.Wood.Pine.Sticks': 0, 'Materials.Stone.Limestone.Stones': 0, 'Textile.Fiber.Wool': 0, 'Textile.Hide.Deer': 0, 'Materials.Metal.Copper.Ore': 0 }, carryMax,
+            carrying: { 'Food.Grain.Wheat': 0, 'Food.Grain.Wheat.Flour': 0, 'Food.Grain.Wheat.Bread': 0, 'Food.Meat.Venison': 0, 'Food.Meat.Venison.Sausages': 0, 'Food.Produce.Berry': 0, 'Food.Produce.Olive': 0, 'Materials.Stone.Limestone': 0, 'Materials.Wood.Pine': 0, 'Materials.Wood.Pine.Sticks': 0, 'Materials.Stone.Limestone.Stones': 0, 'Textile.Fiber.Wool': 0, 'Textile.Hide.Deer': 0, 'Materials.Metal.Copper.Ore': 0 }, carryMax,
             role: null, replantTimer: 0, trainTimer: 0, lastSeek: 0,
             roleMemory: {}, targetDeer: null, targetSheep: null,
             nightsSurvived: 0, vetLevel: 0, isInside: false, _wageCollected: false,

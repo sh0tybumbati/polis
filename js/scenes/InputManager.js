@@ -70,7 +70,7 @@ export default class InputManager {
             if (s.roadMode && ptr.isDown && !isUI) {
                 const t = s.tileAt(ptr.worldX, ptr.worldY);
                 if (t) s._paintRoad(t.tx, t.ty);
-            } else if (!s.bldgType && !s.roadMode && ptr.isDown && !isUI) {
+            } else if (!s.bldgType && !s.roadMode && ptr.isDown && !ptr.middleButtonDown() && !isUI) {
                 const d = Phaser.Math.Distance.Between(ptr.x, ptr.y, s._ptrDownX, s._ptrDownY);
                 if (d > TAP_DIST) {
                     if (s.selIds.size >= 1) {

@@ -30,11 +30,16 @@ export default {
                     const hcy = MAP_OY + (home.ty + home.size / 2) * TILE;
                     if (Phaser.Math.Distance.Between(u.x, u.y, hcx, hcy) > 10) {
                         if (this.totalCarrying(u) > 0 && u.taskType !== 'deposit') {
-                            u.taskType = 'deposit'; u.taskBldgId = home.id; u._depositPrivate = true;
+                            u.taskType = 'deposit'; u.taskBldgId = home.id; u._depositPrivate = !home.isPublic;
                         }
                         if (u.taskType === 'deposit') { this.handleDepositTask(u, dt); return; }
+                        // Abandon current task and head home — clear moveTo/targetNode so
+                        // nothing overrides the walk or runs gather at end of tick
+                        u.targetNode = null;
+                        u.moveTo = null;
                         this.moveToward(u, hcx, hcy, u.speed, dt);
                         u.isInside = false;
+                        return;
                     } else {
                         u.isInside = true;
                         u.isSleeping = true;
@@ -64,6 +69,8 @@ export default {
             if ((u.needs?.food ?? 1.0) < 0.4) {
                 this.pushTask(u, 'eat');
                 u.workshopPhase = null;
+                u.targetNode = null;
+                u.moveTo = null;
             }
         }
 
@@ -489,8 +496,25 @@ export default {
     },
 
     handleHarvestFarmTask(u, dt) {
-        const b = this.scene.buildings.find(b => b.id === u.taskBldgId && b.built && b.type === 'farm');
-        if (!b || b.stock <= 0) { u.taskType = null; return; }
+        const b = this.scene.buildings.find(b => b.id === u.taskBldgId && b.built && (b.type === 'farm' || b.type === 'garden'));
+        if (!b) { u.taskType = null; return; }
+
+        // Garden: scoop inventory into carrying, then deposit home
+        if (b.type === 'garden') {
+            const cx = (b.tx + b.size / 2) * TILE, cy = MAP_OY + (b.ty + b.size / 2) * TILE;
+            if (this.moveToward(u, cx, cy, 28, dt)) return;
+            const avail = b.inventory?.['Food.Produce.Olive'] ?? 0;
+            if (avail <= 0) { u.taskType = null; return; }
+            let pick = 0;
+            while (pick < avail && this.canUnitCarryMore(u, 'Food.Produce.Olive', pick + 1)) pick++;
+            if (pick === 0) { u.taskType = null; return; }
+            b.inventory['Food.Produce.Olive'] -= pick;
+            u.carrying['Food.Produce.Olive'] = (u.carrying['Food.Produce.Olive'] ?? 0) + pick;
+            u.taskType = null;
+            return;
+        }
+
+        if (b.stock <= 0) { u.taskType = null; return; }
         const cx = (b.tx + b.size / 2) * TILE, cy = MAP_OY + (b.ty + b.size / 2) * TILE;
         if (this.moveToward(u, cx, cy, 28, dt)) return;
         u.isInside = false;
@@ -665,10 +689,10 @@ export default {
             if (publicDest) { u.taskType = 'deposit'; u.taskBldgId = publicDest.id; u._depositPrivate = false; return; }
         }
 
-        // Last resort: bring it home
+        // Last resort: bring it home; private only if the home building is itself private
         if (u.homeBldgId) {
             const home = this.scene.buildings.find(b => b.id === u.homeBldgId && b.built);
-            if (home) { u.taskType = 'deposit'; u.taskBldgId = home.id; u._depositPrivate = true; }
+            if (home) { u.taskType = 'deposit'; u.taskBldgId = home.id; u._depositPrivate = !home.isPublic; }
         }
     },
 
@@ -706,8 +730,14 @@ export default {
         u._depositPrivate = false;
         u.isInside = false;
 
-        // Restore role immediately after self-supply deposit (not home deposits)
-        if (u._prevRole && !wasPrivate) {
+        // Keep commons in sync if deposited to a public building
+        if (b.isPublic) {
+            this.scene.economyManager.syncResources();
+            this.scene.updateUI();
+        }
+
+        // Restore role immediately after self-supply deposit
+        if (u._prevRole) {
             u.role = u._prevRole;
             u._prevRole = null;
             this.seekWorkshopTask(u);
@@ -764,21 +794,37 @@ export default {
             return;
         }
 
-        // 2. Try harvest
+        // 2. Try farm harvest
         const farm = this.scene.buildings.find(b => {
             if (b.type !== 'farm' || !b.built || b.stock <= 0 || b.faction === 'enemy') return false;
-            if (b.isPublic) return true; // state farm — any worker can harvest
+            if (b.isPublic) return true;
             const farmDomain = this.scene.buildingManager.getDomainAt(b.tx, b.ty);
-            if (!farmDomain) return true; // unowned — anyone can work it
+            if (!farmDomain) return true;
             return homeDomain && farmDomain.id === homeDomain.id;
         });
-        if (!farm) {
-            // Bug 4: farm fallow — forage all available food nodes, not just berry_bush
-            this.seekNodeTask(u, ['berry_bush', 'wild_garden', 'olive_grove']);
+        if (farm) {
+            u.taskType = 'harvest_farm'; u.taskBldgId = farm.id;
+            u.moveTo = { x: (farm.tx + farm.size/2) * TILE, y: MAP_OY + (farm.ty + farm.size/2) * TILE };
             return;
         }
-        u.taskType = 'harvest_farm'; u.taskBldgId = farm.id;
-        u.moveTo = { x: (farm.tx + farm.size/2) * TILE, y: MAP_OY + (farm.ty + farm.size/2) * TILE };
+
+        // 3. Try garden harvest (auto-produces into building inventory)
+        const garden = this.scene.buildings.find(b => {
+            if (b.type !== 'garden' || !b.built || b.faction === 'enemy') return false;
+            if ((b.inventory?.['Food.Produce.Olive'] ?? 0) <= 0) return false;
+            if (b.isPublic) return true;
+            const gDom = this.scene.buildingManager.getDomainAt(b.tx, b.ty);
+            if (!gDom) return true;
+            return homeDomain && gDom.id === homeDomain.id;
+        });
+        if (garden) {
+            u.taskType = 'harvest_farm'; u.taskBldgId = garden.id;
+            u.moveTo = { x: (garden.tx + garden.size/2) * TILE, y: MAP_OY + (garden.ty + garden.size/2) * TILE };
+            return;
+        }
+
+        // No farm or garden ready — forage nodes
+        this.seekNodeTask(u, ['berry_bush', 'wild_garden', 'olive_grove']);
     },
 
     seekWorkshopTask(u) {
@@ -830,6 +876,7 @@ export default {
     // Returns true if unit u is allowed to work in building b
     _canAccessBuilding(u, b) {
         if (b.isPublic) return true;
+        if (!b.domainId) return true; // unowned — accessible to all until claimed by an oikos
         return this._isInUnitDomain(u, b);
     },
 
@@ -1032,11 +1079,13 @@ export default {
         }
 
         // Try to eat from the nearest food building's inventory
-        const FOOD_BLDG_TYPES = new Set(['bakery', 'butcher', 'granary', 'warehouse', 'house']);
+        const FOOD_BLDG_TYPES = new Set(['bakery', 'butcher', 'granary', 'warehouse', 'house', 'camp']);
         let foodBldg = null, bd = Infinity;
         for (const b of this.scene.buildings) {
             if (!b.built || b.faction || !FOOD_BLDG_TYPES.has(b.type)) continue;
-            const inv = b.type === 'house' && b.id !== u.homeBldgId ? null : b.inventory;
+            // Houses and camps: only eat from own home, or if the building is public
+            const isHome = b.id === u.homeBldgId;
+            const inv = (b.type === 'house' || b.type === 'camp') && !isHome && !b.isPublic ? null : b.inventory;
             if (!inv || !FOOD_PRIORITY.some(k => (inv[k] ?? 0) > 0)) continue;
             const bx = (b.tx + b.size / 2) * TILE, by = MAP_OY + (b.ty + b.size / 2) * TILE;
             const d = Phaser.Math.Distance.Between(u.x, u.y, bx, by);
@@ -1055,7 +1104,7 @@ export default {
                 for (const food of FOOD_PRIORITY) {
                     if ((foodBldg.inventory?.[food] ?? 0) >= 1) {
                         foodBldg.inventory[food]--;
-                        if (this._publicStorage().has(foodBldg.type) && foodBldg.isPublic) {
+                        if (foodBldg.isPublic) {
                             this.scene.economyManager.syncResources();
                         }
                         const nut = NUTRITION_MAP[food];

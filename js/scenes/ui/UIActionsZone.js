@@ -434,6 +434,8 @@ export default {
             return [
                 { label: '✏ Sprite Editor', color: 0x101820,
                   callback: () => { this.scene.scene.launch('SpriteEditorScene'); } },
+                { label: '🔄 New Game', color: 0x1a0808,
+                  callback: () => { this.scene.clearSave(); this.scene.scene.restart(); } },
             ];
         }
 
@@ -442,15 +444,15 @@ export default {
         const items = bldgs.map(type => {
             const def      = BLDG[type];
             const cost     = computeBuildCost(type, mat);
-            const canBuy   = !Object.keys(cost).length || this.scene.economyManager.afford(cost);
-            const isActive = this.scene.bldgType === type;
-            const costStr  = Object.keys(cost).length
+            const canAfford = !Object.keys(cost).length || this.scene.economyManager.afford(cost);
+            const isActive  = this.scene.bldgType === type;
+            const costStr   = Object.keys(cost).length
                 ? Object.entries(cost).map(([r, n]) => `${n}${r[0]}`).join(' ')
                 : null;
             return {
                 label: def.label, sublabel: costStr, desc: def.desc,
-                color: isActive ? 0x4a6070 : (def.color > 0 ? Math.max(0, (def.color & 0xfefefe) >> 1) : 0x2a1e0e),
-                dimmed: !canBuy, active: isActive,
+                color: isActive ? 0x4a6070 : canAfford ? (def.color > 0 ? Math.max(0, (def.color & 0xfefefe) >> 1) : 0x2a1e0e) : 0x1a1208,
+                dimmed: false, active: isActive,
                 callback: () => {
                     this.scene.bldgType = isActive ? null : type;
                     this.scene.roadMode = false;

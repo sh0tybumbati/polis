@@ -212,7 +212,7 @@ export default class GameScene extends Phaser.Scene {
         if (this._gameOver) return;
         try {
             const state = {
-                v: 4,
+                v: 5,
                 day: this.day, phase: this.phase, timerMs: this.timerMs,
                 nightsSurvived: this.nightsSurvived, mealsDone: this.mealsDone,
                 resources: { ...this.resources }, storageMax: { ...this.storageMax },
@@ -237,7 +237,7 @@ export default class GameScene extends Phaser.Scene {
             const raw = localStorage.getItem('polis_save');
             if (!raw) return false;
             const s = JSON.parse(raw);
-            if (s.v !== 4) { localStorage.removeItem('polis_save'); return false; }
+            if (s.v !== 5) { localStorage.removeItem('polis_save'); return false; }
 
             const KEY_MIGRATION = {
                 wheat: 'Food.Grain.Wheat', flour: 'Food.Grain.Wheat.Flour', bread: 'Food.Grain.Wheat.Bread',
@@ -277,7 +277,15 @@ export default class GameScene extends Phaser.Scene {
                 inventory: migrateKeys(b.inventory ?? {}),
                 gfx: null, barGfx: null, labelObj: null,
             }));
-            this.units     = (s.units     ?? []).map(u => ({ ...u, carrying: migrateKeys(u.carrying), gfx: null, nameLabel: null }));
+            this.units     = (s.units     ?? []).map(u => {
+                const carrying = migrateKeys(u.carrying);
+                // Sanitise NaN values left by missing carrying keys in older saves
+                for (const k of Object.keys(carrying)) {
+                    if (!Number.isFinite(carrying[k])) carrying[k] = 0;
+                }
+                carrying['Food.Produce.Berry'] = carrying['Food.Produce.Berry'] ?? 0;
+                return { ...u, carrying, gfx: null, nameLabel: null };
+            });
             this.deer      = (s.deer      ?? []).map(d => ({ ...d, gfx: null }));
             this.sheep     = (s.sheep     ?? []).map(ss => ({ ...ss, gfx: null, followUnit: null }));
             // If no building has inventory (old saves pre-localization), seed townhall from legacy resources
@@ -345,9 +353,8 @@ export default class GameScene extends Phaser.Scene {
         const mx = Math.floor(MAP_W / 2) - 1;
         const by = MAP_H - 14;
 
-        // Archon's starting camp — public so early resources are accessible
         const camp = this.placeBuiltBuilding('camp', mx, by);
-        camp.isPublic = true;
+        camp.isPublic = false;
         camp.inventory = {
             'Food.Produce.Berry':                10,
             'Materials.Wood.Pine.Sticks':         8,

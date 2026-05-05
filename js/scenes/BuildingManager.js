@@ -78,7 +78,8 @@ export default class BuildingManager {
                 b.domainId = dom.id;
                 b.isPublic = false; // inside an oikos — private to that family
             } else {
-                b.isPublic = true; // outside any domain — communal/public
+                const hasTH = this.scene.buildings.some(b => b.type === 'townhall' && b.built && !b.faction);
+                b.isPublic = hasTH; // communal only once a civic institution exists
             }
         }
         this.redrawBuilding(b);
@@ -339,7 +340,7 @@ export default class BuildingManager {
 
         // Place built house at same location
         const house = this.makeBldgObj('house', camp.tx, camp.ty, true);
-        house.isPublic = camp.isPublic; // Keep public status from camp so its inventory remains accessible to the commons
+        house.isPublic = false; // archon's household is always private — commons requires a town hall
         house.inventory = inv;
         this.occupy(house.tx, house.ty, house.size, 99);
         this.scene.buildings.push(house);
@@ -362,6 +363,19 @@ export default class BuildingManager {
         }
 
         for (const u of residents) u.homeBldgId = house.id;
+
+        // Subsume any buildings already inside the domain bounds into this oikos
+        const dom = this.scene.domains.find(d => d.id === house.domainId);
+        if (dom) {
+            for (const b of this.scene.buildings) {
+                if (b.id === house.id || b.faction || !b.built || b.domainId) continue;
+                const bDom = this.getDomainAt(b.tx, b.ty);
+                if (bDom && bDom.id === dom.id) {
+                    b.domainId = dom.id;
+                    b.isPublic = false;
+                }
+            }
+        }
 
         this.redrawBuilding(house);
         this.updateStorageCap();

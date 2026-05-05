@@ -82,12 +82,27 @@ export default class EconomyManager {
     }
 
 
-    // Recompute scene.resources as a derived aggregate of all public building inventories.
+    // Buildings the player can draw resources from: public commons + archon's private domain.
+    _playerBuildings() {
+        const archon = this.scene.units?.find(u => u.isArchon);
+        const archonHome = archon?.homeBldgId
+            ? this.scene.buildings.find(b => b.id === archon.homeBldgId)
+            : null;
+        const playerDomainId = archonHome?.domainId ?? null;
+        return this.scene.buildings.filter(b => {
+            if (!b.built || b.faction) return false;
+            if (b.isPublic) return true;
+            if (playerDomainId && b.domainId === playerDomainId) return true;
+            if (!playerDomainId && b.id === archonHome?.id) return true;
+            return false;
+        });
+    }
+
+    // Recompute scene.resources as a derived aggregate of all player-accessible inventories.
     // Call after any mutation to b.inventory so reads stay consistent.
     syncResources() {
         const totals = {};
-        for (const b of this.scene.buildings) {
-            if (!b.built || b.faction || !b.isPublic) continue;
+        for (const b of this._playerBuildings()) {
             for (const [res, qty] of Object.entries(b.inventory ?? {})) {
                 if (qty > 0) totals[res] = (totals[res] ?? 0) + qty;
             }
@@ -100,13 +115,12 @@ export default class EconomyManager {
         }
     }
 
-    // Take 'amount' of 'res' from public building inventories, nearest first.
+    // Take 'amount' of 'res' from player-accessible inventories, nearest first.
     // Returns how much was actually taken.
     takeFromCommons(res, amount) {
         let remaining = amount;
-        for (const b of this.scene.buildings) {
+        for (const b of this._playerBuildings()) {
             if (remaining <= 0) break;
-            if (!b.built || b.faction || !b.isPublic) continue;
             const avail = b.inventory?.[res] ?? 0;
             const take = Math.min(remaining, avail);
             if (take > 0) {
