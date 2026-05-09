@@ -18,7 +18,7 @@ export default class UIPanel {
     _initZone() {
         const { x, y, w, h } = this;
         const z = this.scene.add.zone(x + w / 2, y + h / 2, w, h)
-            .setInteractive({ useHandCursor: false }).setDepth(24);
+            .setInteractive({ cursor: 'pointer' }).setDepth(24);
         this.scene.cameras.main.ignore(z);
         const ds = this._ds;
 
@@ -131,7 +131,7 @@ export default class UIPanel {
                 add(this.scene.add.text(bx + sz / 2, by + sz * 0.72, item.sublabel, {
                     fontFamily: 'monospace', fontSize: sfz,
                     color: item.dimmed ? '#443322' : '#aa9966',
-                    align: 'center',
+                    align: 'center', wordWrap: { width: sz - 6 },
                 }).setOrigin(0.5).setDepth(22));
             }
         });
