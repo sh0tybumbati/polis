@@ -472,17 +472,39 @@ export default {
         });
 
         items.push({
+            label: 'Wall', sublabel: this._wallMatLabel(),
+            color: this.scene.wallMode ? 0x5c3317 : 0x2a1a0e,
+            active: this.scene.wallMode,
+            callback: () => {
+                this.scene.wallMode = !this.scene.wallMode;
+                this.scene.bldgType = null;
+                this.scene.roadMode = false;
+                this.scene.hoverGfx?.clear();
+                this.updateUI();
+            },
+        });
+
+        items.push({
             label: 'Road', sublabel: '1s',
             color: this.scene.roadMode ? 0x4a5a28 : 0x2a2010,
             active: this.scene.roadMode,
             callback: () => {
                 this.scene.roadMode = !this.scene.roadMode;
                 this.scene.bldgType = null;
+                this.scene.wallMode = false;
                 this.scene.hoverGfx?.clear();
                 this.updateUI();
             },
         });
 
         return items;
+    },
+
+    _wallMatLabel() {
+        const m = this.scene.wallMaterial ?? 'Materials.Wood.Pine';
+        if (m.includes('Stone'))  return 'stone';
+        if (m.includes('Brick'))  return 'brick';
+        if (m.includes('Daub'))   return 'daub';
+        return 'wood';
     },
 };

@@ -27,6 +27,11 @@ export default class InputManager {
             s._touches.set(ptr.id, { x: ptr.x, y: ptr.y });
             if (s._touches.size === 1) {
                 s._ptrDownX = ptr.x; s._ptrDownY = ptr.y; s._dragging = false;
+                if (s.wallMode) {
+                    s._wallDragEdges.clear();
+                    const edge = s.wallManager.nearestEdge(ptr.worldX, ptr.worldY);
+                    s._wallDragErasing = edge ? !!s.wallManager.getWall(edge.isH, edge.row, edge.col) : false;
+                }
             } else {
                 s._dragging = false; s._fmDragging = false; s._fmDragStart = null;
                 s.dragGfx.clear();
@@ -67,10 +72,25 @@ export default class InputManager {
             this.prevX = ptr.x;
             this.prevY = ptr.y;
 
-            if (s.roadMode && ptr.isDown && !isUI) {
+            if (s.wallMode && !isUI) {
+                if (ptr.isDown) {
+                    const edge = s.wallManager.nearestEdge(ptr.worldX, ptr.worldY);
+                    if (edge) {
+                        const key = `${edge.isH}:${edge.row}:${edge.col}`;
+                        if (!s._wallDragEdges.has(key)) {
+                            s._wallDragEdges.add(key);
+                            if (s._wallDragErasing) s.wallManager.removeWall(edge.isH, edge.row, edge.col);
+                            else s.wallManager.placeWall(edge.isH, edge.row, edge.col, s.wallMaterial);
+                            s.wallManager.renderWalls();
+                        }
+                    }
+                } else {
+                    this._drawWallGhost(ptr);
+                }
+            } else if (s.roadMode && ptr.isDown && !isUI) {
                 const t = s.tileAt(ptr.worldX, ptr.worldY);
                 if (t) s._paintRoad(t.tx, t.ty);
-            } else if (!s.bldgType && !s.roadMode && ptr.isDown && !ptr.middleButtonDown() && !isUI) {
+            } else if (!s.bldgType && !s.roadMode && !s.wallMode && ptr.isDown && !ptr.middleButtonDown() && !isUI) {
                 const d = Phaser.Math.Distance.Between(ptr.x, ptr.y, s._ptrDownX, s._ptrDownY);
                 if (d > TAP_DIST) {
                     if (s.selIds.size >= 1) {
@@ -96,6 +116,7 @@ export default class InputManager {
             } else if (s.bldgType && !ptr.isDown) {
                 this.drawBuildGhost(ptr);
             }
+
         });
 
         s.input.on('pointerup', ptr => {
@@ -138,6 +159,20 @@ export default class InputManager {
 
             if (s.roadMode) { const t = s.tileAt(wx, wy); if (t) s._paintRoad(t.tx, t.ty); return; }
             if (s.bldgType) { const t = s.tileAt(wx, wy); if (t) s.placeBuilding(t.tx, t.ty); return; }
+            if (s.wallMode) {
+                // Drag already painted; single tap on a fresh edge also paints
+                if (s._wallDragEdges.size === 0) {
+                    const edge = s.wallManager.nearestEdge(wx, wy);
+                    if (edge) {
+                        const existing = s.wallManager.getWall(edge.isH, edge.row, edge.col);
+                        if (existing) s.wallManager.removeWall(edge.isH, edge.row, edge.col);
+                        else s.wallManager.placeWall(edge.isH, edge.row, edge.col, s.wallMaterial);
+                        s.wallManager.renderWalls();
+                    }
+                }
+                s._wallDragEdges.clear();
+                return;
+            }
 
             // Right-click (desktop) or tap with units selected (mobile) → action
             if (ptr.rightButtonReleased() || (isTouch && s.selIds.size > 0)) {
@@ -179,10 +214,24 @@ export default class InputManager {
             cam.setZoom(Phaser.Math.Clamp(cam.zoom * (dy > 0 ? 0.9 : 1.1), 0.3, 3));
         });
 
-        s.input.keyboard?.on('keydown-ESC', () => { s.bldgType = null; s.roadMode = false; s.deselect(); s.selectedBuilding = null; s.hoverGfx.clear(); s.updateUI(); });
+        s.input.keyboard?.on('keydown-ESC', () => { s.bldgType = null; s.roadMode = false; s.wallMode = false; s.deselect(); s.selectedBuilding = null; s.hoverGfx.clear(); s.updateUI(); });
         s.input.keyboard?.on('keydown-A', () => s.units.filter(u => !u.isEnemy).forEach(u => s.selectUnit(u.id, true)));
         s.input.keyboard?.on('keydown-F', () => { const sel = s.units.filter(u => u.selected && !u.isEnemy); if (sel.length) s.moveSelectedTo((MAP_W / 2) * TILE, MAP_OY + (MAP_H - 10) * TILE); });
         s.input.keyboard?.on('keydown-BACKTICK', () => s.scene.launch('SpriteEditorScene'));
+    }
+
+    _drawWallGhost(ptr) {
+        const s = this.scene;
+        if (ptr.y < MAP_OY || ptr.y > s.SH - (s.uiManager?.L?.PANEL_H ?? 190)) { s.hoverGfx?.clear(); return; }
+        const edge = s.wallManager.nearestEdge(ptr.worldX, ptr.worldY);
+        if (!edge) { s.hoverGfx?.clear(); return; }
+        const { isH, row, col } = edge;
+        const px = col * TILE, py = MAP_OY + row * TILE;
+        const existing = s.wallManager.getWall(isH, row, col);
+        const col_c = existing ? 0xff4444 : 0xc8a030;
+        s.hoverGfx.clear().fillStyle(col_c, 0.85);
+        if (isH) s.hoverGfx.fillRect(px, py - 2, TILE, 4);
+        else     s.hoverGfx.fillRect(px - 2, py, 4, TILE);
     }
 
     drawBuildGhost(ptr) {
