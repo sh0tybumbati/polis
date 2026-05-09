@@ -78,48 +78,48 @@ export default class UIManager {
         const { W, TOP_H } = this.L;
         this._ui(this.scene.add.rectangle(W / 2, TOP_H / 2, W, TOP_H, 0x130e06, 0.97).setDepth(20));
 
-        // Double-line bottom border
         const g = this._ui(this.scene.add.graphics().setDepth(20));
+        // Bottom border
         g.lineStyle(2, 0xc8a030, 0.85).lineBetween(0, TOP_H - 1, W, TOP_H - 1);
         g.lineStyle(1, 0x7a5010, 0.5).lineBetween(0, TOP_H - 4, W, TOP_H - 4);
+        // Row divider between resources and status line
+        const rowDiv = Math.floor(TOP_H / 2);
+        g.lineStyle(1, 0x3a2e18, 0.5).lineBetween(0, rowDiv, W, rowDiv);
 
         this.scene.timerBarGfx = this._ui(this.scene.add.graphics().setDepth(21));
 
-        const ts = { fontFamily: 'monospace', stroke: '#000000', strokeThickness: 2, align: 'center' };
-        const cy = TOP_H / 2 - 2;
-        const tbFs = this._fs(12);
+        const ts  = { fontFamily: 'monospace', stroke: '#000000', strokeThickness: 2 };
+        const cy1 = Math.floor(TOP_H * 0.27);   // row 1 centre: resources
+        const cy2 = Math.floor(TOP_H * 0.73);   // row 2 centre: day / controls
+        const fs1 = this._fs(10);
 
-        // Controls cluster width: enemyCount(~60) + gap + pause(28) + speed(28) + margins ≈ 150px
-        const CTRL_W = 150;
-        // 4 resource columns in the left (W - CTRL_W) region, day info in the gap
-        const resW = W - CTRL_W;
-        const cols = 4, colW = resW / cols;
-        const mk = (i, color, fz = tbFs) =>
-            this._ui(this.scene.add.text(colW * i + colW / 2, cy, '',
-                { ...ts, fontSize: fz, color }).setOrigin(0.5, 0.5).setDepth(21));
+        // Row 1 — 4 equal resource columns
+        const colW = W / 4;
+        const mk1 = (i, color) => this._ui(this.scene.add.text(
+            colW * i + colW / 2, cy1, '',
+            { ...ts, fontSize: fs1, color, align: 'center' }
+        ).setOrigin(0.5).setDepth(21));
 
-        this.scene.foodText   = mk(0, '#7add77');
-        this.scene.woodText   = mk(1, '#cc9944');
-        this.scene.stoneText  = mk(2, '#aaaacc');
-        this.scene.workerInfo = mk(3, '#ddcc88').setInteractive({ cursor: 'pointer' });
+        this.scene.foodText   = mk1(0, '#7add77');
+        this.scene.woodText   = mk1(1, '#cc9944');
+        this.scene.stoneText  = mk1(2, '#aaaacc');
+        this.scene.workerInfo = mk1(3, '#ddcc88').setInteractive({ cursor: 'pointer' });
         this.scene.workerInfo.on('pointerover', () => this.scene.workerInfo.setColor('#ffee99'));
         this.scene.workerInfo.on('pointerout',  () => this.scene.workerInfo.setColor('#ddcc88'));
         this.scene.workerInfo.on('pointerdown', () => this.showCensusPanel());
 
-        // Day + timer sits between resource cols and controls, centred in gap
-        this.scene.dayInfo = this._ui(this.scene.add.text(resW + 8, cy, '', {
-            ...ts, fontSize: this._fs(11), color: '#c8a030',
+        // Row 2 — day info anchored left; controls anchored right with fixed offsets
+        this.scene.dayInfo = this._ui(this.scene.add.text(8, cy2, '', {
+            ...ts, fontSize: this._fs(10), color: '#c8a030',
         }).setOrigin(0, 0.5).setDepth(21));
 
-        // Enemy count + pause + speed — top-right cluster
-        this.scene.enemyCount = this._ui(this.scene.add.text(W - 110, cy, '', {
-            fontFamily: 'monospace', fontSize: this._fs(12), color: '#ee6655',
-            stroke: '#000', strokeThickness: 2,
-        }).setOrigin(0.5, 0.5).setDepth(21));
+        this.scene.enemyCount = this._ui(this.scene.add.text(W - 100, cy2, '', {
+            ...ts, fontSize: this._fs(10), color: '#ee6655',
+        }).setOrigin(0.5).setDepth(21));
 
-        const pBtn = this._ui(this.scene.add.text(W - 68, cy, '⏸', {
-            fontFamily: 'monospace', fontSize: this._fs(18), color: '#cccccc',
-        }).setOrigin(0.5, 0.5).setDepth(21).setInteractive({ cursor: 'pointer' }));
+        const pBtn = this._ui(this.scene.add.text(W - 56, cy2, '⏸', {
+            fontFamily: 'monospace', fontSize: this._fs(14), color: '#cccccc',
+        }).setOrigin(0.5).setDepth(21).setInteractive({ cursor: 'pointer' }));
         pBtn.on('pointerover', () => pBtn.setColor('#ffffff'));
         pBtn.on('pointerout',  () => pBtn.setColor('#cccccc'));
         pBtn.on('pointerdown', () => {
@@ -127,9 +127,9 @@ export default class UIManager {
             pBtn.setText(this.scene.isPaused ? '▶' : '⏸');
         });
 
-        const sBtn = this._ui(this.scene.add.text(W - 36, cy, '1×', {
-            fontFamily: 'monospace', fontSize: this._fs(14), color: '#ffdd44',
-        }).setOrigin(0.5, 0.5).setDepth(21).setInteractive({ cursor: 'pointer' }));
+        const sBtn = this._ui(this.scene.add.text(W - 20, cy2, '1×', {
+            fontFamily: 'monospace', fontSize: this._fs(11), color: '#ffdd44',
+        }).setOrigin(0.5).setDepth(21).setInteractive({ cursor: 'pointer' }));
         sBtn.on('pointerover', () => sBtn.setColor('#ffee88'));
         sBtn.on('pointerout',  () => sBtn.setColor('#ffdd44'));
         sBtn.on('pointerdown', () => {
@@ -231,11 +231,11 @@ export default class UIManager {
         const avgNut = units.length > 0
             ? units.reduce((s, u) => s + (u.dailyNutrition ?? 0), 0) / units.length : 1;
         const foodWarn = units.length > 0 && avgNut < 0.3 && this.scene.mealsDone > 0;
-        const w = r['Food.Grain.Wheat'] ?? 0, fl = r['Food.Grain.Wheat.Flour'] ?? 0, br = r['Food.Grain.Wheat.Bread'] ?? 0;
+        const w = r['Food.Grain.Wheat'] ?? 0, br = r['Food.Grain.Wheat.Bread'] ?? 0;
         const mt = r['Food.Meat.Venison'] ?? 0, sa = r['Food.Meat.Venison.Sausages'] ?? 0;
         const ct = this.scene.buildings.reduce((s, b) => s + (b.inbox?.['Food.Meat.Venison.Cuts'] ?? 0), 0);
-        const meatStr = (mt || ct || sa) ? `  🥩${mt} 🔪${ct} 🌭${sa}` : '';
-        this.scene.foodText?.setText(`🌾${w} 🍚${fl} 🍞${br}${meatStr}`)
+        const meatStr = (mt + ct + sa) > 0 ? `  🥩${mt + ct + sa}` : '';
+        this.scene.foodText?.setText(`🌾${w}  🍞${br}${meatStr}`)
             .setColor(foodWarn ? '#ff6655' : '#7add77');
         this.scene.woodText?.setText(`🪵 ${r['Materials.Wood.Pine'] ?? 0}/${sm['Materials.Wood.Pine'] ?? 0}`);
         this.scene.stoneText?.setText(`⛏ ${r['Materials.Stone.Limestone'] ?? 0}/${sm['Materials.Stone.Limestone'] ?? 0}`);
@@ -324,11 +324,15 @@ export default class UIManager {
             const g = this._inf(this.scene.add.graphics().setDepth(23));
             g.fillStyle(isActive ? 0x2a2010 : 0x130e06, 0.95).fillRect(tx, oy, tw, TH);
             g.lineStyle(1, isActive ? 0xc8a030 : 0x3a2e18, 0.7).strokeRect(tx, oy, tw, TH);
-            this._infTxt(tx + tw / 2, oy + TH / 2, t,
+            const hov = this._inf(this.scene.add.graphics().setDepth(23).setAlpha(0));
+            hov.fillStyle(0xffffff, 0.10).fillRect(tx, oy, tw, TH);
+            const lbl = this._infTxt(tx + tw / 2, oy + TH / 2, t,
                 { fontSize: this._fs(10), color: isActive ? '#c8a030' : '#6a5830' }).setOrigin(0.5);
             if (!isActive) {
                 const z = this._inf(this.scene.add.zone(tx + tw / 2, oy + TH / 2, tw, TH)
-                    .setInteractive().setDepth(24));
+                    .setInteractive({ cursor: 'pointer' }).setDepth(24));
+                z.on('pointerover', () => { hov.setAlpha(1); lbl.setColor('#a08050'); });
+                z.on('pointerout',  () => { hov.setAlpha(0); lbl.setColor('#6a5830'); });
                 z.on('pointerdown', () => onSwitch(t));
             }
         });
@@ -342,14 +346,18 @@ export default class UIManager {
             const g = this._tab(this.scene.add.graphics().setDepth(23));
             g.fillStyle(isActive ? 0x2a2010 : 0x130e06, 0.95).fillRect(tx, oy, tw, TH);
             g.lineStyle(1, isActive ? 0xc8a030 : 0x3a2e18, 0.7).strokeRect(tx, oy, tw, TH);
-            this._tab(this.scene.add.text(tx + tw / 2, oy + TH / 2, t, {
+            const hov = this._tab(this.scene.add.graphics().setDepth(23).setAlpha(0));
+            hov.fillStyle(0xffffff, 0.10).fillRect(tx, oy, tw, TH);
+            const lbl = this._tab(this.scene.add.text(tx + tw / 2, oy + TH / 2, t, {
                 fontFamily: 'monospace', fontSize: this._fs(10),
                 color: isActive ? '#c8a030' : '#6a5830',
             }).setOrigin(0.5).setDepth(23));
             if (!isActive) {
-                this._tab(this.scene.add.zone(tx + tw / 2, oy + TH / 2, tw, TH)
-                    .setInteractive().setDepth(24))
-                    .on('pointerdown', () => onSwitch(t));
+                const z = this._tab(this.scene.add.zone(tx + tw / 2, oy + TH / 2, tw, TH)
+                    .setInteractive({ cursor: 'pointer' }).setDepth(24));
+                z.on('pointerover', () => { hov.setAlpha(1); lbl.setColor('#a08050'); });
+                z.on('pointerout',  () => { hov.setAlpha(0); lbl.setColor('#6a5830'); });
+                z.on('pointerdown', () => onSwitch(t));
             }
         });
         return TH;
@@ -362,15 +370,19 @@ export default class UIManager {
             const g = this._tab(this.scene.add.graphics().setDepth(23));
             g.fillStyle(item.color, item.dimmed ? 0.35 : 0.88).fillRect(bx, zy, bw - 1, h);
             g.lineStyle(1, 0x5a4010, 0.4).strokeRect(bx, zy, bw - 1, h);
+            const hov = this._tab(this.scene.add.graphics().setDepth(24).setAlpha(0));
+            hov.fillStyle(0xffffff, 0.12).fillRect(bx, zy, bw - 1, h);
             this._tab(this.scene.add.text(bx + bw / 2, zy + h / 2, item.label, {
                 fontFamily: 'monospace', fontSize: this._fs(9),
                 color: item.dimmed ? '#554433' : '#d4c8a8',
                 align: 'center', wordWrap: { width: bw - 4 },
             }).setOrigin(0.5).setDepth(23));
             if (!item.dimmed) {
-                this._tab(this.scene.add.zone(bx + bw / 2, zy + h / 2, bw - 1, h)
-                    .setInteractive().setDepth(24))
-                    .on('pointerdown', item.cb);
+                const z = this._tab(this.scene.add.zone(bx + bw / 2, zy + h / 2, bw - 1, h)
+                    .setInteractive({ cursor: 'pointer' }).setDepth(25));
+                z.on('pointerover', () => hov.setAlpha(1));
+                z.on('pointerout',  () => hov.setAlpha(0));
+                z.on('pointerdown', item.cb);
             }
         });
     }
