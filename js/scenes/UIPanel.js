@@ -10,6 +10,7 @@ export default class UIPanel {
         this._scrollY  = 0;
         this._items    = [];
         this._content  = [];
+        this._hovIdx   = -1;
         this._ds       = { on: false, startY: 0, startScroll: 0, moved: false };
         this._zone     = this._initZone();
     }
@@ -28,13 +29,22 @@ export default class UIPanel {
             ds.moved = false;
         });
         z.on('pointermove', (ptr) => {
-            if (!ds.on) return;
-            if (Math.abs(ptr.y - ds.startY) > 6) ds.moved = true;
-            if (ds.moved) {
-                this._scrollY = Math.max(0, Math.min(this._maxScroll(),
-                    ds.startScroll - (ptr.y - ds.startY)));
-                this._renderContent();
+            if (ds.on) {
+                if (Math.abs(ptr.y - ds.startY) > 6) ds.moved = true;
+                if (ds.moved) {
+                    this._scrollY = Math.max(0, Math.min(this._maxScroll(),
+                        ds.startScroll - (ptr.y - ds.startY)));
+                    this._hovIdx = -1;
+                    this._renderContent();
+                    return;
+                }
             }
+            const item = this._hitItem(ptr.x, ptr.y);
+            const idx  = item ? this._items.indexOf(item) : -1;
+            if (idx !== this._hovIdx) { this._hovIdx = idx; this._renderContent(); }
+        });
+        z.on('pointerout', () => {
+            if (this._hovIdx !== -1) { this._hovIdx = -1; this._renderContent(); }
         });
         z.on('pointerup', (ptr) => {
             if (ds.on && !ds.moved) {
@@ -43,7 +53,7 @@ export default class UIPanel {
             }
             ds.on = false;
         });
-        z.on('pointerupoutside', () => { ds.on = false; });
+        z.on('pointerupoutside', () => { ds.on = false; this._hovIdx = -1; this._renderContent(); });
         return z;
     }
 
@@ -94,6 +104,7 @@ export default class UIPanel {
 
             const visY  = Math.max(by, y);
             const visH  = Math.min(by + sz, y + h) - visY;
+            const isHov = idx === this._hovIdx && !item.dimmed;
             const bg = add(this.scene.add.graphics().setDepth(22));
             bg.fillStyle(item.color ?? 0x2a3040, item.dimmed ? 0.35 : 0.88)
               .fillRect(bx, visY, sz, visH);
@@ -101,6 +112,10 @@ export default class UIPanel {
                 bg.lineStyle(2, 0xffdd44, 0.9).strokeRect(bx + 1, by + 1, sz - 2, sz - 2);
             } else {
                 bg.lineStyle(1, 0xc8a030, 0.22).strokeRect(bx, by, sz, sz);
+            }
+            if (isHov) {
+                const hg = add(this.scene.add.graphics().setDepth(23));
+                hg.fillStyle(0xffffff, 0.13).fillRect(bx, visY, sz, visH);
             }
 
             // Only render text if enough of the button is visible

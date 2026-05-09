@@ -101,7 +101,9 @@ export default class UIManager {
         this.scene.foodText   = mk(0, '#7add77');
         this.scene.woodText   = mk(1, '#cc9944');
         this.scene.stoneText  = mk(2, '#aaaacc');
-        this.scene.workerInfo = mk(3, '#ddcc88').setInteractive();
+        this.scene.workerInfo = mk(3, '#ddcc88').setInteractive({ cursor: 'pointer' });
+        this.scene.workerInfo.on('pointerover', () => this.scene.workerInfo.setColor('#ffee99'));
+        this.scene.workerInfo.on('pointerout',  () => this.scene.workerInfo.setColor('#ddcc88'));
         this.scene.workerInfo.on('pointerdown', () => this.showCensusPanel());
 
         // Day + timer sits between resource cols and controls, centred in gap
@@ -117,7 +119,9 @@ export default class UIManager {
 
         const pBtn = this._ui(this.scene.add.text(W - 68, cy, '⏸', {
             fontFamily: 'monospace', fontSize: this._fs(18), color: '#cccccc',
-        }).setOrigin(0.5, 0.5).setDepth(21).setInteractive());
+        }).setOrigin(0.5, 0.5).setDepth(21).setInteractive({ cursor: 'pointer' }));
+        pBtn.on('pointerover', () => pBtn.setColor('#ffffff'));
+        pBtn.on('pointerout',  () => pBtn.setColor('#cccccc'));
         pBtn.on('pointerdown', () => {
             this.scene.isPaused = !this.scene.isPaused;
             pBtn.setText(this.scene.isPaused ? '▶' : '⏸');
@@ -125,7 +129,9 @@ export default class UIManager {
 
         const sBtn = this._ui(this.scene.add.text(W - 36, cy, '1×', {
             fontFamily: 'monospace', fontSize: this._fs(14), color: '#ffdd44',
-        }).setOrigin(0.5, 0.5).setDepth(21).setInteractive());
+        }).setOrigin(0.5, 0.5).setDepth(21).setInteractive({ cursor: 'pointer' }));
+        sBtn.on('pointerover', () => sBtn.setColor('#ffee88'));
+        sBtn.on('pointerout',  () => sBtn.setColor('#ffdd44'));
         sBtn.on('pointerdown', () => {
             this.scene.tickSpeed = (this.scene.tickSpeed % 5) + 1;
             sBtn.setText(`${this.scene.tickSpeed}×`);
@@ -195,7 +201,7 @@ export default class UIManager {
         this.scene.minimapGfx = this._ui(this.scene.add.graphics().setDepth(22));
 
         const mmZone = this._ui(this.scene.add.zone(mmX + mmW / 2, mmY + mmH / 2, mmW, mmH)
-            .setInteractive().setDepth(23));
+            .setInteractive({ cursor: 'crosshair' }).setDepth(23));
         mmZone.on('pointerdown', ptr => {
             const fx = (ptr.x - this.scene._mmX) / this.scene._mmW;
             const fy = (ptr.y - this.scene._mmY) / this.scene._mmH;
@@ -286,14 +292,19 @@ export default class UIManager {
     _infBtn(x, y, w, h, label, color, cb) {
         const g = this._inf(this.scene.add.graphics().setDepth(22));
         g.fillStyle(color, 0.88).fillRect(x, y, w, h);
-        g.lineStyle(1, 0xc8a030, 0.35).strokeRect(x, y, w, h);
+        g.lineStyle(1, 0xc8a030, 0.45).strokeRect(x, y, w, h);
+
+        const hov = this._inf(this.scene.add.graphics().setDepth(23).setAlpha(0));
+        hov.fillStyle(0xffffff, 0.12).fillRect(x, y, w, h);
 
         const t = this._infTxt(x + w / 2, y + h / 2, label,
             { fontSize: this._fs(11), color: '#d4c8a8', align: 'center',
               wordWrap: { width: w - 4 } }).setOrigin(0.5);
 
         const z = this._inf(this.scene.add.zone(x + w / 2, y + h / 2, w, h)
-            .setInteractive().setDepth(23));
+            .setInteractive({ cursor: 'pointer' }).setDepth(24));
+        z.on('pointerover', () => hov.setAlpha(1));
+        z.on('pointerout',  () => hov.setAlpha(0));
         z.on('pointerdown', cb);
         return z;
     }

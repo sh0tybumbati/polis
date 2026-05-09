@@ -393,13 +393,17 @@ export default {
             bg.fillStyle(active ? 0x4a3018 : 0x1a1208, active ? 0.95 : 0.7)
               .fillRect(bx, y, btnW - 1, h - 1);
             if (active) bg.lineStyle(1, 0xc8a030, 0.7).strokeRect(bx, y, btnW - 1, h - 1);
+            const hov = this._tab(this.scene.add.graphics().setDepth(23).setAlpha(0));
+            hov.fillStyle(0xffffff, 0.10).fillRect(bx, y, btnW - 1, h - 1);
             this._tab(this.scene.add.text(bx + btnW / 2, y + h / 2, label, {
                 fontFamily: 'monospace', fontSize: '9px',
                 color: active ? '#e8d090' : '#5a4a28',
             }).setOrigin(0.5).setDepth(22));
-            this._tab(this.scene.add.zone(bx + btnW / 2, y + h / 2, btnW - 1, h - 1)
-                .setInteractive().setDepth(23))
-                .on('pointerdown', () => { this.scene.bldgMaterial = m; this.updateUI(); });
+            const z = this._tab(this.scene.add.zone(bx + btnW / 2, y + h / 2, btnW - 1, h - 1)
+                .setInteractive({ cursor: 'pointer' }).setDepth(24));
+            z.on('pointerover', () => { if (!active) hov.setAlpha(1); });
+            z.on('pointerout',  () => hov.setAlpha(0));
+            z.on('pointerdown', () => { this.scene.bldgMaterial = m; this.updateUI(); });
         });
     },
 
@@ -415,14 +419,19 @@ export default {
               .fillRect(tx, y, tabW - 1, h - 1);
             if (active) bg.lineStyle(1, 0xc8a030, 0.8).strokeRect(tx, y, tabW - 1, h - 1);
 
+            const hov = this._tab(this.scene.add.graphics().setDepth(23).setAlpha(0));
+            hov.fillStyle(0xffffff, 0.10).fillRect(tx, y, tabW - 1, h - 1);
+
             const label = cat.length > 5 ? cat.slice(0, 4) : cat;
-            this._tab(this.scene.add.text(tx + tabW / 2, y + h / 2, label, {
+            const txt = this._tab(this.scene.add.text(tx + tabW / 2, y + h / 2, label, {
                 fontFamily: 'monospace', fontSize: '11px',
                 color: active ? '#e8d8a0' : '#6a5a3a',
             }).setOrigin(0.5).setDepth(22));
 
             const z = this._tab(this.scene.add.zone(tx + tabW / 2, y + h / 2, tabW - 1, h - 1)
-                .setInteractive().setDepth(23));
+                .setInteractive({ cursor: 'pointer' }).setDepth(24));
+            z.on('pointerover', () => { if (!active) { hov.setAlpha(1); txt.setColor('#a08050'); } });
+            z.on('pointerout',  () => { hov.setAlpha(0); if (!active) txt.setColor('#6a5a3a'); });
             z.on('pointerdown', () => {
                 this.scene.buildCat = cat; this.updateUI();
             });
