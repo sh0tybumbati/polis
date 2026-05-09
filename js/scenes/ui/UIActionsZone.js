@@ -1,4 +1,5 @@
 import { TILE, MAP_OY, BLDG, BLDG_CATS, FM_TYPES, FM_LABELS, computeBuildCost } from '../../config/gameConstants.js';
+import { FURNITURE, FURNITURE_CATS } from '../../content/furniture/index.js';
 import UIPanel from '../UIPanel.js';
 
 export default {
@@ -24,11 +25,14 @@ export default {
         } else if (sel.length > 0) {
             this._renderMilActions(sel, military, scouts, zx, zy, ACT_W, fullH);
         } else {
-            const MAT_H = 18;
-            this._renderMaterialToggle(zx, zy, ACT_W, MAT_H);
+            const isFurnish = this.scene.buildCat === 'Furnish';
+            const MAT_H = isFurnish ? 0 : 18;
+            if (!isFurnish) this._renderMaterialToggle(zx, zy, ACT_W, MAT_H);
             this._renderCategoryTabs(zx, zy + MAT_H, ACT_W, TAB_H);
-            const panelH = fullH - MAT_H - TAB_H;
-            this._actionPanel = new UIPanel(this.scene, zx, zy + MAT_H + TAB_H, ACT_W, panelH);
+            let subH = 0;
+            if (isFurnish) { this._renderFurnishSubTabs(zx, zy + MAT_H + TAB_H, ACT_W, TAB_H); subH = TAB_H; }
+            const panelH = fullH - MAT_H - TAB_H - subH;
+            this._actionPanel = new UIPanel(this.scene, zx, zy + MAT_H + TAB_H + subH, ACT_W, panelH);
             this._actionPanel.setItems(this._buildMenuItems());
         }
     },
@@ -408,7 +412,7 @@ export default {
     },
 
     _renderCategoryTabs(x, y, w, h) {
-        const cats  = Object.keys(BLDG_CATS);
+        const cats  = [...Object.keys(BLDG_CATS), 'Furnish'];
         const tabW  = Math.floor((w - 2) / cats.length);
 
         cats.forEach((cat, i) => {
@@ -438,7 +442,59 @@ export default {
         });
     },
 
+    _renderFurnishSubTabs(x, y, w, h) {
+        const cats = Object.keys(FURNITURE_CATS);
+        const tabW = Math.floor((w - 2) / cats.length);
+        cats.forEach((cat, i) => {
+            const active = (this.scene.furnishCat ?? 'Living') === cat;
+            const tx = x + 1 + i * tabW;
+            const bg = this._tab(this.scene.add.graphics().setDepth(22));
+            bg.fillStyle(active ? 0x3a2a50 : 0x1a1020, active ? 0.95 : 0.8).fillRect(tx, y, tabW - 1, h - 1);
+            if (active) bg.lineStyle(1, 0x9966cc, 0.8).strokeRect(tx, y, tabW - 1, h - 1);
+            const hov = this._tab(this.scene.add.graphics().setDepth(23).setAlpha(0));
+            hov.fillStyle(0xffffff, 0.10).fillRect(tx, y, tabW - 1, h - 1);
+            const txt = this._tab(this.scene.add.text(tx + tabW / 2, y + h / 2, cat, {
+                fontFamily: 'monospace', fontSize: '10px',
+                color: active ? '#cc99ff' : '#6a5a7a',
+            }).setOrigin(0.5).setDepth(22));
+            const z = this._tab(this.scene.add.zone(tx + tabW / 2, y + h / 2, tabW - 1, h - 1)
+                .setInteractive({ cursor: 'pointer' }).setDepth(24));
+            z.on('pointerover', () => { if (!active) { hov.setAlpha(1); txt.setColor('#aa88cc'); } });
+            z.on('pointerout',  () => { hov.setAlpha(0); if (!active) txt.setColor('#6a5a7a'); });
+            z.on('pointerdown', () => { this.scene.furnishCat = cat; this.updateUI(); });
+        });
+    },
+
     _buildMenuItems() {
+        if (this.scene.buildCat === 'Furnish') {
+            const cat  = this.scene.furnishCat ?? 'Living';
+            const ids  = FURNITURE_CATS[cat] ?? [];
+            return ids.map(itemId => {
+                const def      = FURNITURE[itemId];
+                const isActive = this.scene.furnitureItemId === itemId && this.scene.furnitureMode;
+                return {
+                    label:    def.label,
+                    sublabel: def.desc,
+                    color:    isActive ? def.color : Math.max(0, (def.color & 0xfefefe) >> 1),
+                    active:   isActive,
+                    callback: () => {
+                        if (isActive) {
+                            this.scene.furnitureMode   = false;
+                            this.scene.furnitureItemId = null;
+                        } else {
+                            this.scene.furnitureMode   = true;
+                            this.scene.furnitureItemId = itemId;
+                            this.scene.bldgType  = null;
+                            this.scene.roadMode  = false;
+                            this.scene.wallMode  = false;
+                        }
+                        this.scene.hoverGfx?.clear();
+                        this.updateUI();
+                    },
+                };
+            });
+        }
+
         if (this.scene.buildCat === 'Debug') {
             return [
                 { label: '✏ Sprite Editor', color: 0x101820,
@@ -463,8 +519,10 @@ export default {
                 color: isActive ? 0x4a6070 : canAfford ? (def.color > 0 ? Math.max(0, (def.color & 0xfefefe) >> 1) : 0x2a1e0e) : 0x1a1208,
                 dimmed: false, active: isActive,
                 callback: () => {
-                    this.scene.bldgType = isActive ? null : type;
-                    this.scene.roadMode = false;
+                    this.scene.bldgType      = isActive ? null : type;
+                    this.scene.roadMode      = false;
+                    this.scene.wallMode      = false;
+                    this.scene.furnitureMode = false;
                     this.scene.hoverGfx?.clear();
                     this.updateUI();
                 },

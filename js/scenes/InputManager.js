@@ -72,7 +72,9 @@ export default class InputManager {
             this.prevX = ptr.x;
             this.prevY = ptr.y;
 
-            if (s.wallMode && !isUI) {
+            if (s.furnitureMode && !isUI) {
+                if (!ptr.isDown) this._drawFurnishGhost(ptr);
+            } else if (s.wallMode && !isUI) {
                 if (ptr.isDown) {
                     const edge = s.wallManager.nearestEdge(ptr.worldX, ptr.worldY);
                     if (edge) {
@@ -159,6 +161,15 @@ export default class InputManager {
 
             if (s.roadMode) { const t = s.tileAt(wx, wy); if (t) s._paintRoad(t.tx, t.ty); return; }
             if (s.bldgType) { const t = s.tileAt(wx, wy); if (t) s.placeBuilding(t.tx, t.ty); return; }
+            if (s.furnitureMode) {
+                const tile = s.tileAt(wx, wy);
+                if (tile) {
+                    const existing = s.furnitureManager.getAt(tile.tx, tile.ty);
+                    if (existing) s.furnitureManager.remove(tile.tx, tile.ty);
+                    else if (s.furnitureItemId) s.furnitureManager.place(tile.tx, tile.ty, s.furnitureItemId);
+                }
+                return;
+            }
             if (s.wallMode) {
                 // Drag already painted; single tap on a fresh edge also paints
                 if (s._wallDragEdges.size === 0) {
@@ -214,10 +225,25 @@ export default class InputManager {
             cam.setZoom(Phaser.Math.Clamp(cam.zoom * (dy > 0 ? 0.9 : 1.1), 0.3, 3));
         });
 
-        s.input.keyboard?.on('keydown-ESC', () => { s.bldgType = null; s.roadMode = false; s.wallMode = false; s.deselect(); s.selectedBuilding = null; s.hoverGfx.clear(); s.updateUI(); });
+        s.input.keyboard?.on('keydown-ESC', () => { s.bldgType = null; s.roadMode = false; s.wallMode = false; s.furnitureMode = false; s.furnitureItemId = null; s.deselect(); s.selectedBuilding = null; s.hoverGfx.clear(); s.updateUI(); });
         s.input.keyboard?.on('keydown-A', () => s.units.filter(u => !u.isEnemy).forEach(u => s.selectUnit(u.id, true)));
         s.input.keyboard?.on('keydown-F', () => { const sel = s.units.filter(u => u.selected && !u.isEnemy); if (sel.length) s.moveSelectedTo((MAP_W / 2) * TILE, MAP_OY + (MAP_H - 10) * TILE); });
         s.input.keyboard?.on('keydown-BACKTICK', () => s.scene.launch('SpriteEditorScene'));
+    }
+
+    _drawFurnishGhost(ptr) {
+        const s = this.scene;
+        if (ptr.y < MAP_OY || ptr.y > s.SH - (s.uiManager?.L?.PANEL_H ?? 190)) { s.hoverGfx?.clear(); return; }
+        const tile = s.tileAt(ptr.worldX, ptr.worldY);
+        if (!tile) { s.hoverGfx?.clear(); return; }
+        const { tx, ty } = tile;
+        const pad = 3, sz = TILE - pad * 2;
+        const px = tx * TILE + pad, py = MAP_OY + ty * TILE + pad;
+        const existing = s.furnitureManager.getAt(tx, ty);
+        const col = existing ? 0xff4444 : 0xffffff;
+        s.hoverGfx.clear()
+            .fillStyle(col, 0.15).fillRect(px, py, sz, sz)
+            .lineStyle(2, col, 0.7).strokeRect(px, py, sz, sz);
     }
 
     _drawWallGhost(ptr) {

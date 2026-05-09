@@ -15,6 +15,7 @@ import InputManager from './InputManager.js';
 import NatureManager from './NatureManager.js';
 import WorldManager from './WorldManager.js';
 import WallManager from './WallManager.js';
+import FurnitureManager from './FurnitureManager.js';
 
 export default class GameScene extends Phaser.Scene {
     constructor() {
@@ -85,6 +86,9 @@ export default class GameScene extends Phaser.Scene {
         this.wallMaterial = 'Materials.Wood.Pine';
         this._wallDragEdges = new Set();
         this._wallDragErasing = false;
+        this.furnitureMode   = false;
+        this.furnitureItemId = null;
+        this.furnishCat      = 'Living';
         this.timerMs   = DAY_DURATION;
         this.nextId    = 1;
         this.tickSpeed       = 1;
@@ -107,7 +111,8 @@ export default class GameScene extends Phaser.Scene {
         this.inputManager = new InputManager(this);
         this.natureManager = new NatureManager(this);
         this.worldManager = new WorldManager(this);
-        this.wallManager = new WallManager(this);
+        this.wallManager      = new WallManager(this);
+        this.furnitureManager = new FurnitureManager(this);
     }
 
     _w(obj) { this.uiCam?.ignore(obj); return obj; }
@@ -134,6 +139,7 @@ export default class GameScene extends Phaser.Scene {
         console.log('[GameScene] map rows:', this.terrainData.length, 'cam center:', this.cameras.main.scrollX, this.cameras.main.scrollY);
         this.mapManager.drawMap();
         this.wallManager.init();
+        this.furnitureManager.init();
 
         this.borderGfx = this._w(this.add.graphics().setDepth(1));
         this.roadGfx = this._w(this.add.graphics().setDepth(1));
@@ -142,6 +148,7 @@ export default class GameScene extends Phaser.Scene {
 
         if (loaded) {
             this.wallManager.renderWalls();
+            this.furnitureManager.renderAll();
             // Redraw any desire/paved paths stored in roadMap
             for (let y = 0; y < this.roadMap.length; y++)
                 for (let x = 0; x < (this.roadMap[y]?.length ?? 0); x++)
@@ -229,7 +236,8 @@ export default class GameScene extends Phaser.Scene {
                 nextId: this.nextId, tickSpeed: this.tickSpeed, titheRate: this.titheRate,
                 terrainData: this.terrainData, biomeData: this.biomeData, mapData: this.mapData,
                 fordSet: [...this.fordSet], roadMap: this.roadMap, domains: this.domains,
-                walls: this.wallManager.save(),
+                walls:     this.wallManager.save(),
+                furniture: this.furnitureManager.save(),
                 buildings: this.buildings.map(b => this._serBuilding(b)),
                 units:     this.units.map(u => this._serUnit(u)),
                 resNodes:  this.resNodes.map(n => this._serNode(n)),
@@ -278,6 +286,7 @@ export default class GameScene extends Phaser.Scene {
             this.terrainData = s.terrainData; this.biomeData = s.biomeData; this.mapData = s.mapData;
             this.fordSet = new Set(s.fordSet ?? []); this.roadMap = s.roadMap ?? []; this.domains = s.domains ?? [];
             this.wallManager.load(s.walls ?? null);
+            this.furnitureManager.load(s.furniture ?? null);
             // trafficMap is not saved — reinitialise blank so moveToward rows are always present
             this.trafficMap = Array.from({ length: MAP_H }, () => new Array(MAP_W).fill(0));
 
