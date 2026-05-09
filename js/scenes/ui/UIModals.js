@@ -306,7 +306,7 @@ export default {
         const { W, H } = this.L;
         const rowH = 52;
         const headerH = agoraExists && autoExecuted.length ? 70 : 44;
-        const mh = Math.min(H * 0.85, headerH + offers.length * rowH + 36);
+        const mh = Math.min(H * 0.85, headerH + offers.length * rowH + 56);
         const mw = Math.min(W * 0.92, 440);
         const mx = (W - mw) / 2, my = (H - mh) / 2;
         const objs = [];
@@ -317,7 +317,12 @@ export default {
         border.lineStyle(2, 0xddaa44, 0.9).strokeRect(mx, my, mw, mh);
         objs.push(bg, panel, border);
 
-        const closeAll = () => { objs.forEach(o => o.destroy()); this._caravanModal = null; };
+        const timerRef = { tick: null };
+        const closeAll = () => {
+            if (timerRef.tick) { timerRef.tick.remove(); timerRef.tick = null; }
+            objs.forEach(o => o.destroy());
+            this._caravanModal = null;
+        };
 
         objs.push(this._ui(this.scene.add.text(mx + mw/2, my + 12,
             agoraExists ? '🛒 Merchants at the Agora!' : '🛒 Merchants arrive!',
@@ -405,6 +410,19 @@ export default {
         dismissBg.on('pointerout',  () => { dismissBg.setFillStyle(0x332211); dismissTxt.setColor('#aa8866'); });
         dismissBg.on('pointerup', closeAll);
 
+        let secsLeft = 20;
+        const countTxt = this._ui(this.scene.add.text(mx + mw / 2, contentY + 36,
+            'merchants leave in 20s',
+            { fontSize: '9px', color: '#4a3820', fontFamily: 'monospace' }).setOrigin(0.5, 0).setDepth(41));
+        objs.push(countTxt);
+
+        timerRef.tick = this.scene.time.addEvent({
+            delay: 1000, loop: true,
+            callback: () => {
+                secsLeft--;
+                if (countTxt.active) countTxt.setText(`merchants leave in ${secsLeft}s`);
+            },
+        });
         this.scene.time.delayedCall(20000, () => { if (this._caravanModal) closeAll(); });
         this._caravanModal = objs;
     },
@@ -449,9 +467,10 @@ export default {
         const totalPages = Math.ceil(workers.length / perPage);
         const paged = workers.slice(page * perPage, (page + 1) * perPage);
 
-        // Header
+        // Header — columns as fractions of mw so they scale on any screen width
         const hty = my + 50;
-        const colX = [mx + 25, mx + 130, mx + 175, mx + 220, mx + 290, mx + mw - 40];
+        const colX = [0.05, 0.30, 0.40, 0.50, 0.65].map(p => mx + Math.round(p * mw));
+        const hpBarW = Math.round(mw * 0.28);
         const headers = ['Name', 'Age', 'Gen', 'Role', 'Health'];
         headers.forEach((h, i) => {
             this._censusObjs.push(this._ui(this.scene.add.text(colX[i], hty, h, { fontSize: '11px', color: '#887755', fontStyle: 'bold' }).setDepth(43)));
@@ -485,8 +504,8 @@ export default {
             const hpR = u.hp / u.maxHp;
             const hpCol = hpR > 0.6 ? 0x44aa44 : hpR > 0.3 ? 0xccaa33 : 0xcc3311;
             const hpBar = this._ui(this.scene.add.graphics().setDepth(43));
-            hpBar.fillStyle(0x222222).fillRect(colX[4], ry + 4, 80, 6);
-            hpBar.fillStyle(hpCol).fillRect(colX[4], ry + 4, 80 * hpR, 6);
+            hpBar.fillStyle(0x222222).fillRect(colX[4], ry + 4, hpBarW, 6);
+            hpBar.fillStyle(hpCol).fillRect(colX[4], ry + 4, Math.round(hpBarW * hpR), 6);
             this._censusObjs.push(hpBar);
         });
 

@@ -1,4 +1,4 @@
-import { BLDG, VET_LEVELS, BLDG_VOLUME, UNIT_NAMES } from '../../config/gameConstants.js';
+import { BLDG, VET_LEVELS, BLDG_VOLUME, UNIT_NAMES, computeBuildCost } from '../../config/gameConstants.js';
 import { ITEMS } from '../../content/items/index.js';
 import { WORKSHOP_JOBS } from '../../content/jobs/index.js';
 
@@ -52,10 +52,26 @@ export default {
         this._infTxt(ox + pad, cy + 4, def.label, { fontSize: this._fs(12), color: '#c8a030' });
 
         if (!b.built) {
-            const needs = Object.entries(b.resNeeded ?? {}).filter(([, n]) => n > 0)
-                .map(([r, n]) => `${n} ${r.slice(0, 3)}`).join(' ');
-            const status = needs ? `needs: ${needs}` : '⚒ building…';
-            this._infTxt(ox + pad, cy + 18, status, { fontSize: this._fs(9), color: '#9a9077' });
+            const barW = W - pad * 2 - 4;
+            const remaining = Object.values(b.resNeeded ?? {}).reduce((s, v) => s + v, 0);
+            let ratio, barCol, phaseLabel;
+            if (remaining > 0) {
+                const totalCost = Object.values(computeBuildCost(b.type)).reduce((s, v) => s + v, 0);
+                ratio = totalCost > 0 ? Math.max(0, 1 - remaining / totalCost) : 0;
+                barCol = 0xff8833;
+                const needsStr = Object.entries(b.resNeeded ?? {}).filter(([, n]) => n > 0)
+                    .map(([r, n]) => `${n} ${r.split('.').pop().slice(0, 4)}`).join('  ');
+                phaseLabel = `📦 ${needsStr}`;
+            } else {
+                ratio = b.maxBuildWork > 0 ? Math.max(0, 1 - b.buildWork / b.maxBuildWork) : 0;
+                barCol = 0xffdd44;
+                phaseLabel = '⚒ building…';
+            }
+            this._infBar(ox + pad, cy + 18, barW, 8, ratio, barCol);
+            this._infTxt(ox + pad + barW - 2, cy + 17, `${Math.round(ratio * 100)}%`,
+                { fontSize: this._fs(8), color: '#9a9077' }).setOrigin(1, 0);
+            this._infTxt(ox + pad, cy + 29, phaseLabel,
+                { fontSize: this._fs(9), color: '#9a9077', wordWrap: { width: barW } });
             this._infBtn(ox + pad, cy + ch - 32, W - pad * 2 - 4, 28, 'Cancel Build', 0x443322, () => {
                 this.scene.demolishBuilding(b);
             });

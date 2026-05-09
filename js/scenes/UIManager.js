@@ -234,17 +234,20 @@ export default class UIManager {
         const w = r['Food.Grain.Wheat'] ?? 0, br = r['Food.Grain.Wheat.Bread'] ?? 0;
         const mt = r['Food.Meat.Venison'] ?? 0, sa = r['Food.Meat.Venison.Sausages'] ?? 0;
         const ct = this.scene.buildings.reduce((s, b) => s + (b.inbox?.['Food.Meat.Venison.Cuts'] ?? 0), 0);
-        const meatStr = (mt + ct + sa) > 0 ? `  🥩${mt + ct + sa}` : '';
-        this.scene.foodText?.setText(`🌾${w}  🍞${br}${meatStr}`)
-            .setColor(foodWarn ? '#ff6655' : '#7add77');
-        this.scene.woodText?.setText(`🪵 ${r['Materials.Wood.Pine'] ?? 0}/${sm['Materials.Wood.Pine'] ?? 0}`);
-        this.scene.stoneText?.setText(`⛏ ${r['Materials.Stone.Limestone'] ?? 0}/${sm['Materials.Stone.Limestone'] ?? 0}`);
+        const narrow = this.L.W < 480;
+        const meatStr = (!narrow && (mt + ct + sa) > 0) ? `  🥩${mt + ct + sa}` : '';
+        const foodStr = narrow ? `🌾${w} 🍞${br}` : `🌾${w}  🍞${br}${meatStr}`;
+        this.scene.foodText?.setText(foodStr).setColor(foodWarn ? '#ff6655' : '#7add77');
+        const wood = r['Materials.Wood.Pine'] ?? 0, woodMax = sm['Materials.Wood.Pine'] ?? 0;
+        const stone = r['Materials.Stone.Limestone'] ?? 0, stoneMax = sm['Materials.Stone.Limestone'] ?? 0;
+        this.scene.woodText?.setText(narrow ? `🪵${wood}` : `🪵 ${wood}/${woodMax}`);
+        this.scene.stoneText?.setText(narrow ? `⛏${stone}` : `⛏ ${stone}/${stoneMax}`);
 
         const adults = units.filter(u => u.type === 'worker' && u.age >= 2).length;
         const popCap = this.scene.buildings
             .filter(b => !b.faction && b.built && BLDG[b.type]?.capacity)
             .reduce((s, b) => s + BLDG[b.type].capacity, 0);
-        this.scene.workerInfo?.setText(`👥 ${adults}/${popCap}`);
+        this.scene.workerInfo?.setText(narrow ? `👥${adults}` : `👥 ${adults}/${popCap}`);
 
         const phase = this.scene.phase;
         const seasonIdx = Math.floor((this.scene.day - 1) / SEASON_DAYS) % 4;
