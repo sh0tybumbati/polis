@@ -35,22 +35,22 @@ export default class GameScene extends Phaser.Scene {
         this.resources  = {
             'Food.Grain.Wheat': 0, 'Food.Grain.Wheat.Flour': 0, 'Food.Grain.Wheat.Bread': 0,
             'Food.Meat.Venison': 0, 'Food.Meat.Venison.Cuts': 0, 'Food.Meat.Venison.Sausages': 0,
-            'Food.Produce.Olive': 0, 'Food.Produce.Berry': 0,
+            'Food.Produce.Olive': 0, 'Food.Produce.Olive.Oil': 0, 'Food.Produce.Berry': 0,
             'Materials.Wood.Pine': 0, 'Materials.Wood.Pine.Sticks': 0, 'Materials.Wood.Pine.Plank': 0,
             'Materials.Stone.Limestone': 0, 'Materials.Stone.Limestone.Stones': 0, 'Materials.Stone.Limestone.Block': 0,
             'Materials.Metal.Copper.Ore': 0, 'Materials.Metal.Copper.Ingot': 0,
-            'Textile.Fiber.Wool': 0, 'Textile.Hide.Deer': 0, 'Textile.Hide.Deer.Leather': 0,
+            'Textile.Fiber.Wool': 0, 'Textile.Cloth.Wool': 0, 'Textile.Hide.Deer': 0, 'Textile.Hide.Deer.Leather': 0,
             'Equipment.Leather.Kit': 0, 'Equipment.Bronze.Kit': 0,
             seeds: 0,
         };
         this.storageMax = {
             'Food.Grain.Wheat': 0, 'Food.Grain.Wheat.Flour': 0, 'Food.Grain.Wheat.Bread': 0,
             'Food.Meat.Venison': 0, 'Food.Meat.Venison.Cuts': 0, 'Food.Meat.Venison.Sausages': 0,
-            'Food.Produce.Olive': 0, 'Food.Produce.Berry': 0,
+            'Food.Produce.Olive': 0, 'Food.Produce.Olive.Oil': 0, 'Food.Produce.Berry': 0,
             'Materials.Wood.Pine': 0, 'Materials.Wood.Pine.Sticks': 0, 'Materials.Wood.Pine.Plank': 0,
             'Materials.Stone.Limestone': 0, 'Materials.Stone.Limestone.Stones': 0, 'Materials.Stone.Limestone.Block': 0,
             'Materials.Metal.Copper.Ore': 0, 'Materials.Metal.Copper.Ingot': 0,
-            'Textile.Fiber.Wool': 0, 'Textile.Hide.Deer': 0, 'Textile.Hide.Deer.Leather': 0,
+            'Textile.Fiber.Wool': 0, 'Textile.Cloth.Wool': 0, 'Textile.Hide.Deer': 0, 'Textile.Hide.Deer.Leather': 0,
             'Equipment.Leather.Kit': 0, 'Equipment.Bronze.Kit': 0,
             seeds: 0,
         };

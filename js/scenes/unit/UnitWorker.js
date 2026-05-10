@@ -1374,6 +1374,8 @@ export default {
             carpenter: ['woodcutter', 'builder'],
             smelter:   ['miner'],
             miller:    ['farmer'],
+            presser:   ['farmer'],
+            weaver:    ['shepherd'],
             merchant:  ['forager', 'farmer'],
             farmer:    ['forager'],
             hunter:    ['forager'],

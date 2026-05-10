@@ -294,7 +294,7 @@ export default {
 
         if (this._actUnitTab === 'Vocation') {
             const VOCATIONS = ['farmer','hunter','woodcutter','miner','builder','shepherd',
-                'carpenter','mason','smith','smelter','miller','baker','butcher','tanner','merchant','forager'];
+                'carpenter','mason','smith','smelter','miller','baker','butcher','presser','weaver','tanner','merchant','forager'];
             for (const voc of VOCATIONS) {
                 const active = workers.every(u => u.vocation === voc);
                 items.push({ label: voc[0].toUpperCase() + voc.slice(1),
