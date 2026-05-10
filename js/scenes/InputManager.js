@@ -32,6 +32,7 @@ export default class InputManager {
                     const edge = s.wallManager.nearestEdge(ptr.worldX, ptr.worldY);
                     s._wallDragErasing = edge ? !!s.wallManager.getWall(edge.isH, edge.row, edge.col) : false;
                 }
+                if (s.zoneMode) s._zoneDragTiles.clear();
             } else {
                 s._dragging = false; s._fmDragging = false; s._fmDragStart = null;
                 s.dragGfx.clear();
@@ -90,6 +91,19 @@ export default class InputManager {
                     }
                 } else {
                     this._drawWallGhost(ptr);
+                }
+            } else if (s.zoneMode && !isUI) {
+                if (ptr.isDown) {
+                    const t = s.tileAt(ptr.worldX, ptr.worldY);
+                    if (t) {
+                        const key = t.ty * MAP_W + t.tx;
+                        if (!s._zoneDragTiles.has(key)) {
+                            s._zoneDragTiles.add(key);
+                            this._applyZonePaint(t.tx, t.ty);
+                        }
+                    }
+                } else {
+                    this._drawZoneGhost(ptr);
                 }
             } else if (s.roadMode && ptr.isDown && !isUI) {
                 const t = s.tileAt(ptr.worldX, ptr.worldY);
@@ -161,6 +175,7 @@ export default class InputManager {
 
             const isTouch = s.sys.game.device.input.touch;
 
+            if (s.zoneMode) { const t = s.tileAt(wx, wy); if (t) this._applyZonePaint(t.tx, t.ty); return; }
             if (s.roadMode) { const t = s.tileAt(wx, wy); if (t) s._paintRoad(t.tx, t.ty); return; }
             if (s.bldgType) { const t = s.tileAt(wx, wy); if (t) s.placeBuilding(t.tx, t.ty); return; }
             if (s.relocateMode) {
@@ -246,7 +261,7 @@ export default class InputManager {
             cam.setZoom(Phaser.Math.Clamp(cam.zoom * (dy > 0 ? 0.9 : 1.1), 0.3, 3));
         });
 
-        s.input.keyboard?.on('keydown-ESC', () => { s.bldgType = null; s.roadMode = false; s.wallMode = false; s.furnitureMode = false; s.furnitureItemId = null; s.relocateMode = false; s.relocateSrc = null; s.selectedFurniture = null; s.deselect(); s.selectedBuilding = null; s.hoverGfx.clear(); s.updateUI(); });
+        s.input.keyboard?.on('keydown-ESC', () => { s.bldgType = null; s.roadMode = false; s.wallMode = false; s.furnitureMode = false; s.furnitureItemId = null; s.relocateMode = false; s.relocateSrc = null; s.selectedFurniture = null; s.zoneMode = null; s.deselect(); s.selectedBuilding = null; s.hoverGfx.clear(); s.updateUI(); });
         s.input.keyboard?.on('keydown-A', () => s.units.filter(u => !u.isEnemy).forEach(u => s.selectUnit(u.id, true)));
         s.input.keyboard?.on('keydown-F', () => { const sel = s.units.filter(u => u.selected && !u.isEnemy); if (sel.length) s.moveSelectedTo((MAP_W / 2) * TILE, MAP_OY + (MAP_H - 10) * TILE); });
         s.input.keyboard?.on('keydown-BACKTICK', () => s.scene.launch('SpriteEditorScene'));
@@ -279,6 +294,27 @@ export default class InputManager {
         s.hoverGfx.clear().fillStyle(col_c, 0.85);
         if (isH) s.hoverGfx.fillRect(px, py - 2, TILE, 4);
         else     s.hoverGfx.fillRect(px - 2, py, 4, TILE);
+    }
+
+    _applyZonePaint(tx, ty) {
+        const s = this.scene;
+        if (!s.zoneManager) return;
+        if (s.zoneMode === 'work')    s.zoneManager.paintWork(tx, ty);
+        else if (s.zoneMode === 'storage') s.zoneManager.paintStorage(tx, ty);
+        else if (s.zoneMode === 'erase')   s.zoneManager.erase(tx, ty);
+    }
+
+    _drawZoneGhost(ptr) {
+        const s = this.scene;
+        if (ptr.y < MAP_OY || ptr.y > s.SH - (s.uiManager?.L?.PANEL_H ?? 190)) { s.hoverGfx?.clear(); return; }
+        const tile = s.tileAt(ptr.worldX, ptr.worldY);
+        if (!tile) { s.hoverGfx?.clear(); return; }
+        const { tx, ty } = tile;
+        const px = tx * TILE, py = MAP_OY + ty * TILE;
+        const col = s.zoneMode === 'work' ? 0x4488ff : s.zoneMode === 'storage' ? 0xffaa22 : 0xff4444;
+        s.hoverGfx.clear()
+            .fillStyle(col, 0.18).fillRect(px, py, TILE, TILE)
+            .lineStyle(1, col, 0.7).strokeRect(px, py, TILE, TILE);
     }
 
     drawBuildGhost(ptr) {

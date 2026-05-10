@@ -25,9 +25,11 @@ export default {
         } else if (sel.length > 0) {
             this._renderMilActions(sel, military, scouts, zx, zy, ACT_W, fullH);
         } else {
-            const isFurnish = this.scene.buildCat === 'Furnish';
-            const MAT_H = isFurnish ? 0 : 18;
-            if (!isFurnish) this._renderMaterialToggle(zx, zy, ACT_W, MAT_H);
+            const isFurnish  = this.scene.buildCat === 'Furnish';
+            const isZones    = this.scene.buildCat === 'Zones';
+            const noMaterial = isFurnish || isZones;
+            const MAT_H = noMaterial ? 0 : 18;
+            if (!noMaterial) this._renderMaterialToggle(zx, zy, ACT_W, MAT_H);
             this._renderCategoryTabs(zx, zy + MAT_H, ACT_W, TAB_H);
             let subH = 0;
             if (isFurnish) { this._renderFurnishSubTabs(zx, zy + MAT_H + TAB_H, ACT_W, TAB_H); subH = TAB_H; }
@@ -412,7 +414,7 @@ export default {
     },
 
     _renderCategoryTabs(x, y, w, h) {
-        const cats  = [...Object.keys(BLDG_CATS), 'Furnish'];
+        const cats  = [...Object.keys(BLDG_CATS), 'Furnish', 'Zones'];
         const tabW  = Math.floor((w - 2) / cats.length);
 
         cats.forEach((cat, i) => {
@@ -493,6 +495,29 @@ export default {
                     },
                 };
             });
+        }
+
+        if (this.scene.buildCat === 'Zones') {
+            const s = this.scene;
+            const mk = (label, sublabel, mode, color) => {
+                const active = s.zoneMode === mode;
+                return {
+                    label, sublabel, active,
+                    color: active ? color : Math.max(0, (color & 0xfefefe) >> 1),
+                    callback: () => {
+                        s.zoneMode      = active ? null : mode;
+                        s.bldgType      = null; s.roadMode  = false;
+                        s.wallMode      = false; s.furnitureMode = false;
+                        s.hoverGfx?.clear();
+                        this.updateUI();
+                    },
+                };
+            };
+            return [
+                mk('Work Zone',    'drag to paint areas where workers labor', 'work',    0x224488),
+                mk('Storage Zone', 'drag to paint stockpile areas',           'storage', 0x885511),
+                mk('Erase Zones',  'drag to clear all zone markings',         'erase',   0x552222),
+            ];
         }
 
         if (this.scene.buildCat === 'Debug') {
