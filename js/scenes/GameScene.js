@@ -89,6 +89,9 @@ export default class GameScene extends Phaser.Scene {
         this.furnitureMode   = false;
         this.furnitureItemId = null;
         this.furnishCat      = 'Living';
+        this.selectedFurniture = null;
+        this.relocateMode    = false;
+        this.relocateSrc     = null;
         this.timerMs   = DAY_DURATION;
         this.nextId    = 1;
         this.tickSpeed       = 1;

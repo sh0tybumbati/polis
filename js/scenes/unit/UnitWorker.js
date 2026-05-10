@@ -1,11 +1,12 @@
 import {
-    TILE, MAP_OY, BLDG,
+    TILE, MAP_W, MAP_OY, BLDG,
     ARCHON_BUILD_ORDER,
 } from '../../config/gameConstants.js';
 import { NODES } from '../../content/nodes/index.js';
 import { ANIMALS } from '../../content/animals/index.js';
 import { ITEMS } from '../../content/items/index.js';
 import { JOBS, WORKSHOP_JOBS } from '../../content/jobs/index.js';
+import { FURNITURE } from '../../content/furniture/index.js';
 
 export default {
     tickWorker(u, time, dt) {
@@ -92,7 +93,7 @@ export default {
         }
 
         // Deposit takes priority
-        if (this.totalCarrying(u) > 0 && !u.targetNode && u.taskType !== 'build' && u.taskType !== 'eat' && u.taskType !== 'collect_tithe') {
+        if (this.totalCarrying(u) > 0 && !u.targetNode && u.taskType !== 'build' && u.taskType !== 'build_furniture' && u.taskType !== 'eat' && u.taskType !== 'collect_tithe') {
             if (u.taskType !== 'deposit') this.seekDeposit(u);
             if (u.taskType === 'deposit') { this.handleDepositTask(u, dt); return; }
         }
@@ -163,6 +164,7 @@ export default {
 
         if (u.taskType === 'eat') this.handleEatTask(u, dt);
         else if (u.taskType === 'build') this.handleBuildTask(u, dt);
+        else if (u.taskType === 'build_furniture') this.handleFurnitureBuildTask(u, dt);
         else if (u.taskType === 'deconstruct') this.handleDeconstructTask(u, dt);
         else if (u.taskType === 'repair') this.handleRepairTask(u, dt);
         else if (u.taskType === 'harvest_farm') this.handleHarvestFarmTask(u, dt);
@@ -390,6 +392,32 @@ export default {
                 u._soldRes = null;
             }
             if (b.buildWork <= 0) { this.scene.buildingManager.completeBuildingConstruction(b); u.taskType = null; }
+        }
+    },
+
+    handleFurnitureBuildTask(u, dt) {
+        const fm = this.scene.furnitureManager;
+        const item = fm?.furniture.get(u.taskFurnKey);
+        if (!item || item.built) { u.taskType = null; return; }
+
+        const tx = u.taskFurnKey % MAP_W, ty = Math.floor(u.taskFurnKey / MAP_W);
+        const cx = tx * TILE + TILE / 2, cy = MAP_OY + ty * TILE + TILE / 2;
+        if (this.moveToward(u, cx, cy, 18, dt)) return;
+
+        const attrMult = this.getAttrMult(u, ['str', 'dex']);
+        const workSpeed = (1.0 + (u.skills.masonry?.level ?? 1) * 0.15) * attrMult * this.getRestMult(u);
+        u.workProgress = (u.workProgress ?? 0) + dt * workSpeed;
+        if (u.workProgress >= 25.0) {
+            u.workProgress = 0;
+            item.buildWork -= 5;
+            this._gainSkillXp(u, 'masonry');
+            fm.renderAll();
+            if (item.buildWork <= 0) {
+                fm.completeBuild(tx, ty);
+                u.taskType = null;
+                this.scene.uiManager.showFloatText(cx, cy - 16,
+                    `${FURNITURE[item.itemId]?.label ?? 'item'} built!`, '#88dd88');
+            }
         }
     },
 
@@ -756,21 +784,42 @@ export default {
 
         const site = this.scene.buildings.find(b => {
             if (b.built || b.faction === 'enemy') return false;
-            if (b.resourcesSpent) return true;
             return true;
         });
-        if (!site) return;
 
-        if (!site.resourcesSpent) {
-            const cost = BLDG[site.type]?.cost;
-            if (cost && this.scene.economyManager.afford(cost)) {
-                this.scene.economyManager.spend(cost);
-                site.resourcesSpent = true;
+        if (site) {
+            if (!site.resourcesSpent) {
+                const cost = BLDG[site.type]?.cost;
+                if (cost && this.scene.economyManager.afford(cost)) {
+                    this.scene.economyManager.spend(cost);
+                    site.resourcesSpent = true;
+                }
             }
+            u.taskType = 'build'; u.taskBldgId = site.id;
+            u.moveTo = { x: (site.tx + site.size/2) * TILE, y: MAP_OY + (site.ty + site.size/2) * TILE };
+            return;
         }
 
-        u.taskType = 'build'; u.taskBldgId = site.id;
-        u.moveTo = { x: (site.tx + site.size/2) * TILE, y: MAP_OY + (site.ty + site.size/2) * TILE };
+        // No building site — check furniture build orders
+        const fm = this.scene.furnitureManager;
+        if (!fm) return;
+        const pending = fm.getPendingBuilds();
+        const furnSite = pending.find(({ tx, ty }) => {
+            const key = fm.tileKey(tx, ty);
+            return !this.scene.units.some(w => w.id !== u.id && w.taskType === 'build_furniture' && w.taskFurnKey === key);
+        });
+        if (!furnSite) return;
+        const { tx, ty, item } = furnSite;
+        if (!item.resourcesSpent) {
+            const cost = FURNITURE[item.itemId]?.craftCost ?? {};
+            if (Object.keys(cost).length && this.scene.economyManager.afford(cost)) {
+                this.scene.economyManager.spend(cost);
+                item.resourcesSpent = true;
+            }
+        }
+        u.taskType    = 'build_furniture';
+        u.taskFurnKey = fm.tileKey(tx, ty);
+        u.moveTo      = { x: tx * TILE + TILE / 2, y: MAP_OY + ty * TILE + TILE / 2 };
     },
 
     seekFarmerTask(u) {

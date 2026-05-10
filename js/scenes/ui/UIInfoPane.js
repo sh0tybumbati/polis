@@ -1,6 +1,7 @@
 import { BLDG, VET_LEVELS, BLDG_VOLUME, UNIT_NAMES, computeBuildCost } from '../../config/gameConstants.js';
 import { ITEMS } from '../../content/items/index.js';
 import { WORKSHOP_JOBS } from '../../content/jobs/index.js';
+import { FURNITURE } from '../../content/furniture/index.js';
 
 export default {
     _renderInfoPane() {
@@ -17,6 +18,8 @@ export default {
             this._renderUnitInfo(sel, ox, oy, W, H, pad);
         } else if (this.scene.selectedNode) {
             this._renderNodeInfo(ox, oy, W, H, pad);
+        } else if (this.scene.selectedFurniture) {
+            this._renderFurnitureInfo(ox, oy, W, H, pad);
         } else {
             this._renderIdleInfo(ox, oy, W, H, pad);
         }
@@ -629,6 +632,65 @@ export default {
                 this._infTxt(ox + pad, ry, `${icon} ${r[k] ?? 0}/${sm[k]}`, { fontSize: this._fs(10), color: '#7a7060' });
                 ry += 13;
             }
+        }
+    },
+
+    _renderFurnitureInfo(ox, oy, W, H, pad) {
+        const { tx, ty, item } = this.scene.selectedFurniture;
+        const def = FURNITURE[item.itemId];
+        if (!def) return;
+
+        this._infCard(ox, oy, W, H);
+
+        this._infTxt(ox + pad, oy + pad, `${def.icon ?? ''} ${def.label}`, {
+            fontSize: this._fs(13), color: '#d4c8a8',
+        });
+        this._infTxt(ox + pad, oy + pad + 18, `${tx},${ty}  ·  ${def.cat}`, {
+            fontSize: this._fs(9), color: '#6a5830',
+        });
+        if (def.desc) {
+            this._infTxt(ox + pad, oy + pad + 34, def.desc, {
+                fontSize: this._fs(10), color: '#8a8060', wordWrap: { width: W - pad * 2 },
+            });
+        }
+
+        const btnY = oy + H - 70;
+        const btnW = Math.floor((W - pad * 2 - 4) / 2);
+
+        if (!item.built) {
+            const progress = item.maxBuildWork > 0 ? 1 - item.buildWork / item.maxBuildWork : 1;
+            this._infTxt(ox + pad, btnY - 18, '⚒ Under construction', {
+                fontSize: this._fs(10), color: '#c8a030',
+            });
+            this._infBar(ox + pad, btnY - 4, W - pad * 2, 6, progress, 0xffdd44);
+            this._infBtn(ox + pad, btnY + 8, W - pad * 2, 26, 'Cancel Order', 0x441c1c, () => {
+                this.scene.furnitureManager.remove(tx, ty);
+                this.scene.selectedFurniture = null;
+                this.updateUI();
+            });
+        } else {
+            const costStr = Object.entries(def.craftCost ?? {})
+                .map(([k, v]) => `${v} ${k.split('.').pop()}`).join(', ');
+            if (costStr) {
+                this._infTxt(ox + pad, btnY - 14, `Built from: ${costStr}`, {
+                    fontSize: this._fs(9), color: '#6a5830',
+                });
+            }
+            this._infBtn(ox + pad, btnY + 2, btnW, 24, 'Relocate', 0x1c3044, () => {
+                this.scene.relocateMode  = true;
+                this.scene.relocateSrc   = { tx, ty };
+                this.scene.furnitureMode = false;
+                this.updateUI();
+            });
+            this._infBtn(ox + pad + btnW + 4, btnY + 2, btnW, 24, 'Remove', 0x441c1c, () => {
+                this.scene.furnitureManager.remove(tx, ty);
+                this.scene.selectedFurniture = null;
+                this.updateUI();
+            });
+            this._infBtn(ox + pad, btnY + 32, W - pad * 2, 22, '✕ Close', 0x1a1408, () => {
+                this.scene.selectedFurniture = null;
+                this.updateUI();
+            });
         }
     },
 };

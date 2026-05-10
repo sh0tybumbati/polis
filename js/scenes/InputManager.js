@@ -72,7 +72,9 @@ export default class InputManager {
             this.prevX = ptr.x;
             this.prevY = ptr.y;
 
-            if (s.furnitureMode && !isUI) {
+            if (s.relocateMode && !isUI) {
+                if (!ptr.isDown) this._drawFurnishGhost(ptr); // reuse ghost
+            } else if (s.furnitureMode && !isUI) {
                 if (!ptr.isDown) this._drawFurnishGhost(ptr);
             } else if (s.wallMode && !isUI) {
                 if (ptr.isDown) {
@@ -161,12 +163,28 @@ export default class InputManager {
 
             if (s.roadMode) { const t = s.tileAt(wx, wy); if (t) s._paintRoad(t.tx, t.ty); return; }
             if (s.bldgType) { const t = s.tileAt(wx, wy); if (t) s.placeBuilding(t.tx, t.ty); return; }
+            if (s.relocateMode) {
+                const tile = s.tileAt(wx, wy);
+                if (tile && s.relocateSrc) {
+                    const { tx: sx, ty: sy } = s.relocateSrc;
+                    if (tile.tx !== sx || tile.ty !== sy)
+                        s.furnitureManager.relocate(sx, sy, tile.tx, tile.ty);
+                }
+                s.relocateMode = false; s.relocateSrc = null;
+                s.selectedFurniture = null; s.hoverGfx?.clear(); s.updateUI();
+                return;
+            }
             if (s.furnitureMode) {
                 const tile = s.tileAt(wx, wy);
                 if (tile) {
                     const existing = s.furnitureManager.getAt(tile.tx, tile.ty);
-                    if (existing) s.furnitureManager.remove(tile.tx, tile.ty);
-                    else if (s.furnitureItemId) s.furnitureManager.place(tile.tx, tile.ty, s.furnitureItemId);
+                    if (existing) {
+                        // Click built furniture to inspect; click unbuilt to cancel order
+                        if (existing.built) { s.selectedFurniture = { tx: tile.tx, ty: tile.ty, item: existing }; s.furnitureMode = false; s.furnitureItemId = null; s.hoverGfx?.clear(); s.updateUI(); }
+                        else s.furnitureManager.remove(tile.tx, tile.ty);
+                    } else if (s.furnitureItemId) {
+                        s.furnitureManager.placeOrder(tile.tx, tile.ty, s.furnitureItemId);
+                    }
                 }
                 return;
             }
@@ -212,9 +230,12 @@ export default class InputManager {
             s.deselect();
             s.selectedBuilding = null;
             s.selectedNode = null;
+            s.selectedFurniture = null;
             if (hit && !hit.isEnemy) { s.selectUnit(hit.id, ptr.event?.shiftKey ?? false); return; }
             if (bldg) { s.selectedBuilding = bldg; s.updateUI(); return; }
             if (node) { s.selectedNode = node; s.updateUI(); return; }
+            const furnHit = s.furnitureManager?.findAt(wx, wy);
+            if (furnHit) { s.selectedFurniture = furnHit; s.updateUI(); return; }
 
             if (s.selectedBuilding) { s.selectedBuilding = null; s.updateUI(); }
             if (s.selectedNode) { s.selectedNode = null; s.updateUI(); }
@@ -225,7 +246,7 @@ export default class InputManager {
             cam.setZoom(Phaser.Math.Clamp(cam.zoom * (dy > 0 ? 0.9 : 1.1), 0.3, 3));
         });
 
-        s.input.keyboard?.on('keydown-ESC', () => { s.bldgType = null; s.roadMode = false; s.wallMode = false; s.furnitureMode = false; s.furnitureItemId = null; s.deselect(); s.selectedBuilding = null; s.hoverGfx.clear(); s.updateUI(); });
+        s.input.keyboard?.on('keydown-ESC', () => { s.bldgType = null; s.roadMode = false; s.wallMode = false; s.furnitureMode = false; s.furnitureItemId = null; s.relocateMode = false; s.relocateSrc = null; s.selectedFurniture = null; s.deselect(); s.selectedBuilding = null; s.hoverGfx.clear(); s.updateUI(); });
         s.input.keyboard?.on('keydown-A', () => s.units.filter(u => !u.isEnemy).forEach(u => s.selectUnit(u.id, true)));
         s.input.keyboard?.on('keydown-F', () => { const sel = s.units.filter(u => u.selected && !u.isEnemy); if (sel.length) s.moveSelectedTo((MAP_W / 2) * TILE, MAP_OY + (MAP_H - 10) * TILE); });
         s.input.keyboard?.on('keydown-BACKTICK', () => s.scene.launch('SpriteEditorScene'));
