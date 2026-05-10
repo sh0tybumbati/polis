@@ -94,8 +94,9 @@ export default {
 
         // Deposit takes priority
         if (this.totalCarrying(u) > 0 && !u.targetNode && u.taskType !== 'build' && u.taskType !== 'build_furniture' && u.taskType !== 'zone_workshop' && u.taskType !== 'eat' && u.taskType !== 'collect_tithe') {
-            if (u.taskType !== 'deposit') this.seekDeposit(u);
-            if (u.taskType === 'deposit') { this.handleDepositTask(u, dt); return; }
+            if (u.taskType !== 'deposit' && u.taskType !== 'deposit_zone') this.seekDeposit(u);
+            if (u.taskType === 'deposit')      { this.handleDepositTask(u, dt);     return; }
+            if (u.taskType === 'deposit_zone') { this.handleDepositZoneTask(u, dt); return; }
         }
 
         // Rebuild day plan every 3s or when empty
@@ -728,6 +729,18 @@ export default {
             }
         }
 
+        // Storage zone deposit: prefer painted zones over buildings
+        const zm = this.scene.zoneManager;
+        if (zm?.storageTiles.size > 0) {
+            let bestKey = null, bestDist = Infinity;
+            for (const key of zm.storageTiles) {
+                const tx = key % MAP_W, ty = Math.floor(key / MAP_W);
+                const d = Phaser.Math.Distance.Between(u.x, u.y, tx * TILE + TILE / 2, MAP_OY + ty * TILE + TILE / 2);
+                if (d < bestDist) { bestDist = d; bestKey = key; }
+            }
+            if (bestKey !== null) { u.taskType = 'deposit_zone'; u.taskZoneKey = bestKey; return; }
+        }
+
         // Role-based routing: prefer private building in home domain, fall back to nearest public
         const routeTypes = this._depositRoutes()[u.role];
         if (routeTypes) {
@@ -810,6 +823,24 @@ export default {
             u._prevRole = null;
             this.seekWorkshopTask(u);
         }
+    },
+
+    handleDepositZoneTask(u, dt) {
+        const zm = this.scene.zoneManager;
+        if (!zm?.storageTiles.has(u.taskZoneKey)) { u.taskType = null; return; }
+        const tx = u.taskZoneKey % MAP_W, ty = Math.floor(u.taskZoneKey / MAP_W);
+        const cx = tx * TILE + TILE / 2, cy = MAP_OY + ty * TILE + TILE / 2;
+        if (this.moveToward(u, cx, cy, 30, dt)) return;
+
+        for (const [res, amt] of Object.entries(u.carrying)) {
+            if ((amt ?? 0) <= 0) continue;
+            this.scene.economyManager.addResource(res, amt);
+            u.carrying[res] = 0;
+            this.scene.uiManager.showFloatText(cx, cy - 14, `+${amt} ${res.split('.').pop()}`, '#88ff88');
+        }
+        this.scene.economyManager.syncResources();
+        u.taskType = null;
+        u.isInside = false;
     },
 
     seekBuilderTask(u) {
