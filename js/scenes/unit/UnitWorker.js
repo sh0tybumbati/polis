@@ -93,7 +93,7 @@ export default {
         }
 
         // Deposit takes priority
-        if (this.totalCarrying(u) > 0 && !u.targetNode && u.taskType !== 'build' && u.taskType !== 'build_furniture' && u.taskType !== 'eat' && u.taskType !== 'collect_tithe') {
+        if (this.totalCarrying(u) > 0 && !u.targetNode && u.taskType !== 'build' && u.taskType !== 'build_furniture' && u.taskType !== 'zone_workshop' && u.taskType !== 'eat' && u.taskType !== 'collect_tithe') {
             if (u.taskType !== 'deposit') this.seekDeposit(u);
             if (u.taskType === 'deposit') { this.handleDepositTask(u, dt); return; }
         }
@@ -165,6 +165,7 @@ export default {
         if (u.taskType === 'eat') this.handleEatTask(u, dt);
         else if (u.taskType === 'build') this.handleBuildTask(u, dt);
         else if (u.taskType === 'build_furniture') this.handleFurnitureBuildTask(u, dt);
+        else if (u.taskType === 'zone_workshop')   this.handleZoneWorkshopTask(u, dt);
         else if (u.taskType === 'deconstruct') this.handleDeconstructTask(u, dt);
         else if (u.taskType === 'repair') this.handleRepairTask(u, dt);
         else if (u.taskType === 'harvest_farm') this.handleHarvestFarmTask(u, dt);
@@ -418,6 +419,45 @@ export default {
                 this.scene.uiManager.showFloatText(cx, cy - 16,
                     `${FURNITURE[item.itemId]?.label ?? 'item'} built!`, '#88dd88');
             }
+        }
+    },
+
+    handleZoneWorkshopTask(u, dt) {
+        const fm = this.scene.furnitureManager;
+        const item = fm?.furniture.get(u.taskZoneKey);
+        if (!item?.built) { u.taskType = null; u.workshopPhase = null; return; }
+
+        const def = WORKSHOP_JOBS[u.role];
+        if (!def) { u.taskType = null; return; }
+
+        const tx = u.taskZoneKey % MAP_W, ty = Math.floor(u.taskZoneKey / MAP_W);
+        const cx = tx * TILE + TILE / 2, cy = MAP_OY + ty * TILE + TILE / 2;
+
+        if (u.workshopPhase === 'procure') {
+            const avail = this.scene.resources[def.input] ?? 0;
+            if (avail <= 0) return; // wait for commons to have input
+            const take = Math.min(def.carryQty, avail);
+            this.scene.economyManager.takeFromCommons(def.input, take);
+            u.carrying[def.input] = (u.carrying[def.input] ?? 0) + take;
+            u.workshopPhase = 'process';
+            return;
+        }
+
+        if ((u.carrying[def.input] ?? 0) <= 0) { u.workshopPhase = 'procure'; return; }
+        if (this.moveToward(u, cx, cy, 10, dt)) return;
+        u.isInside = false;
+
+        const attrMult  = this.getAttrMult(u, ['dex', 'int']);
+        const workSpeed = (1.0 + (u.skills[def.skill]?.level ?? 1) * 0.2) * attrMult * this.getRestMult(u);
+        u.workProgress  = (u.workProgress ?? 0) + dt * workSpeed;
+        if (u.workProgress >= 3.0) {
+            u.workProgress = 0;
+            u.carrying[def.input]--;
+            this.scene.economyManager.addResource(def.output, 1);
+            this._gainSkillXp(u, def.skill);
+            this.scene.uiManager.showFloatText(cx, cy - 14,
+                `+1 ${def.output.split('.').pop()}`, '#ffe066');
+            if ((u.carrying[def.input] ?? 0) <= 0) u.workshopPhase = 'procure';
         }
     },
 
@@ -880,6 +920,27 @@ export default {
         const def = WORKSHOP_JOBS[u.role];
         if (!def) { u.role = null; return; }
 
+        // ── Zone-based path: freeform appliances inside a work zone ───────────
+        const fm = this.scene.furnitureManager, zm = this.scene.zoneManager;
+        if (fm && zm) {
+            for (const zoneTiles of zm.getWorkZones()) {
+                for (const { tx, ty } of zoneTiles) {
+                    const item = fm.getAt(tx, ty);
+                    if (!item?.built) continue;
+                    if (FURNITURE[item.itemId]?.job !== u.role) continue;
+                    const key = fm.tileKey(tx, ty);
+                    if (this.scene.units.some(w => w.id !== u.id && w.taskType === 'zone_workshop' && w.taskZoneKey === key)) continue;
+                    u.taskType      = 'zone_workshop';
+                    u.taskZoneKey   = key;
+                    u.workshopPhase = 'procure';
+                    u.workshopSubrole = null;
+                    u.workProgress  = 0;
+                    return;
+                }
+            }
+        }
+
+        // ── Building-based path (legacy buildings) ────────────────────────────
         // Find a building with an open procure OR process slot
         const bldg = this.scene.buildings.find(b => {
             if (b.type !== def.building || !b.built || b.faction) return false;
