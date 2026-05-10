@@ -246,11 +246,21 @@ export default class InputManager {
             s.selectedBuilding = null;
             s.selectedNode = null;
             s.selectedFurniture = null;
+            s.selectedZoneTile = null;
             if (hit && !hit.isEnemy) { s.selectUnit(hit.id, ptr.event?.shiftKey ?? false); return; }
             if (bldg) { s.selectedBuilding = bldg; s.updateUI(); return; }
             if (node) { s.selectedNode = node; s.updateUI(); return; }
             const furnHit = s.furnitureManager?.findAt(wx, wy);
             if (furnHit) { s.selectedFurniture = furnHit; s.updateUI(); return; }
+
+            const tile = s.tileAt(wx, wy);
+            if (tile && s.zoneManager) {
+                const zAt = s.zoneManager.getAt(tile.tx, tile.ty);
+                if (zAt.work || zAt.storage) {
+                    s.selectedZoneTile = { tx: tile.tx, ty: tile.ty };
+                    s.updateUI(); return;
+                }
+            }
 
             if (s.selectedBuilding) { s.selectedBuilding = null; s.updateUI(); }
             if (s.selectedNode) { s.selectedNode = null; s.updateUI(); }
@@ -261,7 +271,7 @@ export default class InputManager {
             cam.setZoom(Phaser.Math.Clamp(cam.zoom * (dy > 0 ? 0.9 : 1.1), 0.3, 3));
         });
 
-        s.input.keyboard?.on('keydown-ESC', () => { s.bldgType = null; s.roadMode = false; s.wallMode = false; s.furnitureMode = false; s.furnitureItemId = null; s.relocateMode = false; s.relocateSrc = null; s.selectedFurniture = null; s.zoneMode = null; s.deselect(); s.selectedBuilding = null; s.hoverGfx.clear(); s.updateUI(); });
+        s.input.keyboard?.on('keydown-ESC', () => { s.bldgType = null; s.roadMode = false; s.wallMode = false; s.furnitureMode = false; s.furnitureItemId = null; s.relocateMode = false; s.relocateSrc = null; s.selectedFurniture = null; s.zoneMode = null; s.selectedZoneTile = null; s.deselect(); s.selectedBuilding = null; s.hoverGfx.clear(); s.updateUI(); });
         s.input.keyboard?.on('keydown-A', () => s.units.filter(u => !u.isEnemy).forEach(u => s.selectUnit(u.id, true)));
         s.input.keyboard?.on('keydown-F', () => { const sel = s.units.filter(u => u.selected && !u.isEnemy); if (sel.length) s.moveSelectedTo((MAP_W / 2) * TILE, MAP_OY + (MAP_H - 10) * TILE); });
         s.input.keyboard?.on('keydown-BACKTICK', () => s.scene.launch('SpriteEditorScene'));

@@ -20,6 +20,8 @@ export default {
             this._renderNodeInfo(ox, oy, W, H, pad);
         } else if (this.scene.selectedFurniture) {
             this._renderFurnitureInfo(ox, oy, W, H, pad);
+        } else if (this.scene.selectedZoneTile) {
+            this._renderZoneInfo(ox, oy, W, H, pad);
         } else {
             this._renderIdleInfo(ox, oy, W, H, pad);
         }
@@ -633,6 +635,93 @@ export default {
                 ry += 13;
             }
         }
+    },
+
+    _renderZoneInfo(ox, oy, W, H, pad) {
+        const { tx, ty } = this.scene.selectedZoneTile;
+        const zm = this.scene.zoneManager;
+        const fm = this.scene.furnitureManager;
+        const wm = this.scene.wallManager;
+        if (!zm) return;
+
+        const zAt    = zm.getAt(tx, ty);
+        const isWork = zAt.work, isStorage = zAt.storage;
+
+        // Find connected zone tiles
+        const zoneTiles = isWork
+            ? (zm.getWorkZones().find(z => z.some(t => t.tx === tx && t.ty === ty)) ?? [])
+            : (zm.getStorageZones().find(z => z.some(t => t.tx === tx && t.ty === ty)) ?? []);
+
+        // Try wall-enclosed room detection
+        const room          = wm?.getRoomAt(tx, ty) ?? null;
+        const analysisTiles = room ?? zoneTiles;
+
+        // Classify room type from dominant appliance zoneType
+        const rawType  = isWork && fm ? fm.classifyRoom(analysisTiles) : null;
+        const typeLabel = rawType
+            ? rawType[0].toUpperCase() + rawType.slice(1)
+            : isWork ? 'Work Zone' : 'Storage Zone';
+        const headerCol = isWork ? '#5599ff' : '#ffaa33';
+
+        this._infCard(ox, oy, W, H);
+        this._infTxt(ox + pad, oy + pad,      typeLabel, { fontSize: this._fs(13), color: headerCol });
+        this._infTxt(ox + pad, oy + pad + 18,
+            room ? `Enclosed room · ${room.length} tiles` : `Open zone · ${zoneTiles.length} tiles`,
+            { fontSize: this._fs(9), color: room ? '#8888aa' : '#6a5830' });
+
+        let ry = oy + pad + 36;
+
+        if (isWork && fm) {
+            // Appliances present
+            const appList = analysisTiles
+                .map(t => { const it = fm.getAt(t.tx, t.ty); return it?.built ? FURNITURE[it.itemId] : null; })
+                .filter(Boolean);
+            if (appList.length) {
+                this._infTxt(ox + pad, ry, 'Appliances:', { fontSize: this._fs(9), color: '#7a7060' });
+                ry += 12;
+                const grouped = {};
+                appList.forEach(d => grouped[d.label] = (grouped[d.label] ?? 0) + 1);
+                for (const [lbl, cnt] of Object.entries(grouped)) {
+                    this._infTxt(ox + pad + 6, ry, `${cnt > 1 ? cnt + '× ' : ''}${lbl}`,
+                        { fontSize: this._fs(10), color: '#c8c0a0' });
+                    ry += 13;
+                }
+            } else {
+                this._infTxt(ox + pad, ry, 'No appliances built', { fontSize: this._fs(9), color: '#5a5040' });
+                ry += 13;
+            }
+
+            // Workers assigned to any tile in this zone
+            const zoneKeys = new Set(analysisTiles.map(t => zm.tileKey(t.tx, t.ty)));
+            const assigned = this.scene.units.filter(u =>
+                (u.taskType === 'zone_workshop' || u.taskType === 'build_furniture') &&
+                zoneKeys.has(u.taskZoneKey ?? -1)
+            ).length;
+            ry += 3;
+            this._infTxt(ox + pad, ry, `Workers: ${assigned}`, { fontSize: this._fs(10), color: assigned ? '#88cc88' : '#5a5040' });
+            ry += 14;
+        }
+
+        if (isStorage) {
+            const zoneKeys = new Set(zoneTiles.map(t => zm.tileKey(t.tx, t.ty)));
+            const depositing = this.scene.units.filter(u =>
+                u.taskType === 'deposit_zone' && zoneKeys.has(u.taskZoneKey ?? -1)
+            ).length;
+            this._infTxt(ox + pad, ry, `Depositing: ${depositing}`, { fontSize: this._fs(10), color: depositing ? '#ffcc66' : '#5a5040' });
+            ry += 14;
+        }
+
+        // Buttons
+        const btnY = oy + H - 56;
+        this._infBtn(ox + pad, btnY, W - pad * 2, 22, 'Erase Zone Here', 0x442222, () => {
+            zm.erase(tx, ty);
+            this.scene.selectedZoneTile = null;
+            this.updateUI();
+        });
+        this._infBtn(ox + pad, btnY + 28, W - pad * 2, 22, '✕ Close', 0x1a1408, () => {
+            this.scene.selectedZoneTile = null;
+            this.updateUI();
+        });
     },
 
     _renderFurnitureInfo(ox, oy, W, H, pad) {

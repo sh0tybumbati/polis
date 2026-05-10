@@ -174,6 +174,36 @@ export default class WallManager {
         return !!(wall && wall.height === 'full' && wall.buildProgress >= 1);
     }
 
+    // ─── Targeted room query ────────────────────────────────────────────────────
+
+    // BFS from (tx,ty) blocked by full walls. Returns tile array if enclosed
+    // (≤ maxTiles, never touches boundary), or null if open/too large.
+    getRoomAt(tx, ty, maxTiles = 400) {
+        const key = (x, y) => y * MAP_W + x;
+        const visited = new Set([key(tx, ty)]);
+        const queue   = [[tx, ty]];
+
+        while (queue.length) {
+            const [cx, cy] = queue.shift();
+            for (const [dx, dy, isH, row, col] of [
+                [ 0, -1, true,  cy,     cx    ],
+                [ 0, +1, true,  cy + 1, cx    ],
+                [-1,  0, false, cy,     cx    ],
+                [+1,  0, false, cy,     cx + 1],
+            ]) {
+                const nx = cx + dx, ny = cy + dy;
+                if (nx < 0 || nx >= MAP_W || ny < 0 || ny >= MAP_H) return null;
+                if (this._blocks(isH, row, col)) continue;
+                const nk = key(nx, ny);
+                if (visited.has(nk)) continue;
+                if (visited.size >= maxTiles) return null;
+                visited.add(nk);
+                queue.push([nx, ny]);
+            }
+        }
+        return [...visited].map(k => ({ tx: k % MAP_W, ty: Math.floor(k / MAP_W) }));
+    }
+
     // ─── Save / Load ────────────────────────────────────────────────────────────
 
     save() {

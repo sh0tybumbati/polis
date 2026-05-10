@@ -120,6 +120,7 @@ export default class GameScene extends Phaser.Scene {
         this.zoneManager      = new ZoneManager(this);
         this.zoneMode         = null; // 'work' | 'storage' | 'erase' | null
         this._zoneDragTiles   = new Set();
+        this.selectedZoneTile = null;
     }
 
     _w(obj) { this.uiCam?.ignore(obj); return obj; }
