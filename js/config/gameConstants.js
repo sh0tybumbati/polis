@@ -315,27 +315,4 @@ export const ROOM_MAX_SLOTS = 6; // max rooms per house
 export const FM_TYPES = ['phalanx', 'wedge', 'screen'];
 export const FM_LABELS = ['Phalanx', 'Wedge', 'Screen'];
 
-export const BLDG_VOLUME = {
-    camp:      400,
-    granary:   1000,
-    woodshed:  800,
-    stonepile: 600,
-    warehouse: 2000,
-    house:     150,
-    townhall:  500,
-    barracks:  400,
-    archery:   400,
-    stable:    400,
-    tannery:   500,
-    smelter:   500,
-    blacksmith: 500,
-    mill:      600,
-    bakery:    500,
-    olive_press: 500,
-    temple:    300,
-    oracle:    300,
-    carpenter: 600,
-    masons:    600,
-};
-
 // ─────────────────────────────────────────────────────────────────────────────

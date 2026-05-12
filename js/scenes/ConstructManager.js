@@ -145,9 +145,37 @@ export default class ConstructManager {
         return c;
     }
 
-    // Alias for legacy calls
     placeBuilding(tx, ty) {
         return this.placeConstruct(this.scene.bldgType, tx, ty, this.scene.bldgMaterial);
+    }
+
+    placeBuiltBuilding(type, tx, ty) {
+        const def = CONSTRUCTS[type];
+        if (!def) return null;
+        
+        const isWallType = ['wall', 'palisade', 'gate', 'watchtower'].includes(type);
+        this.occupy(tx, ty, def.width, def.height, isWallType ? 98 : 99);
+
+        const c = this.makeConstructObj(type, tx, ty, true);
+        c.resNeeded = {};
+        this.constructs.push(c);
+
+        if (type === 'house') {
+            this.assignDomain(c);
+            c.isPublic = false;
+        } else {
+            const dom = this.getDomainAt(tx, ty);
+            if (dom) {
+                c.domainId = dom.id;
+                c.isPublic = false;
+            } else {
+                c.isPublic = true;
+            }
+        }
+
+        this.renderAll();
+        this.updateStorageCap();
+        return c;
     }
 
     completeBuildingConstruction(b) {
@@ -273,6 +301,12 @@ export default class ConstructManager {
 
     getEdge(isH, row, col) {
         return isH ? (this.hEdges[row]?.[col] ?? null) : (this.vEdges[row]?.[col] ?? null);
+    }
+    
+    findBuildingAt(wx, wy) { return this.findConstructAt(wx, wy); }
+
+    orderWorkersToBuilding(b) {
+        return this.scene.unitManager.orderWorkersToConstruct(b);
     }
 
     findConstructAt(wx, wy) {

@@ -1,6 +1,6 @@
 import {
     TILE, MAP_W, MAP_OY,
-    ARCHON_BUILD_ORDER,
+    ARCHON_BUILD_ORDER, T_MOUNTAIN,
 } from '../../config/gameConstants.js';
 import { CONSTRUCTS } from '../../content/constructs/index.js';
 import { NODES } from '../../content/nodes/index.js';
@@ -1539,7 +1539,6 @@ export default {
             if (d < maxDist && d < bd) { bd = d; best = n; }
         }
         if (filterType && filterType.includes('mountain')) {
-            const T_MOUNTAIN = 5;
             const utx = Math.floor(u.x / 32), uty = Math.floor((u.y - 52) / 32);
             for (let dy = -15; dy <= 15; dy++) {
                 for (let dx = -15; dx <= 15; dx++) {

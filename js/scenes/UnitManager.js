@@ -448,6 +448,17 @@ export default class UnitManager {
         return true;
     }
 
+    orderWorkersToConstruct(b) {
+        const sel = this.scene.units.filter(u => u.selected && !u.isEnemy && u.hp > 0 && u.type === 'worker' && u.age >= 2);
+        if (!sel.length) return false;
+        for (const u of sel) {
+            u.targetNode = null; u.taskType = 'build'; u.taskConstructId = b.id;
+            u.moveTo = null;
+            u.role = 'builder';
+        }
+        return true;
+    }
+
     assignHunters(deer) {
         const sel = this.scene.units.filter(u => u.selected && !u.isEnemy && u.hp > 0
             && (u.type === 'worker' || u.type === 'archer'));

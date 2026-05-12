@@ -1,8 +1,8 @@
 import {
     TILE, MAP_OY, MAP_W, MAP_H,
     TILE_SPD, DESIRE_THRESHOLD, ROAD_DESIRE, ROAD_NONE,
-    CONSTRUCTS,
 } from '../../config/gameConstants.js';
+import { CONSTRUCTS } from '../../content/constructs/index.js';
 import { ITEMS } from '../../content/items/index.js';
 
 export default {
