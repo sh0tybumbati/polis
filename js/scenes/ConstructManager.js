@@ -302,7 +302,26 @@ export default class ConstructManager {
     getEdge(isH, row, col) {
         return isH ? (this.hEdges[row]?.[col] ?? null) : (this.vEdges[row]?.[col] ?? null);
     }
-    
+
+    // Aliases for InputManager wall drag mode
+    getWall(isH, row, col) { return this.getEdge(isH, row, col); }
+    placeWall(isH, row, col, material) {
+        return this.placeEdge(this.scene.wallType ?? 'wall', isH, row, col, material);
+    }
+    removeWall(isH, row, col) { return this.removeEdge(isH, row, col); }
+
+    removeEdge(isH, row, col) {
+        const c = this.getEdge(isH, row, col);
+        if (!c) return;
+        if (isH) this.hEdges[c.row][c.col] = null;
+        else      this.vEdges[c.row][c.col] = null;
+        this.constructs = this.constructs.filter(cc => cc.id !== c.id);
+        this.renderAll();
+    }
+
+    renderWalls() { this.renderAll(); } // Alias used by InputManager
+
+
     findBuildingAt(wx, wy) { return this.findConstructAt(wx, wy); }
 
     orderWorkersToBuilding(b) {
