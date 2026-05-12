@@ -1,5 +1,5 @@
 export default {
-    id: 'Appliance.Forge', placement: 'tile', width: 1, height: 1,
+    id: 'forge', placement: 'tile', width: 1, height: 1,
         label: 'Forge', icon: '🔥', color: 0xaa3311, cat: 'Metal',
         zoneType: 'Smelting', job: 'smelter', jobSlots: 1,
         buildWork: 20,

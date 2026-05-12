@@ -1,5 +1,5 @@
 export default {
-    id: 'Furniture.Hearth', placement: 'tile', width: 1, height: 1,
+    id: 'hearth', placement: 'tile', width: 1, height: 1,
         label: 'Hearth', icon: '🔥', color: 0xbb4422, cat: 'Living',
         zoneType: 'Living', provides: { warmth: 1 },
         buildWork: 10,

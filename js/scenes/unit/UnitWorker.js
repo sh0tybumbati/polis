@@ -546,7 +546,7 @@ export default {
         if (fm) {
             let bestKey = null, bestDist = Infinity;
             for (const item of fm.constructs) {
-                if (item.type !== 'Appliance.MarketStall' || !item.built) continue;
+                if (item.type !== 'marketstall' || !item.built) continue;
                 const d = Phaser.Math.Distance.Between(u.x, u.y, (item.tx + 0.5) * TILE, MAP_OY + (item.ty + 0.5) * TILE);
                 if (d < bestDist) { bestDist = d; bestKey = item.id; }
             }
@@ -877,10 +877,10 @@ export default {
         if (u.homeConstructId != null || u.homeConstructId) return;
         const fm = this.scene.constructManager;
         if (!fm) return;
-        const slots = CONSTRUCTS['Appliance.Camp']?.provides?.sleepSlots ?? 2;
+        const slots = CONSTRUCTS['camp']?.provides?.sleepSlots ?? 2;
         let bestKey = null, bestDist = Infinity;
         for (const item of fm.constructs) {
-            if (!item.built || item.type !== 'Appliance.Camp') continue;
+            if (!item.built || item.type !== 'camp') continue;
             const occupants = this.scene.units.filter(w => w.homeConstructId === item.id).length;
             if (occupants >= slots) continue;
             const d = Phaser.Math.Distance.Between(u.x, u.y, (item.tx + 0.5) * TILE, MAP_OY + (item.ty + 0.5) * TILE);
@@ -957,7 +957,7 @@ export default {
         const zm = this.scene.zoneManager;
         const fm = this.scene.constructManager;
         if (zm?.storageTiles.size > 0) {
-            const STORAGE_APPL = new Set(['Appliance.GrainSilo', 'Appliance.StorageShelf']);
+            const STORAGE_APPL = new Set(['grainsilo', 'storageshelf']);
             let bestKey = null, bestDist = Infinity;
             // First pass: tiles with a built storage appliance
             for (const key of zm.storageTiles) {

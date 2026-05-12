@@ -1,5 +1,5 @@
 export default {
-    id: 'Furniture.TavernSeat', placement: 'tile', width: 1, height: 1,
+    id: 'tavernseat', placement: 'tile', width: 1, height: 1,
         label: 'Tavern Seat', icon: '🪑', color: 0x7b5e3a, cat: 'Living',
         zoneType: 'Leisure',
         buildWork: 6,

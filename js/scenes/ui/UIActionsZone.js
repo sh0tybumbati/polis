@@ -455,7 +455,7 @@ export default {
 
         const mat   = this.scene.bldgMaterial ?? 'Materials.Wood.Pine';
         const bldgs = CONSTRUCT_CATS[this.scene.buildCat] ?? [];
-        const items = bldgs.map(type => {
+        const items = bldgs.filter(t => CONSTRUCTS[t]).map(type => {
             const def      = CONSTRUCTS[type];
             const cost     = computeBuildCost(type, mat);
             const canAfford = !Object.keys(cost).length || this.scene.economyManager.afford(cost);

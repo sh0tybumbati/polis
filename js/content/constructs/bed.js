@@ -1,5 +1,5 @@
 export default {
-    id: 'Furniture.Bed', placement: 'tile', width: 1, height: 1,
+    id: 'bed', placement: 'tile', width: 1, height: 1,
         label: 'Bed', icon: '🛏', color: 0x6a4a28, cat: 'Living',
         zoneType: 'Living', provides: { sleepSlots: 1 },
         buildWork: 8,

@@ -1,5 +1,5 @@
 export default {
-    id: 'Appliance.Anvil', placement: 'tile', width: 1, height: 1,
+    id: 'anvil', placement: 'tile', width: 1, height: 1,
         label: 'Anvil', icon: '🔨', color: 0x444455, cat: 'Metal',
         zoneType: 'Smithing', job: 'smith', jobSlots: 1,
         buildWork: 20,

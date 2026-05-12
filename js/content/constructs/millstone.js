@@ -1,5 +1,5 @@
 export default {
-    id: 'Appliance.Millstone', placement: 'tile', width: 1, height: 1,
+    id: 'millstone', placement: 'tile', width: 1, height: 1,
         label: 'Millstone', icon: '⚙', color: 0x8a8060, cat: 'Food',
         zoneType: 'Milling', job: 'miller', jobSlots: 1,
         buildWork: 16,
