@@ -315,6 +315,26 @@ export default class ConstructManager {
         return this.getAt(tx, ty);
     }
 
+    findPublicBuildSite(type) {
+        const def = CONSTRUCTS[type];
+        if (!def) return null;
+        const th = this.constructs.find(b => b.type === 'townhall' && !b.faction);
+        const center = th ? { tx: th.tx, ty: th.ty } : { tx: Math.floor(MAP_W/2), ty: Math.floor(MAP_H/2) };
+        
+        for (let r = 2; r < 25; r++) {
+            for (let dy = -r; dy <= r; dy++) {
+                for (let dx = -r; dx <= r; dx++) {
+                    if (Math.abs(dx) < r && Math.abs(dy) < r) continue;
+                    const tx = center.tx + dx, ty = center.ty + dy;
+                    if (this.isFree(tx, ty, def.width, def.height, type)) {
+                        return { tx, ty };
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
     nearestEdge(wx, wy) {
         const tx = Math.floor(wx / TILE);
         const ty = Math.floor((wy - MAP_OY) / TILE);
@@ -575,6 +595,38 @@ export default class ConstructManager {
         this.tickUnitTraining(delta);
     }
 
+    tickGarrisonHeal(delta) {
+        // Heal units inside buildings at a slow rate
+        for (const b of this.constructs) {
+            if (!b.built || !b.garrison?.length) continue;
+            const healAmt = delta * 0.0002; // 1 HP per 5s
+            for (const uid of b.garrison) {
+                const u = this.scene.units.find(uu => uu.id === uid);
+                if (u && u.hp < u.maxHp) {
+                    u.hp = Math.min(u.maxHp, u.hp + healAmt);
+                }
+            }
+        }
+    }
+
+    tickUnitTraining(delta) {
+        for (const b of this.constructs) {
+            if (!b.built || b.faction || !b.trainingQueue?.length) continue;
+            const def = CONSTRUCTS[b.type];
+            if (!def) continue;
+
+            const task = b.trainingQueue[0];
+            task.progress = (task.progress ?? 0) + delta;
+            
+            const trainingTime = 10000; // 10s default
+            if (task.progress >= trainingTime) {
+                b.trainingQueue.shift();
+                this.scene.unitManager.spawnTrainedUnit(b, task.unitType);
+                this.redrawBuildingBar(b);
+            }
+        }
+    }
+
     tickFarmRegrowth(delta) {
         for (const b of this.constructs) {
             if (!b.built || b.faction) continue;
@@ -737,19 +789,24 @@ export default class ConstructManager {
     }
 
     save() {
-        return {
-            constructs: this.constructs.map(c => this._serBuilding(c))
-        };
+        return this.constructs.map(c => this._serBuilding(c));
     }
 
     load(data) {
         if (!data) return;
-        this.constructs = []; // clear current
+        this.constructs.length = 0; // clear current without reassigning reference
 
         const list = [];
-        if (data.constructs) list.push(...data.constructs);
-        if (data.walls)      list.push(...data.walls);
-        if (data.furniture)  list.push(...data.furniture);
+        const process = (src) => {
+            if (!src) return;
+            if (Array.isArray(src)) list.push(...src);
+            else if (src.constructs && Array.isArray(src.constructs)) list.push(...src.constructs);
+            else if (typeof src === 'object') list.push(src); // single object fallback
+        };
+
+        process(data.constructs);
+        process(data.walls);
+        process(data.furniture);
         if (Array.isArray(data)) list.push(...data);
 
         for (const d of list) {

@@ -92,6 +92,11 @@ export default class UnitManager {
         this.selGfx  = scene.add.graphics().setDepth(5);
     }
 
+    spawnTrainedUnit(bldg, type) {
+        const u = this.spawnUnit(type, bldg.tx * TILE + TILE/2, MAP_OY + bldg.ty * TILE + TILE/2, !!bldg.faction);
+        this.scene.uiManager.showFloatText(u.x, u.y - 20, `${type} ready!`, '#88ff88');
+    }
+
     spawnUnit(type, x, y, isEnemy) {
         const def = UNITS[type];
         const gender = Math.random() < 0.5 ? 'male' : 'female';

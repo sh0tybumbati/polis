@@ -213,6 +213,7 @@ export default class UIManager {
     // ─── Update ──────────────────────────────────────────────────────────────
 
     updateUI() {
+        if (!this.L) return;
         this.scene.economyManager.syncResources();
         this._updateResources();
         this._renderInfoPane();
