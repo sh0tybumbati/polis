@@ -3,9 +3,9 @@ export default {
     skill: 'farming',
     depositTypes: ['granary', 'warehouse', 'townhall'],
     score(u, ctx) {
-        const home = u.homeBldgId ? ctx.buildings.find(b => b.id === u.homeBldgId) : null;
+        const home = u.homeConstructId ? ctx.constructs.find(b => b.id === u.homeConstructId) : null;
         const homeDomain = home?.domainId ? ctx.domains.find(d => d.id === home.domainId) : null;
-        const ownFarm = homeDomain ? ctx.buildings.find(b =>
+        const ownFarm = homeDomain ? ctx.constructs.find(b =>
             b.type === 'farm' && b.built && b.stock > 0 &&
             ctx.getDomainAt(b.tx, b.ty)?.id === homeDomain.id) : null;
         const grainNeed = Math.max(ctx.need('Food.Grain.Wheat'), ctx.need('Food.Grain.Wheat.Flour'), ctx.need('Food.Grain.Wheat.Bread'));

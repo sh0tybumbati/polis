@@ -2,9 +2,9 @@ import {
     TILE, MAP_OY, MAP_W, MAP_H, MAP_BOTTOM,
     T_SAND, T_GRASS, T_ROCK, T_FOREST, T_WATER,
     TILE_A, TILE_B, BIOME_A, BIOME_B,
-    ROAD_NONE, ROAD_DESIRE, ROAD_PAVED, ROAD_SPD, TILE_SPD,
-    BLDG
+    ROAD_NONE, ROAD_DESIRE, ROAD_PAVED, ROAD_SPD, TILE_SPD
 } from '../config/gameConstants.js';
+import { CONSTRUCTS } from '../content/constructs/index.js';
 import { NODES } from '../content/nodes/index.js';
 import { ITEMS } from '../content/items/index.js';
 import { MathUtils } from '../utils/MathUtils.js';
@@ -264,11 +264,11 @@ export default class MapManager {
             paintCircle(cx, cy, clearR, 2);
         }
 
-        for (const b of this.scene.buildings) {
+        for (const b of this.scene.constructs) {
             if (!b.built || b.faction === 'enemy') continue;
-            const cx = Math.floor((b.tx + b.size / 2));
-            const cy = Math.floor((b.ty + b.size / 2));
-            const r = BLDG[b.type]?.fogRadius ?? 3;
+            const cx = Math.floor((b.tx + b.width / 2));
+            const cy = Math.floor((b.ty + b.width / 2));
+            const r = CONSTRUCTS[b.type]?.fogRadius ?? 3;
             paintCircle(cx, cy, r, 2);
         }
     }
@@ -329,13 +329,13 @@ export default class MapManager {
         }
 
         // Buildings on minimap
-        for (const b of this.scene.buildings) {
+        for (const b of this.scene.constructs) {
             const vis = this.scene.visMap[b.ty]?.[b.tx] ?? 0;
             if (vis === 0) continue;
             const px = mx + (b.tx / MAP_W) * mw;
             const py = my + (b.ty / MAP_H) * mh;
-            const col = BLDG[b.type]?.color ?? 0x888888;
-            gfx.fillStyle(col, 1).fillRect(px, py, Math.max(2, tw * b.size), Math.max(2, th * b.size));
+            const col = CONSTRUCTS[b.type]?.color ?? 0x888888;
+            gfx.fillStyle(col, 1).fillRect(px, py, Math.max(2, tw * b.width), Math.max(2, th * b.width));
         }
 
         // Units on minimap
@@ -374,7 +374,7 @@ export default class MapManager {
         if (terr === 4 || terr === 5) return true; // 4 is T_WATER, 5 is T_MOUNTAIN
         const cell = this.scene.mapData[ty]?.[tx] ?? 0;
         if (cell < 98) return false;
-        const gate = this.scene.buildings.find(b => b.type === 'gate' && b.built && b.tx === tx && b.ty === ty);
+        const gate = this.scene.constructs.find(b => b.type === 'gate' && b.built && b.tx === tx && b.ty === ty);
         if (gate) return !gate.isOpen;
         return true;
     }

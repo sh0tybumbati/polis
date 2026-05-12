@@ -80,8 +80,8 @@ export default {
     },
 
     _collectWage(u) {
-        const workplace = u.taskBldgId
-            ? this.scene.buildings.find(b => b.id === u.taskBldgId && b.built) : null;
+        const workplace = u.taskConstructId
+            ? this.scene.constructs.find(b => b.id === u.taskConstructId && b.built) : null;
         const isProductionRole = u.role in WORKSHOP_JOBS;
         const isNodeWorker = u.role === 'woodcutter' || u.role === 'miner' || u.role === 'forager';
 
@@ -135,7 +135,7 @@ export default {
             return;
         }
 
-        const home = this.scene.buildings.find(b => b.id === u.homeBldgId);
+        const home = this.scene.constructs.find(b => b.id === u.homeConstructId);
         if (!home) return;
         const hx = (home.tx + home.size / 2) * TILE, hy = MAP_OY + (home.ty + home.size / 2) * TILE;
         const radius = u.age === 0 ? TILE : TILE * 3;
@@ -156,12 +156,12 @@ export default {
                 if (cap <= 0) return 0;
                 return 1.0 - Math.min(1.0, (this.scene.resources[res] || 0) / cap);
             },
-            buildings: this.scene.buildings,
+            buildings: this.scene.constructs,
             units: workers,
             resources: this.scene.resources,
             sheep: this.scene.sheep ?? [],
             domains: this.scene.domains ?? [],
-            getDomainAt: (tx, ty) => this.scene.buildingManager.getDomainAt(tx, ty),
+            getDomainAt: (tx, ty) => this.scene.constructManager.getDomainAt(tx, ty),
         };
         const cands = [];
         for (const job of Object.values(JOBS)) {

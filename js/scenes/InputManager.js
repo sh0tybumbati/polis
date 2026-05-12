@@ -1,6 +1,7 @@
 import {
-    TAP_DIST, MAP_OY, MAP_W, MAP_BOTTOM, TILE, BLDG
+    TAP_DIST, MAP_OY, MAP_W, MAP_BOTTOM, TILE
 } from '../config/gameConstants.js';
+import { CONSTRUCTS } from '../content/constructs/index.js';
 import { CROPS } from '../content/crops/index.js';
 
 export default class InputManager {
@@ -30,8 +31,8 @@ export default class InputManager {
                 s._ptrDownX = ptr.x; s._ptrDownY = ptr.y; s._dragging = false;
                 if (s.wallMode) {
                     s._wallDragEdges.clear();
-                    const edge = s.wallManager.nearestEdge(ptr.worldX, ptr.worldY);
-                    s._wallDragErasing = edge ? !!s.wallManager.getWall(edge.isH, edge.row, edge.col) : false;
+                    const edge = s.constructManager.nearestEdge(ptr.worldX, ptr.worldY);
+                    s._wallDragErasing = edge ? !!s.constructManager.getWall(edge.isH, edge.row, edge.col) : false;
                 }
                 if (s.zoneMode) {
                     s._zoneDragTiles.clear();
@@ -80,18 +81,18 @@ export default class InputManager {
 
             if (s.relocateMode && !isUI) {
                 if (!ptr.isDown) this._drawFurnishGhost(ptr); // reuse ghost
-            } else if (s.furnitureMode && !isUI) {
+            } else if (s.constructMode && !isUI) {
                 if (!ptr.isDown) this._drawFurnishGhost(ptr);
             } else if (s.wallMode && !isUI) {
                 if (ptr.isDown) {
-                    const edge = s.wallManager.nearestEdge(ptr.worldX, ptr.worldY);
+                    const edge = s.constructManager.nearestEdge(ptr.worldX, ptr.worldY);
                     if (edge) {
                         const key = `${edge.isH}:${edge.row}:${edge.col}`;
                         if (!s._wallDragEdges.has(key)) {
                             s._wallDragEdges.add(key);
-                            if (s._wallDragErasing) s.wallManager.removeWall(edge.isH, edge.row, edge.col);
-                            else s.wallManager.placeWall(edge.isH, edge.row, edge.col, s.wallMaterial);
-                            s.wallManager.renderWalls();
+                            if (s._wallDragErasing) s.constructManager.removeWall(edge.isH, edge.row, edge.col);
+                            else s.constructManager.placeWall(edge.isH, edge.row, edge.col, s.wallMaterial);
+                            s.constructManager.renderWalls();
                         }
                     }
                 } else {
@@ -194,22 +195,22 @@ export default class InputManager {
                 if (tile && s.relocateSrc) {
                     const { tx: sx, ty: sy } = s.relocateSrc;
                     if (tile.tx !== sx || tile.ty !== sy)
-                        s.furnitureManager.relocate(sx, sy, tile.tx, tile.ty);
+                        s.constructManager.relocate(sx, sy, tile.tx, tile.ty);
                 }
                 s.relocateMode = false; s.relocateSrc = null;
-                s.selectedFurniture = null; s.hoverGfx?.clear(); s.updateUI();
+                s.selectedConstruct = null; s.hoverGfx?.clear(); s.updateUI();
                 return;
             }
-            if (s.furnitureMode) {
+            if (s.constructMode) {
                 const tile = s.tileAt(wx, wy);
                 if (tile) {
-                    const existing = s.furnitureManager.getAt(tile.tx, tile.ty);
+                    const existing = s.constructManager.getAt(tile.tx, tile.ty);
                     if (existing) {
                         // Click built furniture to inspect; click unbuilt to cancel order
-                        if (existing.built) { s.selectedFurniture = { tx: tile.tx, ty: tile.ty, item: existing }; s.furnitureMode = false; s.furnitureItemId = null; s.hoverGfx?.clear(); s.updateUI(); }
-                        else s.furnitureManager.remove(tile.tx, tile.ty);
-                    } else if (s.furnitureItemId) {
-                        s.furnitureManager.placeOrder(tile.tx, tile.ty, s.furnitureItemId);
+                        if (existing.built) { s.selectedConstruct = { tx: tile.tx, ty: tile.ty, item: existing }; s.constructMode = false; s.placementType = null; s.hoverGfx?.clear(); s.updateUI(); }
+                        else s.constructManager.removeConstruct(existing);
+                    } else if (s.placementType) {
+                        s.constructManager.placeConstruct(s.placementType, tile.tx, tile.ty);
                     }
                 }
                 return;
@@ -217,12 +218,12 @@ export default class InputManager {
             if (s.wallMode) {
                 // Drag already painted; single tap on a fresh edge also paints
                 if (s._wallDragEdges.size === 0) {
-                    const edge = s.wallManager.nearestEdge(wx, wy);
+                    const edge = s.constructManager.nearestEdge(wx, wy);
                     if (edge) {
-                        const existing = s.wallManager.getWall(edge.isH, edge.row, edge.col);
-                        if (existing) s.wallManager.removeWall(edge.isH, edge.row, edge.col);
-                        else s.wallManager.placeWall(edge.isH, edge.row, edge.col, s.wallMaterial);
-                        s.wallManager.renderWalls();
+                        const existing = s.constructManager.getWall(edge.isH, edge.row, edge.col);
+                        if (existing) s.constructManager.removeWall(edge.isH, edge.row, edge.col);
+                        else s.constructManager.placeWall(edge.isH, edge.row, edge.col, s.wallMaterial);
+                        s.constructManager.renderWalls();
                     }
                 }
                 s._wallDragEdges.clear();
@@ -258,7 +259,7 @@ export default class InputManager {
             s.deselect();
             s.selectedBuilding = null;
             s.selectedNode = null;
-            s.selectedFurniture = null;
+            s.selectedConstruct = null;
             s.zoneManager?.clearSelection();
             s.selectedZoneTile  = null;
             s.selectedZoneTiles = null;
@@ -267,8 +268,8 @@ export default class InputManager {
             if (hit && !hit.isEnemy) { s.selectUnit(hit.id, ptr.event?.shiftKey ?? false); return; }
             if (bldg) { s.selectedBuilding = bldg; s.updateUI(); return; }
             if (node) { s.selectedNode = node; s.updateUI(); return; }
-            const furnHit = s.furnitureManager?.findAt(wx, wy);
-            if (furnHit) { s.selectedFurniture = furnHit; s.updateUI(); return; }
+            const furnHit = s.constructManager?.findAt(wx, wy);
+            if (furnHit) { s.selectedConstruct = furnHit; s.updateUI(); return; }
 
             const tile = s.tileAt(wx, wy);
             if (tile && s.zoneManager) {
@@ -305,7 +306,7 @@ export default class InputManager {
             cam.setZoom(Phaser.Math.Clamp(cam.zoom * (dy > 0 ? 0.9 : 1.1), 0.3, 3));
         });
 
-        s.input.keyboard?.on('keydown-ESC', () => { s.bldgType = null; s.roadMode = false; s.wallMode = false; s.furnitureMode = false; s.furnitureItemId = null; s.relocateMode = false; s.relocateSrc = null; s.selectedFurniture = null; s.zoneMode = null; s._zoneDragStart = null; s.selectedZoneTile = null; s.selectedZoneTiles = null; s.selectedZoneType = null; s.selectedZoneCrop = null; s.zoneManager?.clearSelection(); s.deselect(); s.selectedBuilding = null; s.hoverGfx.clear(); s.updateUI(); });
+        s.input.keyboard?.on('keydown-ESC', () => { s.bldgType = null; s.roadMode = false; s.wallMode = false; s.constructMode = false; s.placementType = null; s.relocateMode = false; s.relocateSrc = null; s.selectedConstruct = null; s.zoneMode = null; s._zoneDragStart = null; s.selectedZoneTile = null; s.selectedZoneTiles = null; s.selectedZoneType = null; s.selectedZoneCrop = null; s.zoneManager?.clearSelection(); s.deselect(); s.selectedBuilding = null; s.hoverGfx.clear(); s.updateUI(); });
         s.input.keyboard?.on('keydown-A', () => s.units.filter(u => !u.isEnemy).forEach(u => s.selectUnit(u.id, true)));
         s.input.keyboard?.on('keydown-F', () => { const sel = s.units.filter(u => u.selected && !u.isEnemy); if (sel.length) s.moveSelectedTo((MAP_W / 2) * TILE, MAP_OY + (MAP_H - 10) * TILE); });
         s.input.keyboard?.on('keydown-BACKTICK', () => s.scene.launch('SpriteEditorScene'));
@@ -319,7 +320,7 @@ export default class InputManager {
         const { tx, ty } = tile;
         const pad = 3, sz = TILE - pad * 2;
         const px = tx * TILE + pad, py = MAP_OY + ty * TILE + pad;
-        const existing = s.furnitureManager.getAt(tx, ty);
+        const existing = s.constructManager.getAt(tx, ty);
         const col = existing ? 0xff4444 : 0xffffff;
         s.hoverGfx.clear()
             .fillStyle(col, 0.15).fillRect(px, py, sz, sz)
@@ -329,13 +330,13 @@ export default class InputManager {
     _drawWallGhost(ptr) {
         const s = this.scene;
         if (ptr.y < MAP_OY || ptr.y > s.SH - (s.uiManager?.L?.PANEL_H ?? 190)) { s.hoverGfx?.clear(); return; }
-        const edge = s.wallManager.nearestEdge(ptr.worldX, ptr.worldY);
+        const edge = s.constructManager.nearestEdge(ptr.worldX, ptr.worldY);
         if (!edge) { s.hoverGfx?.clear(); return; }
         const { isH, row, col } = edge;
         const px = col * TILE, py = MAP_OY + row * TILE;
-        const existing = s.wallManager.getWall(isH, row, col);
+        const existing = s.constructManager.getWall(isH, row, col);
         const W = 6; // mirror WallManager.W
-        const col_c = existing ? 0xff4444 : s.wallManager.getMaterialColor(s.wallMaterial ?? 'Materials.Wood.Pine');
+        const col_c = existing ? 0xff4444 : s.constructManager.getMaterialColor(s.wallMaterial ?? 'Materials.Wood.Pine');
         const alpha = existing ? 0.9 : 0.7;
         s.hoverGfx.clear().fillStyle(col_c, alpha);
         if (isH) s.hoverGfx.fillRect(px, py - W / 2, TILE, W);
@@ -395,12 +396,13 @@ export default class InputManager {
         const s = this.scene;
         if (!s.bldgType || ptr.y < MAP_OY || ptr.y > s.SH - (s.uiManager?.L?.PANEL_H ?? 190)) { s.hoverGfx?.clear(); return; }
         const tile = s.tileAt(ptr.worldX, ptr.worldY); if (!tile) { s.hoverGfx?.clear(); return; }
-        const def = BLDG[s.bldgType];
-        const free = s.buildingManager.isFree(tile.tx, tile.ty, def.size, s.bldgType);
-        const canAfford = !def.cost || s.economyManager.afford(def.cost);
-        const col = !free ? 0xff4444 : canAfford ? 0xffffff : 0xffaa44;
-        const size = def.size * TILE, px = tile.tx * TILE, py = MAP_OY + tile.ty * TILE;
-        s.hoverGfx.clear().fillStyle(col, 0.15).fillRect(px+1, py+1, size-2, size-2)
-            .lineStyle(2, col, 0.6).strokeRect(px+1, py+1, size-2, size-2);
+        const def = CONSTRUCTS[s.bldgType];
+        if (!def) { s.hoverGfx?.clear(); return; }
+        const free = s.constructManager.isFree(tile.tx, tile.ty, def.width, def.height, s.bldgType);
+        const cost = s.economyManager.afford(def.cost ?? {}); // basic afford check
+        const col = !free ? 0xff4444 : cost ? 0xffffff : 0xffaa44;
+        const w = def.width * TILE, h = def.height * TILE, px = tile.tx * TILE, py = MAP_OY + tile.ty * TILE;
+        s.hoverGfx.clear().fillStyle(col, 0.15).fillRect(px+1, py+1, w-2, h-2)
+            .lineStyle(2, col, 0.6).strokeRect(px+1, py+1, w-2, h-2);
     }
 }

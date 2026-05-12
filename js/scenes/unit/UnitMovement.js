@@ -1,7 +1,7 @@
 import {
     TILE, MAP_OY, MAP_W, MAP_H,
     TILE_SPD, DESIRE_THRESHOLD, ROAD_DESIRE, ROAD_NONE,
-    BLDG,
+    CONSTRUCTS,
 } from '../../config/gameConstants.js';
 import { ITEMS } from '../../content/items/index.js';
 
@@ -17,10 +17,10 @@ export default {
             const stepY = u.y + Math.sin(a) * TILE * 1.5;
             const checkTx = Math.floor(stepX / TILE);
             const checkTy = Math.floor((stepY - MAP_OY) / TILE);
-            const gate = this.scene.buildings.find(b =>
+            const gate = this.scene.constructs.find(b =>
                 b.type === 'gate' && b.built && !b.isOpen && !b.faction &&
-                checkTx >= b.tx && checkTx <= b.tx + (b.size ?? 1) - 1 &&
-                checkTy >= b.ty && checkTy <= b.ty + (b.size ?? 1) - 1);
+                checkTx >= b.tx && checkTx <= b.tx + (b.width ?? 1) - 1 &&
+                checkTy >= b.ty && checkTy <= b.ty + (b.width ?? 1) - 1);
             if (gate) {
                 u._gateAttackTimer = (u._gateAttackTimer ?? 0) + dt;
                 if (u._gateAttackTimer >= 1.2) {
@@ -40,8 +40,8 @@ export default {
 
         let onionMult = 1.0;
         if (!u.isEnemy && u.type === 'worker') {
-            const nearOnion = this.scene.buildings.some(b => b.type === 'garden' && b.built && b.cropType === 'onions'
-                && Phaser.Math.Distance.Between(u.x, u.y, (b.tx+b.size/2)*TILE, MAP_OY+(b.ty+b.size/2)*TILE) < 5 * TILE);
+            const nearOnion = this.scene.constructs.some(b => b.type === 'garden' && b.built && b.cropType === 'onions'
+                && Phaser.Math.Distance.Between(u.x, u.y, (b.tx+b.width/2)*TILE, MAP_OY+(b.ty+b.width/2)*TILE) < 5 * TILE);
             if (nearOnion) onionMult = 1.25;
             if (this.scene.foodPressure) onionMult *= 0.7;
             // Hunger slows movement. Starving workers (food=0) move at 60% speed.
@@ -67,24 +67,24 @@ export default {
 
     _bldgDoor(b) {
         return {
-            x: (b.tx + b.size / 2) * TILE,
-            y: MAP_OY + (b.ty + b.size) * TILE - 4,
+            x: (b.tx + b.width / 2) * TILE,
+            y: MAP_OY + (b.ty + b.width) * TILE - 4,
         };
     },
 
     _destroyBuilding(b) {
         this.scene.uiManager.showFloatText(
-            (b.tx + b.size / 2) * TILE, MAP_OY + b.ty * TILE - 8,
-            `${BLDG[b.type]?.label ?? b.type} destroyed!`, '#ff4422');
-        this.scene.buildingManager.demolishBuilding(b);
+            (b.tx + b.width / 2) * TILE, MAP_OY + b.ty * TILE - 8,
+            `${CONSTRUCTS[b.type]?.label ?? b.type} destroyed!`, '#ff4422');
+        this.scene.constructManager.demolishBuilding(b);
     },
 
     _nearestPlayerBuilding(x, y) {
         let best = null, bd = Infinity;
-        for (const b of this.scene.buildings) {
+        for (const b of this.scene.constructs) {
             if (b.faction || !b.built) continue;
-            const bx = (b.tx + b.size / 2) * TILE;
-            const by = MAP_OY + (b.ty + b.size / 2) * TILE;
+            const bx = (b.tx + b.width / 2) * TILE;
+            const by = MAP_OY + (b.ty + b.width / 2) * TILE;
             const d = Phaser.Math.Distance.Between(x, y, bx, by);
             if (d < bd) { bd = d; best = b; }
         }
@@ -92,7 +92,7 @@ export default {
     },
 
     getEnemyVillageCenter() {
-        const th = this.scene.buildings.find(b => b.faction === 'enemy' && b.type === 'townhall' && b.built);
+        const th = this.scene.constructs.find(b => b.faction === 'enemy' && b.type === 'townhall' && b.built);
         if (th) return { x: (th.tx + 1) * TILE, y: MAP_OY + (th.ty + 1) * TILE };
         return { x: MAP_W / 2 * TILE, y: MAP_OY + 7 * TILE };
     },

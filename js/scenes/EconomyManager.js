@@ -1,7 +1,7 @@
 import {
-    BLDG, TILE, MAP_OY, APPLIANCE_DEF, BLDG_VOLUME,
+    TILE, MAP_OY, APPLIANCE_DEF, BLDG_VOLUME,
 } from '../config/gameConstants.js';
-import { BUILDINGS } from '../content/buildings/index.js';
+import { CONSTRUCTS as BUILDINGS } from '../content/constructs/index.js';
 import { ITEMS } from '../content/items/index.js';
 
 export default class EconomyManager {
@@ -19,15 +19,15 @@ export default class EconomyManager {
             hasStorageSpace:(key)           => true,  // local building inventory, always room
             gainXp:         (unit, skill)   => scene.unitManager._gainSkillXp(unit, skill),
             floatText:      (bldg, txt, col) => scene.uiManager.showFloatText(
-                                                (bldg.tx + bldg.size / 2) * TILE,
+                                                (bldg.tx + bldg.width / 2) * TILE,
                                                 MAP_OY + bldg.ty * TILE - 8, txt, col),
             floatTextAt:    (x, y, txt, col) => scene.uiManager.showFloatText(x, y, txt, col),
-            redrawBuilding: (bldg)          => scene.buildingManager.redrawBuilding(bldg),
+            redrawBuilding: (bldg)          => scene.constructManager.redrawBuilding(bldg),
             processOrders:  (bldg, delta)   => mgr._processOrders(bldg, delta),
             addGraphics:    ()              => scene.add.graphics().setDepth(7),
             tween:          (cfg)           => scene.tweens.add(cfg),
             get resources() { return scene.resources; },
-            get buildings() { return scene.buildings; },
+            get constructs() { return scene.constructs; },
             get sheep()     { return scene.sheep; },
             get units()     { return scene.units; },
         };
@@ -46,7 +46,7 @@ export default class EconomyManager {
         let keep = qty;
         if (keep >= 2) {
             const worker = this.scene.units.find(u =>
-                !u.isEnemy && u.hp > 0 && u.taskBldgId === b.id && u.workshopPhase === 'process');
+                !u.isEnemy && u.hp > 0 && u.taskConstructId === b.id && u.workshopPhase === 'process');
             if (worker) {
                 b.wagePending = b.wagePending ?? {};
                 b.wagePending[worker.id] = b.wagePending[worker.id] ?? {};
@@ -62,7 +62,7 @@ export default class EconomyManager {
 
     // Dawn preparation: calculate daily tithe for each building
     collectFirstFruits() {
-        for (const b of this.scene.buildings) {
+        for (const b of this.scene.constructs) {
             if (!b.built || b.faction || !b.dailyProduction) continue;
             
             b.tithePending = b.tithePending ?? {};
@@ -85,11 +85,11 @@ export default class EconomyManager {
     // Buildings the player can draw resources from: public commons + archon's private domain.
     _playerBuildings() {
         const archon = this.scene.units?.find(u => u.isArchon);
-        const archonHome = archon?.homeBldgId
-            ? this.scene.buildings.find(b => b.id === archon.homeBldgId)
+        const archonHome = archon?.homeConstructId
+            ? this.scene.constructs.find(b => b.id === archon.homeConstructId)
             : null;
         const playerDomainId = archonHome?.domainId ?? null;
-        return this.scene.buildings.filter(b => {
+        return this.scene.constructs.filter(b => {
             if (!b.built || b.faction) return false;
             if (b.isPublic) return true;
             if (playerDomainId && b.domainId === playerDomainId) return true;
@@ -237,7 +237,7 @@ export default class EconomyManager {
         }
         // Global/public check: sum of all public building capacities
         let totalFree = 0;
-        for (const bl of this.scene.buildings) {
+        for (const bl of this.scene.constructs) {
             if (bl.built && bl.isPublic && BLDG_VOLUME[bl.type]) {
                 totalFree += Math.max(0, BLDG_VOLUME[bl.type] - this.getBuildingCurrentVolume(bl));
             }
@@ -248,7 +248,7 @@ export default class EconomyManager {
     addResource(res, amount) {
         let remaining = amount;
         const volPer = ITEMS[res]?.volume ?? 0;
-        for (const b of this.scene.buildings) {
+        for (const b of this.scene.constructs) {
             if (remaining <= 0) break;
             if (b.built && b.isPublic && BLDG_VOLUME[b.type]) {
                 const freeVol = BLDG_VOLUME[b.type] - this.getBuildingCurrentVolume(b);
@@ -268,25 +268,8 @@ export default class EconomyManager {
 
     tick(delta) {
         this.syncResources();
-        this.tickProduction(delta);
-        this.tickBuildingOperations(delta);
+        this.scene.constructManager.tick(delta);
         this.tickResourceNodes(delta);
-        this.tickFarmRegrowth(delta);
-        this.tickHouseProduction(delta);
-        this.tickHouseBirths(delta);
-        this._refreshGarrisonBars(delta);
-    }
-
-    tickFarmRegrowth(delta) {
-        for (const b of this.scene.buildings) {
-            if (b.type !== 'farm' || b.stock > 0 || b.needsPlanting) continue;
-            b._regrowTimer = (b._regrowTimer ?? 0) + delta;
-            if (b._regrowTimer >= 90000) { // 90s day
-                b._regrowTimer = 0;
-                b.needsPlanting = true;
-                this.scene.buildingManager.redrawBuildingBar(b);
-            }
-        }
     }
 
     tickResourceNodes(delta) {
@@ -307,30 +290,6 @@ export default class EconomyManager {
         if (redraw) this.scene.mapManager.drawResourceNodes();
     }
 
-    _refreshGarrisonBars(delta) {
-        this._garrisonBarTimer = (this._garrisonBarTimer ?? 0) + delta;
-        if (this._garrisonBarTimer < 1000) return;
-        this._garrisonBarTimer = 0;
-        for (const b of this.scene.buildings) {
-            if (b.built && b.type === 'watchtower' && !b.faction)
-                this.scene.redrawBuildingBar(b);
-        }
-    }
-
-    tickProduction(delta) {
-        for (const b of this.scene.buildings) {
-            if (!b.built || b.faction === 'enemy') continue;
-            BUILDINGS[b.type]?.tick?.(b, delta, this.buildCtx(b));
-        }
-    }
-
-    _workerAt(b, role) {
-        const cx = (b.tx + b.size / 2) * TILE, cy = MAP_OY + (b.ty + b.size / 2) * TILE;
-        return this.scene.units.find(u =>
-            !u.isEnemy && u.hp > 0 && u.role === role && u.taskBldgId === b.id &&
-            Phaser.Math.Distance.Between(u.x, u.y, cx, cy) < TILE * 2) ?? null;
-    }
-
     _processOrders(workshop, delta) {
         if (!(workshop.orderQueue?.length)) return;
         const order = workshop.orderQueue[0];
@@ -345,7 +304,7 @@ export default class EconomyManager {
 
         workshop.orderQueue.shift();
 
-        const house = this.scene.buildings.find(h => h.id === order.houseBldgId);
+        const house = this.scene.constructs.find(h => h.id === order.houseBldgId);
         if (house && (house.applianceItems?.length ?? 0) < (house.applianceSlots ?? 2)) {
             house.applianceItems = house.applianceItems ?? [];
             house.applianceItems.push({ id: order.appId, label: app.label });
@@ -353,142 +312,6 @@ export default class EconomyManager {
             this.scene.uiManager.showFloatText(
                 (house.tx + 1) * TILE, MAP_OY + house.ty * TILE - 10,
                 `📦 ${app.label}`, '#88cc88');
-        }
-    }
-
-    tickHouseBirths(delta) {
-        // Asymptotic growth: birth interval scales with total adult population.
-        // Formula: effectiveMs = baseMs × max(1, adultPop / POP_BASELINE)
-        // At pop=8: base rate. At pop=16: 2× slower. At pop=4: 2× faster.
-        const POP_BASELINE = 8;
-        const totalAdults = this.scene.units.filter(u =>
-            !u.isEnemy && u.type === 'worker' && u.age >= 2 && u.hp > 0).length;
-        const growthScale = Math.max(0.5, totalAdults / POP_BASELINE);
-        const effectiveSpawnMs = BLDG.house.spawnMs * growthScale;
-
-        for (const house of this.scene.buildings) {
-            if (!house.built || house.faction || house.type !== 'house') continue;
-
-            const cap = this.scene.buildingManager.getHouseCapacity(house);
-            const residents = this.scene.units.filter(u =>
-                u.homeBldgId === house.id && !u.isEnemy && u.hp > 0);
-            const adults = residents.filter(u => u.age >= 2);
-
-            this._tryMarriage(adults);
-
-            const father = adults.find(u =>
-                u.gender === 'male' && u.spouseId && adults.some(f => f.id === u.spouseId));
-            const mother = father ? adults.find(u => u.id === father.spouseId) : null;
-
-            if (!father || !mother || residents.length >= cap) {
-                house.spawnTimer = 0;
-                continue;
-            }
-
-            house.spawnTimer = (house.spawnTimer ?? 0) + delta;
-            if (house.spawnTimer >= effectiveSpawnMs) {
-                house.spawnTimer = 0;
-                this.scene.unitManager.spawnChild(father, mother);
-            }
-        }
-    }
-
-    _tryMarriage(adults) {
-        const single = adults.filter(u => !u.spouseId);
-        const male   = single.find(u => u.gender === 'male');
-        const female = single.find(u => u.gender === 'female');
-        if (!male || !female) return;
-        male.spouseId   = female.id;
-        female.spouseId = male.id;
-        this.scene.uiManager.showFloatText(
-            male.x, male.y - 20, '💍 wed', '#ffeeaa');
-    }
-
-    tickBuildingOperations(delta) {
-        // Training queues handled in UnitManager
-    }
-
-    tickHouseProduction(delta) {
-        const bm = this.scene.buildingManager;
-        for (const house of this.scene.buildings) {
-            if (!house.built || house.faction || house.type !== 'house') continue;
-            const apps = house.applianceItems;
-            if (!apps?.length) continue;
-            const inv = house.inventory ?? (house.inventory = {});
-
-            const hasResident = this.scene.units.some(u =>
-                u.homeBldgId === house.id && !u.isEnemy && u.hp > 0 && u.age >= 2);
-            if (!hasResident) continue;
-
-            // Room gating: undefined rooms = legacy, all appliances work
-            const rooms = house.rooms;
-            const hasKitchen  = !rooms || rooms.includes('kitchen');
-            const hasWorkshop = !rooms || rooms.includes('workshop');
-
-            for (const app of apps) {
-                switch (app.id) {
-                    case 'millstone':
-                        if (!hasKitchen) break;
-                        house._millTimer = (house._millTimer ?? 0) + delta;
-                        if (house._millTimer >= 18000 && (inv['Food.Grain.Wheat'] ?? 0) >= 1) {
-                            inv['Food.Grain.Wheat']--;
-                            inv['Food.Grain.Wheat.Flour'] = (inv['Food.Grain.Wheat.Flour'] ?? 0) + 2;
-                            house._millTimer = 0;
-                            this.scene.uiManager.showFloatText(
-                                (house.tx + 1) * TILE, MAP_OY + house.ty * TILE - 8,
-                                '🌾 ground', '#ddcc88');
-                        }
-                        break;
-
-                    case 'hearth':
-                        if (!hasKitchen) break;
-                        house._hearthTimer = (house._hearthTimer ?? 0) + delta;
-                        if (house._hearthTimer >= 24000 && (inv['Food.Grain.Wheat.Flour'] ?? 0) >= 2) {
-                            inv['Food.Grain.Wheat.Flour'] -= 2;
-                            inv['Food.Grain.Wheat.Bread'] = (inv['Food.Grain.Wheat.Bread'] ?? 0) + 1;
-                            house._hearthTimer = 0;
-                            this.scene.uiManager.showFloatText(
-                                (house.tx + 1) * TILE, MAP_OY + house.ty * TILE - 8,
-                                '🍞 home bread', '#ffdd88');
-                        }
-                        break;
-
-                    case 'loom':
-                        if (!hasWorkshop) break;
-                        house._loomTimer = (house._loomTimer ?? 0) + delta;
-                        if (house._loomTimer >= 20000 && (inv['Textile.Fiber.Wool'] ?? 0) >= 2) {
-                            inv['Textile.Fiber.Wool'] -= 2;
-                            house._loomTimer = 0;
-                            this.addResource('Textile.Fiber.Wool', 1);
-                            this.scene.uiManager.showFloatText(
-                                (house.tx + 1) * TILE, MAP_OY + house.ty * TILE - 8,
-                                '🧶 spun', '#eeddcc');
-                        }
-                        break;
-
-                    case 'workbench':
-                        if (!hasWorkshop) break;
-                        house._benchTimer = (house._benchTimer ?? 0) + delta;
-                        if (house._benchTimer >= 30000) {
-                            house._benchTimer = 0;
-                            const craftsman = this.scene.units.find(u =>
-                                u.homeBldgId === house.id && !u.isEnemy && u.hp > 0 && u.age >= 2);
-                            if (craftsman) this.scene.unitManager._gainSkillXp(craftsman, 'woodcutting');
-                        }
-                        break;
-
-                    case 'anvil':
-                        if (!hasWorkshop) break;
-                        house._anvilTimer = (house._anvilTimer ?? 0) + delta;
-                        if (house._anvilTimer >= 30000) {
-                            house._anvilTimer = 0;
-                            const smith = this.scene.units.find(u =>
-                                u.homeBldgId === house.id && !u.isEnemy && u.hp > 0 && u.age >= 2);
-                            if (smith) this.scene.unitManager._gainSkillXp(smith, 'forge');
-                        }
-                        break;
-                }
-            }
         }
     }
 

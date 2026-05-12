@@ -1,5 +1,5 @@
-import { TILE, MAP_OY, BLDG, BLDG_CATS, FM_TYPES, FM_LABELS, computeBuildCost } from '../../config/gameConstants.js';
-import { FURNITURE, FURNITURE_CATS } from '../../content/furniture/index.js';
+import { TILE, MAP_OY, FM_TYPES, FM_LABELS } from '../../config/gameConstants.js';
+import { CONSTRUCTS, CONSTRUCT_CATS, computeBuildCost } from '../../content/constructs/index.js';
 import { CROPS } from '../../content/crops/index.js';
 import UIPanel from '../UIPanel.js';
 
@@ -73,8 +73,8 @@ export default {
             { label: '📦 Inv', color: 0x1a2030, dimmed: !hasInv,
               cb: () => { this.showInventoryModal(b); } },
             b.deconstructing
-                ? { label: '✗ Cancel', color: 0x332211, cb: () => { s.buildingManager.cancelDeconstruct(b); this.updateUI(); } }
-                : { label: '🔨 Demo',  color: 0x441111, cb: () => { s.buildingManager.orderDeconstruct(b); this.updateUI(); } },
+                ? { label: '✗ Cancel', color: 0x332211, cb: () => { s.constructManager.cancelDeconstruct(b); this.updateUI(); } }
+                : { label: '🔨 Demo',  color: 0x441111, cb: () => { s.constructManager.orderDeconstruct(b); this.updateUI(); } },
             { label: '✕ Close', color: 0x2a1c10, cb: close },
         ]);
     },
@@ -113,7 +113,7 @@ export default {
                     color: can ? col : 0x2a1c10, dimmed: !can, callback: () => {
                         if (!can) return;
                         s.economyManager.spend(cost);
-                        const cx = (b.tx+b.size/2)*TILE, cy = MAP_OY+(b.ty+b.size/2)*TILE;
+                        const cx = (b.tx+b.width/2)*TILE, cy = MAP_OY+(b.ty+b.width/2)*TILE;
                         s.spawnUnit(type, cx+Phaser.Math.Between(-16,16), cy+Phaser.Math.Between(-8,8), false);
                         this.updateUI();
                     }});
@@ -133,7 +133,7 @@ export default {
                     callback: () => {
                         if (!can) return;
                         s.economyManager.spend(cost);
-                        const cx = (b.tx+b.size/2)*TILE, cy = MAP_OY+(b.ty+b.size/2)*TILE;
+                        const cx = (b.tx+b.width/2)*TILE, cy = MAP_OY+(b.ty+b.width/2)*TILE;
                         s.spawnUnit('cavalry', cx, cy, false);
                         this.updateUI();
                     }});
@@ -147,7 +147,7 @@ export default {
                     callback: () => {
                         if (!can) { this.showPhaseMessage('Not enough wheat!', 0xff4444); return; }
                         s.economyManager.takeFromCommons('Food.Grain.Wheat', 5);
-                        const cx = (b.tx+b.size/2)*TILE, cy = MAP_OY+(b.ty+b.size/2)*TILE;
+                        const cx = (b.tx+b.width/2)*TILE, cy = MAP_OY+(b.ty+b.width/2)*TILE;
                         s.spawnUnit('scout', cx, cy, false);
                         this.updateUI();
                     }});
@@ -204,7 +204,7 @@ export default {
         if (this._actUnitTab === 'Orders') {
             items.push({ label: 'Recall Home', color: 0x223344, callback: () => {
                 workers.forEach(u => {
-                    const home = s.buildings.find(b => b.id === u.homeBldgId);
+                    const home = s.constructs.find(b => b.id === u.homeConstructId);
                     if (home) u.moveTo = { x: (home.tx+home.size/2)*TILE, y: MAP_OY+(home.ty+home.size/2)*TILE };
                     u.taskType = null; u.targetNode = null;
                 });
@@ -271,7 +271,7 @@ export default {
         }
 
         if (this._actMilTab === 'Orders') {
-            const towers = s.buildings.filter(b => b.built && !b.faction && b.type === 'watchtower');
+            const towers = s.constructs.filter(b => b.built && !b.faction && b.type === 'watchtower');
             if (towers.length > 0) {
                 items.push({ label: 'Garrison Tower', color: 0x334455, callback: () => {
                     const cx = sel.reduce((a, u) => a + u.x, 0) / sel.length;
@@ -334,7 +334,7 @@ export default {
     },
 
     _renderCategoryTabs(x, y, w, h) {
-        const cats  = [...Object.keys(BLDG_CATS), 'Furnish', 'Zones'];
+        const cats  = [...Object.keys(CONSTRUCT_CATS), 'Furnish', 'Zones'];
         const tabW  = Math.floor((w - 2) / cats.length);
 
         cats.forEach((cat, i) => {
@@ -365,7 +365,7 @@ export default {
     },
 
     _renderFurnishSubTabs(x, y, w, h) {
-        const cats = Object.keys(FURNITURE_CATS);
+        const cats = Object.keys(CONSTRUCT_CATS);
         const tabW = Math.floor((w - 2) / cats.length);
         cats.forEach((cat, i) => {
             const active = (this.scene.furnishCat ?? 'Living') === cat;
@@ -390,10 +390,10 @@ export default {
     _buildMenuItems() {
         if (this.scene.buildCat === 'Furnish') {
             const cat  = this.scene.furnishCat ?? 'Living';
-            const ids  = FURNITURE_CATS[cat] ?? [];
-            return ids.map(itemId => {
-                const def      = FURNITURE[itemId];
-                const isActive = this.scene.furnitureItemId === itemId && this.scene.furnitureMode;
+            const ids  = CONSTRUCT_CATS[cat] ?? [];
+            return ids.map(type => {
+                const def      = CONSTRUCTS[type];
+                const isActive = this.scene.placementType === type && this.scene.constructMode;
                 return {
                     label:    def.label,
                     sublabel: def.desc,
@@ -401,11 +401,11 @@ export default {
                     active:   isActive,
                     callback: () => {
                         if (isActive) {
-                            this.scene.furnitureMode   = false;
-                            this.scene.furnitureItemId = null;
+                            this.scene.constructMode   = false;
+                            this.scene.placementType = null;
                         } else {
-                            this.scene.furnitureMode   = true;
-                            this.scene.furnitureItemId = itemId;
+                            this.scene.constructMode   = true;
+                            this.scene.placementType = type;
                             this.scene.bldgType  = null;
                             this.scene.roadMode  = false;
                             this.scene.wallMode  = false;
@@ -427,7 +427,7 @@ export default {
                     callback: () => {
                         s.zoneMode      = active ? null : mode;
                         s.bldgType      = null; s.roadMode  = false;
-                        s.wallMode      = false; s.furnitureMode = false;
+                        s.wallMode      = false; s.constructMode = false;
                         s.hoverGfx?.clear();
                         this.updateUI();
                     },
@@ -454,9 +454,9 @@ export default {
         }
 
         const mat   = this.scene.bldgMaterial ?? 'Materials.Wood.Pine';
-        const bldgs = BLDG_CATS[this.scene.buildCat] ?? [];
+        const bldgs = CONSTRUCT_CATS[this.scene.buildCat] ?? [];
         const items = bldgs.map(type => {
-            const def      = BLDG[type];
+            const def      = CONSTRUCTS[type];
             const cost     = computeBuildCost(type, mat);
             const canAfford = !Object.keys(cost).length || this.scene.economyManager.afford(cost);
             const isActive  = this.scene.bldgType === type;
@@ -471,7 +471,7 @@ export default {
                     this.scene.bldgType      = isActive ? null : type;
                     this.scene.roadMode      = false;
                     this.scene.wallMode      = false;
-                    this.scene.furnitureMode = false;
+                    this.scene.constructMode = false;
                     this.scene.hoverGfx?.clear();
                     this.updateUI();
                 },

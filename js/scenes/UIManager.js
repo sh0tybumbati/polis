@@ -1,8 +1,9 @@
 import {
     MAP_W, MAP_H, TILE, MAP_OY,
-    BLDG, BLDG_CATS, FM_TYPES, FM_LABELS, UNIT_NAMES, VET_LEVELS, computeBuildCost, SEASONS, SEASON_DAYS,
+    FM_TYPES, FM_LABELS, UNIT_NAMES, VET_LEVELS, SEASONS, SEASON_DAYS,
     BLDG_VOLUME,
 } from '../config/gameConstants.js';
+import { CONSTRUCTS, computeBuildCost } from '../content/constructs/index.js';
 import UIPanel from './UIPanel.js';
 import { ITEMS } from '../content/items/index.js';
 import { WORKSHOP_JOBS } from '../content/jobs/index.js';
@@ -233,7 +234,7 @@ export default class UIManager {
         const foodWarn = units.length > 0 && avgNut < 0.3 && this.scene.mealsDone > 0;
         const w = r['Food.Grain.Wheat'] ?? 0, br = r['Food.Grain.Wheat.Bread'] ?? 0;
         const mt = r['Food.Meat.Venison'] ?? 0, sa = r['Food.Meat.Venison.Sausages'] ?? 0;
-        const ct = this.scene.buildings.reduce((s, b) => s + (b.inbox?.['Food.Meat.Venison.Cuts'] ?? 0), 0);
+        const ct = this.scene.constructs.reduce((s, b) => s + (b.inbox?.['Food.Meat.Venison.Cuts'] ?? 0), 0);
         const narrow = this.L.W < 480;
         const meatStr = (!narrow && (mt + ct + sa) > 0) ? `  🥩${mt + ct + sa}` : '';
         const foodStr = narrow ? `🌾${w} 🍞${br}` : `🌾${w}  🍞${br}${meatStr}`;
@@ -244,9 +245,9 @@ export default class UIManager {
         this.scene.stoneText?.setText(narrow ? `⛏${stone}` : `⛏ ${stone}/${stoneMax}`);
 
         const adults = units.filter(u => u.type === 'worker' && u.age >= 2).length;
-        const popCap = this.scene.buildings
-            .filter(b => !b.faction && b.built && BLDG[b.type]?.capacity)
-            .reduce((s, b) => s + BLDG[b.type].capacity, 0);
+        const popCap = this.scene.constructs
+            .filter(b => !b.faction && b.built && CONSTRUCTS[b.type]?.capacity)
+            .reduce((s, b) => s + CONSTRUCTS[b.type].capacity, 0);
         this.scene.workerInfo?.setText(narrow ? `👥${adults}` : `👥 ${adults}/${popCap}`);
 
         const phase = this.scene.phase;

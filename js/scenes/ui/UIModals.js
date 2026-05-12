@@ -1,4 +1,5 @@
-import { BLDG, BLDG_VOLUME } from '../../config/gameConstants.js';
+import { BLDG_VOLUME } from '../../config/gameConstants.js';
+import { CONSTRUCTS } from '../../content/constructs/index.js';
 import { ITEMS } from '../../content/items/index.js';
 
 export default {
@@ -15,7 +16,7 @@ export default {
         border.lineStyle(2, 0xc8a030, 0.8).strokeRect(mx, my, mw, mh);
         objs.push(bg, panel, border);
 
-        const def = BLDG[b.type];
+        const def = CONSTRUCTS[b.type];
         const titleTxt = this._ui(this.scene.add.text(mx + mw / 2, my + 15,
             `📦 ${def?.label ?? b.type}`, {
                 fontSize: '16px', color: '#ffdd88', fontFamily: 'monospace',

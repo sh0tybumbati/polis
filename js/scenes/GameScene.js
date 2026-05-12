@@ -1,21 +1,20 @@
 import { SCENE_KEYS } from '../config/sceneKeys.js';
 import {
     MAP_W, MAP_H, TILE, MAP_OY, MAP_BOTTOM,
-    DAY_DURATION, BLDG
+    DAY_DURATION
 } from '../config/gameConstants.js';
+import { CONSTRUCTS } from '../content/constructs/index.js';
 
 // Set to false to re-enable enemies once systems are tuned
 const ENEMIES_DISABLED = true;
 import MapManager from './MapManager.js';
 import UIManager from './UIManager.js';
 import EconomyManager from './EconomyManager.js';
-import BuildingManager from './BuildingManager.js';
 import UnitManager from './UnitManager.js';
 import InputManager from './InputManager.js';
 import NatureManager from './NatureManager.js';
 import WorldManager from './WorldManager.js';
-import WallManager from './WallManager.js';
-import FurnitureManager from './FurnitureManager.js';
+import ConstructManager from './ConstructManager.js';
 import ZoneManager from './ZoneManager.js';
 
 export default class GameScene extends Phaser.Scene {
@@ -25,12 +24,13 @@ export default class GameScene extends Phaser.Scene {
 
     init() {
         // Core State
-        this.mapData    = [];   
         this.terrainData = [];  
         this.biomeData  = [];   
+        this.mapData    = [];   
+        this.roadMap    = [];   
+        this.constructs = [];   // Previously this.constructs
+        this.units      = [];   
         this.resNodes  = [];
-        this.buildings = [];
-        this.units     = [];
         this.selIds    = new Set();
         this.resources  = {
             'Food.Grain.Wheat': 0, 'Food.Grain.Wheat.Flour': 0, 'Food.Grain.Wheat.Bread': 0,
@@ -83,7 +83,6 @@ export default class GameScene extends Phaser.Scene {
         this._edgeEntryTimer = 0; 
         this.sheep       = [];   
         this.trafficMap  = [];   
-        this.roadMap     = [];   
         this.roadGfx     = null; 
         this.roadMode    = false;
         this._roadsDirty = false;
@@ -91,10 +90,10 @@ export default class GameScene extends Phaser.Scene {
         this.wallMaterial = 'Materials.Wood.Pine';
         this._wallDragEdges = new Set();
         this._wallDragErasing = false;
-        this.furnitureMode   = false;
-        this.furnitureItemId = null;
+        this.constructMode   = false;
+        this.placementType = null;
         this.furnishCat      = 'Living';
-        this.selectedFurniture = null;
+        this.selectedConstruct = null;
         this.relocateMode    = false;
         this.relocateSrc     = null;
         this.timerMs   = DAY_DURATION;
@@ -114,13 +113,11 @@ export default class GameScene extends Phaser.Scene {
         this.mapManager = new MapManager(this);
         this.uiManager = new UIManager(this);
         this.economyManager = new EconomyManager(this);
-        this.buildingManager = new BuildingManager(this);
+        this.constructManager = new ConstructManager(this);
         this.unitManager = new UnitManager(this);
         this.inputManager = new InputManager(this);
         this.natureManager = new NatureManager(this);
         this.worldManager = new WorldManager(this);
-        this.wallManager      = new WallManager(this);
-        this.furnitureManager = new FurnitureManager(this);
         this.zoneManager      = new ZoneManager(this);
         this.zoneMode         = null; // 'work' | 'storage' | 'erase' | null
         this._zoneDragTiles   = new Set();
@@ -154,8 +151,7 @@ export default class GameScene extends Phaser.Scene {
         }
         console.log('[GameScene] map rows:', this.terrainData.length, 'cam center:', this.cameras.main.scrollX, this.cameras.main.scrollY);
         this.mapManager.drawMap();
-        this.wallManager.init();
-        this.furnitureManager.init();
+        this.constructManager.init();
         this.zoneManager.init();
 
         this.borderGfx = this._w(this.add.graphics().setDepth(1));
@@ -164,15 +160,14 @@ export default class GameScene extends Phaser.Scene {
         this.mapManager.initFog();
 
         if (loaded) {
-            this.wallManager.renderWalls();
-            this.furnitureManager.renderAll();
+            this.constructManager.renderAll();
             this.zoneManager.renderAll();
             // Redraw any desire/paved paths stored in roadMap
             for (let y = 0; y < this.roadMap.length; y++)
                 for (let x = 0; x < (this.roadMap[y]?.length ?? 0); x++)
                     if (this.roadMap[y][x] > 0) this.mapManager.drawDesirePath(x, y);
-
-            for (const b of this.buildings) this.buildingManager.redrawBuilding(b);
+            
+            this.constructManager.renderAll();
             for (const u of this.units) {
                 u.gfx = this._w(this.add.graphics().setDepth(6));
                 this.unitManager.redrawUnit(u);
@@ -254,10 +249,8 @@ export default class GameScene extends Phaser.Scene {
                 nextId: this.nextId, tickSpeed: this.tickSpeed, titheRate: this.titheRate,
                 terrainData: this.terrainData, biomeData: this.biomeData, mapData: this.mapData,
                 fordSet: [...this.fordSet], roadMap: this.roadMap, domains: this.domains,
-                walls:     this.wallManager.save(),
-                furniture: this.furnitureManager.save(),
-                zones:     this.zoneManager.save(),
-                buildings: this.buildings.map(b => this._serBuilding(b)),
+                constructs: this.constructManager.save(),
+                zones:      this.zoneManager.save(),
                 units:     this.units.map(u => this._serUnit(u)),
                 resNodes:  this.resNodes.map(n => this._serNode(n)),
                 deer:  this.deer.map(d => this._serAnimal(d)),
@@ -304,18 +297,12 @@ export default class GameScene extends Phaser.Scene {
 
             this.terrainData = s.terrainData; this.biomeData = s.biomeData; this.mapData = s.mapData;
             this.fordSet = new Set(s.fordSet ?? []); this.roadMap = s.roadMap ?? []; this.domains = s.domains ?? [];
-            this.wallManager.load(s.walls ?? null);
-            this.furnitureManager.load(s.furniture ?? null);
+            this.constructManager.load({ constructs: s.constructs, walls: s.walls, furniture: s.furniture });
             this.zoneManager.load(s.zones ?? null);
             // trafficMap is not saved — reinitialise blank so moveToward rows are always present
             this.trafficMap = Array.from({ length: MAP_H }, () => new Array(MAP_W).fill(0));
 
             this.resNodes  = (s.resNodes  ?? []).map(n => ({ ...n, gfx: null, labelObj: null }));
-            this.buildings = (s.buildings ?? []).map(b => ({
-                inbox: {}, ...b,
-                inventory: migrateKeys(b.inventory ?? {}),
-                gfx: null, barGfx: null, labelObj: null,
-            }));
             this.units     = (s.units     ?? []).map(u => {
                 const carrying = migrateKeys(u.carrying);
                 // Sanitise NaN values left by missing carrying keys in older saves
@@ -328,9 +315,9 @@ export default class GameScene extends Phaser.Scene {
             this.deer      = (s.deer      ?? []).map(d => ({ ...d, gfx: null }));
             this.sheep     = (s.sheep     ?? []).map(ss => ({ ...ss, gfx: null, followUnit: null }));
             // If no building has inventory (old saves pre-localization), seed townhall from legacy resources
-            const anyInventory = this.buildings.some(b => b.isPublic && Object.values(b.inventory ?? {}).some(v => v > 0));
+            const anyInventory = this.constructs.some(b => b.isPublic && Object.values(b.inventory ?? {}).some(v => v > 0));
             if (!anyInventory) {
-                const th = this.buildings.find(b => b.type === 'townhall' && b.isPublic);
+                const th = this.constructs.find(b => b.type === 'townhall' && b.isPublic);
                 if (th) th.inventory = { ...legacyResources };
             }
             // Derive scene.resources from building inventories (source of truth after this point)
@@ -343,23 +330,23 @@ export default class GameScene extends Phaser.Scene {
 
     showPhaseMessage(text, color) { this.uiManager.showPhaseMessage(text, color); }
     
-    placeBuiltBuilding(type, tx, ty) { return this.buildingManager.placeBuiltBuilding(type, tx, ty); }
-    placeBuilding(tx, ty) { this.buildingManager.placeBuilding(tx, ty); }
-    redrawBuilding(b) { this.buildingManager.redrawBuilding(b); }
-    redrawBuildingBar(b) { this.buildingManager.redrawBuildingBar(b); }
-    updateStorageCap() { this.buildingManager.updateStorageCap(); }
-    findBuildingAt(wx, wy) { return this.buildingManager.findBuildingAt(wx, wy); }
-    orderWorkersToBuilding(bldg) { return this.buildingManager.orderWorkersToBuilding(bldg); }
-    demolishBuilding(b) { this.buildingManager.demolishBuilding(b); }
+    placeBuiltBuilding(type, tx, ty) { return this.constructManager.placeBuiltBuilding(type, tx, ty); }
+    placeBuilding(tx, ty) { this.constructManager.placeBuilding(tx, ty); }
+    redrawBuilding(b) { this.constructManager.redrawBuilding(b); }
+    redrawBuildingBar(b) { this.constructManager.redrawBuildingBar(b); }
+    updateStorageCap() { this.constructManager.updateStorageCap(); }
+    findBuildingAt(wx, wy) { return this.constructManager.findBuildingAt(wx, wy); }
+    orderWorkersToBuilding(bldg) { return this.constructManager.orderWorkersToBuilding(bldg); }
+    demolishBuilding(b) { this.constructManager.demolishBuilding(b); }
     findNodeAt(wx, wy) { return this.mapManager.findNodeAt(wx, wy); }
     orderWorkersToNode(node) { return this.unitManager.orderWorkersToNode(node); }
     _slaughterSheep(b) { this.natureManager.slaughterSheep(b); }
     attractAdults() {
-        const homeless = this.units.filter(u => !u.isEnemy && u.hp > 0 && u.type === 'worker' && u.age >= 2 && !u.homeBldgId);
+        const homeless = this.units.filter(u => !u.isEnemy && u.hp > 0 && u.type === 'worker' && u.age >= 2 && !u.homeConstructId);
         for (const u of homeless) {
-            const house = this.buildings.find(b => b.built && !b.faction && BLDG[b.type]?.capacity &&
-                this.units.filter(w => w.homeBldgId === b.id && !w.isEnemy && w.hp > 0).length < BLDG[b.type].capacity);
-            if (house) u.homeBldgId = house.id;
+            const house = this.constructs.find(b => b.built && !b.faction && CONSTRUCTS[b.type]?.capacity &&
+                this.units.filter(w => w.homeConstructId === b.id && !w.isEnemy && w.hp > 0).length < CONSTRUCTS[b.type].capacity);
+            if (house) u.homeConstructId = house.id;
         }
     }
     
@@ -399,7 +386,7 @@ export default class GameScene extends Phaser.Scene {
             'Materials.Wood.Pine.Sticks':         8,
             'Materials.Stone.Limestone.Stones':   6,
         };
-        this.buildingManager.updateStorageCap();
+        this.constructManager.updateStorageCap();
         this.economyManager.syncResources();
 
         const sx = (camp.tx + camp.size / 2) * TILE, sy = MAP_OY + (camp.ty + camp.size / 2) * TILE;
@@ -409,7 +396,7 @@ export default class GameScene extends Phaser.Scene {
         founder.age        = 2;
         founder.isArchon   = true;
         founder.role       = 'builder';
-        founder.homeBldgId = camp.id;
+        founder.homeConstructId = camp.id;
         if (founder.attributes) {
             for (const k of Object.keys(founder.attributes))
                 founder.attributes[k] = Math.min(10, founder.attributes[k] + 2);
@@ -423,7 +410,7 @@ export default class GameScene extends Phaser.Scene {
         consort.age        = 2;
         consort.spouseId   = founder.id;
         consort.role       = 'farmer';
-        consort.homeBldgId = camp.id;
+        consort.homeConstructId = camp.id;
         founder.spouseId   = consort.id;
         if (consort.attributes) {
             for (const k of Object.keys(consort.attributes))
@@ -455,15 +442,15 @@ export default class GameScene extends Phaser.Scene {
                            : 12; // house
         }
 
-        const houses = this.buildings.filter(b => b.faction === 'enemy' && b.type === 'house');
-        const farm   = this.buildings.find(b => b.faction === 'enemy' && b.type === 'farm');
+        const houses = this.constructs.filter(b => b.faction === 'enemy' && b.type === 'house');
+        const farm   = this.constructs.find(b => b.faction === 'enemy' && b.type === 'farm');
 
         const spawnCouple = (house) => {
             const bx = (house.tx + 1) * TILE, by = MAP_OY + (house.ty + 1) * TILE;
             const m = this.spawnUnit('worker', bx - 10, by, true);
             const f = this.spawnUnit('worker', bx + 10, by, true);
-            m.age = 2; m.gender = 'male';   m.homeBldgId = house.id;
-            f.age = 2; f.gender = 'female'; f.homeBldgId = house.id;
+            m.age = 2; m.gender = 'male';   m.homeConstructId = house.id;
+            f.age = 2; f.gender = 'female'; f.homeConstructId = house.id;
             m.spouseId = f.id; f.spouseId = m.id;
             this.redrawUnit(m); this.redrawUnit(f);
         };
@@ -476,7 +463,7 @@ export default class GameScene extends Phaser.Scene {
             for (let i = 0; i < 2; i++) {
                 const w = this.spawnUnit('worker', bx + Phaser.Math.Between(-16, 16), by, true);
                 w.age = 2;
-                w.homeBldgId = houses[i % houses.length]?.id ?? null;
+                w.homeConstructId = houses[i % houses.length]?.id ?? null;
             }
         }
     }

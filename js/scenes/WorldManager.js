@@ -1,7 +1,8 @@
 import {
-    DAY_DURATION, NIGHT_DURATION, BLDG, TILE, MAP_OY, MAP_W, MAP_H, VET_LEVELS, pickVetName,
+    DAY_DURATION, NIGHT_DURATION, TILE, MAP_OY, MAP_W, MAP_H, VET_LEVELS, pickVetName,
     APPLIANCE_DEF,
 } from '../config/gameConstants.js';
+import { CONSTRUCTS } from '../content/constructs/index.js';
 import { UNITS } from '../content/units/index.js';
 import { NODES } from '../content/nodes/index.js';
 import { ITEMS } from '../content/items/index.js';
@@ -35,13 +36,13 @@ export default class WorldManager {
 
         let outcome = null, reason = null;
 
-        const enemyTH = this.scene.buildings.find(b => b.faction === 'enemy' && b.type === 'townhall');
+        const enemyTH = this.scene.constructs.find(b => b.faction === 'enemy' && b.type === 'townhall');
         if (!enemyTH || enemyTH.hp <= 0) {
             outcome = 'win'; reason = 'The enemy polis has fallen.';
         }
 
         if (!outcome) {
-            const playerTH = this.scene.buildings.find(b => !b.faction && b.type === 'townhall' && b.built);
+            const playerTH = this.scene.constructs.find(b => !b.faction && b.type === 'townhall' && b.built);
             if (playerTH && playerTH.hp <= 0) {
                 outcome = 'lose'; reason = 'Your townhall has been destroyed.';
             }
@@ -49,7 +50,7 @@ export default class WorldManager {
 
         if (!outcome) {
             const alive = this.scene.units.filter(u => !u.isEnemy && u.hp > 0);
-            const canBreed = this.scene.buildings.some(b => !b.faction && b.built && b.type === 'house');
+            const canBreed = this.scene.constructs.some(b => !b.faction && b.built && b.type === 'house');
             if (!alive.length && !canBreed) {
                 outcome = 'lose'; reason = 'Your people are gone.';
             }
@@ -92,7 +93,7 @@ export default class WorldManager {
 
     _checkDiscovery() {
         const evc = this.scene.unitManager.getEnemyVillageCenter();
-        const playerTH = this.scene.buildings.find(b => !b.faction && b.type === 'townhall' && b.built);
+        const playerTH = this.scene.constructs.find(b => !b.faction && b.type === 'townhall' && b.built);
         const pvc = playerTH
             ? { x: (playerTH.tx + 1) * TILE, y: MAP_OY + (playerTH.ty + 1) * TILE }
             : null;
@@ -116,7 +117,7 @@ export default class WorldManager {
     }
 
     _tickEnemyBarracks(delta) {
-        const barracks = this.scene.buildings.find(b =>
+        const barracks = this.scene.constructs.find(b =>
             b.faction === 'enemy' && b.type === 'barracks' && b.built);
         if (!barracks) return;
 
@@ -176,10 +177,10 @@ export default class WorldManager {
         const FOOD_TYPES = new Set(['bakery', 'butcher', 'granary', 'warehouse', 'townhall']);
         const FOOD_KEYS  = ['Food.Grain.Wheat.Bread', 'Food.Meat.Venison.Sausages', 'Food.Grain.Wheat.Flour', 'Food.Produce.Olive', 'Food.Grain.Wheat', 'Food.Meat.Venison'];
         let best = null, bd = Infinity;
-        for (const b of this.scene.buildings) {
+        for (const b of this.scene.constructs) {
             if (!b.built || b.faction || !FOOD_TYPES.has(b.type)) continue;
             if (!FOOD_KEYS.some(k => (b.inventory?.[k] ?? 0) > 0)) continue;
-            const bx = (b.tx + b.size / 2) * TILE, by = MAP_OY + (b.ty + b.size / 2) * TILE;
+            const bx = (b.tx + b.width / 2) * TILE, by = MAP_OY + (b.ty + b.width / 2) * TILE;
             const d  = Phaser.Math.Distance.Between(u.x, u.y, bx, by);
             if (d < bd) { bd = d; best = b; }
         }
@@ -211,8 +212,8 @@ export default class WorldManager {
             let gained = 0;
 
             // 1. Private house inventory (wages brought home)
-            const house = this.scene.buildings.find(b =>
-                b.id === u.homeBldgId && b.built && b.type === 'house');
+            const house = this.scene.constructs.find(b =>
+                b.id === u.homeConstructId && b.built && b.type === 'house');
             if (house) {
                 if (!house.inventory) house.inventory = {};
                 gained = this._feedFrom(u, house.inventory);
@@ -308,7 +309,7 @@ export default class WorldManager {
             this.scene.economyManager.collectFirstFruits(); // Restored: calculate daily tithe delivery preparation
 
             if ((this.scene.day - 1) % 8 === 0) {
-                this.scene.buildingManager.redrawAll('farm');
+                this.scene.constructManager.redrawAll('farm');
             }
 
             this._trySpawnMigrant();
@@ -344,7 +345,7 @@ export default class WorldManager {
     }
 
     setGates(open) {
-        for (const b of this.scene.buildings) {
+        for (const b of this.scene.constructs) {
             if (b.type !== 'gate' || !b.built) continue;
             b.isOpen = open;
             this.scene.redrawBuilding(b);
@@ -370,15 +371,15 @@ export default class WorldManager {
     }
 
     checkApplianceDesires() {
-        const houses = this.scene.buildings.filter(b =>
+        const houses = this.scene.constructs.filter(b =>
             b.built && !b.faction && b.type === 'house');
 
         for (const house of houses) {
-            const slots = this.scene.buildingManager.getApplianceSlots(house);
+            const slots = this.scene.constructManager.getApplianceSlots(house);
             if ((house.applianceItems?.length ?? 0) >= slots) continue;
 
             const residents = this.scene.units.filter(u =>
-                u.homeBldgId === house.id && !u.isEnemy && u.hp > 0 && u.age >= 2);
+                u.homeConstructId === house.id && !u.isEnemy && u.hp > 0 && u.age >= 2);
             if (!residents.length) continue;
 
             for (const [appId, app] of Object.entries(APPLIANCE_DEF)) {
@@ -411,7 +412,7 @@ export default class WorldManager {
                 }
 
                 // Otherwise queue a workshop order
-                const workshop = this.scene.buildings.find(b =>
+                const workshop = this.scene.constructs.find(b =>
                     b.built && !b.faction && b.type === app.source);
                 if (workshop) {
                     workshop.orderQueue = workshop.orderQueue ?? [];
@@ -427,7 +428,7 @@ export default class WorldManager {
     autoRepairHomes() {
         const REPAIR_PER_DAWN = 5;
         const REPAIR_THRESHOLD = 0.8;
-        for (const house of this.scene.buildings) {
+        for (const house of this.scene.constructs) {
             if (!house.built || house.faction || house.type !== 'house') continue;
             if (house.hp >= house.maxHp * REPAIR_THRESHOLD) continue;
             const inv = house.inventory ?? {};
@@ -489,7 +490,7 @@ export default class WorldManager {
         if (rate <= 0) return;
 
         let totalContrib = {};
-        for (const house of this.scene.buildings) {
+        for (const house of this.scene.constructs) {
             if (!house.built || house.faction || house.type !== 'house') continue;
             if (!house.inventory) continue;
             for (const [res, amt] of Object.entries(house.inventory)) {
@@ -510,7 +511,7 @@ export default class WorldManager {
 
     _trySpawnMigrant() {
         // Needs a civic building (townhall or agora) to attract settlers
-        const civic = this.scene.buildings.find(b =>
+        const civic = this.scene.constructs.find(b =>
             !b.faction && b.built && (b.type === 'townhall' || b.type === 'agora'));
         if (!civic) return;
 
@@ -524,22 +525,22 @@ export default class WorldManager {
         if (!site) return; // map too full — skip this cycle
 
         // Place a private camp with basic supplies
-        const camp = this.scene.buildingManager.placeBuiltBuilding('camp', site.tx, site.ty);
+        const camp = this.scene.constructManager.placeBuiltBuilding('camp', site.tx, site.ty);
         camp.isPublic = false;
         camp.inventory = {
             'Food.Produce.Berry':              8,
             'Materials.Wood.Pine.Sticks':      5,
             'Materials.Stone.Limestone.Stones': 3,
         };
-        this.scene.buildingManager.updateStorageCap();
+        this.scene.constructManager.updateStorageCap();
 
         const hx = (camp.tx + camp.size / 2) * TILE;
         const hy = MAP_OY + (camp.ty + camp.size / 2) * TILE;
 
         const male   = this.scene.spawnUnit('worker', hx - 8, hy, false);
         const female = this.scene.spawnUnit('worker', hx + 8, hy, false);
-        male.gender   = 'male';   male.age = 2; male.homeBldgId = camp.id; male.role = 'farmer';
-        female.gender = 'female'; female.age = 2; female.homeBldgId = camp.id;
+        male.gender   = 'male';   male.age = 2; male.homeConstructId = camp.id; male.role = 'farmer';
+        female.gender = 'female'; female.age = 2; female.homeConstructId = camp.id;
         male.spouseId = female.id; female.spouseId = male.id;
         this.scene.unitManager.redrawUnit(male);
         this.scene.unitManager.redrawUnit(female);
@@ -549,7 +550,7 @@ export default class WorldManager {
     }
 
     _findCampSite(near) {
-        const bm = this.scene.buildingManager;
+        const bm = this.scene.constructManager;
         const cx = near.tx + 1, cy = near.ty + 1;
         for (let r = 4; r <= 18; r++) {
             for (let dy = -r; dy <= r; dy++) {
@@ -570,7 +571,7 @@ export default class WorldManager {
         const em = this.scene.economyManager;
 
         // If an Agora exists, auto-execute any matching standing orders first
-        const agora = this.scene.buildings.find(b => b.type === 'agora' && b.built && !b.faction);
+        const agora = this.scene.constructs.find(b => b.type === 'agora' && b.built && !b.faction);
         const autoExecuted = [];
         if (agora) {
             for (const order of (agora.tradeOrders ?? [])) {

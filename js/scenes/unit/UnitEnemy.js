@@ -43,19 +43,19 @@ export default {
                 u.aiMode = 'patrol';
                 u.moveTo = null;
             } else {
-                const th = this.scene.buildings.find(b => !b.faction && b.type === 'townhall' && b.built);
+                const th = this.scene.constructs.find(b => !b.faction && b.type === 'townhall' && b.built);
                 const tx = th ? (th.tx + 1) * TILE : vc.x;
                 const ty = th ? MAP_OY + (th.ty + 1) * TILE : vc.y + TILE * 60;
                 this.moveToward(u, tx, ty, 10, dt);
             }
         } else if (mode === 'tower_assault') {
-            const tower = this.scene.buildings.find(b => b.id === u._assaultTowerId && b.built);
+            const tower = this.scene.constructs.find(b => b.id === u._assaultTowerId && b.built);
             if (!tower) { u.aiMode = 'raid'; u._assaultTowerId = null; return; }
             const tx = (tower.tx + 0.5) * TILE, ty = MAP_OY + (tower.ty + 0.5) * TILE;
             this.moveToward(u, tx, ty, 6, dt);
             // Fight garrison units in range (normal combat)
             const garrisonUnits = this.scene.units.filter(g =>
-                !g.isEnemy && g.hp > 0 && g.taskType === 'garrison' && g.taskBldgId === tower.id);
+                !g.isEnemy && g.hp > 0 && g.taskType === 'garrison' && g.taskConstructId === tower.id);
             if (!garrisonUnits.length) { u.aiMode = 'raid'; u._assaultTowerId = null; return; }
             let gnear = null, gnd = Infinity;
             for (const g of garrisonUnits) {
@@ -76,9 +76,9 @@ export default {
             } else {
                 // If a watchtower with melee garrison is nearby, try to assault it
                 const RANGED = new Set(['archer','slinger','toxotes','scout']);
-                const assaultable = this.scene.buildings.find(b =>
+                const assaultable = this.scene.constructs.find(b =>
                     b.built && b.type === 'watchtower' && !b.faction &&
-                    this.scene.units.some(g => !g.isEnemy && g.hp > 0 && g.taskType === 'garrison' && g.taskBldgId === b.id && !RANGED.has(g.type)) &&
+                    this.scene.units.some(g => !g.isEnemy && g.hp > 0 && g.taskType === 'garrison' && g.taskConstructId === b.id && !RANGED.has(g.type)) &&
                     this.scene.units.filter(e => e.isEnemy && e.hp > 0 && e._assaultTowerId === b.id).length < 2 &&
                     Phaser.Math.Distance.Between(u.x, u.y, (b.tx + 0.5) * TILE, MAP_OY + (b.ty + 0.5) * TILE) < TILE * 5);
                 if (assaultable) {
@@ -89,14 +89,14 @@ export default {
                 // Attack nearest player building if no units nearby
                 const bldg = this._nearestPlayerBuilding(u.x, u.y);
                 if (bldg) {
-                    const bx = (bldg.tx + bldg.size / 2) * TILE;
-                    const by = MAP_OY + (bldg.ty + bldg.size / 2) * TILE;
+                    const bx = (bldg.tx + bldg.width / 2) * TILE;
+                    const by = MAP_OY + (bldg.ty + bldg.width / 2) * TILE;
                     const bd = Phaser.Math.Distance.Between(u.x, u.y, bx, by);
                     if (bd < TILE * 1.2) {
                         if (time - (u.lastAtk ?? 0) > 1200) {
                             u.lastAtk = time;
                             bldg.hp = Math.max(0, bldg.hp - u.atk);
-                            this.scene.buildingManager.redrawBuildingBar(bldg);
+                            this.scene.constructManager.redrawBuildingBar(bldg);
                             this.scene.uiManager.showFloatText(bx, by - 10, `-${u.atk}`, '#ff8844');
                             if (bldg.hp <= 0) this._destroyBuilding(bldg);
                         }
@@ -111,7 +111,7 @@ export default {
     tickEnemyWorker(u, time, dt) {
         // Deposit when carrying something
         if (this.totalCarrying(u) > 0) {
-            const depot = this.scene.buildings.find(b => b.faction === 'enemy' && b.built &&
+            const depot = this.scene.constructs.find(b => b.faction === 'enemy' && b.built &&
                 (b.type === 'townhall' || b.type === 'granary' || b.type === 'farm'));
             if (depot) {
                 const dx = (depot.tx + 1) * TILE, dy = MAP_OY + (depot.ty + 1) * TILE;
@@ -131,7 +131,7 @@ export default {
         }
 
         // Harvest enemy farm if it has stock
-        const eFarm = this.scene.buildings.find(b =>
+        const eFarm = this.scene.constructs.find(b =>
             b.faction === 'enemy' && b.type === 'farm' && b.built && b.stock > 0);
         if (eFarm) {
             const fx = (eFarm.tx + 1) * TILE, fy = MAP_OY + (eFarm.ty + 1) * TILE;

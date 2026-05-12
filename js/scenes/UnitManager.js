@@ -1,14 +1,15 @@
 import {
     TILE, MAP_OY, MAP_W, MAP_H, MAP_BOTTOM,
     TILE_SPD, T_GRASS, T_ROCK, HIGH_GROUND_BONUS,
-    VET_LEVELS, BLDG, BUILD_WORK,
+    VET_LEVELS,
     pickName,
-    ENABLE_PROACTIVE_AI, BLDG_CATS, DESIRE_THRESHOLD, ROAD_DESIRE, ROAD_NONE, HUNGER_THRESHOLD,
+    ENABLE_PROACTIVE_AI, DESIRE_THRESHOLD, ROAD_DESIRE, ROAD_NONE, HUNGER_THRESHOLD,
     ARCHON_BUILD_ORDER,
     randomAttributes, blendAttributes, randomPhenotype, blendPhenotype,
     randomPassions, blendPassions,
     emptySkills,
 } from '../config/gameConstants.js';
+import { CONSTRUCTS } from '../content/constructs/index.js';
 import { NODES } from '../content/nodes/index.js';
 import { ANIMALS } from '../content/animals/index.js';
 import { ITEMS } from '../content/items/index.js';
@@ -111,8 +112,8 @@ export default class UnitManager {
             gender, name: pickName(gender),
             moveTo: null, lastAtk: 0, lastGather: 0,
             speed, atk: def.atk, range: def.range,
-            wallSide: 0, homeBldgId: null, age: 2,
-            taskType: null, taskBldgId: null, targetNode: null,
+            wallSide: 0, homeConstructId: null, age: 2,
+            taskType: null, taskConstructId: null, targetNode: null,
             carrying: { 'Food.Grain.Wheat': 0, 'Food.Grain.Wheat.Flour': 0, 'Food.Grain.Wheat.Bread': 0, 'Food.Meat.Venison': 0, 'Food.Meat.Venison.Sausages': 0, 'Food.Produce.Berry': 0, 'Food.Produce.Olive': 0, 'Materials.Stone.Limestone': 0, 'Materials.Wood.Pine': 0, 'Materials.Wood.Pine.Sticks': 0, 'Materials.Stone.Limestone.Stones': 0, 'Textile.Fiber.Wool': 0, 'Textile.Hide.Deer': 0, 'Materials.Metal.Copper.Ore': 0 }, carryMax,
             role: null, replantTimer: 0, trainTimer: 0, lastSeek: 0,
             roleMemory: {}, targetDeer: null, targetSheep: null,
@@ -135,7 +136,7 @@ export default class UnitManager {
     }
 
     spawnChild(father, mother) {
-        const home = this.scene.buildings.find(b => b.id === (father.homeBldgId ?? mother.homeBldgId));
+        const home = this.scene.constructs.find(b => b.id === (father.homeConstructId ?? mother.homeConstructId));
         if (!home) return null;
 
         const cx = (home.tx + home.size / 2) * TILE;
@@ -145,7 +146,7 @@ export default class UnitManager {
         child.fatherId  = father.id;
         child.motherId  = mother.id;
         child.age       = 0;
-        child.homeBldgId = home.id;
+        child.homeConstructId = home.id;
         child.attributes = blendAttributes(father.attributes ?? randomAttributes(), mother.attributes ?? randomAttributes());
         child.phenotype  = blendPhenotype(father.phenotype ?? randomPhenotype(), mother.phenotype ?? randomPhenotype());
         child.passions   = blendPassions(father.passions ?? randomPassions(), mother.passions ?? randomPassions());
@@ -165,7 +166,7 @@ export default class UnitManager {
         // Save current task state
         u.taskStack.push({
             type: u.taskType,
-            bldgId: u.taskBldgId,
+            bldgId: u.taskConstructId,
             node: u.targetNode,
             workProgress: u.workProgress,
             role: u.role,
@@ -173,10 +174,10 @@ export default class UnitManager {
         });
         u.taskType = type;
         if (type === 'eat') {
-            u.taskBldgId = targetId;
+            u.taskConstructId = targetId;
             u.targetNode = null;
         } else {
-            u.taskBldgId = targetId;
+            u.taskConstructId = targetId;
         }
         u.workProgress = 0;
     }
@@ -184,14 +185,14 @@ export default class UnitManager {
     popTask(u) {
         if (!u.taskStack.length) {
             u.taskType = null;
-            u.taskBldgId = null;
+            u.taskConstructId = null;
             u.targetNode = null;
             u.workProgress = 0;
             return;
         }
         const prev = u.taskStack.pop();
         u.taskType = prev.type;
-        u.taskBldgId = prev.bldgId;
+        u.taskConstructId = prev.bldgId;
         u.targetNode = prev.node;
         u.workProgress = prev.workProgress;
         if (prev.role) u.role = prev.role;
@@ -245,7 +246,7 @@ export default class UnitManager {
     }
 
     handleSuccession(deceased) {
-        if (!deceased.homeBldgId) return;
+        if (!deceased.homeConstructId) return;
         const alive = this.scene.units.filter(u =>
             !u.isEnemy && u.hp > 0 && u.id !== deceased.id && u.type === 'worker' && u.age >= 2);
 
@@ -258,18 +259,18 @@ export default class UnitManager {
                 ? children.reduce((a, b) => b.age > a.age ? b : a)
                 : alive.find(u => u.fatherId === deceased.fatherId || u.motherId === deceased.motherId);
             if (heir) {
-                heir.homeBldgId = deceased.homeBldgId;
+                heir.homeConstructId = deceased.homeConstructId;
                 this.scene.uiManager.showFloatText(heir.x, heir.y - 16, `${heir.name} inherits`, '#c8a030');
             }
         }
     }
 
     _archonSuccession(deceased, alive) {
-        const archonHome = this.scene.buildings.find(b => b.id === deceased.homeBldgId && b.built);
+        const archonHome = this.scene.constructs.find(b => b.id === deceased.homeConstructId && b.built);
 
         // Priority: 1) eldest adult child, 2) housemates, 3) any adult
         const children   = alive.filter(u => u.fatherId === deceased.id || u.motherId === deceased.id);
-        const housemates = alive.filter(u => u.homeBldgId === archonHome?.id);
+        const housemates = alive.filter(u => u.homeConstructId === archonHome?.id);
         const pool = children.length ? children
                    : housemates.length ? housemates
                    : alive;
@@ -282,7 +283,7 @@ export default class UnitManager {
         const heir = pool.reduce((a, b) => b.age > a.age ? b : a);
         heir.isArchon   = true;
         // Heir keeps their existing home; if none, inherit the archon's house
-        if (!heir.homeBldgId && archonHome) heir.homeBldgId = archonHome.id;
+        if (!heir.homeConstructId && archonHome) heir.homeConstructId = archonHome.id;
 
         this.redrawUnit(heir);
         this.scene.showPhaseMessage(`⚜ ${heir.name} succeeds as Archon`, 0xffdd44);
@@ -325,8 +326,8 @@ export default class UnitManager {
             if (u.hp <= 0) continue;
 
             if (!u.isEnemy && u.hp < u.maxHp) {
-                const nearGarlic = this.scene.buildings.some(b => b.type === 'garden' && b.built && b.cropType === 'garlic'
-                    && Phaser.Math.Distance.Between(u.x, u.y, (b.tx+b.size/2)*TILE, MAP_OY+(b.ty+b.size/2)*TILE) < 5 * TILE);
+                const nearGarlic = this.scene.constructs.some(b => b.type === 'garden' && b.built && b.cropType === 'garlic'
+                    && Phaser.Math.Distance.Between(u.x, u.y, (b.tx+b.width/2)*TILE, MAP_OY+(b.ty+b.width/2)*TILE) < 5 * TILE);
                 if (nearGarlic) {
                     u._regenAcc = (u._regenAcc || 0) + dt;
                     if (u._regenAcc >= 2.0) { u.hp = Math.min(u.maxHp, u.hp + 1); u._regenAcc = 0; }
@@ -440,7 +441,7 @@ export default class UnitManager {
         const sel = this.scene.units.filter(u => u.selected && !u.isEnemy && u.hp > 0 && u.type === 'worker' && u.age >= 2);
         if (!sel.length) return false;
         for (const u of sel) {
-            u.targetNode = node; u.taskType = null; u.taskBldgId = null;
+            u.targetNode = node; u.taskType = null; u.taskConstructId = null;
             u.moveTo = null;
             u.role = roleMap[node.type] ?? 'forager';
         }
@@ -528,7 +529,7 @@ export default class UnitManager {
             n.dailyProduction[res] = (n.dailyProduction[res] ?? 0) + pick;
 
             // Task e1k: Hired workers get a 10% commission on materials
-            const pile = this.scene.buildings.find(b =>
+            const pile = this.scene.constructs.find(b =>
                 (b.type === 'woodshed' || b.type === 'stonepile') && b.built && b.isPublic && b.hiring);
             if (pile) {
                 u.commission = u.commission ?? {};

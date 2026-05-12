@@ -1,12 +1,12 @@
 import {
-    TILE, MAP_W, MAP_OY, BLDG,
+    TILE, MAP_W, MAP_OY,
     ARCHON_BUILD_ORDER,
 } from '../../config/gameConstants.js';
+import { CONSTRUCTS } from '../../content/constructs/index.js';
 import { NODES } from '../../content/nodes/index.js';
 import { ANIMALS } from '../../content/animals/index.js';
 import { ITEMS } from '../../content/items/index.js';
 import { JOBS, WORKSHOP_JOBS } from '../../content/jobs/index.js';
-import { FURNITURE } from '../../content/furniture/index.js';
 import { CROPS } from '../../content/crops/index.js';
 
 export default {
@@ -26,15 +26,15 @@ export default {
         const needsRest = (u.needs?.rest ?? 1.0) < 0.25 && !u.isSleeping;
         if (needsRest && u.taskType !== 'garrison' && !u.isRouting) {
             // Auto-assign to nearest camp appliance if homeless
-            if (!u.homeFurnKey && !u.homeBldgId) this._seekCampHome(u);
+            if (!u.homeConstructId && !u.homeConstructId) this._seekCampHome(u);
 
-            const fm = this.scene.furnitureManager;
-            if (u.homeFurnKey != null) {
-                const campItem = fm?.furniture.get(u.homeFurnKey);
+            const fm = this.scene.constructManager;
+            if (u.homeConstructId != null) {
+                const campItem = fm?.getById(u.homeConstructId);
                 if (!campItem?.built) {
-                    u.homeFurnKey = null; // camp was removed — re-seek next tick
+                    u.homeConstructId = null;
                 } else {
-                    const htx = u.homeFurnKey % MAP_W, hty = Math.floor(u.homeFurnKey / MAP_W);
+                    const htx = campItem.tx, hty = campItem.ty;
                     const hcx = htx * TILE + TILE / 2, hcy = MAP_OY + hty * TILE + TILE / 2;
                     if (Phaser.Math.Distance.Between(u.x, u.y, hcx, hcy) > 10) {
                         if (this.totalCarrying(u) > 0 && u.taskType !== 'deposit' && u.taskType !== 'deposit_zone')
@@ -54,14 +54,14 @@ export default {
                         }
                     }
                 }
-            } else if (u.homeBldgId) {
-                const home = this.scene.buildings.find(b => b.id === u.homeBldgId && b.built);
+            } else if (u.homeConstructId) {
+                const home = this.scene.constructs.find(b => b.id === u.homeConstructId && b.built);
                 if (home) {
                     const hcx = (home.tx + home.size / 2) * TILE;
                     const hcy = MAP_OY + (home.ty + home.size / 2) * TILE;
                     if (Phaser.Math.Distance.Between(u.x, u.y, hcx, hcy) > 10) {
                         if (this.totalCarrying(u) > 0 && u.taskType !== 'deposit') {
-                            u.taskType = 'deposit'; u.taskBldgId = home.id; u._depositPrivate = !home.isPublic;
+                            u.taskType = 'deposit'; u.taskConstructId = home.id; u._depositPrivate = !home.isPublic;
                         }
                         if (u.taskType === 'deposit') { this.handleDepositTask(u, dt); return; }
                         u.targetNode = null; u.moveTo = null;
@@ -114,12 +114,12 @@ export default {
 
         // Collect tithes when idle
         if (!u.taskType && !u.targetNode &&
-            this.scene.buildings.some(b => b.built && Object.values(b.tithePending ?? {}).some(v => v > 0))) {
+            this.scene.constructs.some(b => b.built && Object.values(b.tithePending ?? {}).some(v => v > 0))) {
             u.taskType = 'collect_tithe';
         }
 
         // Deposit takes priority
-        if (this.totalCarrying(u) > 0 && !u.targetNode && u.taskType !== 'build' && u.taskType !== 'build_furniture' && u.taskType !== 'build_wall' && u.taskType !== 'zone_workshop' && u.taskType !== 'eat' && u.taskType !== 'collect_tithe' && u.taskType !== 'leisure') {
+        if (this.totalCarrying(u) > 0 && !u.targetNode && u.taskType !== 'build' && u.taskType !== 'zone_workshop' && u.taskType !== 'eat' && u.taskType !== 'collect_tithe' && u.taskType !== 'leisure') {
             if (u.taskType !== 'deposit' && u.taskType !== 'deposit_zone') this.seekDeposit(u);
             if (u.taskType === 'deposit')      { this.handleDepositTask(u, dt);     return; }
             if (u.taskType === 'deposit_zone') { this.handleDepositZoneTask(u, dt); return; }
@@ -141,15 +141,16 @@ export default {
                 this.pushTask(u, 'eat');
             } else if (intent === 'sleep') {
                 // Proactive sleep: head home before the emergency threshold (< 0.25)
-                if (u.homeFurnKey != null) {
-                    const fm = this.scene.furnitureManager;
-                    const campItem = fm?.furniture.get(u.homeFurnKey);
+                if (u.homeConstructId != null) {
+                    const fm = this.scene.constructManager;
+                    const campItem = fm?.getById(u.homeConstructId);
                     if (campItem?.built) {
-                        const htx = u.homeFurnKey % MAP_W, hty = Math.floor(u.homeFurnKey / MAP_W);
+                        const htx = campItem.tx, hty = campItem.ty;
+                        const dist = Phaser.Math.Distance.Between(u.x, u.y, htx * TILE + TILE / 2, MAP_OY + hty * TILE + TILE / 2);
                         u.moveTo = { x: htx * TILE + TILE / 2, y: MAP_OY + hty * TILE + TILE / 2 };
                     }
-                } else if (u.homeBldgId) {
-                    const home = this.scene.buildings.find(b => b.id === u.homeBldgId && b.built);
+                } else if (u.homeConstructId) {
+                    const home = this.scene.constructs.find(b => b.id === u.homeConstructId && b.built);
                     if (home) {
                         u.moveTo = { x: (home.tx + home.size / 2) * TILE, y: MAP_OY + (home.ty + home.size / 2) * TILE };
                     }
@@ -201,10 +202,8 @@ export default {
         }
 
         if (u.taskType === 'eat') this.handleEatTask(u, dt);
-        else if (u.taskType === 'leisure')         this.handleLeisureTask(u, dt);
+        else if (u.taskType === 'leisure') this.handleLeisureTask(u, dt);
         else if (u.taskType === 'build') this.handleBuildTask(u, dt);
-        else if (u.taskType === 'build_wall')     this.handleWallBuildTask(u, dt);
-        else if (u.taskType === 'build_furniture') this.handleFurnitureBuildTask(u, dt);
         else if (u.taskType === 'zone_workshop')   this.handleZoneWorkshopTask(u, dt);
         else if (u.taskType === 'deconstruct') this.handleDeconstructTask(u, dt);
         else if (u.taskType === 'repair') this.handleRepairTask(u, dt);
@@ -304,7 +303,7 @@ export default {
             if (sheep.isTamed) {
                 // Sheep tamed — lead it to nearest enclosed pasture zone
                 const zm = this.scene.zoneManager;
-                const wm = this.scene.wallManager;
+                const wm = this.scene.constructManager;
                 let bestZone = null, bestDist = Infinity, bestPx = 0, bestPy = 0;
 
                 if (zm && wm) {
@@ -386,7 +385,7 @@ export default {
     },
 
     handleGarrisonTask(u, dt) {
-        const b = this.scene.buildings.find(b => b.id === u.taskBldgId && b.built);
+        const b = this.scene.constructs.find(b => b.id === u.taskConstructId && b.built);
         if (!b) { u.taskType = null; return; }
         // Walk into the tower and stay
         const cx = (b.tx + 0.5) * TILE, cy = MAP_OY + (b.ty + 0.5) * TILE;
@@ -394,9 +393,9 @@ export default {
     },
 
     handleRepairTask(u, dt) {
-        const b = this.scene.buildings.find(b => b.id === u.taskBldgId && b.built);
+        const b = this.scene.constructs.find(b => b.id === u.taskConstructId && b.built);
         if (!b || b.hp >= b.maxHp) { u.taskType = null; return; }
-        const cx = (b.tx + b.size / 2) * TILE, cy = MAP_OY + (b.ty + b.size / 2) * TILE;
+        const cx = (b.tx + b.width / 2) * TILE, cy = MAP_OY + (b.ty + b.width / 2) * TILE;
         if (this.moveToward(u, cx, cy, 28, dt)) return;
         u.workProgress = (u.workProgress ?? 0) + dt;
         if (u.workProgress >= 25.0) {
@@ -406,7 +405,7 @@ export default {
             if (this.scene.economyManager.afford(repairCost)) {
                 this.scene.economyManager.spend(repairCost);
                 b.hp = Math.min(b.maxHp, b.hp + Math.ceil(b.maxHp / 10));
-                this.scene.buildingManager.redrawBuildingBar(b);
+                this.scene.constructManager.redrawBuildingBar(b);
                 this._gainSkillXp(u, 'masonry');
                 if (b.hp >= b.maxHp) u.taskType = null;
             }
@@ -414,32 +413,33 @@ export default {
     },
 
     handleBuildTask(u, dt) {
-        const b = this.scene.buildings.find(b => b.id === u.taskBldgId);
+        const b = this.scene.constructs.find(b => b.id === u.taskConstructId);
         if (!b || b.built) { u.taskType = null; return; }
 
         // Ensure resources are gathered for construction
-        const cost = this.scene.buildingManager.getRemainingCost(b);
+        const cost = this.scene.constructManager.getRemainingCost(b);
         const res = Object.keys(cost).find(r => cost[r] > 0);
         if (res) {
-            if (this.totalCarrying(u) === 0) {
-                // Nothing in hand — pull from public storage or self-supply
-                if ((this.scene.resources[res] ?? 0) >= 1) {
+            if ((u.carrying[res] ?? 0) === 0) {
+                // Not carrying needed resource — attempt to take from commons
+                if ((this.scene.resources[res] ?? 0) > 0) {
                     this.scene.economyManager.takeFromCommons(res, 1);
-                    u.carrying[res] += 1;
+                    u.carrying[res] = (u.carrying[res] ?? 0) + 1;
                 } else {
-                    // Fallback: self-supply (records debt for later compensation)
-                    u.carrying[res] += 1;
-                    u._soldRes = { res, amt: 1 };
+                    // Cannot build without resources
+                    return;
                 }
-            } else if ((u.carrying[res] ?? 0) === 0) {
-                // Carrying something else but not the needed resource — deposit first
-                this.handleDepositTask(u, dt);
-                return;
             }
-            // else: already carrying the needed resource — fall through to build
         }
 
-        const cx = (b.tx+b.size/2)*TILE, cy = MAP_OY+(b.ty+b.size/2)*TILE;
+        let cx, cy;
+        if (b.placement === 'edge') {
+            cx = b.isH ? (b.col + 0.5) * TILE : b.col * TILE;
+            cy = b.isH ? MAP_OY + b.row * TILE : MAP_OY + (b.row + 0.5) * TILE;
+        } else {
+            cx = (b.tx + b.width / 2) * TILE;
+            cy = MAP_OY + (b.ty + b.height / 2) * TILE;
+        }
         if (this.moveToward(u, cx, cy, 28, dt)) return;
         u.isInside = false;
 
@@ -448,75 +448,21 @@ export default {
         u.workProgress = (u.workProgress ?? 0) + dt * workSpeed;
         if (u.workProgress >= 25.0) {
             u.workProgress = 0;
+            // Consume the resource if present
+            if (res && (u.carrying[res] ?? 0) > 0) {
+                u.carrying[res]--;
+                if (b.resNeeded && b.resNeeded[res] > 0) {
+                    b.resNeeded[res]--;
+                }
+            }
             b.buildWork -= 5;
             this._gainSkillXp(u, 'masonry');
-            // If we used private resources, add to building debt for compensation
-            if (u._soldRes) {
-                b.tithePending = b.tithePending ?? {}; // using tithePending as a proxy for debt for now
-                b.tithePending[u._soldRes.res] = (b.tithePending[u._soldRes.res] ?? 0) - u._soldRes.amt;
-                u._soldRes = null;
-            }
-            if (b.buildWork <= 0) { this.scene.buildingManager.completeBuildingConstruction(b); u.taskType = null; }
+            if (b.buildWork <= 0) { this.scene.constructManager.completeBuildingConstruction(b); u.taskType = null; }
         }
     },
-
-    handleFurnitureBuildTask(u, dt) {
-        const fm = this.scene.furnitureManager;
-        const item = fm?.furniture.get(u.taskFurnKey);
-        if (!item || item.built) { u.taskType = null; return; }
-
-        const tx = u.taskFurnKey % MAP_W, ty = Math.floor(u.taskFurnKey / MAP_W);
-        const cx = tx * TILE + TILE / 2, cy = MAP_OY + ty * TILE + TILE / 2;
-        if (this.moveToward(u, cx, cy, 18, dt)) return;
-
-        const attrMult = this.getAttrMult(u, ['str', 'dex']);
-        const workSpeed = (1.0 + (u.skills.masonry?.level ?? 1) * 0.15) * attrMult * this.getRestMult(u);
-        u.workProgress = (u.workProgress ?? 0) + dt * workSpeed;
-        if (u.workProgress >= 25.0) {
-            u.workProgress = 0;
-            item.buildWork -= 5;
-            this._gainSkillXp(u, 'masonry');
-            fm.renderAll();
-            if (item.buildWork <= 0) {
-                fm.completeBuild(tx, ty);
-                u.taskType = null;
-                this.scene.uiManager.showFloatText(cx, cy - 16,
-                    `${FURNITURE[item.itemId]?.label ?? 'item'} built!`, '#88dd88');
-            }
-        }
-    },
-
-    handleWallBuildTask(u, dt) {
-        const [isHStr, rowStr, colStr] = (u.taskWallKey ?? '').split(':');
-        const isH = isHStr === 'true', row = +rowStr, col = +colStr;
-        const wm = this.scene.wallManager;
-        const wall = wm?.getWall(isH, row, col);
-        if (!wall || wall.buildProgress >= 1) { u.taskType = null; u.taskWallKey = null; return; }
-
-        const cx = isH ? col * TILE + TILE / 2 : col * TILE;
-        const cy = isH ? MAP_OY + row * TILE : MAP_OY + row * TILE + TILE / 2;
-        if (this.moveToward(u, cx, cy, 28, dt)) return;
-
-        const attrMult = this.getAttrMult(u, ['str', 'dex']);
-        const workSpeed = (1.0 + (u.skills.masonry?.level ?? 1) * 0.15) * attrMult * this.getRestMult(u);
-        u.workProgress = (u.workProgress ?? 0) + dt * workSpeed;
-        if (u.workProgress >= 25.0) {
-            u.workProgress = 0;
-            wall.buildWork -= 5;
-            this._gainSkillXp(u, 'masonry');
-            wm.renderWalls();
-            if (wall.buildWork <= 0) {
-                wall.buildProgress = 1;
-                u.taskType = null; u.taskWallKey = null;
-                this.scene.uiManager.showFloatText(cx, cy - 14, 'wall built!', '#88dd88');
-                wm.renderWalls();
-            }
-        }
-    },
-
     handleZoneWorkshopTask(u, dt) {
-        const fm = this.scene.furnitureManager;
-        const item = fm?.furniture.get(u.taskZoneKey);
+        const fm = this.scene.constructManager;
+        const item = fm?.getById(u.taskConstructId);
         if (!item?.built) { u.taskType = null; u.workshopPhase = null; return; }
 
         const def = WORKSHOP_JOBS[u.role];
@@ -572,10 +518,10 @@ export default {
     },
 
     handleDeconstructTask(u, dt) {
-        const b = this.scene.buildings.find(b => b.id === u.taskBldgId && b.built && b.deconstructing);
+        const b = this.scene.constructs.find(b => b.id === u.taskConstructId && b.built && b.deconstructing);
         if (!b) { u.taskType = null; return; }
 
-        const cx = (b.tx + b.size / 2) * TILE, cy = MAP_OY + (b.ty + b.size / 2) * TILE;
+        const cx = (b.tx + b.width / 2) * TILE, cy = MAP_OY + (b.ty + b.width / 2) * TILE;
         if (this.moveToward(u, cx, cy, 28, dt)) return;
         u.isInside = false;
 
@@ -586,38 +532,37 @@ export default {
             u.workProgress = 0;
             b.deconstructWork -= 5;
             this._gainSkillXp(u, 'masonry');
-            this.scene.buildingManager.redrawBuilding(b);
+            this.scene.constructManager.redrawBuilding(b);
             if (b.deconstructWork <= 0) {
                 u.taskType = null;
-                this.scene.buildingManager.demolishBuilding(b, 0.5);
+                this.scene.constructManager.demolishBuilding(b, 0.5);
                 this.scene.uiManager.showFloatText(cx, cy - 12, 'Deconstructed', '#ffaa44');
             }
         }
     },
 
     seekMerchantTask(u) {
-        const fm = this.scene.furnitureManager;
+        const fm = this.scene.constructManager;
         if (fm) {
             let bestKey = null, bestDist = Infinity;
-            for (const [key, item] of fm.furniture) {
-                if (item.itemId !== 'Appliance.MarketStall' || !item.built) continue;
-                const ftx = key % MAP_W, fty = Math.floor(key / MAP_W);
-                const d = Phaser.Math.Distance.Between(u.x, u.y, ftx * TILE + TILE / 2, MAP_OY + fty * TILE + TILE / 2);
-                if (d < bestDist) { bestDist = d; bestKey = key; }
+            for (const item of fm.constructs) {
+                if (item.type !== 'Appliance.MarketStall' || !item.built) continue;
+                const d = Phaser.Math.Distance.Between(u.x, u.y, (item.tx + 0.5) * TILE, MAP_OY + (item.ty + 0.5) * TILE);
+                if (d < bestDist) { bestDist = d; bestKey = item.id; }
             }
             if (bestKey != null) {
                 u.taskType = 'merchant';
-                u.taskZoneKey = bestKey;
-                u.taskBldgId  = null;
+                u.taskZoneKey = null;
+                u.taskConstructId  = bestKey;
                 u.merchantPhase = 'seek';
                 return;
             }
         }
         // Fallback: legacy agora building
-        const agora = this.scene.buildings.find(b => b.type === 'agora' && b.built && !b.faction);
+        const agora = this.scene.constructs.find(b => b.type === 'agora' && b.built && !b.faction);
         if (!agora) { u.role = null; return; }
         u.taskType = 'merchant';
-        u.taskBldgId = agora.id;
+        u.taskConstructId = agora.id;
         u.taskZoneKey = null;
         u.merchantPhase = 'seek';
     },
@@ -676,7 +621,7 @@ export default {
         }
 
         // ── Legacy agora path ─────────────────────────────────────────────────
-        const agora = this.scene.buildings.find(b => b.id === u.taskBldgId && b.built);
+        const agora = this.scene.constructs.find(b => b.id === u.taskConstructId && b.built);
         if (!agora) { u.taskType = null; u.merchantPhase = null; return; }
 
         const cx = (agora.tx + agora.size / 2) * TILE;
@@ -782,12 +727,12 @@ export default {
     },
 
     handleHarvestFarmTask(u, dt) {
-        const b = this.scene.buildings.find(b => b.id === u.taskBldgId && b.built && (b.type === 'farm' || b.type === 'garden'));
+        const b = this.scene.constructs.find(b => b.id === u.taskConstructId && b.built && (b.type === 'farm' || b.type === 'garden'));
         if (!b) { u.taskType = null; return; }
 
         // Garden: scoop inventory into carrying, then deposit home
         if (b.type === 'garden') {
-            const cx = (b.tx + b.size / 2) * TILE, cy = MAP_OY + (b.ty + b.size / 2) * TILE;
+            const cx = (b.tx + b.width / 2) * TILE, cy = MAP_OY + (b.ty + b.width / 2) * TILE;
             if (this.moveToward(u, cx, cy, 28, dt)) return;
             const avail = b.inventory?.['Food.Produce.Olive'] ?? 0;
             if (avail <= 0) { u.taskType = null; return; }
@@ -801,7 +746,7 @@ export default {
         }
 
         if (b.stock <= 0) { u.taskType = null; return; }
-        const cx = (b.tx + b.size / 2) * TILE, cy = MAP_OY + (b.ty + b.size / 2) * TILE;
+        const cx = (b.tx + b.width / 2) * TILE, cy = MAP_OY + (b.ty + b.width / 2) * TILE;
         if (this.moveToward(u, cx, cy, 28, dt)) return;
         u.isInside = false;
         const attrMult = this.getAttrMult(u, ['dex']);
@@ -827,17 +772,17 @@ export default {
             const prevRows = b.maxStock > 0 ? Math.round((b.drawnStock ?? b.maxStock) / b.maxStock * 5) : 0;
             if (rows !== prevRows) {
                 b.drawnStock = b.stock;
-                this.scene.buildingManager.redrawBuilding(b);
+                this.scene.constructManager.redrawBuilding(b);
             } else {
-                this.scene.buildingManager.redrawBuildingBar(b);
+                this.scene.constructManager.redrawBuildingBar(b);
             }
         }
     },
 
     handlePlantTask(u, dt) {
-        const b = this.scene.buildings.find(b => b.id === u.taskBldgId && b.built && b.type === 'farm');
+        const b = this.scene.constructs.find(b => b.id === u.taskConstructId && b.built && b.type === 'farm');
         if (!b || !b.needsPlanting) { u.taskType = null; return; }
-        const cx = (b.tx + b.size / 2) * TILE, cy = MAP_OY + (b.ty + b.size / 2) * TILE;
+        const cx = (b.tx + b.width / 2) * TILE, cy = MAP_OY + (b.ty + b.width / 2) * TILE;
         if (this.moveToward(u, cx, cy, 28, dt)) return;
 
         u.workProgress = (u.workProgress ?? 0) + dt;
@@ -845,7 +790,7 @@ export default {
             u.workProgress = 0;
             b.needsPlanting = false;
             b.stock = b.maxStock;
-            this.scene.buildingManager.redrawBuildingBar(b);
+            this.scene.constructManager.redrawBuildingBar(b);
             u.taskType = null;
         }
     },
@@ -853,12 +798,12 @@ export default {
     handleCollectTitheTask(u, dt) {
         // Step 1: Find building with tithePending
         if (!u.targetBldgId) {
-            const b = this.scene.buildings.find(b => b.built && Object.values(b.tithePending ?? {}).some(v => v > 0));
+            const b = this.scene.constructs.find(b => b.built && Object.values(b.tithePending ?? {}).some(v => v > 0));
             if (!b) { u.taskType = null; return; }
             u.targetBldgId = b.id;
         }
 
-        const b = this.scene.buildings.find(b => b.id === u.targetBldgId && b.built);
+        const b = this.scene.constructs.find(b => b.id === u.targetBldgId && b.built);
         if (!b) { u.targetBldgId = null; u.taskType = null; return; }
 
         const door = this._bldgDoor(b);
@@ -918,10 +863,10 @@ export default {
     // Find nearest built building of one of the given types
     _nearestOfTypes(x, y, types) {
         let best = null, bd = Infinity;
-        for (const b of this.scene.buildings) {
+        for (const b of this.scene.constructs) {
             if (!b.built || b.faction === 'enemy') continue;
             if (!types.includes(b.type)) continue;
-            const bx = (b.tx + b.size / 2) * TILE, by = MAP_OY + (b.ty + b.size / 2) * TILE;
+            const bx = (b.tx + b.width / 2) * TILE, by = MAP_OY + (b.ty + b.width / 2) * TILE;
             const d = Phaser.Math.Distance.Between(x, y, bx, by);
             if (d < bd) { bd = d; best = b; }
         }
@@ -929,43 +874,40 @@ export default {
     },
 
     _seekCampHome(u) {
-        if (u.homeFurnKey != null || u.homeBldgId) return;
-        const fm = this.scene.furnitureManager;
+        if (u.homeConstructId != null || u.homeConstructId) return;
+        const fm = this.scene.constructManager;
         if (!fm) return;
-        const slots = FURNITURE['Appliance.Camp']?.provides?.sleepSlots ?? 2;
+        const slots = CONSTRUCTS['Appliance.Camp']?.provides?.sleepSlots ?? 2;
         let bestKey = null, bestDist = Infinity;
-        for (const [key, item] of fm.furniture) {
-            if (!item.built || item.itemId !== 'Appliance.Camp') continue;
-            const occupants = this.scene.units.filter(w => w.homeFurnKey === key).length;
+        for (const item of fm.constructs) {
+            if (!item.built || item.type !== 'Appliance.Camp') continue;
+            const occupants = this.scene.units.filter(w => w.homeConstructId === item.id).length;
             if (occupants >= slots) continue;
-            const tx = key % MAP_W, ty = Math.floor(key / MAP_W);
-            const d = Phaser.Math.Distance.Between(u.x, u.y, tx * TILE + TILE / 2, MAP_OY + ty * TILE + TILE / 2);
-            if (d < bestDist) { bestDist = d; bestKey = key; }
+            const d = Phaser.Math.Distance.Between(u.x, u.y, (item.tx + 0.5) * TILE, MAP_OY + (item.ty + 0.5) * TILE);
+            if (d < bestDist) { bestDist = d; bestKey = item.id; }
         }
-        if (bestKey !== null) u.homeFurnKey = bestKey;
+        if (bestKey !== null) u.homeConstructId = bestKey;
     },
 
     seekLeisureTask(u) {
-        const fm = this.scene.furnitureManager;
+        const fm = this.scene.constructManager;
         if (!fm) return;
         let bestKey = null, bestDist = Infinity;
-        for (const [key, item] of fm.furniture) {
+        for (const item of fm.constructs) {
             if (!item.built) continue;
-            if (FURNITURE[item.itemId]?.zoneType !== 'Leisure') continue;
-            if (this.scene.units.some(w => w.id !== u.id && w.taskType === 'leisure' && w.taskZoneKey === key)) continue;
-            const tx = key % MAP_W, ty = Math.floor(key / MAP_W);
-            const d = Phaser.Math.Distance.Between(u.x, u.y, tx * TILE + TILE / 2, MAP_OY + ty * TILE + TILE / 2);
-            if (d < bestDist) { bestDist = d; bestKey = key; }
+            if (CONSTRUCTS[item.type]?.zoneType !== 'Leisure') continue;
+            if (this.scene.units.some(w => w.id !== u.id && w.taskType === 'leisure' && w.taskConstructId === item.id)) continue;
+            const d = Phaser.Math.Distance.Between(u.x, u.y, (item.tx + 0.5) * TILE, MAP_OY + (item.ty + 0.5) * TILE);
+            if (d < bestDist) { bestDist = d; bestKey = item.id; }
         }
-        if (bestKey !== null) { u.taskType = 'leisure'; u.taskZoneKey = bestKey; u.workProgress = 0; }
+        if (bestKey !== null) { u.taskType = 'leisure'; u.taskConstructId = bestKey; u.workProgress = 0; }
     },
 
     handleLeisureTask(u, dt) {
-        const fm = this.scene.furnitureManager;
-        const item = fm?.furniture.get(u.taskZoneKey);
+        const fm = this.scene.constructManager;
+        const item = fm?.getById(u.taskConstructId);
         if (!item?.built) { u.taskType = null; return; }
-        const tx = u.taskZoneKey % MAP_W, ty = Math.floor(u.taskZoneKey / MAP_W);
-        const cx = tx * TILE + TILE / 2, cy = MAP_OY + ty * TILE + TILE / 2;
+        const cx = (item.tx + 0.5) * TILE, cy = MAP_OY + (item.ty + 0.5) * TILE;
         if (this.moveToward(u, cx, cy, 18, dt)) return;
 
         if (!u.needs) u.needs = { food: 0.8, rest: 1, social: 0.8, joy: 0.8 };
@@ -993,36 +935,36 @@ export default {
 
         // Private roles → home oikos
         const privateRoles = new Set(Object.values(JOBS).filter(j => j.private).map(j => j.id));
-        if (privateRoles.has(u.role) && u.homeBldgId) {
-            const home = this.scene.buildings.find(b => b.id === u.homeBldgId && b.built && b.type === 'house');
+        if (privateRoles.has(u.role) && u.homeConstructId) {
+            const home = this.scene.constructs.find(b => b.id === u.homeConstructId && b.built && b.type === 'house');
             if (home) {
-                u.taskType = 'deposit'; u.taskBldgId = home.id; u._depositPrivate = true;
+                u.taskType = 'deposit'; u.taskConstructId = home.id; u._depositPrivate = true;
                 return;
             }
         }
 
         // Farmers at private farms deposit to their home oikos, not the commons
         if (u.role === 'farmer') {
-            const workplace = this.scene.buildings.find(b => b.id === u.taskBldgId && b.built);
+            const workplace = this.scene.constructs.find(b => b.id === u.taskConstructId && b.built);
             const isPublicFarm = !workplace || workplace.isPublic;
-            if (!isPublicFarm && u.homeBldgId) {
-                const home = this.scene.buildings.find(b => b.id === u.homeBldgId && b.built && b.type === 'house');
-                if (home) { u.taskType = 'deposit'; u.taskBldgId = home.id; u._depositPrivate = true; return; }
+            if (!isPublicFarm && u.homeConstructId) {
+                const home = this.scene.constructs.find(b => b.id === u.homeConstructId && b.built && b.type === 'house');
+                if (home) { u.taskType = 'deposit'; u.taskConstructId = home.id; u._depositPrivate = true; return; }
             }
         }
 
         // Storage zone deposit: prefer appliance tiles, fall back to bare zone tiles
         const zm = this.scene.zoneManager;
-        const fm = this.scene.furnitureManager;
+        const fm = this.scene.constructManager;
         if (zm?.storageTiles.size > 0) {
             const STORAGE_APPL = new Set(['Appliance.GrainSilo', 'Appliance.StorageShelf']);
             let bestKey = null, bestDist = Infinity;
             // First pass: tiles with a built storage appliance
             for (const key of zm.storageTiles) {
-                const item = fm?.furniture.get(key);
-                if (!item?.built || !STORAGE_APPL.has(item.itemId)) continue;
                 const tx = key % MAP_W, ty = Math.floor(key / MAP_W);
-                const d = Phaser.Math.Distance.Between(u.x, u.y, tx * TILE + TILE / 2, MAP_OY + ty * TILE + TILE / 2);
+                const item = fm?.getAt(tx, ty);
+                if (!item?.built || !STORAGE_APPL.has(item.type)) continue;
+                const d = Phaser.Math.Distance.Between(u.x, u.y, (tx + 0.5) * TILE, MAP_OY + (ty + 0.5) * TILE);
                 if (d < bestDist) { bestDist = d; bestKey = key; }
             }
             // Second pass: any storage tile
@@ -1039,45 +981,45 @@ export default {
         // Role-based routing: prefer private building in home domain, fall back to nearest public
         const routeTypes = this._depositRoutes()[u.role];
         if (routeTypes) {
-            const homeDomain = u.homeBldgId
-                ? this.scene.buildingManager.getDomainAt(
-                    ...(this.scene.buildings.find(b => b.id === u.homeBldgId)
-                        ? [this.scene.buildings.find(b => b.id === u.homeBldgId).tx,
-                           this.scene.buildings.find(b => b.id === u.homeBldgId).ty]
+            const homeDomain = u.homeConstructId
+                ? this.scene.constructManager.getDomainAt(
+                    ...(this.scene.constructs.find(b => b.id === u.homeConstructId)
+                        ? [this.scene.constructs.find(b => b.id === u.homeConstructId).tx,
+                           this.scene.constructs.find(b => b.id === u.homeConstructId).ty]
                         : [0, 0]))
                 : null;
 
             // First try: private building in worker's home domain
             const privateDest = homeDomain
-                ? this.scene.buildings.find(b =>
+                ? this.scene.constructs.find(b =>
                     b.built && !b.faction && !b.isPublic &&
                     routeTypes.includes(b.type) &&
-                    this.scene.buildingManager.getDomainAt(b.tx, b.ty)?.id === homeDomain.id)
+                    this.scene.constructManager.getDomainAt(b.tx, b.ty)?.id === homeDomain.id)
                 : null;
 
             if (privateDest) {
-                u.taskType = 'deposit'; u.taskBldgId = privateDest.id; u._depositPrivate = false; return;
+                u.taskType = 'deposit'; u.taskConstructId = privateDest.id; u._depositPrivate = false; return;
             }
 
             // Second try: nearest public building of the route type
-            const publicDest = this.scene.buildings.find(b =>
+            const publicDest = this.scene.constructs.find(b =>
                 b.built && !b.faction && b.isPublic && routeTypes.includes(b.type));
-            if (publicDest) { u.taskType = 'deposit'; u.taskBldgId = publicDest.id; u._depositPrivate = false; return; }
+            if (publicDest) { u.taskType = 'deposit'; u.taskConstructId = publicDest.id; u._depositPrivate = false; return; }
         }
 
         // Last resort: bring it home; private only if the home building is itself private
-        if (u.homeBldgId) {
-            const home = this.scene.buildings.find(b => b.id === u.homeBldgId && b.built);
-            if (home) { u.taskType = 'deposit'; u.taskBldgId = home.id; u._depositPrivate = !home.isPublic; }
+        if (u.homeConstructId) {
+            const home = this.scene.constructs.find(b => b.id === u.homeConstructId && b.built);
+            if (home) { u.taskType = 'deposit'; u.taskConstructId = home.id; u._depositPrivate = !home.isPublic; }
         }
     },
 
     handleDepositTask(u, dt) {
-        const b = this.scene.buildings.find(b => b.id === u.taskBldgId && b.built && !b.faction);
+        const b = this.scene.constructs.find(b => b.id === u.taskConstructId && b.built && !b.faction);
         if (!b) { u.taskType = null; u._depositPrivate = false; return; }
-        const cx = (b.tx + b.size / 2) * TILE, cy = MAP_OY + (b.ty + b.size / 2) * TILE;
+        const cx = (b.tx + b.width / 2) * TILE, cy = MAP_OY + (b.ty + b.width / 2) * TILE;
         if (this.moveToward(u, cx, cy, 30, dt)) return;
-        u.isInside = !(BLDG[b.type]?.outdoor ?? false);
+        u.isInside = !(CONSTRUCTS[b.type]?.outdoor ?? false);
 
         b.inventory = b.inventory ?? {};
         for (const [res, amt] of Object.entries(u.carrying)) {
@@ -1140,70 +1082,38 @@ export default {
 
     seekBuilderTask(u) {
         // Deconstruction jobs take priority over new construction
-        const deconSite = this.scene.buildings.find(b =>
+        const deconSite = this.scene.constructs.find(b =>
             b.built && b.deconstructing && !b.faction &&
-            !this.scene.units.some(w => w.id !== u.id && w.taskType === 'deconstruct' && w.taskBldgId === b.id));
+            !this.scene.units.some(w => w.id !== u.id && w.taskType === 'deconstruct' && w.taskConstructId === b.id));
         if (deconSite) {
-            u.taskType = 'deconstruct'; u.taskBldgId = deconSite.id;
+            u.taskType = 'deconstruct'; u.taskConstructId = deconSite.id;
             return;
         }
 
-        const site = this.scene.buildings.find(b => {
-            if (b.built || b.faction === 'enemy') return false;
-            return true;
+        const site = this.scene.constructs.find(c => {
+            if (c.built || c.faction === 'enemy') return false;
+            // Ensure no other worker is already on this specific task
+            const alreadyClaimed = this.scene.units.some(w => w.id !== u.id && w.taskConstructId === c.id);
+            return !alreadyClaimed;
         });
 
         if (site) {
-            if (!site.resourcesSpent) {
-                const cost = BLDG[site.type]?.cost;
-                if (cost && this.scene.economyManager.afford(cost)) {
-                    this.scene.economyManager.spend(cost);
-                    site.resourcesSpent = true;
-                }
-            }
-            u.taskType = 'build'; u.taskBldgId = site.id;
-            u.moveTo = { x: (site.tx + site.size/2) * TILE, y: MAP_OY + (site.ty + site.size/2) * TILE };
-            return;
-        }
-
-        // No building site — check furniture build orders
-        const fm = this.scene.furnitureManager;
-        if (!fm) return;
-        const pending = fm.getPendingBuilds();
-        const furnSite = pending.find(({ tx, ty }) => {
-            const key = fm.tileKey(tx, ty);
-            return !this.scene.units.some(w => w.id !== u.id && w.taskType === 'build_furniture' && w.taskFurnKey === key);
-        });
-        // No furniture — check wall build orders
-        if (!furnSite) {
-            const wm = this.scene.wallManager;
-            if (wm) {
-                const wallSite = wm.getPendingWalls().find(({ isH, row, col }) =>
-                    !this.scene.units.some(w => w.id !== u.id && w.taskType === 'build_wall' && w.taskWallKey === `${isH}:${row}:${col}`));
-                if (wallSite) {
-                    u.taskType = 'build_wall';
-                    u.taskWallKey = `${wallSite.isH}:${wallSite.row}:${wallSite.col}`;
-                    return;
-                }
+            u.taskType = 'build';
+            u.taskConstructId = site.id;
+            if (site.placement === 'edge') {
+                const ex = site.isH ? (site.col + 0.5) * TILE : site.col * TILE;
+                const ey = site.isH ? MAP_OY + site.row * TILE : MAP_OY + (site.row + 0.5) * TILE;
+                u.moveTo = { x: ex, y: ey };
+            } else {
+                u.moveTo = { x: (site.tx + site.width / 2) * TILE, y: MAP_OY + (site.ty + site.height / 2) * TILE };
             }
             return;
         }
-        const { tx, ty, item } = furnSite;
-        if (!item.resourcesSpent) {
-            const cost = FURNITURE[item.itemId]?.craftCost ?? {};
-            if (Object.keys(cost).length && this.scene.economyManager.afford(cost)) {
-                this.scene.economyManager.spend(cost);
-                item.resourcesSpent = true;
-            }
-        }
-        u.taskType    = 'build_furniture';
-        u.taskFurnKey = fm.tileKey(tx, ty);
-        u.moveTo      = { x: tx * TILE + TILE / 2, y: MAP_OY + ty * TILE + TILE / 2 };
     },
 
     seekFarmerTask(u) {
-        const home = u.homeBldgId
-            ? this.scene.buildings.find(b => b.id === u.homeBldgId)
+        const home = u.homeConstructId
+            ? this.scene.constructs.find(b => b.id === u.homeConstructId)
             : null;
         const homeDomain = home?.domainId
             ? this.scene.domains.find(d => d.id === home.domainId)
@@ -1228,43 +1138,43 @@ export default {
         }
 
         // 1. Try planting first (high priority)
-        const plantFarm = this.scene.buildings.find(b => {
+        const plantFarm = this.scene.constructs.find(b => {
             if (b.type !== 'farm' || !b.built || !b.needsPlanting) return false;
             if (b.isPublic) return true;
-            const farmDomain = this.scene.buildingManager.getDomainAt(b.tx, b.ty);
+            const farmDomain = this.scene.constructManager.getDomainAt(b.tx, b.ty);
             return !farmDomain || (homeDomain && farmDomain.id === homeDomain.id);
         });
         if (plantFarm) {
-            u.taskType = 'plant'; u.taskBldgId = plantFarm.id;
+            u.taskType = 'plant'; u.taskConstructId = plantFarm.id;
             u.moveTo = { x: (plantFarm.tx + plantFarm.size/2) * TILE, y: MAP_OY + (plantFarm.ty + plantFarm.size/2) * TILE };
             return;
         }
 
         // 2. Try farm harvest
-        const farm = this.scene.buildings.find(b => {
+        const farm = this.scene.constructs.find(b => {
             if (b.type !== 'farm' || !b.built || b.stock <= 0 || b.faction === 'enemy') return false;
             if (b.isPublic) return true;
-            const farmDomain = this.scene.buildingManager.getDomainAt(b.tx, b.ty);
+            const farmDomain = this.scene.constructManager.getDomainAt(b.tx, b.ty);
             if (!farmDomain) return true;
             return homeDomain && farmDomain.id === homeDomain.id;
         });
         if (farm) {
-            u.taskType = 'harvest_farm'; u.taskBldgId = farm.id;
+            u.taskType = 'harvest_farm'; u.taskConstructId = farm.id;
             u.moveTo = { x: (farm.tx + farm.size/2) * TILE, y: MAP_OY + (farm.ty + farm.size/2) * TILE };
             return;
         }
 
         // 3. Try garden harvest (auto-produces into building inventory)
-        const garden = this.scene.buildings.find(b => {
+        const garden = this.scene.constructs.find(b => {
             if (b.type !== 'garden' || !b.built || b.faction === 'enemy') return false;
             if ((b.inventory?.['Food.Produce.Olive'] ?? 0) <= 0) return false;
             if (b.isPublic) return true;
-            const gDom = this.scene.buildingManager.getDomainAt(b.tx, b.ty);
+            const gDom = this.scene.constructManager.getDomainAt(b.tx, b.ty);
             if (!gDom) return true;
             return homeDomain && gDom.id === homeDomain.id;
         });
         if (garden) {
-            u.taskType = 'harvest_farm'; u.taskBldgId = garden.id;
+            u.taskType = 'harvest_farm'; u.taskConstructId = garden.id;
             u.moveTo = { x: (garden.tx + garden.size/2) * TILE, y: MAP_OY + (garden.ty + garden.size/2) * TILE };
             return;
         }
@@ -1278,13 +1188,13 @@ export default {
         if (!def) { u.role = null; return; }
 
         // ── Zone-based path: freeform appliances inside a work zone ───────────
-        const fm = this.scene.furnitureManager, zm = this.scene.zoneManager;
+        const fm = this.scene.constructManager, zm = this.scene.zoneManager;
         if (fm && zm) {
             for (const zoneTiles of zm.getWorkZones()) {
                 for (const { tx, ty } of zoneTiles) {
                     const item = fm.getAt(tx, ty);
                     if (!item?.built) continue;
-                    if (FURNITURE[item.itemId]?.job !== u.role) continue;
+                    if (CONSTRUCTS[item.type]?.job !== u.role) continue;
                     const key = fm.tileKey(tx, ty);
                     if (this.scene.units.some(w => w.id !== u.id && w.taskType === 'zone_workshop' && w.taskZoneKey === key)) continue;
                     u.taskType      = 'zone_workshop';
@@ -1299,16 +1209,16 @@ export default {
 
         // ── Building-based path (legacy buildings) ────────────────────────────
         // Find a building with an open procure OR process slot
-        const bldg = this.scene.buildings.find(b => {
+        const bldg = this.scene.constructs.find(b => {
             if (b.type !== def.building || !b.built || b.faction) return false;
             if (!this._canAccessBuilding(u, b)) return false;
-            const hasProcurer = this.scene.units.some(w => w.id !== u.id && w.role === u.role && w.workshopSubrole === 'procure' && w.taskBldgId === b.id);
-            const hasProcessor = this.scene.units.some(w => w.id !== u.id && w.role === u.role && w.workshopSubrole === 'process' && w.taskBldgId === b.id);
+            const hasProcurer = this.scene.units.some(w => w.id !== u.id && w.role === u.role && w.workshopSubrole === 'procure' && w.taskConstructId === b.id);
+            const hasProcessor = this.scene.units.some(w => w.id !== u.id && w.role === u.role && w.workshopSubrole === 'process' && w.taskConstructId === b.id);
             return !hasProcurer || !hasProcessor;
         });
         if (!bldg) return;
 
-        const hasProcurer = this.scene.units.some(w => w.id !== u.id && w.role === u.role && w.workshopSubrole === 'procure' && w.taskBldgId === bldg.id);
+        const hasProcurer = this.scene.units.some(w => w.id !== u.id && w.role === u.role && w.workshopSubrole === 'procure' && w.taskConstructId === bldg.id);
         u.workshopSubrole = hasProcurer ? 'process' : 'procure';
 
         if (u.workshopSubrole === 'procure') {
@@ -1322,19 +1232,19 @@ export default {
                 }
                 return;
             }
-            u.taskType = 'workshop'; u.taskBldgId = bldg.id;
+            u.taskType = 'workshop'; u.taskConstructId = bldg.id;
             u.fetchBldgId = source.id; u.workshopPhase = 'goFetch';
         } else {
-            u.taskType = 'workshop'; u.taskBldgId = bldg.id;
+            u.taskType = 'workshop'; u.taskConstructId = bldg.id;
             u.workshopPhase = 'process';
-            u.isInside = !(BLDG[bldg.type]?.outdoor ?? false);
+            u.isInside = !(CONSTRUCTS[bldg.type]?.outdoor ?? false);
         }
     },
 
     // Returns true if building b is inside the same oikos domain as unit u's home
     _isInUnitDomain(u, b) {
-        const home = u.homeBldgId
-            ? this.scene.buildings.find(h => h.id === u.homeBldgId)
+        const home = u.homeConstructId
+            ? this.scene.constructs.find(h => h.id === u.homeConstructId)
             : null;
         if (!home?.domainId) return false;
         return b.domainId === home.domainId;
@@ -1349,12 +1259,12 @@ export default {
 
     _findSourceBuildingNear(x, y, input, types, unit = null) {
         let best = null, bd = Infinity;
-        for (const b of this.scene.buildings) {
+        for (const b of this.scene.constructs) {
             if (!b.built || b.faction === 'enemy') continue;
             if (!types.includes(b.type)) continue;
             if ((b.inventory?.[input] ?? 0) <= 0) continue;
             if (unit && !this._canAccessBuilding(unit, b)) continue;
-            const bx = (b.tx + b.size / 2) * TILE, by2 = MAP_OY + (b.ty + b.size / 2) * TILE;
+            const bx = (b.tx + b.width / 2) * TILE, by2 = MAP_OY + (b.ty + b.width / 2) * TILE;
             const d = Phaser.Math.Distance.Between(x, y, bx, by2);
             if (d < bd) { bd = d; best = b; }
         }
@@ -1363,13 +1273,13 @@ export default {
 
     handleWorkshopTask(u, dt) {
         const def = WORKSHOP_JOBS[u.role];
-        const b   = this.scene.buildings.find(b => b.id === u.taskBldgId && b.built);
+        const b   = this.scene.constructs.find(b => b.id === u.taskConstructId && b.built);
         if (!b || !def) { u.taskType = null; u.workshopPhase = null; u.isInside = false; return; }
 
         // === PROCURER: goFetch → goWork → loop back to goFetch ===
         if (u.workshopSubrole === 'procure') {
             if (u.workshopPhase === 'goFetch' || !u.workshopPhase) {
-                const src = this.scene.buildings.find(s => s.id === u.fetchBldgId && s.built);
+                const src = this.scene.constructs.find(s => s.id === u.fetchBldgId && s.built);
                 if (!src) {
                     const sourceTypes = this._fetchSources()[u.role] ?? [];
                     const newSrc = this._findSourceBuildingNear(u.x, u.y, def.input, sourceTypes, u);
@@ -1420,11 +1330,11 @@ export default {
 
         // === PROCESSOR: stay at bench, consume inbox → output ===
         if (u.workshopSubrole === 'process') {
-            const cx = (b.tx + b.size / 2) * TILE;
-            const cy = MAP_OY + (b.ty + b.size / 2) * TILE;
+            const cx = (b.tx + b.width / 2) * TILE;
+            const cy = MAP_OY + (b.ty + b.width / 2) * TILE;
             if (this.moveToward(u, cx, cy, 10, dt)) return;
 
-            u.isInside = !(BLDG[b.type]?.outdoor ?? false);
+            u.isInside = !(CONSTRUCTS[b.type]?.outdoor ?? false);
 
             if ((b.inbox?.[def.input] ?? 0) <= 0) {
                 // Idle — wait for procurer to refill inbox
@@ -1437,7 +1347,7 @@ export default {
 
         // === FALLBACK (old saves, no subrole): original full-cycle logic ===
         if (u.workshopPhase === 'goFetch') {
-            const src = this.scene.buildings.find(s => s.id === u.fetchBldgId && s.built);
+            const src = this.scene.constructs.find(s => s.id === u.fetchBldgId && s.built);
             if (!src) {
                 const sourceTypes = this._fetchSources()[u.role] ?? [];
                 const newSrc = this._findSourceBuildingNear(u.x, u.y, def.input, sourceTypes, u);
@@ -1476,12 +1386,12 @@ export default {
                 u.carrying[def.input] = 0;
             }
             u.workshopPhase = 'process';
-            u.isInside = !(BLDG[b.type]?.outdoor ?? false);
+            u.isInside = !(CONSTRUCTS[b.type]?.outdoor ?? false);
             return;
         }
 
-        const cx = (b.tx + b.size / 2) * TILE;
-        const cy = MAP_OY + (b.ty + b.size / 2) * TILE;
+        const cx = (b.tx + b.width / 2) * TILE;
+        const cy = MAP_OY + (b.ty + b.width / 2) * TILE;
         if (this.moveToward(u, cx, cy, 10, dt)) return;
 
         if ((b.inbox?.[def.input] ?? 0) <= 0) {
@@ -1548,13 +1458,13 @@ export default {
         // Try to eat from the nearest food building's inventory
         const FOOD_BLDG_TYPES = new Set(['bakery', 'butcher', 'granary', 'warehouse', 'house', 'camp']);
         let foodBldg = null, bd = Infinity;
-        for (const b of this.scene.buildings) {
+        for (const b of this.scene.constructs) {
             if (!b.built || b.faction || !FOOD_BLDG_TYPES.has(b.type)) continue;
             // Houses and camps: only eat from own home, or if the building is public
-            const isHome = b.id === u.homeBldgId;
+            const isHome = b.id === u.homeConstructId;
             const inv = (b.type === 'house' || b.type === 'camp') && !isHome && !b.isPublic ? null : b.inventory;
             if (!inv || !FOOD_PRIORITY.some(k => (inv[k] ?? 0) > 0)) continue;
-            const bx = (b.tx + b.size / 2) * TILE, by = MAP_OY + (b.ty + b.size / 2) * TILE;
+            const bx = (b.tx + b.width / 2) * TILE, by = MAP_OY + (b.ty + b.width / 2) * TILE;
             const d = Phaser.Math.Distance.Between(u.x, u.y, bx, by);
             if (d < bd) { bd = d; foodBldg = b; }
         }
@@ -1656,8 +1566,8 @@ export default {
             { type: 'house', urgency: (this.scene.units.length / (this.scene.storageMax.pop || 10)) > 0.8 ? 8 : 0 }
         ];
         needs.sort((a,b) => b.urgency - a.urgency);
-        const target = needs.find(n => n.urgency > 0 && !this.scene.buildings.some(b => b.type === n.type && !b.built));
-        if (target && this.scene.economyManager.afford(BLDG[target.type].cost)) {
+        const target = needs.find(n => n.urgency > 0 && !this.scene.constructs.some(b => b.type === n.type && !b.built));
+        if (target && this.scene.economyManager.afford(CONSTRUCTS[target.type].cost)) {
             // Logic to find site and place...
         }
     },
@@ -1669,13 +1579,13 @@ export default {
         u._archonAiTimer = 0;
 
         // If something is already being built, the Archon waits
-        if (this.scene.buildings.some(b => !b.built && !b.faction)) return;
+        if (this.scene.constructs.some(b => !b.built && !b.faction)) return;
 
         for (const type of ARCHON_BUILD_ORDER) {
             // Check if building already exists
-            if (this.scene.buildings.some(b => b.type === type && !b.faction)) continue;
+            if (this.scene.constructs.some(b => b.type === type && !b.faction)) continue;
 
-            const def = BLDG[type];
+            const def = CONSTRUCTS[type];
             if (!def) continue;
 
             // Archon only places if state can afford it
@@ -1684,17 +1594,17 @@ export default {
             if (!this.scene.economyManager.afford(cost)) continue;
 
             // Find a site
-            const site = this.scene.buildingManager.findPublicBuildSite(type);
+            const site = this.scene.constructManager.findPublicBuildSite(type);
             if (site) {
                 console.log(`[Archon AI] ${u.name} decides to build a public ${type} at ${site.tx}, ${site.ty}`);
                 // Use a temporary state to trigger placeBuilding logic
                 const prevType = this.scene.bldgType;
                 this.scene.bldgType = type;
-                this.scene.buildingManager.placeBuilding(site.tx, site.ty);
+                this.scene.constructManager.placeBuilding(site.tx, site.ty);
                 this.scene.bldgType = prevType;
 
                 // Ensure it's marked public (it should be by default now, but let's be certain for Archon tasks)
-                const newBldg = this.scene.buildings[this.scene.buildings.length - 1];
+                const newBldg = this.scene.constructs[this.scene.constructs.length - 1];
                 if (newBldg && newBldg.type === type) newBldg.isPublic = true;
 
                 this.scene.uiManager.showFloatText(u.x, u.y - 25, `⚜ Archon: "Build a ${type}!"`, '#ffdd44');

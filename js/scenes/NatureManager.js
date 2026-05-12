@@ -237,7 +237,7 @@ export default class NatureManager {
         else b.females--;
         const meat = ANIMALS.sheep.meat;
         this.scene.economyManager.addResource('Food.Meat.Venison', meat);
-        this.scene.uiManager.showFloatText((b.tx + b.size / 2) * TILE, MAP_OY + b.ty * TILE - 8,
+        this.scene.uiManager.showFloatText((b.tx + b.width / 2) * TILE, MAP_OY + b.ty * TILE - 8,
             `+${meat} meat`, '#cc6633');
         this.scene.updateUI();
     }

@@ -1,7 +1,7 @@
-import { BLDG, VET_LEVELS, BLDG_VOLUME, UNIT_NAMES, computeBuildCost } from '../../config/gameConstants.js';
+import { VET_LEVELS, BLDG_VOLUME, UNIT_NAMES } from '../../config/gameConstants.js';
 import { ITEMS } from '../../content/items/index.js';
 import { WORKSHOP_JOBS } from '../../content/jobs/index.js';
-import { FURNITURE } from '../../content/furniture/index.js';
+import { CONSTRUCTS, computeBuildCost } from '../../content/constructs/index.js';
 
 export default {
     _renderInfoPane() {
@@ -18,7 +18,7 @@ export default {
             this._renderUnitInfo(sel, ox, oy, W, H, pad);
         } else if (this.scene.selectedNode) {
             this._renderNodeInfo(ox, oy, W, H, pad);
-        } else if (this.scene.selectedFurniture) {
+        } else if (this.scene.selectedConstruct) {
             this._renderFurnitureInfo(ox, oy, W, H, pad);
         } else if (this.scene.selectedZoneTile) {
             this._renderZoneInfo(ox, oy, W, H, pad);
@@ -29,7 +29,7 @@ export default {
 
     _renderBuildingInfo(ox, oy, W, H, pad) {
         const b   = this.scene.selectedBuilding;
-        const def = BLDG[b.type];
+        const def = CONSTRUCTS[b.type];
 
         if ((b.type === 'house' || b.type === 'townhall') && b.built) {
             this._renderOikosInfo(b, ox, oy, W, H, pad);
@@ -39,7 +39,7 @@ export default {
         // Non-house buildings within an oikos domain → show family panel
         if (b.built && b.domainId) {
             const dom   = this.scene.domains.find(d => d.id === b.domainId);
-            const house = dom ? this.scene.buildings.find(h => h.id === dom.houseBldgId && h.built) : null;
+            const house = dom ? this.scene.constructs.find(h => h.id === dom.houseBldgId && h.built) : null;
             if (house) { this._renderOikosInfo(house, ox, oy, W, H, pad); return; }
         }
 
@@ -99,7 +99,7 @@ export default {
 
         let status = '';
         if (def.capacity) {
-            const pop = this.scene.units.filter(u => u.homeBldgId === b.id && !u.isEnemy && u.hp > 0).length;
+            const pop = this.scene.units.filter(u => u.homeConstructId === b.id && !u.isEnemy && u.hp > 0).length;
             status = `👥 ${pop}/${def.capacity}`;
         }
         const maxVol = BLDG_VOLUME[b.type];
@@ -183,14 +183,14 @@ export default {
             const labels = { procure: 'Procurer', process: 'Processor' };
             for (const slot of ['procure', 'process']) {
                 const w = this.scene.units.find(u =>
-                    !u.isEnemy && u.hp > 0 && u.taskBldgId === b.id && u.workshopSubrole === slot);
+                    !u.isEnemy && u.hp > 0 && u.taskConstructId === b.id && u.workshopSubrole === slot);
                 this._infTxt(ox + pad + 4, wy, `[${labels[slot]}] ${w ? w.name : '— empty —'}`,
                     { fontSize: this._fs(9), color: w ? '#a09070' : '#554433' });
                 wy += 13;
             }
         } else {
             const assigned = this.scene.units.filter(u =>
-                !u.isEnemy && u.hp > 0 && u.taskBldgId === b.id && u.role);
+                !u.isEnemy && u.hp > 0 && u.taskConstructId === b.id && u.role);
             if (assigned.length) {
                 this._infTxt(ox + pad, wy, '👷 workers:', { fontSize: this._fs(10), color: '#c8a030' });
                 wy += 14;
@@ -265,15 +265,15 @@ export default {
         const ch = H - TH;
         this._infCard(ox + 2, cy, W - 4, ch - 2);
 
-        const allRes   = this.scene.units.filter(u => u.homeBldgId === b.id && !u.isEnemy && u.hp > 0);
+        const allRes   = this.scene.units.filter(u => u.homeConstructId === b.id && !u.isEnemy && u.hp > 0);
         const adults   = allRes.filter(u => u.age >= 2);
         const patriarch = adults.find(u => u.isArchon) ?? adults.find(u => u.gender === 'male') ?? adults[0];
         const familyName = b.type === 'townhall'
             ? (patriarch ? `Archon: ${patriarch.name}` : 'Town Hall')
             : (patriarch ? `${patriarch.name}'s Oikos` : `House #${b.id}`);
         const cap = b.type === 'house'
-            ? this.scene.buildingManager.getHouseCapacity(b)
-            : (BLDG[b.type]?.capacity ?? '?');
+            ? this.scene.constructManager.getHouseCapacity(b)
+            : (CONSTRUCTS[b.type]?.capacity ?? '?');
 
         this._infTxt(ox + pad, cy + 4, familyName, { fontSize: this._fs(11), color: '#c8a030' });
         this._infTxt(ox + W - pad, cy + 4, `${allRes.length}/${cap}`,
@@ -361,8 +361,8 @@ export default {
 
         if (b.type === 'townhall') {
             const archon = this.scene.units.find(u => u.isArchon && u.hp > 0);
-            const archonHome = archon?.homeBldgId
-                ? this.scene.buildings.find(bldg => bldg.id === archon.homeBldgId && bldg.id !== b.id)
+            const archonHome = archon?.homeConstructId
+                ? this.scene.constructs.find(bldg => bldg.id === archon.homeConstructId && bldg.id !== b.id)
                 : null;
             if (archonHome) {
                 const hInv = Object.entries(archonHome.inventory ?? {}).filter(([, v]) => v > 0);
@@ -641,8 +641,8 @@ export default {
         const s  = this.scene;
         const { tx, ty } = s.selectedZoneTile;
         const zm = s.zoneManager;
-        const fm = s.furnitureManager;
-        const wm = s.wallManager;
+        const fm = s.constructManager;
+        const wm = s.constructManager;
         if (!zm) return;
 
         const zoneType  = s.selectedZoneType;
@@ -674,7 +674,7 @@ export default {
 
         if (isWork && fm) {
             const appList = analysisTiles
-                .map(t => { const it = fm.getAt(t.tx, t.ty); return it?.built ? FURNITURE[it.itemId] : null; })
+                .map(t => { const it = fm.getAt(t.tx, t.ty); return it?.built ? CONSTRUCTS[it.type] : null; })
                 .filter(Boolean);
             if (appList.length) {
                 this._infTxt(ox + pad, ry, 'Appliances:', { fontSize: this._fs(9), color: '#7a7060' });
@@ -739,7 +739,7 @@ export default {
         this._infBtn(ox + pad, btnY, W - pad * 2, 22, '+ Expand Zone', 0x224433, () => {
             s.zoneMode      = expandMode;
             s.bldgType      = null; s.roadMode  = false;
-            s.wallMode      = false; s.furnitureMode = false;
+            s.wallMode      = false; s.constructMode = false;
             s.zoneManager?.clearSelection();
             s.selectedZoneTile  = null; s.selectedZoneTiles = null;
             s.selectedZoneType  = null; s.selectedZoneCrop  = null;
@@ -763,8 +763,8 @@ export default {
 
     _renderFurnitureInfo(ox, oy, W, H, pad) {
         const s = this.scene;
-        const { tx, ty, item } = s.selectedFurniture;
-        const def = FURNITURE[item.itemId];
+        const { tx, ty, item } = s.selectedConstruct;
+        const def = CONSTRUCTS[item.type];
         if (!def) return;
 
         const jobDef    = def.job ? WORKSHOP_JOBS[def.job] : null;
@@ -782,8 +782,8 @@ export default {
             this._infTxt(ox + pad, btnY - 18, '⚒ Under construction', { fontSize: this._fs(10), color: '#c8a030' });
             this._infBar(ox + pad, btnY - 4,  W - pad * 2, 6, progress, 0xffdd44);
             this._infBtn(ox + pad, btnY + 8,  W - pad * 2, 26, 'Cancel Order', 0x441c1c, () => {
-                s.furnitureManager.remove(tx, ty);
-                s.selectedFurniture = null; this.updateUI();
+                s.constructManager.remove(tx, ty);
+                s.selectedConstruct = null; this.updateUI();
             });
             return;
         }
@@ -846,7 +846,7 @@ export default {
             // Assign selected workers button
             const selWorkers = s.units.filter(u => u.selected && u.type === 'worker' && u.age >= 2);
             if (selWorkers.length > 0) {
-                const fmKey = s.furnitureManager.tileKey(tx, ty);
+                const fmKey = s.constructManager.tileKey(tx, ty);
                 this._infBtn(ox + pad, ry, W - pad * 2, 16, `Assign ${selWorkers.length} worker${selWorkers.length > 1 ? 's' : ''} here`, 0x223344, () => {
                     selWorkers.forEach(u => {
                         u.vocation   = def.job;
@@ -862,13 +862,13 @@ export default {
             // Bottom strip
             const btnY2 = oy + H - 50;
             this._infBtn(ox + pad,          btnY2,      btnW, 22, 'Relocate', 0x1c3044, () => {
-                s.relocateMode = true; s.relocateSrc = { tx, ty }; s.furnitureMode = false; this.updateUI();
+                s.relocateMode = true; s.relocateSrc = { tx, ty }; s.constructMode = false; this.updateUI();
             });
             this._infBtn(ox + pad + btnW + 4, btnY2,    btnW, 22, 'Remove',   0x441c1c, () => {
-                s.furnitureManager.remove(tx, ty); s.selectedFurniture = null; this.updateUI();
+                s.constructManager.remove(tx, ty); s.selectedConstruct = null; this.updateUI();
             });
             this._infBtn(ox + pad,          btnY2 + 26, W - pad * 2, 20, '✕ Close', 0x1a1408, () => {
-                s.selectedFurniture = null; this.updateUI();
+                s.selectedConstruct = null; this.updateUI();
             });
             return;
         }
@@ -882,13 +882,13 @@ export default {
         if (costStr)
             this._infTxt(ox + pad, btnY - 14, `Cost: ${costStr}`, { fontSize: this._fs(9), color: '#6a5830' });
         this._infBtn(ox + pad,          btnY + 2, btnW, 24, 'Relocate', 0x1c3044, () => {
-            s.relocateMode = true; s.relocateSrc = { tx, ty }; s.furnitureMode = false; this.updateUI();
+            s.relocateMode = true; s.relocateSrc = { tx, ty }; s.constructMode = false; this.updateUI();
         });
         this._infBtn(ox + pad + btnW + 4, btnY + 2, btnW, 24, 'Remove', 0x441c1c, () => {
-            s.furnitureManager.remove(tx, ty); s.selectedFurniture = null; this.updateUI();
+            s.constructManager.remove(tx, ty); s.selectedConstruct = null; this.updateUI();
         });
         this._infBtn(ox + pad, btnY + 32, W - pad * 2, 22, '✕ Close', 0x1a1408, () => {
-            s.selectedFurniture = null; this.updateUI();
+            s.selectedConstruct = null; this.updateUI();
         });
     },
 };

@@ -6,7 +6,7 @@ export default {
     private: true,
     score(u, ctx) {
         if (u.age < this.minAge) return -1;
-        const hasPasture = ctx.buildings.some(b => b.type === 'pasture' && b.built && !b.faction);
+        const hasPasture = ctx.constructs.some(b => b.type === 'pasture' && b.built && !b.faction);
         if (!hasPasture) return -1;
         const wildSheep = ctx.sheep.filter(s => !s.isTamed && !s.isDead).length;
         if (wildSheep === 0) return -1;

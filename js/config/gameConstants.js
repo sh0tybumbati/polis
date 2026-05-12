@@ -170,86 +170,6 @@ export const TRAFFIC_DECAY_PER_DAY = 18; // subtracted from every tile each day 
 
 // ─── Building Definitions ────────────────────────────────────────────────────
 
-export const BLDG = {
-  // ── Starting (pre-built, not in toolbar) ──────────────────────────────────
-  townhall:   { label: '🏛 Town Hall',    color: 0xaa7733, cost: null, size: 2,
-                desc: 'Administrative center of the polis. The Archon lives in their own oikos.',
-                hidden: true },
-  // ── Buildable ─────────────────────────────────────────────────────────────
-  // cost = minimum non-substitutable materials; materialQty = flexible (wood OR stone)
-  camp:       { label: '⛺ Camp',          color: 0x8b7050, cost: {},               materialQty: 4,  size: 2,
-                desc: 'Temporary shelter with basic storage. Upgrade to a house to establish an oikos.',
-                outdoor: true, capacity: 4,
-                stores: { 'Food.Produce.Berry': 40, 'Materials.Wood.Pine.Sticks': 30, 'Materials.Stone.Limestone.Stones': 20 } },
-  house:      { label: '🏠 House',         color: 0xcc8844, cost: {},               materialQty: 5,  size: 2,
-                desc: 'Provides housing for up to 6 citizens.',
-                capacity: 6, spawnMs: 200000,
-                stores: { 'Food.Produce.Berry': 120, 'Food.Grain.Wheat.Bread': 10,
-                          'Materials.Wood.Pine.Sticks': 30, 'Materials.Stone.Limestone.Stones': 20 } },
-  granary:    { label: '🌾 Granary',       color: 0xcc9933, cost: {},               materialQty: 10,  size: 2,
-                desc: 'Stores large quantities of food and grain.',
-                stores: { 'Food.Grain.Wheat': 200 } },
-  woodshed:   { label: '🪵 Woodshed',      color: 0x7a5030, cost: {},               materialQty: 6,  size: 2, outdoor: true,
-                desc: 'Storage for wood and sticks.',
-                stores: { 'Materials.Wood.Pine': 60, 'Materials.Wood.Pine.Sticks': 80 } },
-  stonepile:  { label: '🧱 Stone Pile',    color: 0x888878, cost: { 'Materials.Stone.Limestone': 5 },  size: 2, outdoor: true,
-                desc: 'Storage for stone chunks and stones.',
-                stores: { 'Materials.Stone.Limestone': 50, 'Materials.Stone.Limestone.Stones': 80 } },
-  farm:       { label: '🚜 Farm',          color: 0x5a9a28, cost: {},               materialQty: 5,  size: 2, outdoor: true, stockMax: 48,
-                desc: 'Produces wheat. Requires a farmer to harvest.' },
-  garden:     { label: '🌻 Garden',        color: 0x448833, cost: {},               materialQty: 6,  size: 2, outdoor: true, stockMax: 20,
-                desc: 'Grows olives for food and oil.',
-                stores: { 'Food.Produce.Olive': 30 } },
-  barracks:   { label: '⚔ Barracks',      color: 0x8a6848, cost: { 'Materials.Stone.Limestone': 2 }, materialQty: 6,  size: 2, spawnMs: 18000,
-                desc: 'Trains and houses melee infantry.' },
-  archery:    { label: '🏹 Archery Range', color: 0x2a7a4a, cost: { 'Materials.Stone.Limestone': 2 }, materialQty: 6,  size: 2, outdoor: true, spawnMs: 16000,
-                desc: 'Trains and houses ranged units.' },
-  stable:     { label: '🐎 Stable',        color: 0x7a5522, cost: {},               materialQty: 9,  size: 2, spawnMs: 22000,
-                desc: 'Trains and houses cavalry units.' },
-  tannery:    { label: '👞 Tannery',       color: 0x8a5530, cost: {},               materialQty: 7,  size: 2,
-                desc: 'Processes hides into leather and kits.',
-                stores: { 'Textile.Hide.Deer': 30, 'Textile.Hide.Deer.Leather': 30, 'Equipment.Leather.Kit': 10 } },
-  olive_press:{ label: '🫒 Olive Press',   color: 0x667733, cost: { 'Materials.Stone.Limestone': 3 }, materialQty: 5,  size: 2,
-                desc: 'Presses olives into food.',
-                stores: { 'Food.Produce.Olive': 40 } },
-  temple:     { label: '🕯 Temple',        color: 0xddaa44, cost: { 'Materials.Stone.Limestone': 6 }, materialQty: 6,  size: 2,
-                desc: 'A place of worship for the gods.' },
-  oracle:     { label: '🔮 Oracle',        color: 0x8866aa, cost: { 'Materials.Stone.Limestone': 3 }, materialQty: 6,  size: 2,
-                desc: 'Provides foresight and wisdom.' },
-  palisade:   { label: '🪵 Palisade',      color: 0x8a6030, cost: { 'Materials.Wood.Pine': 2 },        size: 1, outdoor: true,
-                desc: 'A basic wooden defensive wall.' },
-  watchtower: { label: '🗼 Watchtower',    color: 0x7a7060, cost: { 'Materials.Stone.Limestone': 3 }, materialQty: 5,  size: 1, outdoor: true,
-                desc: 'Provides vision and a platform for archers.',
-                fogRadius: 6, atkRange: 5 * TILE, garrisonRanged: 2, garrisonMelee: 2 },
-  gate:       { label: '🚪 Gate',          color: 0xa08858, cost: { 'Materials.Stone.Limestone': 1 }, materialQty: 3,  size: 1, outdoor: true,
-                desc: 'Allows friendly units to pass through walls.' },
-  wall:       { label: '🧱 Wall',          color: 0x9a9888, cost: { 'Materials.Stone.Limestone': 2 },  size: 1, outdoor: true,
-                desc: 'A sturdy stone defensive fortification.' },
-  carpenter:  { label: '🪚 Carpenter',     color: 0x9a6030, cost: { 'Materials.Stone.Limestone': 1 }, materialQty: 7,  size: 2,
-                desc: 'Processes wood into planks and appliances.',
-                stores: { 'Materials.Wood.Pine.Plank': 40 } },
-  masons:     { label: '🪨 Masons',        color: 0x7a7060, cost: { 'Materials.Stone.Limestone': 4 }, materialQty: 5,  size: 2,
-                desc: 'Processes stone into blocks and appliances.',
-                stores: { 'Materials.Stone.Limestone.Block': 30 } },
-  warehouse:  { label: '📦 Warehouse',     color: 0x554433, cost: { 'Materials.Stone.Limestone': 3 }, materialQty: 10, size: 3,
-                desc: 'Massive storage for industrial materials.',
-                stores: { 'Textile.Hide.Deer.Leather': 50, 'Textile.Fiber.Wool': 50, 'Materials.Metal.Copper.Ore': 50, 'Materials.Metal.Copper.Ingot': 50, 'Equipment.Bronze.Kit': 20, 'Materials.Wood.Pine.Plank': 40, 'Materials.Stone.Limestone.Block': 30 } },
-  agora:      { label: '🏪 Agora',         color: 0xd4a030, cost: { 'Materials.Stone.Limestone': 6, 'Materials.Wood.Pine': 3 }, size: 2,
-                desc: 'Marketplace at the center of the polis. Set standing trade orders; caravans fulfill them.' },
-};
-
-// Compute the actual build cost for a type given the player's material choice ('wood' or 'stone')
-export function computeBuildCost(type, material = 'Materials.Wood.Pine') {
-    const def = BLDG[type];
-    if (!def) return {};
-    if (!def.materialQty) return def.cost ?? {};   // fixed cost, no substitution
-    const base = { ...(def.cost ?? {}) };
-    base[material] = (base[material] ?? 0) + def.materialQty;
-    return base;
-}
-
-export const BUILD_WORK = { camp: 6, house: 14, granary: 14, woodshed: 12, stonepile: 8, farm: 16, garden: 12, barracks: 22, archery: 18, stable: 24, palisade: 4, watchtower: 14, gate: 8, wall: 6, tannery: 18, smelter: 24, blacksmith: 22, mill: 16, bakery: 14, olive_press: 16, temple: 24, oracle: 18, warehouse: 20, carpenter: 18, masons: 20, agora: 18 };
-
 // ─── Day/Night Cycle Constants ──────────────────────────────────────────────
 
 export const DAY_DURATION    = 90000;   // 90s day
@@ -318,12 +238,28 @@ export function _counterMod(attackerType, defenderType) {
 
 // ─── Building Categories (for UI) ────────────────────────────────────────────
 
-export const BLDG_CATS = {
-  // Replaced by zones + appliances; legacy buildings still load from saves but can't be newly placed.
-  Economy:  [],
-  Military: ['barracks', 'archery', 'stable', 'watchtower', 'gate'],
-  Culture:  ['temple', 'oracle'],
-  Debug: [],
+export const BLDG_VOLUME = {
+    camp:      400,
+    granary:   1000,
+    woodshed:  800,
+    stonepile: 600,
+    warehouse: 2000,
+    house:     150,
+    townhall:  500,
+    barracks:  400,
+    archery:   400,
+    stable:    400,
+    tannery:   500,
+    smelter:   500,
+    blacksmith: 500,
+    mill:      600,
+    bakery:    500,
+    olive_press: 500,
+    temple:    300,
+    oracle:    300,
+    carpenter: 600,
+    masons:    600,
+    stonecutter: 600,
 };
 
 // ─── Secondary material conversions ──────────────────────────────────────────

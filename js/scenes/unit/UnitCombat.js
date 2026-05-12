@@ -34,7 +34,7 @@ export default {
         }
 
         if (u.isRouting) {
-            const home = this.scene.buildings.find(b => b.id === u.homeBldgId);
+            const home = this.scene.constructs.find(b => b.id === u.homeConstructId);
             const hx = home ? (home.tx + home.size / 2) * TILE : MAP_W / 2 * TILE;
             const hy = home ? MAP_OY + (home.ty + home.size / 2) * TILE : this.scene.MAP_BOTTOM - TILE * 4;
             const dh = Phaser.Math.Distance.Between(u.x, u.y, hx, hy);
@@ -50,10 +50,10 @@ export default {
 
         if (!near) {
             // No enemy units — attack nearest enemy building instead
-            const eb = this.scene.buildings.filter(b => b.faction === 'enemy' && b.built && b.hp > 0);
+            const eb = this.scene.constructs.filter(b => b.faction === 'enemy' && b.built && b.hp > 0);
             let nearBldg = null, nbd = Infinity;
             for (const b of eb) {
-                const bx = (b.tx + b.size / 2) * TILE, by = MAP_OY + (b.ty + b.size / 2) * TILE;
+                const bx = (b.tx + b.width / 2) * TILE, by = MAP_OY + (b.ty + b.width / 2) * TILE;
                 const d = Phaser.Math.Distance.Between(u.x, u.y, bx, by);
                 if (d < nbd) { nbd = d; nearBldg = b; }
             }
@@ -64,7 +64,7 @@ export default {
                     if (time - u.lastAtk > 1200) {
                         u.lastAtk = time;
                         nearBldg.hp = Math.max(0, nearBldg.hp - u.atk);
-                        this.scene.buildingManager.redrawBuildingBar(nearBldg);
+                        this.scene.constructManager.redrawBuildingBar(nearBldg);
                         this.scene.uiManager.showFloatText(bx, by - 10, `-${u.atk}`, '#ffaa44');
                         if (nearBldg.hp <= 0) this._destroyBuilding(nearBldg);
                     }
@@ -123,7 +123,7 @@ export default {
 
         sel.forEach((u, i) => {
             u.moveTo = positions[i];
-            u.taskType = null; u.taskBldgId = null; u.targetNode = null;
+            u.taskType = null; u.taskConstructId = null; u.targetNode = null;
         });
     },
 
