@@ -6,6 +6,7 @@ import cuts        from './cuts.js';
 import sausages    from './sausages.js';
 import olives      from './olives.js';
 import olive_oil   from './olive_oil.js';
+import beer        from './beer.js';
 import cloth_wool  from './cloth_wool.js';
 import berries     from './berries.js';
 import wood        from './wood.js';
@@ -23,7 +24,7 @@ import leatherKit  from './leatherKit.js';
 import bronzeKit   from './bronzeKit.js';
 
 const defs = [
-    wheat, flour, bread, meat, cuts, sausages, olives, olive_oil, berries,
+    wheat, flour, bread, meat, cuts, sausages, olives, olive_oil, beer, berries,
     wood, sticks, planks, stone, stones, stoneBlocks, ore, ingot,
     wool, cloth_wool, hide, leather, leatherKit, bronzeKit,
 ];

@@ -36,6 +36,7 @@ export default class GameScene extends Phaser.Scene {
             'Food.Grain.Wheat': 0, 'Food.Grain.Wheat.Flour': 0, 'Food.Grain.Wheat.Bread': 0,
             'Food.Meat.Venison': 0, 'Food.Meat.Venison.Cuts': 0, 'Food.Meat.Venison.Sausages': 0,
             'Food.Produce.Olive': 0, 'Food.Produce.Olive.Oil': 0, 'Food.Produce.Berry': 0,
+            'Food.Drink.Beer': 0,
             'Materials.Wood.Pine': 0, 'Materials.Wood.Pine.Sticks': 0, 'Materials.Wood.Pine.Plank': 0,
             'Materials.Stone.Limestone': 0, 'Materials.Stone.Limestone.Stones': 0, 'Materials.Stone.Limestone.Block': 0,
             'Materials.Metal.Copper.Ore': 0, 'Materials.Metal.Copper.Ingot': 0,
@@ -47,6 +48,7 @@ export default class GameScene extends Phaser.Scene {
             'Food.Grain.Wheat': 0, 'Food.Grain.Wheat.Flour': 0, 'Food.Grain.Wheat.Bread': 0,
             'Food.Meat.Venison': 0, 'Food.Meat.Venison.Cuts': 0, 'Food.Meat.Venison.Sausages': 0,
             'Food.Produce.Olive': 0, 'Food.Produce.Olive.Oil': 0, 'Food.Produce.Berry': 0,
+            'Food.Drink.Beer': 0,
             'Materials.Wood.Pine': 0, 'Materials.Wood.Pine.Sticks': 0, 'Materials.Wood.Pine.Plank': 0,
             'Materials.Stone.Limestone': 0, 'Materials.Stone.Limestone.Stones': 0, 'Materials.Stone.Limestone.Block': 0,
             'Materials.Metal.Copper.Ore': 0, 'Materials.Metal.Copper.Ingot': 0,
@@ -67,6 +69,8 @@ export default class GameScene extends Phaser.Scene {
         this.bldgType     = null;
         this.bldgMaterial = 'Materials.Wood.Pine.Sticks'; // sticks are the starting material
         this.fmType    = 'phalanx';
+        this.tradeOrders = [];
+        this.tradeLog    = [];
         this.floorPiles = [];
         this.selectedBuilding = null;
         this.visMap      = [];   
@@ -120,7 +124,11 @@ export default class GameScene extends Phaser.Scene {
         this.zoneManager      = new ZoneManager(this);
         this.zoneMode         = null; // 'work' | 'storage' | 'erase' | null
         this._zoneDragTiles   = new Set();
-        this.selectedZoneTile = null;
+        this._zoneDragStart   = null;
+        this.selectedZoneTile  = null;
+        this.selectedZoneTiles = null;
+        this.selectedZoneType  = null;
+        this.selectedZoneCrop  = null;
     }
 
     _w(obj) { this.uiCam?.ignore(obj); return obj; }
@@ -481,6 +489,7 @@ export default class GameScene extends Phaser.Scene {
         this.unitManager.tick(time, dt);
         this.economyManager.tick(delta * this.tickSpeed);
         this.natureManager.tick(delta * this.tickSpeed, dt);
+        this.zoneManager?.tickGrow(delta * this.tickSpeed);
 
         this._minimapTimer += delta;
         if (this._minimapTimer >= 500) {

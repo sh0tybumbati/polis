@@ -1,6 +1,7 @@
 import {
     TAP_DIST, MAP_OY, MAP_W, MAP_BOTTOM, TILE, BLDG
 } from '../config/gameConstants.js';
+import { CROPS } from '../content/crops/index.js';
 
 export default class InputManager {
     constructor(scene) {
@@ -32,7 +33,11 @@ export default class InputManager {
                     const edge = s.wallManager.nearestEdge(ptr.worldX, ptr.worldY);
                     s._wallDragErasing = edge ? !!s.wallManager.getWall(edge.isH, edge.row, edge.col) : false;
                 }
-                if (s.zoneMode) s._zoneDragTiles.clear();
+                if (s.zoneMode) {
+                    s._zoneDragTiles.clear();
+                    const t = s.tileAt(ptr.worldX, ptr.worldY);
+                    s._zoneDragStart = t ? { tx: t.tx, ty: t.ty } : null;
+                }
             } else {
                 s._dragging = false; s._fmDragging = false; s._fmDragStart = null;
                 s.dragGfx.clear();
@@ -93,16 +98,10 @@ export default class InputManager {
                     this._drawWallGhost(ptr);
                 }
             } else if (s.zoneMode && !isUI) {
-                if (ptr.isDown) {
+                if (ptr.isDown && s._zoneDragStart) {
                     const t = s.tileAt(ptr.worldX, ptr.worldY);
-                    if (t) {
-                        const key = t.ty * MAP_W + t.tx;
-                        if (!s._zoneDragTiles.has(key)) {
-                            s._zoneDragTiles.add(key);
-                            this._applyZonePaint(t.tx, t.ty);
-                        }
-                    }
-                } else {
+                    if (t) this._drawZoneRectGhost(s._zoneDragStart, t);
+                } else if (!ptr.isDown) {
                     this._drawZoneGhost(ptr);
                 }
             } else if (s.roadMode && ptr.isDown && !isUI) {
@@ -175,7 +174,19 @@ export default class InputManager {
 
             const isTouch = s.sys.game.device.input.touch;
 
-            if (s.zoneMode) { const t = s.tileAt(wx, wy); if (t) this._applyZonePaint(t.tx, t.ty); return; }
+            if (s.zoneMode) {
+                const t = s.tileAt(wx, wy);
+                if (t && s._zoneDragStart) {
+                    const x1 = Math.min(s._zoneDragStart.tx, t.tx), x2 = Math.max(s._zoneDragStart.tx, t.tx);
+                    const y1 = Math.min(s._zoneDragStart.ty, t.ty), y2 = Math.max(s._zoneDragStart.ty, t.ty);
+                    for (let ry = y1; ry <= y2; ry++)
+                        for (let rx = x1; rx <= x2; rx++)
+                            this._applyZonePaint(rx, ry);
+                }
+                s._zoneDragStart = null;
+                s.hoverGfx?.clear();
+                return;
+            }
             if (s.roadMode) { const t = s.tileAt(wx, wy); if (t) s._paintRoad(t.tx, t.ty); return; }
             if (s.bldgType) { const t = s.tileAt(wx, wy); if (t) s.placeBuilding(t.tx, t.ty); return; }
             if (s.relocateMode) {
@@ -242,11 +253,17 @@ export default class InputManager {
             }
 
             // Left click: select
+            const hadWorkers = s.selIds?.size > 0 &&
+                [...s.selIds].some(id => { const u = s.units.find(u => u.id === id); return u?.type === 'worker' && u.age >= 2; });
             s.deselect();
             s.selectedBuilding = null;
             s.selectedNode = null;
             s.selectedFurniture = null;
-            s.selectedZoneTile = null;
+            s.zoneManager?.clearSelection();
+            s.selectedZoneTile  = null;
+            s.selectedZoneTiles = null;
+            s.selectedZoneType  = null;
+            s.selectedZoneCrop  = null;
             if (hit && !hit.isEnemy) { s.selectUnit(hit.id, ptr.event?.shiftKey ?? false); return; }
             if (bldg) { s.selectedBuilding = bldg; s.updateUI(); return; }
             if (node) { s.selectedNode = node; s.updateUI(); return; }
@@ -256,8 +273,25 @@ export default class InputManager {
             const tile = s.tileAt(wx, wy);
             if (tile && s.zoneManager) {
                 const zAt = s.zoneManager.getAt(tile.tx, tile.ty);
-                if (zAt.work || zAt.storage) {
-                    s.selectedZoneTile = { tx: tile.tx, ty: tile.ty };
+                if (zAt.work || zAt.storage || zAt.grow || zAt.market) {
+                    const { tiles, zoneType, cropKey } = s.zoneManager.getConnectedTiles(tile.tx, tile.ty);
+                    const selCol = zoneType === 'work' ? 0x66aaff : zoneType === 'storage' ? 0xffcc44
+                        : zoneType === 'market' ? 0xffdd66 : 0x88ee55;
+                    s.zoneManager.setSelection(tiles, selCol);
+                    s.selectedZoneTile  = { tx: tile.tx, ty: tile.ty };
+                    s.selectedZoneTiles = tiles;
+                    s.selectedZoneType  = zoneType;
+                    s.selectedZoneCrop  = cropKey;
+                    // If workers were selected, assign them to this zone
+                    if (hadWorkers) {
+                        const workers = s.units.filter(u => u.selected && u.type === 'worker' && u.age >= 2);
+                        const role = zoneType === 'grow' ? 'farmer' : zoneType === 'market' ? 'merchant' : null;
+                        workers.forEach(u => {
+                            if (role) { u.vocation = role; u.role = role; }
+                            u.taskType = null; u.targetNode = null; u.moveTo = null;
+                        });
+                        if (workers.length) s.uiManager?.showFloatText?.(tile.tx * TILE + TILE / 2, MAP_OY + tile.ty * TILE, `→ ${zoneType}`, '#aaddff');
+                    }
                     s.updateUI(); return;
                 }
             }
@@ -271,7 +305,7 @@ export default class InputManager {
             cam.setZoom(Phaser.Math.Clamp(cam.zoom * (dy > 0 ? 0.9 : 1.1), 0.3, 3));
         });
 
-        s.input.keyboard?.on('keydown-ESC', () => { s.bldgType = null; s.roadMode = false; s.wallMode = false; s.furnitureMode = false; s.furnitureItemId = null; s.relocateMode = false; s.relocateSrc = null; s.selectedFurniture = null; s.zoneMode = null; s.selectedZoneTile = null; s.deselect(); s.selectedBuilding = null; s.hoverGfx.clear(); s.updateUI(); });
+        s.input.keyboard?.on('keydown-ESC', () => { s.bldgType = null; s.roadMode = false; s.wallMode = false; s.furnitureMode = false; s.furnitureItemId = null; s.relocateMode = false; s.relocateSrc = null; s.selectedFurniture = null; s.zoneMode = null; s._zoneDragStart = null; s.selectedZoneTile = null; s.selectedZoneTiles = null; s.selectedZoneType = null; s.selectedZoneCrop = null; s.zoneManager?.clearSelection(); s.deselect(); s.selectedBuilding = null; s.hoverGfx.clear(); s.updateUI(); });
         s.input.keyboard?.on('keydown-A', () => s.units.filter(u => !u.isEnemy).forEach(u => s.selectUnit(u.id, true)));
         s.input.keyboard?.on('keydown-F', () => { const sel = s.units.filter(u => u.selected && !u.isEnemy); if (sel.length) s.moveSelectedTo((MAP_W / 2) * TILE, MAP_OY + (MAP_H - 10) * TILE); });
         s.input.keyboard?.on('keydown-BACKTICK', () => s.scene.launch('SpriteEditorScene'));
@@ -300,18 +334,41 @@ export default class InputManager {
         const { isH, row, col } = edge;
         const px = col * TILE, py = MAP_OY + row * TILE;
         const existing = s.wallManager.getWall(isH, row, col);
-        const col_c = existing ? 0xff4444 : 0xc8a030;
-        s.hoverGfx.clear().fillStyle(col_c, 0.85);
-        if (isH) s.hoverGfx.fillRect(px, py - 2, TILE, 4);
-        else     s.hoverGfx.fillRect(px - 2, py, 4, TILE);
+        const W = 6; // mirror WallManager.W
+        const col_c = existing ? 0xff4444 : s.wallManager.getMaterialColor(s.wallMaterial ?? 'Materials.Wood.Pine');
+        const alpha = existing ? 0.9 : 0.7;
+        s.hoverGfx.clear().fillStyle(col_c, alpha);
+        if (isH) s.hoverGfx.fillRect(px, py - W / 2, TILE, W);
+        else     s.hoverGfx.fillRect(px - W / 2, py, W, TILE);
     }
 
     _applyZonePaint(tx, ty) {
         const s = this.scene;
         if (!s.zoneManager) return;
-        if (s.zoneMode === 'work')    s.zoneManager.paintWork(tx, ty);
-        else if (s.zoneMode === 'storage') s.zoneManager.paintStorage(tx, ty);
-        else if (s.zoneMode === 'erase')   s.zoneManager.erase(tx, ty);
+        if (s.zoneMode === 'work')             s.zoneManager.paintWork(tx, ty);
+        else if (s.zoneMode === 'storage')     s.zoneManager.paintStorage(tx, ty);
+        else if (s.zoneMode === 'market')      s.zoneManager.paintMarket(tx, ty);
+        else if (s.zoneMode === 'erase')       s.zoneManager.erase(tx, ty);
+        else if (s.zoneMode?.startsWith('grow:'))
+            s.zoneManager.paintGrow(tx, ty, s.zoneMode.split(':')[1]);
+    }
+
+    _drawZoneRectGhost(start, end) {
+        const s = this.scene;
+        const x1 = Math.min(start.tx, end.tx), x2 = Math.max(start.tx, end.tx);
+        const y1 = Math.min(start.ty, end.ty), y2 = Math.max(start.ty, end.ty);
+        let col = 0xffffff;
+        if (s.zoneMode === 'work')         col = 0x4488ff;
+        else if (s.zoneMode === 'storage') col = 0xffaa22;
+        else if (s.zoneMode === 'market')  col = 0xddaa22;
+        else if (s.zoneMode === 'erase')   col = 0xff4444;
+        else if (s.zoneMode?.startsWith('grow:'))
+            col = CROPS[s.zoneMode.split(':')[1]]?.zoneColor ?? 0x558833;
+        const px = x1 * TILE, py = MAP_OY + y1 * TILE;
+        const pw = (x2 - x1 + 1) * TILE, ph = (y2 - y1 + 1) * TILE;
+        s.hoverGfx.clear()
+            .fillStyle(col, 0.22).fillRect(px, py, pw, ph)
+            .lineStyle(1, col, 0.85).strokeRect(px, py, pw, ph);
     }
 
     _drawZoneGhost(ptr) {
@@ -321,7 +378,14 @@ export default class InputManager {
         if (!tile) { s.hoverGfx?.clear(); return; }
         const { tx, ty } = tile;
         const px = tx * TILE, py = MAP_OY + ty * TILE;
-        const col = s.zoneMode === 'work' ? 0x4488ff : s.zoneMode === 'storage' ? 0xffaa22 : 0xff4444;
+        let col;
+        if (s.zoneMode === 'work')         col = 0x4488ff;
+        else if (s.zoneMode === 'storage') col = 0xffaa22;
+        else if (s.zoneMode === 'market')  col = 0xddaa22;
+        else if (s.zoneMode === 'erase')   col = 0xff4444;
+        else if (s.zoneMode?.startsWith('grow:'))
+            col = CROPS[s.zoneMode.split(':')[1]]?.zoneColor ?? 0x558833;
+        else col = 0xffffff;
         s.hoverGfx.clear()
             .fillStyle(col, 0.18).fillRect(px, py, TILE, TILE)
             .lineStyle(1, col, 0.7).strokeRect(px, py, TILE, TILE);

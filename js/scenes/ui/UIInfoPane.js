@@ -638,41 +638,41 @@ export default {
     },
 
     _renderZoneInfo(ox, oy, W, H, pad) {
-        const { tx, ty } = this.scene.selectedZoneTile;
-        const zm = this.scene.zoneManager;
-        const fm = this.scene.furnitureManager;
-        const wm = this.scene.wallManager;
+        const s  = this.scene;
+        const { tx, ty } = s.selectedZoneTile;
+        const zm = s.zoneManager;
+        const fm = s.furnitureManager;
+        const wm = s.wallManager;
         if (!zm) return;
 
-        const zAt    = zm.getAt(tx, ty);
-        const isWork = zAt.work, isStorage = zAt.storage;
+        const zoneType  = s.selectedZoneType;
+        const zoneTiles = s.selectedZoneTiles ?? [];
+        const cropKey   = s.selectedZoneCrop;
 
-        // Find connected zone tiles
-        const zoneTiles = isWork
-            ? (zm.getWorkZones().find(z => z.some(t => t.tx === tx && t.ty === ty)) ?? [])
-            : (zm.getStorageZones().find(z => z.some(t => t.tx === tx && t.ty === ty)) ?? []);
+        const isWork    = zoneType === 'work';
+        const isStorage = zoneType === 'storage';
+        const isGrow    = zoneType === 'grow';
+        const isMarket  = zoneType === 'market';
 
-        // Try wall-enclosed room detection
-        const room          = wm?.getRoomAt(tx, ty) ?? null;
+        // Try wall-enclosed room detection for work zones
+        const room          = isWork ? (wm?.getRoomAt(tx, ty) ?? null) : null;
         const analysisTiles = room ?? zoneTiles;
 
-        // Classify room type from dominant appliance zoneType
         const rawType  = isWork && fm ? fm.classifyRoom(analysisTiles) : null;
-        const typeLabel = rawType
-            ? rawType[0].toUpperCase() + rawType.slice(1)
-            : isWork ? 'Work Zone' : 'Storage Zone';
-        const headerCol = isWork ? '#5599ff' : '#ffaa33';
+        const typeLabel = isGrow ? `Grow: ${cropKey ?? ''}` :
+            isStorage ? 'Storage Zone' : isMarket ? 'Market Zone' :
+            rawType ? rawType[0].toUpperCase() + rawType.slice(1) : 'Work Zone';
+        const headerCol = isWork ? '#5599ff' : isStorage ? '#ffaa33' : isGrow ? '#88ee55' : '#ffdd66';
 
         this._infCard(ox, oy, W, H);
         this._infTxt(ox + pad, oy + pad,      typeLabel, { fontSize: this._fs(13), color: headerCol });
         this._infTxt(ox + pad, oy + pad + 18,
-            room ? `Enclosed room · ${room.length} tiles` : `Open zone · ${zoneTiles.length} tiles`,
+            room ? `Enclosed room · ${room.length} tiles` : `Zone · ${zoneTiles.length} tiles`,
             { fontSize: this._fs(9), color: room ? '#8888aa' : '#6a5830' });
 
         let ry = oy + pad + 36;
 
         if (isWork && fm) {
-            // Appliances present
             const appList = analysisTiles
                 .map(t => { const it = fm.getAt(t.tx, t.ty); return it?.built ? FURNITURE[it.itemId] : null; })
                 .filter(Boolean);
@@ -690,10 +690,8 @@ export default {
                 this._infTxt(ox + pad, ry, 'No appliances built', { fontSize: this._fs(9), color: '#5a5040' });
                 ry += 13;
             }
-
-            // Workers assigned to any tile in this zone
             const zoneKeys = new Set(analysisTiles.map(t => zm.tileKey(t.tx, t.ty)));
-            const assigned = this.scene.units.filter(u =>
+            const assigned = s.units.filter(u =>
                 (u.taskType === 'zone_workshop' || u.taskType === 'build_furniture') &&
                 zoneKeys.has(u.taskZoneKey ?? -1)
             ).length;
@@ -704,82 +702,193 @@ export default {
 
         if (isStorage) {
             const zoneKeys = new Set(zoneTiles.map(t => zm.tileKey(t.tx, t.ty)));
-            const depositing = this.scene.units.filter(u =>
+            const depositing = s.units.filter(u =>
                 u.taskType === 'deposit_zone' && zoneKeys.has(u.taskZoneKey ?? -1)
             ).length;
             this._infTxt(ox + pad, ry, `Depositing: ${depositing}`, { fontSize: this._fs(10), color: depositing ? '#ffcc66' : '#5a5040' });
             ry += 14;
         }
 
+        if (isGrow) {
+            const zoneKeys = new Set(zoneTiles.map(t => zm.tileKey(t.tx, t.ty)));
+            const farming = s.units.filter(u =>
+                (u.taskType === 'harvest_grow' || u.taskType === 'plant_grow') &&
+                zoneKeys.has(u.taskZoneKey ?? -1)
+            ).length;
+            const readyCount = zoneTiles.filter(t => zm.growTiles.get(zm.tileKey(t.tx, t.ty))?.slots.some(v => v >= 1)).length;
+            this._infTxt(ox + pad, ry, `Farmers: ${farming}`, { fontSize: this._fs(10), color: farming ? '#88cc88' : '#5a5040' });
+            ry += 13;
+            if (readyCount > 0)
+                this._infTxt(ox + pad, ry, `Ready to harvest: ${readyCount} tiles`, { fontSize: this._fs(9), color: '#ffdd44' });
+            ry += 13;
+        }
+
+        if (isMarket) {
+            const merchants = s.units.filter(u => u.taskType === 'merchant' &&
+                zoneTiles.some(t => zm.tileKey(t.tx, t.ty) === u.taskZoneKey)
+            ).length;
+            this._infTxt(ox + pad, ry, `Merchants: ${merchants}`, { fontSize: this._fs(10), color: merchants ? '#ffcc66' : '#5a5040' });
+            ry += 14;
+        }
+
+        // Determine expand mode string
+        const expandMode = isGrow ? `grow:${cropKey}` : zoneType;
+
         // Buttons
-        const btnY = oy + H - 56;
-        this._infBtn(ox + pad, btnY, W - pad * 2, 22, 'Erase Zone Here', 0x442222, () => {
-            zm.erase(tx, ty);
-            this.scene.selectedZoneTile = null;
+        const btnY = oy + H - 84;
+        this._infBtn(ox + pad, btnY, W - pad * 2, 22, '+ Expand Zone', 0x224433, () => {
+            s.zoneMode      = expandMode;
+            s.bldgType      = null; s.roadMode  = false;
+            s.wallMode      = false; s.furnitureMode = false;
+            s.zoneManager?.clearSelection();
+            s.selectedZoneTile  = null; s.selectedZoneTiles = null;
+            s.selectedZoneType  = null; s.selectedZoneCrop  = null;
+            s.hoverGfx?.clear();
             this.updateUI();
         });
-        this._infBtn(ox + pad, btnY + 28, W - pad * 2, 22, '✕ Close', 0x1a1408, () => {
-            this.scene.selectedZoneTile = null;
+        this._infBtn(ox + pad, btnY + 28, W - pad * 2, 22, 'Erase This Zone', 0x442222, () => {
+            for (const { tx: etx, ty: ety } of zoneTiles) zm.erase(etx, ety);
+            s.zoneManager?.clearSelection();
+            s.selectedZoneTile = null; s.selectedZoneTiles = null;
+            s.selectedZoneType = null; s.selectedZoneCrop  = null;
+            this.updateUI();
+        });
+        this._infBtn(ox + pad, btnY + 56, W - pad * 2, 22, '✕ Close', 0x1a1408, () => {
+            s.zoneManager?.clearSelection();
+            s.selectedZoneTile = null; s.selectedZoneTiles = null;
+            s.selectedZoneType = null; s.selectedZoneCrop  = null;
             this.updateUI();
         });
     },
 
     _renderFurnitureInfo(ox, oy, W, H, pad) {
-        const { tx, ty, item } = this.scene.selectedFurniture;
+        const s = this.scene;
+        const { tx, ty, item } = s.selectedFurniture;
         const def = FURNITURE[item.itemId];
         if (!def) return;
 
+        const jobDef    = def.job ? WORKSHOP_JOBS[def.job] : null;
+        const isWorkshop = !!jobDef && item.built;
+        const btnW       = Math.floor((W - pad * 2 - 4) / 2);
+
         this._infCard(ox, oy, W, H);
-
-        this._infTxt(ox + pad, oy + pad, `${def.icon ?? ''} ${def.label}`, {
-            fontSize: this._fs(13), color: '#d4c8a8',
-        });
-        this._infTxt(ox + pad, oy + pad + 18, `${tx},${ty}  ·  ${def.cat}`, {
-            fontSize: this._fs(9), color: '#6a5830',
-        });
-        if (def.desc) {
-            this._infTxt(ox + pad, oy + pad + 34, def.desc, {
-                fontSize: this._fs(10), color: '#8a8060', wordWrap: { width: W - pad * 2 },
-            });
-        }
-
-        const btnY = oy + H - 70;
-        const btnW = Math.floor((W - pad * 2 - 4) / 2);
+        this._infTxt(ox + pad, oy + pad,      `${def.icon ?? ''} ${def.label}`, { fontSize: this._fs(13), color: '#d4c8a8' });
+        this._infTxt(ox + pad, oy + pad + 18, `${tx},${ty}  ·  ${def.cat}`,      { fontSize: this._fs(9),  color: '#6a5830' });
 
         if (!item.built) {
             const progress = item.maxBuildWork > 0 ? 1 - item.buildWork / item.maxBuildWork : 1;
-            this._infTxt(ox + pad, btnY - 18, '⚒ Under construction', {
-                fontSize: this._fs(10), color: '#c8a030',
+            const btnY = oy + H - 70;
+            this._infTxt(ox + pad, oy + pad + 34, def.desc ?? '', { fontSize: this._fs(10), color: '#8a8060', wordWrap: { width: W - pad * 2 } });
+            this._infTxt(ox + pad, btnY - 18, '⚒ Under construction', { fontSize: this._fs(10), color: '#c8a030' });
+            this._infBar(ox + pad, btnY - 4,  W - pad * 2, 6, progress, 0xffdd44);
+            this._infBtn(ox + pad, btnY + 8,  W - pad * 2, 26, 'Cancel Order', 0x441c1c, () => {
+                s.furnitureManager.remove(tx, ty);
+                s.selectedFurniture = null; this.updateUI();
             });
-            this._infBar(ox + pad, btnY - 4, W - pad * 2, 6, progress, 0xffdd44);
-            this._infBtn(ox + pad, btnY + 8, W - pad * 2, 26, 'Cancel Order', 0x441c1c, () => {
-                this.scene.furnitureManager.remove(tx, ty);
-                this.scene.selectedFurniture = null;
-                this.updateUI();
-            });
-        } else {
-            const costStr = Object.entries(def.craftCost ?? {})
-                .map(([k, v]) => `${v} ${k.split('.').pop()}`).join(', ');
-            if (costStr) {
-                this._infTxt(ox + pad, btnY - 14, `Built from: ${costStr}`, {
-                    fontSize: this._fs(9), color: '#6a5830',
+            return;
+        }
+
+        // ── Workshop appliance: production queue UI ────────────────────────────
+        if (isWorkshop) {
+            const queue   = item.productionQueue; // null=auto, array=queue-mode
+            const isAuto  = queue === null || queue === undefined;
+            const inLabel = jobDef.input.split('.').pop();
+            const outLabel= jobDef.output.split('.').pop();
+
+            this._infTxt(ox + pad, oy + pad + 32, `${inLabel} → ${outLabel}`, { fontSize: this._fs(9), color: '#8a7850' });
+
+            let ry = oy + pad + 50;
+            this._infTxt(ox + pad, ry, 'Production Queue', { fontSize: this._fs(10), color: '#c8b870' });
+            ry += 15;
+
+            if (isAuto) {
+                this._infTxt(ox + pad, ry, 'Auto: produces when needed', { fontSize: this._fs(9), color: '#6a7a50' });
+                ry += 14;
+                this._infBtn(ox + pad, ry, W - pad * 2, 16, 'Switch to Manual Queue', 0x1a2a3a, () => {
+                    item.productionQueue = []; this.updateUI();
+                });
+                ry += 20;
+            } else {
+                if (queue.length === 0) {
+                    this._infTxt(ox + pad, ry, 'No orders — worker idles', { fontSize: this._fs(9), color: '#5a5040' });
+                    ry += 14;
+                } else {
+                    for (let i = 0; i < Math.min(queue.length, 4); i++) {
+                        const e = queue[i];
+                        const pct = e.qty > 0 ? e.done / e.qty : 1;
+                        const remaining = e.qty - e.done;
+                        this._infTxt(ox + pad, ry, `${remaining}× ${outLabel}`, { fontSize: this._fs(10), color: '#d4c8a0' });
+                        this._infBar(ox + pad + 62, ry + 1, W - pad * 2 - 78, 9, pct, 0x66bb44);
+                        this._infBtn(ox + W - pad - 14, ry - 1, 14, 12, '×', 0x441818, () => {
+                            item.productionQueue.splice(i, 1); this.updateUI();
+                        });
+                        ry += 15;
+                    }
+                    if (queue.length > 4)
+                        this._infTxt(ox + pad, ry, `+${queue.length - 4} more…`, { fontSize: this._fs(9), color: '#5a5040' });
+                    ry += 14;
+                }
+
+                // Batch add buttons
+                const bw3 = Math.floor((W - pad * 2 - 8) / 3);
+                [5, 20, 50].forEach((qty, i) => {
+                    this._infBtn(ox + pad + i * (bw3 + 4), ry, bw3, 18, `+${qty}`, 0x334422, () => {
+                        item.productionQueue.push({ qty, done: 0 }); this.updateUI();
+                    });
+                });
+                ry += 22;
+                this._infBtn(ox + pad, ry, W - pad * 2, 14, 'Reset to Auto', 0x1a2030, () => {
+                    item.productionQueue = null; this.updateUI();
+                });
+                ry += 18;
+            }
+
+            // Assign selected workers button
+            const selWorkers = s.units.filter(u => u.selected && u.type === 'worker' && u.age >= 2);
+            if (selWorkers.length > 0) {
+                const fmKey = s.furnitureManager.tileKey(tx, ty);
+                this._infBtn(ox + pad, ry, W - pad * 2, 16, `Assign ${selWorkers.length} worker${selWorkers.length > 1 ? 's' : ''} here`, 0x223344, () => {
+                    selWorkers.forEach(u => {
+                        u.vocation   = def.job;
+                        u.role       = def.job;
+                        u.taskStack  = u.taskStack ?? [];
+                        u.taskStack.push({ type: 'zone_workshop', zoneKey: fmKey, role: def.job });
+                        u.taskType   = null;
+                    });
+                    this.updateUI();
                 });
             }
-            this._infBtn(ox + pad, btnY + 2, btnW, 24, 'Relocate', 0x1c3044, () => {
-                this.scene.relocateMode  = true;
-                this.scene.relocateSrc   = { tx, ty };
-                this.scene.furnitureMode = false;
-                this.updateUI();
+
+            // Bottom strip
+            const btnY2 = oy + H - 50;
+            this._infBtn(ox + pad,          btnY2,      btnW, 22, 'Relocate', 0x1c3044, () => {
+                s.relocateMode = true; s.relocateSrc = { tx, ty }; s.furnitureMode = false; this.updateUI();
             });
-            this._infBtn(ox + pad + btnW + 4, btnY + 2, btnW, 24, 'Remove', 0x441c1c, () => {
-                this.scene.furnitureManager.remove(tx, ty);
-                this.scene.selectedFurniture = null;
-                this.updateUI();
+            this._infBtn(ox + pad + btnW + 4, btnY2,    btnW, 22, 'Remove',   0x441c1c, () => {
+                s.furnitureManager.remove(tx, ty); s.selectedFurniture = null; this.updateUI();
             });
-            this._infBtn(ox + pad, btnY + 32, W - pad * 2, 22, '✕ Close', 0x1a1408, () => {
-                this.scene.selectedFurniture = null;
-                this.updateUI();
+            this._infBtn(ox + pad,          btnY2 + 26, W - pad * 2, 20, '✕ Close', 0x1a1408, () => {
+                s.selectedFurniture = null; this.updateUI();
             });
+            return;
         }
+
+        // ── Non-workshop (living, storage, etc.) ──────────────────────────────
+        if (def.desc) {
+            this._infTxt(ox + pad, oy + pad + 34, def.desc, { fontSize: this._fs(10), color: '#8a8060', wordWrap: { width: W - pad * 2 } });
+        }
+        const btnY = oy + H - 70;
+        const costStr = Object.entries(def.craftCost ?? {}).map(([k, v]) => `${v} ${k.split('.').pop()}`).join(', ');
+        if (costStr)
+            this._infTxt(ox + pad, btnY - 14, `Cost: ${costStr}`, { fontSize: this._fs(9), color: '#6a5830' });
+        this._infBtn(ox + pad,          btnY + 2, btnW, 24, 'Relocate', 0x1c3044, () => {
+            s.relocateMode = true; s.relocateSrc = { tx, ty }; s.furnitureMode = false; this.updateUI();
+        });
+        this._infBtn(ox + pad + btnW + 4, btnY + 2, btnW, 24, 'Remove', 0x441c1c, () => {
+            s.furnitureManager.remove(tx, ty); s.selectedFurniture = null; this.updateUI();
+        });
+        this._infBtn(ox + pad, btnY + 32, W - pad * 2, 22, '✕ Close', 0x1a1408, () => {
+            s.selectedFurniture = null; this.updateUI();
+        });
     },
 };

@@ -339,9 +339,10 @@ export function _counterMod(attackerType, defenderType) {
 // ─── Building Categories (for UI) ────────────────────────────────────────────
 
 export const BLDG_CATS = {
-  Economy: ['camp', 'house', 'farm', 'garden', 'granary', 'woodshed', 'stonepile', 'carpenter', 'masons', 'tannery', 'mine', 'smelter', 'blacksmith', 'mill', 'bakery', 'butcher', 'olive_press', 'pasture', 'warehouse', 'agora'],
-  Military: ['barracks', 'archery', 'stable', 'watchtower', 'wall', 'palisade', 'gate'],
-  Culture: ['temple', 'oracle'],
+  // Replaced by zones + appliances; legacy buildings still load from saves but can't be newly placed.
+  Economy:  ['mine', 'pasture'],
+  Military: ['barracks', 'archery', 'stable', 'watchtower', 'gate'],
+  Culture:  ['temple', 'oracle'],
   Debug: [],
 };
 

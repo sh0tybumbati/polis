@@ -1,13 +1,13 @@
 import { MAP_W, MAP_H, TILE, MAP_OY } from '../config/gameConstants.js';
 
 const WALL_MAT = {
-    'Materials.Wood.Pine':       { color: 0x5c3317, hpMax: 80 },
-    'Materials.Stone.Limestone': { color: 0x7a7a8a, hpMax: 300 },
-    'Materials.Clay.Brick':      { color: 0xa04828, hpMax: 200 },
-    'Materials.Clay.Daub':       { color: 0x9a6e40, hpMax: 40 },
+    'Materials.Wood.Pine':       { color: 0x5c3317, hpMax: 80,  buildWork: 4  },
+    'Materials.Stone.Limestone': { color: 0x7a7a8a, hpMax: 300, buildWork: 14 },
+    'Materials.Clay.Brick':      { color: 0xa04828, hpMax: 200, buildWork: 10 },
+    'Materials.Clay.Daub':       { color: 0x9a6e40, hpMax: 40,  buildWork: 3  },
 };
 
-const W = 4; // wall thickness in pixels
+const W = 6; // wall thickness in pixels
 
 export default class WallManager {
     constructor(scene) {
@@ -28,7 +28,7 @@ export default class WallManager {
 
     placeWall(isH, row, col, material = 'Materials.Wood.Pine', height = 'full') {
         const mat = WALL_MAT[material] ?? WALL_MAT['Materials.Wood.Pine'];
-        const seg = { material, height, hp: mat.hpMax, hpMax: mat.hpMax, buildProgress: 1 };
+        const seg = { material, height, hp: mat.hpMax, hpMax: mat.hpMax, buildProgress: 0, buildWork: mat.buildWork };
         if (isH) {
             if (row < 0 || row > MAP_H || col < 0 || col >= MAP_W) return;
             this.hWalls[row][col] = seg;
@@ -73,7 +73,24 @@ export default class WallManager {
                              return { isH: false, row: ty,     col: tx + 1 };
     }
 
+    getPendingWalls() {
+        const result = [];
+        for (let y = 0; y <= MAP_H; y++)
+            for (let x = 0; x < MAP_W; x++)
+                if (this.hWalls[y]?.[x]?.buildProgress < 1)
+                    result.push({ isH: true, row: y, col: x });
+        for (let y = 0; y < MAP_H; y++)
+            for (let x = 0; x <= MAP_W; x++)
+                if (this.vWalls[y]?.[x]?.buildProgress < 1)
+                    result.push({ isH: false, row: y, col: x });
+        return result;
+    }
+
     // ─── Rendering ─────────────────────────────────────────────────────────────
+
+    getMaterialColor(material) {
+        return (WALL_MAT[material] ?? WALL_MAT['Materials.Wood.Pine']).color;
+    }
 
     renderWalls() {
         const g = this.wallGfx;
@@ -81,14 +98,34 @@ export default class WallManager {
         g.clear();
 
         const T = TILE, OY = MAP_OY;
+        const _light = hex => {
+            const r = Math.min(255, ((hex >> 16) & 0xff) + 55);
+            const gv = Math.min(255, ((hex >> 8)  & 0xff) + 55);
+            const b = Math.min(255, ( hex         & 0xff) + 55);
+            return (r << 16) | (gv << 8) | b;
+        };
+        const _dark = hex => {
+            const r = Math.max(0, ((hex >> 16) & 0xff) - 45);
+            const gv = Math.max(0, ((hex >> 8)  & 0xff) - 45);
+            const b = Math.max(0, ( hex         & 0xff) - 45);
+            return (r << 16) | (gv << 8) | b;
+        };
 
         for (let y = 0; y <= MAP_H; y++) {
             for (let x = 0; x < MAP_W; x++) {
                 const wall = this.hWalls[y][x];
                 if (!wall) continue;
                 const mat = WALL_MAT[wall.material] ?? WALL_MAT['Materials.Wood.Pine'];
-                g.fillStyle(mat.color, wall.buildProgress < 1 ? 0.45 : 1);
-                g.fillRect(x * T, OY + y * T - W / 2, T, W);
+                const alpha = wall.buildProgress < 1 ? 0.45 : 1;
+                const rx = x * T, ry = OY + y * T - W / 2;
+                g.fillStyle(mat.color, alpha);
+                g.fillRect(rx, ry, T, W);
+                if (alpha === 1) {
+                    g.fillStyle(_light(mat.color), 0.55);
+                    g.fillRect(rx, ry, T, 1);
+                    g.fillStyle(_dark(mat.color), 0.65);
+                    g.fillRect(rx, ry + W - 1, T, 1);
+                }
             }
         }
 
@@ -97,18 +134,26 @@ export default class WallManager {
                 const wall = this.vWalls[y][x];
                 if (!wall) continue;
                 const mat = WALL_MAT[wall.material] ?? WALL_MAT['Materials.Wood.Pine'];
-                g.fillStyle(mat.color, wall.buildProgress < 1 ? 0.45 : 1);
-                g.fillRect(x * T - W / 2, OY + y * T, W, T);
+                const alpha = wall.buildProgress < 1 ? 0.45 : 1;
+                const rx = x * T - W / 2, ry = OY + y * T;
+                g.fillStyle(mat.color, alpha);
+                g.fillRect(rx, ry, W, T);
+                if (alpha === 1) {
+                    g.fillStyle(_light(mat.color), 0.55);
+                    g.fillRect(rx, ry, 1, T);
+                    g.fillStyle(_dark(mat.color), 0.65);
+                    g.fillRect(rx + W - 1, ry, 1, T);
+                }
             }
         }
 
         // Corner posts where 2+ wall edges meet
         for (let y = 0; y <= MAP_H; y++) {
             for (let x = 0; x <= MAP_W; x++) {
-                const h0 = x > 0    ? this.hWalls[y]?.[x - 1] : null;
-                const h1 = x < MAP_W ? this.hWalls[y]?.[x]    : null;
-                const v0 = y > 0    ? this.vWalls[y - 1]?.[x] : null;
-                const v1 = y < MAP_H ? this.vWalls[y]?.[x]    : null;
+                const h0 = x > 0     ? this.hWalls[y]?.[x - 1] : null;
+                const h1 = x < MAP_W ? this.hWalls[y]?.[x]     : null;
+                const v0 = y > 0     ? this.vWalls[y - 1]?.[x]  : null;
+                const v1 = y < MAP_H ? this.vWalls[y]?.[x]      : null;
                 const walls = [h0, h1, v0, v1].filter(Boolean);
                 if (walls.length < 2) continue;
                 const mat = WALL_MAT[walls[0].material] ?? WALL_MAT['Materials.Wood.Pine'];

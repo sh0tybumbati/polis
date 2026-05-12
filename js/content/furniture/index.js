@@ -5,6 +5,13 @@
 
 export const FURNITURE = {
     // ── Living ────────────────────────────────────────────────────────────────
+    'Appliance.Camp': {
+        label: 'Camp', icon: '⛺', color: 0x5c4020, cat: 'Living',
+        zoneType: 'Living', provides: { sleepSlots: 2 },
+        buildWork: 4,
+        craftedAt: 'Carpentry', craftCost: { 'Materials.Wood.Pine.Plank': 2 },
+        desc: 'Outdoor shelter for 2 villagers. They sleep here when tired.',
+    },
     'Furniture.Bed': {
         label: 'Bed', icon: '🛏', color: 0x6a4a28, cat: 'Living',
         zoneType: 'Living', provides: { sleepSlots: 1 },
@@ -25,6 +32,13 @@ export const FURNITURE = {
         buildWork: 6,
         craftedAt: 'Carpentry', craftCost: { 'Materials.Wood.Pine.Plank': 4 },
         desc: 'Stores up to 40 units of goods.',
+    },
+    'Furniture.TavernSeat': {
+        label: 'Tavern Seat', icon: '🪑', color: 0x7b5e3a, cat: 'Living',
+        zoneType: 'Leisure',
+        buildWork: 6,
+        craftedAt: 'Carpentry', craftCost: { 'Materials.Wood.Pine.Plank': 2 },
+        desc: 'Villagers rest here to recover joy. Beer accelerates recovery.',
     },
 
     // ── Food processing ───────────────────────────────────────────────────────
@@ -55,6 +69,13 @@ export const FURNITURE = {
         buildWork: 14,
         craftedAt: 'Masonry', craftCost: { 'Materials.Stone.Limestone.Block': 4 },
         desc: 'Presses olives.',
+    },
+    'Appliance.Brewery': {
+        label: 'Brewery Vat', icon: '🍺', color: 0x8b6914, cat: 'Food',
+        zoneType: 'Brewing', job: 'brewer', jobSlots: 1,
+        buildWork: 16,
+        craftedAt: 'Carpentry', craftCost: { 'Materials.Wood.Pine.Plank': 6 },
+        desc: 'Ferments grain → beer.',
     },
 
     // ── Crafting ──────────────────────────────────────────────────────────────
@@ -87,6 +108,31 @@ export const FURNITURE = {
         desc: 'Cuts stone chunks → blocks.',
     },
 
+    // ── Storage ───────────────────────────────────────────────────────────────
+    'Appliance.GrainSilo': {
+        label: 'Grain Silo', icon: '🌾', color: 0x8b6030, cat: 'Storage',
+        zoneType: 'Storage',
+        buildWork: 20,
+        craftedAt: 'Masonry', craftCost: { 'Materials.Stone.Limestone.Block': 6, 'Materials.Wood.Pine.Plank': 4 },
+        desc: 'Stores grain and food. Place in a storage zone.',
+    },
+    'Appliance.StorageShelf': {
+        label: 'Storage Shelf', icon: '📦', color: 0x7a5a38, cat: 'Storage',
+        zoneType: 'Storage',
+        buildWork: 10,
+        craftedAt: 'Carpentry', craftCost: { 'Materials.Wood.Pine.Plank': 6 },
+        desc: 'Stores materials and goods. Place in a storage zone.',
+    },
+
+    // ── Market ───────────────────────────────────────────────────────────────
+    'Appliance.MarketStall': {
+        label: 'Market Stall', icon: '🏪', color: 0xbb9922, cat: 'Market',
+        zoneType: 'Market', job: 'merchant', jobSlots: 1,
+        buildWork: 8,
+        craftedAt: 'Carpentry', craftCost: { 'Materials.Wood.Pine.Plank': 4 },
+        desc: 'Merchants trade here. Place in a market zone.',
+    },
+
     // ── Metalwork ─────────────────────────────────────────────────────────────
     'Appliance.Forge': {
         label: 'Forge', icon: '🔥', color: 0xaa3311, cat: 'Metal',
@@ -105,10 +151,12 @@ export const FURNITURE = {
 };
 
 export const FURNITURE_CATS = {
-    Living: ['Furniture.Bed', 'Furniture.Hearth', 'Furniture.Chest'],
-    Food:   ['Appliance.Millstone', 'Appliance.Oven', 'Appliance.ButchersBlock', 'Appliance.OlivePress'],
-    Craft:  ['Appliance.Workbench', 'Appliance.Loom', 'Appliance.TanningRack', 'Appliance.StoneCutter'],
-    Metal:  ['Appliance.Forge', 'Appliance.Anvil'],
+    Living:   ['Appliance.Camp', 'Furniture.Bed', 'Furniture.Hearth', 'Furniture.Chest', 'Furniture.TavernSeat'],
+    Food:     ['Appliance.Millstone', 'Appliance.Oven', 'Appliance.ButchersBlock', 'Appliance.OlivePress', 'Appliance.Brewery'],
+    Craft:    ['Appliance.Workbench', 'Appliance.Loom', 'Appliance.TanningRack', 'Appliance.StoneCutter'],
+    Metal:    ['Appliance.Forge', 'Appliance.Anvil'],
+    Storage:  ['Appliance.GrainSilo', 'Appliance.StorageShelf'],
+    Market:   ['Appliance.MarketStall'],
 };
 
 export const BLDG_TO_APPLIANCE = {

@@ -7,6 +7,7 @@ import { ANIMALS } from '../../content/animals/index.js';
 import { ITEMS } from '../../content/items/index.js';
 import { JOBS, WORKSHOP_JOBS } from '../../content/jobs/index.js';
 import { FURNITURE } from '../../content/furniture/index.js';
+import { CROPS } from '../../content/crops/index.js';
 
 export default {
     tickWorker(u, time, dt) {
@@ -24,7 +25,36 @@ export default {
         // Rest need: tired villagers go home to sleep
         const needsRest = (u.needs?.rest ?? 1.0) < 0.25 && !u.isSleeping;
         if (needsRest && u.taskType !== 'garrison' && !u.isRouting) {
-            if (u.homeBldgId) {
+            // Auto-assign to nearest camp appliance if homeless
+            if (!u.homeFurnKey && !u.homeBldgId) this._seekCampHome(u);
+
+            const fm = this.scene.furnitureManager;
+            if (u.homeFurnKey != null) {
+                const campItem = fm?.furniture.get(u.homeFurnKey);
+                if (!campItem?.built) {
+                    u.homeFurnKey = null; // camp was removed — re-seek next tick
+                } else {
+                    const htx = u.homeFurnKey % MAP_W, hty = Math.floor(u.homeFurnKey / MAP_W);
+                    const hcx = htx * TILE + TILE / 2, hcy = MAP_OY + hty * TILE + TILE / 2;
+                    if (Phaser.Math.Distance.Between(u.x, u.y, hcx, hcy) > 10) {
+                        if (this.totalCarrying(u) > 0 && u.taskType !== 'deposit' && u.taskType !== 'deposit_zone')
+                            this.seekDeposit(u);
+                        if (u.taskType === 'deposit')      { this.handleDepositTask(u, dt);     return; }
+                        if (u.taskType === 'deposit_zone') { this.handleDepositZoneTask(u, dt); return; }
+                        u.targetNode = null; u.moveTo = null;
+                        this.moveToward(u, hcx, hcy, u.speed, dt);
+                        u.isInside = false;
+                        return;
+                    } else {
+                        u.isInside = false; // camps are outdoors
+                        u.isSleeping = true;
+                        if (u.taskType && u.taskType !== 'garrison') {
+                            u.taskType = null; u.targetNode = null; u.workProgress = 0;
+                            u.workshopPhase = null; u.fetchBldgId = null;
+                        }
+                    }
+                }
+            } else if (u.homeBldgId) {
                 const home = this.scene.buildings.find(b => b.id === u.homeBldgId && b.built);
                 if (home) {
                     const hcx = (home.tx + home.size / 2) * TILE;
@@ -34,17 +64,13 @@ export default {
                             u.taskType = 'deposit'; u.taskBldgId = home.id; u._depositPrivate = !home.isPublic;
                         }
                         if (u.taskType === 'deposit') { this.handleDepositTask(u, dt); return; }
-                        // Abandon current task and head home — clear moveTo/targetNode so
-                        // nothing overrides the walk or runs gather at end of tick
-                        u.targetNode = null;
-                        u.moveTo = null;
+                        u.targetNode = null; u.moveTo = null;
                         this.moveToward(u, hcx, hcy, u.speed, dt);
                         u.isInside = false;
                         return;
                     } else {
                         u.isInside = true;
                         u.isSleeping = true;
-                        // Clear active task so they resume fresh when rested
                         if (u.taskType && u.taskType !== 'garrison') {
                             u.taskType = null; u.targetNode = null; u.workProgress = 0;
                             u.workshopPhase = null; u.fetchBldgId = null;
@@ -93,7 +119,7 @@ export default {
         }
 
         // Deposit takes priority
-        if (this.totalCarrying(u) > 0 && !u.targetNode && u.taskType !== 'build' && u.taskType !== 'build_furniture' && u.taskType !== 'zone_workshop' && u.taskType !== 'eat' && u.taskType !== 'collect_tithe') {
+        if (this.totalCarrying(u) > 0 && !u.targetNode && u.taskType !== 'build' && u.taskType !== 'build_furniture' && u.taskType !== 'build_wall' && u.taskType !== 'zone_workshop' && u.taskType !== 'eat' && u.taskType !== 'collect_tithe' && u.taskType !== 'leisure') {
             if (u.taskType !== 'deposit' && u.taskType !== 'deposit_zone') this.seekDeposit(u);
             if (u.taskType === 'deposit')      { this.handleDepositTask(u, dt);     return; }
             if (u.taskType === 'deposit_zone') { this.handleDepositZoneTask(u, dt); return; }
@@ -115,7 +141,14 @@ export default {
                 this.pushTask(u, 'eat');
             } else if (intent === 'sleep') {
                 // Proactive sleep: head home before the emergency threshold (< 0.25)
-                if (u.homeBldgId) {
+                if (u.homeFurnKey != null) {
+                    const fm = this.scene.furnitureManager;
+                    const campItem = fm?.furniture.get(u.homeFurnKey);
+                    if (campItem?.built) {
+                        const htx = u.homeFurnKey % MAP_W, hty = Math.floor(u.homeFurnKey / MAP_W);
+                        u.moveTo = { x: htx * TILE + TILE / 2, y: MAP_OY + hty * TILE + TILE / 2 };
+                    }
+                } else if (u.homeBldgId) {
                     const home = this.scene.buildings.find(b => b.id === u.homeBldgId && b.built);
                     if (home) {
                         u.moveTo = { x: (home.tx + home.size / 2) * TILE, y: MAP_OY + (home.ty + home.size / 2) * TILE };
@@ -124,20 +157,24 @@ export default {
             } else if (intent === 'socialize') {
                 this._handleSocializeIntent(u);
             } else if (intent === 'leisure') {
-                // Placeholder — joy recovers passively while idle
+                this.seekLeisureTask(u);
             } else {
-                // work intent
-                this.pickRole(u, time);
-                if (u.role && !u.taskType) {
-                    if (u.role === 'farmer') this.seekFarmerTask(u);
-                    else if (u.role === 'builder') this.seekBuilderTask(u);
-                    else if (u.role in WORKSHOP_JOBS) this.seekWorkshopTask(u);
-                    else if (JOBS[u.role]?.nodeTypes) this.seekNodeTask(u, JOBS[u.role].nodeTypes);
-                }
-                // No task found — fall through to socialize if available
-                if (!u.taskType && !u.targetNode) {
-                    const fallback = u.dayPlan?.find(p => p.intent === 'socialize' || p.intent === 'leisure');
-                    if (fallback?.intent === 'socialize') this._handleSocializeIntent(u);
+                // work intent — drain manual task stack first
+                if ((u.taskStack?.length ?? 0) > 0 && !u.taskType) {
+                    this._dequeueTask(u);
+                } else {
+                    this.pickRole(u, time);
+                    if (u.role && !u.taskType) {
+                        if (u.role === 'farmer') this.seekFarmerTask(u);
+                        else if (u.role === 'builder') this.seekBuilderTask(u);
+                        else if (u.role in WORKSHOP_JOBS) this.seekWorkshopTask(u);
+                        else if (JOBS[u.role]?.nodeTypes) this.seekNodeTask(u, JOBS[u.role].nodeTypes);
+                    }
+                    // No task found — fall through to socialize if available
+                    if (!u.taskType && !u.targetNode) {
+                        const fallback = u.dayPlan?.find(p => p.intent === 'socialize' || p.intent === 'leisure');
+                        if (fallback?.intent === 'socialize') this._handleSocializeIntent(u);
+                    }
                 }
             }
         }
@@ -164,11 +201,15 @@ export default {
         }
 
         if (u.taskType === 'eat') this.handleEatTask(u, dt);
+        else if (u.taskType === 'leisure')         this.handleLeisureTask(u, dt);
         else if (u.taskType === 'build') this.handleBuildTask(u, dt);
+        else if (u.taskType === 'build_wall')     this.handleWallBuildTask(u, dt);
         else if (u.taskType === 'build_furniture') this.handleFurnitureBuildTask(u, dt);
         else if (u.taskType === 'zone_workshop')   this.handleZoneWorkshopTask(u, dt);
         else if (u.taskType === 'deconstruct') this.handleDeconstructTask(u, dt);
         else if (u.taskType === 'repair') this.handleRepairTask(u, dt);
+        else if (u.taskType === 'harvest_grow') this.handleHarvestGrowTask(u, dt);
+        else if (u.taskType === 'plant_grow')   this.handlePlantGrowTask(u, dt);
         else if (u.taskType === 'harvest_farm') this.handleHarvestFarmTask(u, dt);
         else if (u.taskType === 'plant') this.handlePlantTask(u, dt);
         else if (u.taskType === 'collect_tithe') this.handleCollectTitheTask(u, dt);
@@ -423,6 +464,34 @@ export default {
         }
     },
 
+    handleWallBuildTask(u, dt) {
+        const [isHStr, rowStr, colStr] = (u.taskWallKey ?? '').split(':');
+        const isH = isHStr === 'true', row = +rowStr, col = +colStr;
+        const wm = this.scene.wallManager;
+        const wall = wm?.getWall(isH, row, col);
+        if (!wall || wall.buildProgress >= 1) { u.taskType = null; u.taskWallKey = null; return; }
+
+        const cx = isH ? col * TILE + TILE / 2 : col * TILE;
+        const cy = isH ? MAP_OY + row * TILE : MAP_OY + row * TILE + TILE / 2;
+        if (this.moveToward(u, cx, cy, 28, dt)) return;
+
+        const attrMult = this.getAttrMult(u, ['str', 'dex']);
+        const workSpeed = (1.0 + (u.skills.masonry?.level ?? 1) * 0.15) * attrMult * this.getRestMult(u);
+        u.workProgress = (u.workProgress ?? 0) + dt * workSpeed;
+        if (u.workProgress >= 25.0) {
+            u.workProgress = 0;
+            wall.buildWork -= 5;
+            this._gainSkillXp(u, 'masonry');
+            wm.renderWalls();
+            if (wall.buildWork <= 0) {
+                wall.buildProgress = 1;
+                u.taskType = null; u.taskWallKey = null;
+                this.scene.uiManager.showFloatText(cx, cy - 14, 'wall built!', '#88dd88');
+                wm.renderWalls();
+            }
+        }
+    },
+
     handleZoneWorkshopTask(u, dt) {
         const fm = this.scene.furnitureManager;
         const item = fm?.furniture.get(u.taskZoneKey);
@@ -431,12 +500,29 @@ export default {
         const def = WORKSHOP_JOBS[u.role];
         if (!def) { u.taskType = null; return; }
 
+        const queue = item.productionQueue; // null=auto, []=queue-idle, [...]= has orders
+        const isQueueMode = Array.isArray(queue);
+
+        // Queue mode: if nothing to do, idle
+        if (isQueueMode) {
+            if (queue.length === 0) { u.workshopPhase = 'idle'; return; }
+            // Advance to next order if front is done
+            while (queue.length > 0 && queue[0].done >= queue[0].qty) {
+                queue.shift();
+                this.scene.uiManager.showFloatText(
+                    (u.taskZoneKey % MAP_W) * TILE + TILE / 2,
+                    MAP_OY + Math.floor(u.taskZoneKey / MAP_W) * TILE - 14,
+                    'Order done!', '#88ffaa');
+            }
+            if (queue.length === 0) { u.workshopPhase = 'idle'; return; }
+        }
+
         const tx = u.taskZoneKey % MAP_W, ty = Math.floor(u.taskZoneKey / MAP_W);
         const cx = tx * TILE + TILE / 2, cy = MAP_OY + ty * TILE + TILE / 2;
 
-        if (u.workshopPhase === 'procure') {
+        if (u.workshopPhase === 'procure' || u.workshopPhase === 'idle') {
             const avail = this.scene.resources[def.input] ?? 0;
-            if (avail <= 0) return; // wait for commons to have input
+            if (avail <= 0) return;
             const take = Math.min(def.carryQty, avail);
             this.scene.economyManager.takeFromCommons(def.input, take);
             u.carrying[def.input] = (u.carrying[def.input] ?? 0) + take;
@@ -458,6 +544,7 @@ export default {
             this._gainSkillXp(u, def.skill);
             this.scene.uiManager.showFloatText(cx, cy - 14,
                 `+1 ${def.output.split('.').pop()}`, '#ffe066');
+            if (isQueueMode && queue.length > 0) queue[0].done++;
             if ((u.carrying[def.input] ?? 0) <= 0) u.workshopPhase = 'procure';
         }
     },
@@ -487,34 +574,99 @@ export default {
     },
 
     seekMerchantTask(u) {
+        const fm = this.scene.furnitureManager;
+        if (fm) {
+            let bestKey = null, bestDist = Infinity;
+            for (const [key, item] of fm.furniture) {
+                if (item.itemId !== 'Appliance.MarketStall' || !item.built) continue;
+                const ftx = key % MAP_W, fty = Math.floor(key / MAP_W);
+                const d = Phaser.Math.Distance.Between(u.x, u.y, ftx * TILE + TILE / 2, MAP_OY + fty * TILE + TILE / 2);
+                if (d < bestDist) { bestDist = d; bestKey = key; }
+            }
+            if (bestKey != null) {
+                u.taskType = 'merchant';
+                u.taskZoneKey = bestKey;
+                u.taskBldgId  = null;
+                u.merchantPhase = 'seek';
+                return;
+            }
+        }
+        // Fallback: legacy agora building
         const agora = this.scene.buildings.find(b => b.type === 'agora' && b.built && !b.faction);
         if (!agora) { u.role = null; return; }
         u.taskType = 'merchant';
         u.taskBldgId = agora.id;
+        u.taskZoneKey = null;
         u.merchantPhase = 'seek';
     },
 
     handleMerchantTask(u, dt) {
+        // ── Market Stall path ──────────────────────────────────────────────────
+        if (u.taskZoneKey != null) {
+            const key = u.taskZoneKey;
+            const tx = key % MAP_W, ty = Math.floor(key / MAP_W);
+            const cx = tx * TILE + TILE / 2, cy = MAP_OY + ty * TILE + TILE / 2;
+            if (this.moveToward(u, cx, cy, 28, dt)) return;
+            u.isInside = true;
+
+            if (u.merchantPhase === 'seek' || !u.merchantPhase) {
+                const orders = this.scene.tradeOrders ?? [];
+                const order = orders.find(o => (this.scene.resources[o.give] ?? 0) >= o.qty);
+                if (!order) { u.workProgress = 0; return; }
+                this.scene.economyManager.takeFromCommons(order.give, order.qty);
+                u._merchantOrder = order;
+                u.merchantPhase = 'simulate';
+                u.workProgress = 0;
+                this.scene.uiManager.showFloatText(u.x, u.y - 14, `Trading ${order.giveLabel}…`, '#ddaa44');
+                return;
+            }
+
+            if (u.merchantPhase === 'simulate') {
+                const def = JOBS.merchant;
+                const attrMult = this.getAttrMult(u, ['int', 'agi']);
+                const spd = (1.0 + (u.skills.trading?.level ?? 1) * 0.15) * attrMult * this.getRestMult(u);
+                u.workProgress = (u.workProgress ?? 0) + dt * spd;
+                if (u.workProgress >= def.simulateMs) {
+                    u.workProgress = 0;
+                    const order = u._merchantOrder;
+                    if (order) {
+                        const em = this.scene.economyManager;
+                        const giveVal  = em.getItemValue(order.give);
+                        const wantVal  = em.getItemValue(order.want);
+                        const receiveQty = Math.max(1, Math.round(
+                            (order.qty * giveVal * def.valueRatio) / wantVal));
+                        em.addResource(order.want, receiveQty);
+                        this.scene.tradeLog = this.scene.tradeLog ?? [];
+                        this.scene.tradeLog.unshift({ day: this.scene.day,
+                            gave: { key: order.give, qty: order.qty },
+                            got:  { key: order.want, qty: receiveQty } });
+                        if (this.scene.tradeLog.length > 12) this.scene.tradeLog.pop();
+                        this._gainSkillXp(u, 'trading');
+                        this.scene.uiManager.showFloatText(u.x, u.y - 14, `+${receiveQty} ${order.wantLabel}`, '#88ffaa');
+                        u._merchantOrder = null;
+                    }
+                    u.merchantPhase = 'seek';
+                }
+                return;
+            }
+            u.merchantPhase = 'seek';
+            return;
+        }
+
+        // ── Legacy agora path ─────────────────────────────────────────────────
         const agora = this.scene.buildings.find(b => b.id === u.taskBldgId && b.built);
         if (!agora) { u.taskType = null; u.merchantPhase = null; return; }
 
         const cx = (agora.tx + agora.size / 2) * TILE;
         const cy = MAP_OY + (agora.ty + agora.size / 2) * TILE;
 
-        // Walk to agora
         if (this.moveToward(u, cx, cy, 28, dt)) return;
         u.isInside = true;
 
-        // Seek an executable order
         if (u.merchantPhase === 'seek' || !u.merchantPhase) {
             const orders = agora.tradeOrders ?? [];
             const order = orders.find(o => (this.scene.resources[o.give] ?? 0) >= o.qty);
-            if (!order) {
-                // Nothing to trade — idle at agora
-                u.workProgress = 0;
-                return;
-            }
-            // Reserve the goods from commons
+            if (!order) { u.workProgress = 0; return; }
             this.scene.economyManager.takeFromCommons(order.give, order.qty);
             u._merchantOrder = order;
             u.merchantPhase = 'simulate';
@@ -523,7 +675,6 @@ export default {
             return;
         }
 
-        // Simulate finding a buyer (work timer)
         if (u.merchantPhase === 'simulate') {
             const def = JOBS.merchant;
             const attrMult = this.getAttrMult(u, ['int', 'agi']);
@@ -533,27 +684,19 @@ export default {
                 u.workProgress = 0;
                 const order = u._merchantOrder;
                 if (order) {
-                    // Calculate receive qty at local market rate
                     const em = this.scene.economyManager;
                     const giveVal  = em.getItemValue(order.give);
                     const wantVal  = em.getItemValue(order.want);
                     const receiveQty = Math.max(1, Math.round(
                         (order.qty * giveVal * def.valueRatio) / wantVal));
-
                     em.addResource(order.want, receiveQty);
-
-                    // Log the trade on the agora
                     agora.tradeLog = agora.tradeLog ?? [];
-                    agora.tradeLog.unshift({
-                        day: this.scene.day,
+                    agora.tradeLog.unshift({ day: this.scene.day,
                         gave: { key: order.give, qty: order.qty },
-                        got:  { key: order.want, qty: receiveQty },
-                    });
+                        got:  { key: order.want, qty: receiveQty } });
                     if (agora.tradeLog.length > 8) agora.tradeLog.pop();
-
                     this._gainSkillXp(u, 'trading');
-                    this.scene.uiManager.showFloatText(u.x, u.y - 14,
-                        `+${receiveQty} ${order.wantLabel}`, '#88ffaa');
+                    this.scene.uiManager.showFloatText(u.x, u.y - 14, `+${receiveQty} ${order.wantLabel}`, '#88ffaa');
                     u._merchantOrder = null;
                 }
                 u.merchantPhase = 'seek';
@@ -562,6 +705,58 @@ export default {
         }
 
         u.merchantPhase = 'seek';
+    },
+
+    handleHarvestGrowTask(u, dt) {
+        const zm = this.scene.zoneManager;
+        const state = zm?.growTiles.get(u.taskZoneKey);
+        if (!state || !state.slots.some(s => s >= 1)) { u.taskType = null; return; }
+        const tx = u.taskZoneKey % MAP_W, ty = Math.floor(u.taskZoneKey / MAP_W);
+        const cx = tx * TILE + TILE / 2, cy = MAP_OY + ty * TILE + TILE / 2;
+        if (this.moveToward(u, cx, cy, 28, dt)) return;
+
+        u.workProgress = (u.workProgress ?? 0) + dt;
+        if (u.workProgress >= 2000) {
+            u.workProgress = 0;
+            const crop = CROPS[state.crop];
+            if (!crop) { u.taskType = null; return; }
+            let harvested = 0;
+            for (let i = 0; i < state.slots.length; i++) {
+                if (state.slots[i] < 1) continue;
+                if (!this.canUnitCarryMore(u, crop.output, 1)) break;
+                u.carrying[crop.output] = (u.carrying[crop.output] ?? 0) + 1;
+                state.slots[i] = -1;
+                harvested++;
+            }
+            this._gainSkillXp(u, 'farming');
+            zm._renderGrowSlots();
+            if (harvested > 0)
+                this.scene.uiManager.showFloatText(cx, cy - 14, `+${harvested} ${crop.output.split('.').pop()}`, '#ffee88');
+            u.taskType = null;
+        }
+    },
+
+    handlePlantGrowTask(u, dt) {
+        const zm = this.scene.zoneManager;
+        const state = zm?.growTiles.get(u.taskZoneKey);
+        if (!state || !state.slots.some(s => s < 0)) { u.taskType = null; return; }
+        const tx = u.taskZoneKey % MAP_W, ty = Math.floor(u.taskZoneKey / MAP_W);
+        const cx = tx * TILE + TILE / 2, cy = MAP_OY + ty * TILE + TILE / 2;
+        if (this.moveToward(u, cx, cy, 28, dt)) return;
+
+        u.workProgress = (u.workProgress ?? 0) + dt;
+        if (u.workProgress >= 3000) {
+            u.workProgress = 0;
+            let planted = 0;
+            for (let i = 0; i < state.slots.length; i++) {
+                if (state.slots[i] < 0) { state.slots[i] = 0; planted++; }
+            }
+            this._gainSkillXp(u, 'farming');
+            zm._renderGrowSlots();
+            if (planted > 0)
+                this.scene.uiManager.showFloatText(cx, cy - 14, 'planted!', '#aaddaa');
+            u.taskType = null;
+        }
     },
 
     handleHarvestFarmTask(u, dt) {
@@ -668,9 +863,15 @@ export default {
 
     handleDepositTitheTask(u, dt) {
         const th = this._nearestOfTypes(u.x, u.y, ['granary', 'warehouse', 'woodshed', 'stonepile']);
-        if (!th) { u.taskType = null; return; }
-        const door = this._bldgDoor(th);
-        if (this.moveToward(u, door.x, door.y, 30, dt)) return;
+        if (th) {
+            const door = this._bldgDoor(th);
+            if (this.moveToward(u, door.x, door.y, 30, dt)) return;
+        } else {
+            // No storage buildings — fall back to nearest storage appliance or zone tile
+            if (u.taskType !== 'deposit_zone') this.seekDeposit(u);
+            if (u.taskType === 'deposit_zone') { this.handleDepositZoneTask(u, dt); return; }
+            u.taskType = null; return;
+        }
 
         for (const [key, qty] of Object.entries(u.carrying)) {
             if (qty > 0) {
@@ -705,6 +906,65 @@ export default {
         return best;
     },
 
+    _seekCampHome(u) {
+        if (u.homeFurnKey != null || u.homeBldgId) return;
+        const fm = this.scene.furnitureManager;
+        if (!fm) return;
+        const slots = FURNITURE['Appliance.Camp']?.provides?.sleepSlots ?? 2;
+        let bestKey = null, bestDist = Infinity;
+        for (const [key, item] of fm.furniture) {
+            if (!item.built || item.itemId !== 'Appliance.Camp') continue;
+            const occupants = this.scene.units.filter(w => w.homeFurnKey === key).length;
+            if (occupants >= slots) continue;
+            const tx = key % MAP_W, ty = Math.floor(key / MAP_W);
+            const d = Phaser.Math.Distance.Between(u.x, u.y, tx * TILE + TILE / 2, MAP_OY + ty * TILE + TILE / 2);
+            if (d < bestDist) { bestDist = d; bestKey = key; }
+        }
+        if (bestKey !== null) u.homeFurnKey = bestKey;
+    },
+
+    seekLeisureTask(u) {
+        const fm = this.scene.furnitureManager;
+        if (!fm) return;
+        let bestKey = null, bestDist = Infinity;
+        for (const [key, item] of fm.furniture) {
+            if (!item.built) continue;
+            if (FURNITURE[item.itemId]?.zoneType !== 'Leisure') continue;
+            if (this.scene.units.some(w => w.id !== u.id && w.taskType === 'leisure' && w.taskZoneKey === key)) continue;
+            const tx = key % MAP_W, ty = Math.floor(key / MAP_W);
+            const d = Phaser.Math.Distance.Between(u.x, u.y, tx * TILE + TILE / 2, MAP_OY + ty * TILE + TILE / 2);
+            if (d < bestDist) { bestDist = d; bestKey = key; }
+        }
+        if (bestKey !== null) { u.taskType = 'leisure'; u.taskZoneKey = bestKey; u.workProgress = 0; }
+    },
+
+    handleLeisureTask(u, dt) {
+        const fm = this.scene.furnitureManager;
+        const item = fm?.furniture.get(u.taskZoneKey);
+        if (!item?.built) { u.taskType = null; return; }
+        const tx = u.taskZoneKey % MAP_W, ty = Math.floor(u.taskZoneKey / MAP_W);
+        const cx = tx * TILE + TILE / 2, cy = MAP_OY + ty * TILE + TILE / 2;
+        if (this.moveToward(u, cx, cy, 18, dt)) return;
+
+        if (!u.needs) u.needs = { food: 0.8, rest: 1, social: 0.8, joy: 0.8 };
+        u.needs.joy = Math.min(1.0, (u.needs.joy ?? 0.5) + dt * 0.000018);
+        u.workProgress = (u.workProgress ?? 0) + dt;
+
+        // Drink beer for bonus joy (once every 2s)
+        if (!u._lastBeerDrink || u.workProgress > u._lastBeerDrink + 2000) {
+            if ((this.scene.resources['Food.Drink.Beer'] ?? 0) >= 1) {
+                this.scene.economyManager.takeFromCommons('Food.Drink.Beer', 1);
+                u.needs.joy = Math.min(1.0, u.needs.joy + 0.12);
+                u._lastBeerDrink = u.workProgress;
+                this.scene.uiManager.showFloatText(cx, cy - 14, '🍺 cheers!', '#ffdd66');
+            }
+        }
+
+        if (u.workProgress >= 5000 || (u.needs.joy ?? 0) >= 0.95) {
+            u.taskType = null; u.taskZoneKey = null; u.workProgress = 0; u._lastBeerDrink = null;
+        }
+    },
+
     seekDeposit(u) {
         const hasCarry = Object.keys(u.carrying).some(r => (u.carrying[r] || 0) > 0);
         if (!hasCarry) return;
@@ -729,14 +989,27 @@ export default {
             }
         }
 
-        // Storage zone deposit: prefer painted zones over buildings
+        // Storage zone deposit: prefer appliance tiles, fall back to bare zone tiles
         const zm = this.scene.zoneManager;
+        const fm = this.scene.furnitureManager;
         if (zm?.storageTiles.size > 0) {
+            const STORAGE_APPL = new Set(['Appliance.GrainSilo', 'Appliance.StorageShelf']);
             let bestKey = null, bestDist = Infinity;
+            // First pass: tiles with a built storage appliance
             for (const key of zm.storageTiles) {
+                const item = fm?.furniture.get(key);
+                if (!item?.built || !STORAGE_APPL.has(item.itemId)) continue;
                 const tx = key % MAP_W, ty = Math.floor(key / MAP_W);
                 const d = Phaser.Math.Distance.Between(u.x, u.y, tx * TILE + TILE / 2, MAP_OY + ty * TILE + TILE / 2);
                 if (d < bestDist) { bestDist = d; bestKey = key; }
+            }
+            // Second pass: any storage tile
+            if (bestKey === null) {
+                for (const key of zm.storageTiles) {
+                    const tx = key % MAP_W, ty = Math.floor(key / MAP_W);
+                    const d = Phaser.Math.Distance.Between(u.x, u.y, tx * TILE + TILE / 2, MAP_OY + ty * TILE + TILE / 2);
+                    if (d < bestDist) { bestDist = d; bestKey = key; }
+                }
             }
             if (bestKey !== null) { u.taskType = 'deposit_zone'; u.taskZoneKey = bestKey; return; }
         }
@@ -879,7 +1152,20 @@ export default {
             const key = fm.tileKey(tx, ty);
             return !this.scene.units.some(w => w.id !== u.id && w.taskType === 'build_furniture' && w.taskFurnKey === key);
         });
-        if (!furnSite) return;
+        // No furniture — check wall build orders
+        if (!furnSite) {
+            const wm = this.scene.wallManager;
+            if (wm) {
+                const wallSite = wm.getPendingWalls().find(({ isH, row, col }) =>
+                    !this.scene.units.some(w => w.id !== u.id && w.taskType === 'build_wall' && w.taskWallKey === `${isH}:${row}:${col}`));
+                if (wallSite) {
+                    u.taskType = 'build_wall';
+                    u.taskWallKey = `${wallSite.isH}:${wallSite.row}:${wallSite.col}`;
+                    return;
+                }
+            }
+            return;
+        }
         const { tx, ty, item } = furnSite;
         if (!item.resourcesSpent) {
             const cost = FURNITURE[item.itemId]?.craftCost ?? {};
@@ -900,6 +1186,24 @@ export default {
         const homeDomain = home?.domainId
             ? this.scene.domains.find(d => d.id === home.domainId)
             : null;
+
+        // ── Grow zones (tile-based crops) ─────────────────────────────────────
+        const zm = this.scene.zoneManager;
+        if (zm) {
+            const nearest = (keys) => {
+                let bestKey = null, bestDist = Infinity;
+                for (const key of keys) {
+                    const tx = key % MAP_W, ty = Math.floor(key / MAP_W);
+                    const d = Phaser.Math.Distance.Between(u.x, u.y, tx * TILE + TILE / 2, MAP_OY + ty * TILE + TILE / 2);
+                    if (d < bestDist) { bestDist = d; bestKey = key; }
+                }
+                return bestKey;
+            };
+            const readyKey = nearest(zm.getReadyGrowTiles());
+            if (readyKey !== null) { u.taskType = 'harvest_grow'; u.taskZoneKey = readyKey; u.workProgress = 0; return; }
+            const plantKey = nearest(zm.getPlantableTiles());
+            if (plantKey !== null) { u.taskType = 'plant_grow';   u.taskZoneKey = plantKey; u.workProgress = 0; return; }
+        }
 
         // 1. Try planting first (high priority)
         const plantFarm = this.scene.buildings.find(b => {
@@ -1407,6 +1711,7 @@ export default {
             miller:    ['farmer'],
             presser:   ['farmer'],
             weaver:    ['shepherd'],
+            brewer:    ['farmer'],
             merchant:  ['forager', 'farmer'],
             farmer:    ['forager'],
             hunter:    ['forager'],
@@ -1417,6 +1722,22 @@ export default {
             forager:   [],
         };
         return VOCATION_FALLBACKS[vocation] ?? [];
+    },
+
+    _dequeueTask(u) {
+        const task = u.taskStack?.shift();
+        if (!task) return;
+        if (task.type === 'zone_workshop') {
+            u.taskType      = 'zone_workshop';
+            u.taskZoneKey   = task.zoneKey;
+            u.workshopPhase = 'procure';
+            u.workProgress  = 0;
+            if (task.role) u.role = task.role;
+        } else if (task.type === 'deposit') {
+            this.seekDeposit(u);
+        } else if (task.type === 'move') {
+            u.moveTo = { x: task.x, y: task.y };
+        }
     },
 
     _fetchSources() {

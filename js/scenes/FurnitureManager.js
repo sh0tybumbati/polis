@@ -2,7 +2,8 @@ import { MAP_W, MAP_H, TILE, MAP_OY } from '../config/gameConstants.js';
 import { FURNITURE } from '../content/furniture/index.js';
 
 // Instance shape:
-// { itemId, built, buildWork, maxBuildWork, resourcesSpent }
+// { itemId, built, buildWork, maxBuildWork, resourcesSpent, productionQueue }
+// productionQueue: null = auto-mode, [] = queue-mode (idles when empty), [{qty,done},...] = has orders
 
 export default class FurnitureManager {
     constructor(scene) {
@@ -31,6 +32,7 @@ export default class FurnitureManager {
             buildWork: work,
             maxBuildWork: work,
             resourcesSpent: false,
+            productionQueue: null,
         });
         this.renderAll();
         return true;
@@ -149,6 +151,9 @@ export default class FurnitureManager {
     load(data) {
         if (!data) return;
         this.furniture.clear();
-        for (const { key, ...item } of data) this.furniture.set(key, item);
+        for (const { key, ...item } of data) {
+            if (!('productionQueue' in item)) item.productionQueue = null;
+            this.furniture.set(key, item);
+        }
     }
 }
