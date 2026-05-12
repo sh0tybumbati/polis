@@ -268,7 +268,7 @@ export default class InputManager {
             if (hit && !hit.isEnemy) { s.selectUnit(hit.id, ptr.event?.shiftKey ?? false); return; }
             if (bldg) { s.selectedBuilding = bldg; s.updateUI(); return; }
             if (node) { s.selectedNode = node; s.updateUI(); return; }
-            const furnHit = s.constructManager?.findAt(wx, wy);
+            const furnHit = s.constructManager?.findConstructAt(wx, wy);
             if (furnHit) { s.selectedConstruct = furnHit; s.updateUI(); return; }
 
             const tile = s.tileAt(wx, wy);

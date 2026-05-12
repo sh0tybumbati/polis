@@ -245,7 +245,9 @@ export default class MapManager {
                 for (let dx = -r; dx <= r; dx++) {
                     if (dx*dx + dy*dy > r2) continue;
                     const nx = cx+dx, ny = cy+dy;
+                    if (isNaN(nx) || isNaN(ny)) continue;
                     if (nx < 0 || nx >= MAP_W || ny < 0 || ny >= MAP_H) continue;
+                    if (!this.scene.visMap[ny]) continue;
                     if ((this.scene.visMap[ny][nx] ?? 0) < state) {
                         this.scene.visMap[ny][nx] = state;
                         if (state === 2) this.scene._litTiles.push([nx, ny]);
@@ -266,8 +268,8 @@ export default class MapManager {
 
         for (const b of this.scene.constructs) {
             if (!b.built || b.faction === 'enemy') continue;
-            const cx = Math.floor((b.tx + b.width / 2));
-            const cy = Math.floor((b.ty + b.width / 2));
+            const cx = Math.floor(b.tx + (b.width ?? 1) / 2);
+            const cy = Math.floor(b.ty + (b.height ?? 1) / 2);
             const r = CONSTRUCTS[b.type]?.fogRadius ?? 3;
             paintCircle(cx, cy, r, 2);
         }
