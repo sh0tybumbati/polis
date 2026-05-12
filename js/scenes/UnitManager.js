@@ -498,11 +498,11 @@ export default class UnitManager {
         }
 
         const skillKey = isTree ? 'woodcutting'
-                       : (n.type.includes('boulder') || n.type.includes('ore')) ? 'mining'
+                       : (n.type.includes('boulder') || n.type.includes('ore') || n.type === 'mountain') ? 'mining'
                        : 'farming';
 
         const attrMult = isTree ? this.getAttrMult(u, ['str'])
-                       : (n.type.includes('boulder') || n.type.includes('ore')) ? this.getAttrMult(u, ['str'])
+                       : (n.type.includes('boulder') || n.type.includes('ore') || n.type === 'mountain') ? this.getAttrMult(u, ['str'])
                        : this.getAttrMult(u, ['dex']);
 
         const workSpeed = (1.0 + (u.skills[skillKey]?.level ?? 1) * 0.2) * attrMult * this.getRestMult(u);
@@ -513,7 +513,7 @@ export default class UnitManager {
 
         if (u.workProgress >= threshold) {
             u.workProgress = 0;
-            const res = NODES[n.type]?.resource;
+            const res = n.type === 'mountain' ? (Math.random() < 0.1 ? 'Materials.Metal.Copper.Ore' : 'Materials.Stone.Limestone') : NODES[n.type]?.resource;
 
             let pick = 0;
             while (pick < n.stock && this.canUnitCarryMore(u, res, pick + 1)) {
@@ -547,7 +547,12 @@ export default class UnitManager {
                 if (debris > 0) this.scene.economyManager.addResource('Materials.Stone.Limestone.Stones', debris);
             }
 
-            if (n.stock <= 0) {
+            if (n.type === 'mountain') {
+                if (n.stock <= 0) {
+                    this.scene.terrainData[n.ty][n.tx] = T_ROCK;
+                    this.scene.mapManager.drawMap(); // redraw terrain
+                }
+            } else if (n.stock <= 0) {
                 n.felled = false;
                 n.sapling = true;
                 n.stump = true;   // stump-sapling, distinct from seeded sapling

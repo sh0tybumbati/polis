@@ -302,19 +302,41 @@ export default {
         if (u.tamingIntent) {
             if (!sheep || sheep.isDead) { u.tamingIntent = false; u.targetSheep = null; u.role = null; return; }
             if (sheep.isTamed) {
-                // Sheep tamed — lead it to nearest pasture
-                const pasture = this.scene.buildings.find(b =>
-                    b.type === 'pasture' && b.built && !b.faction &&
-                    (this.scene.sheep?.filter(s => s.pastureId === b.id).length ?? 0) < (BLDG.pasture.sheepCap ?? 10));
-                if (!pasture) { u.tamingIntent = false; u.role = null; return; }
-                const px = (pasture.tx + pasture.size / 2) * TILE, py = MAP_OY + (pasture.ty + pasture.size / 2) * TILE;
-                if (Phaser.Math.Distance.Between(u.x, u.y, px, py) > TILE * 1.5) {
-                    this.moveToward(u, px, py, u.speed, dt);
+                // Sheep tamed — lead it to nearest enclosed pasture zone
+                const zm = this.scene.zoneManager;
+                const wm = this.scene.wallManager;
+                let bestZone = null, bestDist = Infinity, bestPx = 0, bestPy = 0;
+
+                if (zm && wm) {
+                    for (const zoneTiles of zm.getPastureZones()) {
+                        const first = zoneTiles[0];
+                        if (!first) continue;
+                        const enclosure = wm.getEnclosureAt(first.tx, first.ty);
+                        if (!enclosure) continue; // Not fully enclosed
+
+                        // Check capacity based on number of tiles (e.g. 1 sheep per 2 tiles)
+                        const capacity = Math.max(1, Math.floor(zoneTiles.length / 2));
+                        const currentSheep = this.scene.sheep?.filter(s => s.pastureZoneId === first.key).length ?? 0;
+                        if (currentSheep >= capacity) continue;
+
+                        const px = first.tx * TILE + TILE / 2;
+                        const py = MAP_OY + first.ty * TILE + TILE / 2;
+                        const dist = Phaser.Math.Distance.Between(u.x, u.y, px, py);
+                        if (dist < bestDist) {
+                            bestDist = dist; bestZone = first.key; bestPx = px; bestPy = py;
+                        }
+                    }
+                }
+
+                if (bestZone === null) { u.tamingIntent = false; u.role = null; return; }
+
+                if (Phaser.Math.Distance.Between(u.x, u.y, bestPx, bestPy) > TILE * 1.5) {
+                    this.moveToward(u, bestPx, bestPy, u.speed, dt);
                 } else {
                     sheep.followUnit = null;
-                    sheep.pastureId = pasture.id;
+                    sheep.pastureZoneId = bestZone;
                     u.tamingIntent = false; u.targetSheep = null; u.role = null;
-                    this.scene.uiManager.showFloatText(px, py - 16, '🐑 pastured', '#e8e0c0');
+                    this.scene.uiManager.showFloatText(bestPx, bestPy - 16, '🐑 pastured', '#e8e0c0');
                 }
                 return;
             }
@@ -1605,6 +1627,24 @@ export default {
             if (filterType && !filterType.includes(n.type)) continue;
             const d = Phaser.Math.Distance.Between(u.x, u.y, n.x, n.y);
             if (d < maxDist && d < bd) { bd = d; best = n; }
+        }
+        if (filterType && filterType.includes('mountain')) {
+            const T_MOUNTAIN = 5;
+            const utx = Math.floor(u.x / 32), uty = Math.floor((u.y - 52) / 32);
+            for (let dy = -15; dy <= 15; dy++) {
+                for (let dx = -15; dx <= 15; dx++) {
+                    const tx = utx + dx, ty = uty + dy;
+                    if (tx < 0 || tx >= 80 || ty < 0 || ty >= 128) continue;
+                    if (this.scene.terrainData[ty][tx] === T_MOUNTAIN) {
+                        const px = tx * 32 + 16, py = 52 + ty * 32 + 16;
+                        const d = Phaser.Math.Distance.Between(u.x, u.y, px, py);
+                        if (d < maxDist && d < bd) {
+                            bd = d;
+                            best = { isTile: true, type: 'mountain', tx, ty, x: px, y: py, stock: 10 };
+                        }
+                    }
+                }
+            }
         }
         return best;
     },

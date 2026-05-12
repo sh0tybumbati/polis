@@ -125,18 +125,73 @@ export default class NatureManager {
                 if (s.woolTimer >= ANIMALS.sheep.woolMs) { s.woolReady = true; s.woolTimer = 0; this.redrawSheep(s); }
             }
 
-            // Simple flee and wander for sheep
+            // Flee or wander
             let fleeFrom = null, fleeD = ANIMALS.sheep.fleeRadius;
             for (const u of friendlies) {
                 if (u.role === 'shepherd' && u.targetSheep === s.id) continue;
                 const d = Phaser.Math.Distance.Between(s.x, s.y, u.x, u.y);
                 if (d < fleeD) { fleeD = d; fleeFrom = u; }
             }
+            
             if (fleeFrom) {
                 const angle = Math.atan2(s.y - fleeFrom.y, s.x - fleeFrom.x);
                 s.x += Math.cos(angle) * ANIMALS.sheep.speed * dt;
                 s.y += Math.sin(angle) * ANIMALS.sheep.speed * dt;
+                s.moveTo = null; s.wanderTimer = 0;
+            } else if (s.pastureZoneId != null) {
+                // Wander within pasture zone
+                s.wanderTimer = (s.wanderTimer ?? 0) - delta;
+                if (!s.moveTo || s.wanderTimer <= 0) {
+                    const zm = this.scene.zoneManager;
+                    if (zm && zm.pastureTiles.has(s.pastureZoneId)) {
+                        // Find all tiles in this pasture component
+                        const zones = zm.getPastureZones();
+                        const myZone = zones.find(z => z.some(t => t.key === s.pastureZoneId));
+                        if (myZone) {
+                            const targetTile = myZone[Math.floor(Math.random() * myZone.length)];
+                            s.moveTo = {
+                                x: targetTile.tx * TILE + TILE / 2 + Phaser.Math.Between(-8, 8),
+                                y: MAP_OY + targetTile.ty * TILE + TILE / 2 + Phaser.Math.Between(-8, 8)
+                            };
+                        } else {
+                            s.pastureZoneId = null; // Zone removed
+                        }
+                    } else {
+                        s.pastureZoneId = null; // Tile removed from pasture
+                    }
+                    s.wanderTimer = Phaser.Math.Between(3000, 7000);
+                }
+                
+                if (s.moveTo) {
+                    const dist = Phaser.Math.Distance.Between(s.x, s.y, s.moveTo.x, s.moveTo.y);
+                    if (dist < 4) s.moveTo = null;
+                    else {
+                        const a = Math.atan2(s.moveTo.y - s.y, s.moveTo.x - s.x);
+                        s.x += Math.cos(a) * ANIMALS.sheep.speed * 0.3 * dt;
+                        s.y += Math.sin(a) * ANIMALS.sheep.speed * 0.3 * dt;
+                    }
+                }
+            } else {
+                // Wild sheep wander
+                s.wanderTimer = (s.wanderTimer ?? 0) - delta;
+                if (!s.moveTo || s.wanderTimer <= 0) {
+                    const angle = Math.random() * Math.PI * 2;
+                    const dist = Phaser.Math.Between(TILE * 1, TILE * 3);
+                    s.moveTo = { x: Phaser.Math.Clamp(s.x + Math.cos(angle) * dist, TILE, MAP_W * TILE - TILE),
+                                 y: Phaser.Math.Clamp(s.y + Math.sin(angle) * dist, MAP_OY + TILE, MAP_BOTTOM - TILE) };
+                    s.wanderTimer = Phaser.Math.Between(4000, 8000);
+                }
+                if (s.moveTo) {
+                    const dist = Phaser.Math.Distance.Between(s.x, s.y, s.moveTo.x, s.moveTo.y);
+                    if (dist < 4) s.moveTo = null;
+                    else {
+                        const a = Math.atan2(s.moveTo.y - s.y, s.moveTo.x - s.x);
+                        s.x += Math.cos(a) * ANIMALS.sheep.speed * 0.3 * dt;
+                        s.y += Math.sin(a) * ANIMALS.sheep.speed * 0.3 * dt;
+                    }
+                }
             }
+            
             s.x = Phaser.Math.Clamp(s.x, TILE, MAP_W * TILE - TILE);
             s.y = Phaser.Math.Clamp(s.y, MAP_OY + TILE, MAP_BOTTOM - TILE);
             s.gfx.setPosition(s.x, s.y);

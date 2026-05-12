@@ -36,8 +36,8 @@ export default class MapManager {
         switch (useBiome) {
             case 0: return r < 0.07 ? T_SAND   : T_GRASS;
             case 1: return r < 0.38 ? T_SAND   : T_GRASS;
-            case 2: return r < 0.20 ? T_ROCK   : T_FOREST;
-            case 3: return r < 0.42 ? T_SAND   : T_ROCK;
+            case 2: return r < 0.15 ? T_ROCK   : r < 0.25 ? T_MOUNTAIN : T_FOREST;
+            case 3: return r < 0.42 ? T_SAND   : r < 0.70 ? T_ROCK : T_MOUNTAIN;
         }
     }
 
@@ -370,7 +370,8 @@ export default class MapManager {
     isTileBlocked(wx, wy) {
         const tx = Math.floor(wx / TILE), ty = Math.floor((wy - MAP_OY) / TILE);
         if (tx < 0 || tx >= MAP_W || ty < 0 || ty >= MAP_H) return true;
-        if ((this.scene.terrainData[ty]?.[tx] ?? 0) === 4) return true; // 4 is T_WATER
+        const terr = this.scene.terrainData[ty]?.[tx] ?? 0;
+        if (terr === 4 || terr === 5) return true; // 4 is T_WATER, 5 is T_MOUNTAIN
         const cell = this.scene.mapData[ty]?.[tx] ?? 0;
         if (cell < 98) return false;
         const gate = this.scene.buildings.find(b => b.type === 'gate' && b.built && b.tx === tx && b.ty === ty);

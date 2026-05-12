@@ -5,6 +5,7 @@ const ZONE_STYLE = {
     work:    { fill: 0x4488ff, fillAlpha: 0.14, line: 0x4488ff, lineAlpha: 0.55 },
     storage: { fill: 0xffaa22, fillAlpha: 0.14, line: 0xffaa22, lineAlpha: 0.55 },
     market:  { fill: 0xddaa22, fillAlpha: 0.16, line: 0xddaa22, lineAlpha: 0.60 },
+    pasture: { fill: 0x66aa44, fillAlpha: 0.16, line: 0x66aa44, lineAlpha: 0.60 },
 };
 
 // Growth slot colors: empty → early → late → ready
@@ -17,6 +18,7 @@ export default class ZoneManager {
         this.storageTiles = new Set();    // tileKey
         this.growTiles    = new Map();    // tileKey → { crop, slots: number[] }
         this.marketTiles  = new Set();    // tileKey
+        this.pastureTiles = new Set();    // tileKey
         this._gfx         = null;
         this._growGfx     = null;
         this._growTickAcc = 0;
@@ -50,6 +52,12 @@ export default class ZoneManager {
         this.renderAll();
     }
 
+    paintPasture(tx, ty) {
+        if (tx < 0 || tx >= MAP_W || ty < 0 || ty >= MAP_H) return;
+        this.pastureTiles.add(this.tileKey(tx, ty));
+        this.renderAll();
+    }
+
     paintGrow(tx, ty, crop) {
         if (tx < 0 || tx >= MAP_W || ty < 0 || ty >= MAP_H) return;
         const def = CROPS[crop];
@@ -62,7 +70,7 @@ export default class ZoneManager {
 
     erase(tx, ty) {
         const k = this.tileKey(tx, ty);
-        const changed = this.workTiles.delete(k) | this.storageTiles.delete(k) | this.growTiles.delete(k) | this.marketTiles.delete(k);
+        const changed = this.workTiles.delete(k) | this.storageTiles.delete(k) | this.growTiles.delete(k) | this.marketTiles.delete(k) | this.pastureTiles.delete(k);
         if (changed) this.renderAll();
     }
 
@@ -73,11 +81,13 @@ export default class ZoneManager {
             storage: this.storageTiles.has(k),
             grow:    this.growTiles.get(k) ?? null,
             market:  this.marketTiles.has(k),
+            pasture: this.pastureTiles.has(k),
         };
     }
 
     getWorkZones()    { return this._components(this.workTiles); }
     getStorageZones() { return this._components(this.storageTiles); }
+    getPastureZones() { return this._components(this.pastureTiles); }
 
     // Grow tile queries used by farmer AI
     getReadyGrowTiles() {
@@ -121,6 +131,7 @@ export default class ZoneManager {
         this._renderLayer(this.workTiles,    ZONE_STYLE.work);
         this._renderLayer(this.storageTiles, ZONE_STYLE.storage);
         this._renderLayer(this.marketTiles,  ZONE_STYLE.market);
+        this._renderLayer(this.pastureTiles, ZONE_STYLE.pasture);
         this._renderGrowLayer();
         this._renderGrowSlots();
     }
@@ -194,6 +205,7 @@ export default class ZoneManager {
         if (zAt.work)         { tileSet = this.workTiles;    zoneType = 'work'; }
         else if (zAt.storage) { tileSet = this.storageTiles; zoneType = 'storage'; }
         else if (zAt.market)  { tileSet = this.marketTiles;  zoneType = 'market'; }
+        else if (zAt.pasture) { tileSet = this.pastureTiles; zoneType = 'pasture'; }
         else if (zAt.grow)    { zoneType = 'grow'; cropKey = zAt.grow.crop; }
 
         if (zoneType === 'grow') {

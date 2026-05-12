@@ -1,14 +1,17 @@
-import { workshopScore } from './workshopScore.js';
 export default {
     id: 'butcher',
-    building: 'butcher',
     input: 'Food.Meat.Venison',
     output: 'Food.Meat.Venison.Sausages',
     carryQty: 4,
     skill: 'butcher',
     needKey: 'Food.Meat.Venison.Sausages',
     baseScore: 40,
-    fetchSources: ['butcher', 'warehouse', 'townhall'],
-    depositTypes: ['butcher', 'warehouse'],
-    score(u, ctx) { return workshopScore(u, ctx, this); },
+    fetchSources: ['warehouse', 'townhall'],
+    depositTypes: ['warehouse'],
+    score(u, ctx) {
+        const hasInput = (ctx.resources[this.input] ?? 0) > 0;
+        return hasInput
+            ? this.baseScore + ctx.need(this.needKey) * 80 + (u.skills[this.skill]?.level ?? 1) * 15
+            : 0;
+    },
 };

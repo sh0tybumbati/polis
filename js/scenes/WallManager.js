@@ -219,11 +219,25 @@ export default class WallManager {
         return !!(wall && wall.height === 'full' && wall.buildProgress >= 1);
     }
 
+    _blocksEnclosure(isH, row, col) {
+        const wall = isH ? this.hWalls[row]?.[col] : this.vWalls[row]?.[col];
+        return !!(wall && (wall.height === 'full' || wall.height === 'fence') && wall.buildProgress >= 1);
+    }
+
     // ─── Targeted room query ────────────────────────────────────────────────────
 
     // BFS from (tx,ty) blocked by full walls. Returns tile array if enclosed
     // (≤ maxTiles, never touches boundary), or null if open/too large.
     getRoomAt(tx, ty, maxTiles = 400) {
+        return this._getRegionAt(tx, ty, maxTiles, (isH, row, col) => this._blocks(isH, row, col));
+    }
+
+    // BFS blocked by full walls AND fences
+    getEnclosureAt(tx, ty, maxTiles = 400) {
+        return this._getRegionAt(tx, ty, maxTiles, (isH, row, col) => this._blocksEnclosure(isH, row, col));
+    }
+
+    _getRegionAt(tx, ty, maxTiles, blocksFn) {
         const key = (x, y) => y * MAP_W + x;
         const visited = new Set([key(tx, ty)]);
         const queue   = [[tx, ty]];
@@ -238,7 +252,7 @@ export default class WallManager {
             ]) {
                 const nx = cx + dx, ny = cy + dy;
                 if (nx < 0 || nx >= MAP_W || ny < 0 || ny >= MAP_H) return null;
-                if (this._blocks(isH, row, col)) continue;
+                if (blocksFn(isH, row, col)) continue;
                 const nk = key(nx, ny);
                 if (visited.has(nk)) continue;
                 if (visited.size >= maxTiles) return null;

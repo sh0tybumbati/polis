@@ -3,7 +3,7 @@ export default {
     minAge: 2,
     skill: 'mining',
     needKey: 'Materials.Stone.Limestone',
-    nodeTypes: ['small_boulder', 'large_boulder', 'ore_vein'],
+    nodeTypes: ['small_boulder', 'large_boulder', 'ore_vein', 'mountain'],
     depositTypes: ['stonepile', 'smelter'],
     score(u, ctx) {
         if (u.age < this.minAge) return -1;

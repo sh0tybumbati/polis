@@ -209,24 +209,6 @@ export const BLDG = {
   tannery:    { label: '👞 Tannery',       color: 0x8a5530, cost: {},               materialQty: 7,  size: 2,
                 desc: 'Processes hides into leather and kits.',
                 stores: { 'Textile.Hide.Deer': 30, 'Textile.Hide.Deer.Leather': 30, 'Equipment.Leather.Kit': 10 } },
-  mine:       { label: '⛏ Mine',           color: 0x666655, cost: { 'Materials.Stone.Limestone': 3 }, materialQty: 4,  size: 2,
-                desc: 'Extracts metal ore from the earth.',
-                stores: { 'Materials.Metal.Copper.Ore': 30 } },
-  smelter:    { label: '🔥 Smelter',       color: 0xaa5522, cost: { 'Materials.Stone.Limestone': 6 }, materialQty: 3,  size: 2,
-                desc: 'Smelts raw ore into bronze ingots.',
-                stores: { 'Materials.Metal.Copper.Ingot': 20 } },
-  blacksmith: { label: '🔨 Blacksmith',    color: 0x555566, cost: { 'Materials.Stone.Limestone': 2 }, materialQty: 6,  size: 2,
-                desc: 'Forges bronze kits for advanced units.',
-                stores: { 'Equipment.Bronze.Kit': 10 } },
-  mill:       { label: '⚙ Mill',           color: 0xaa9955, cost: { 'Materials.Stone.Limestone': 5 }, materialQty: 5,  size: 2,
-                desc: 'Grinds wheat into flour.',
-                stores: { 'Food.Grain.Wheat': 40, 'Food.Grain.Wheat.Flour': 30 } },
-  bakery:     { label: '🍞 Bakery',        color: 0xcc9944, cost: { 'Materials.Stone.Limestone': 3 }, materialQty: 5,  size: 2,
-                desc: 'Bakes flour into nutritious bread.',
-                stores: { 'Food.Grain.Wheat.Flour': 20, 'Food.Grain.Wheat.Bread': 20 } },
-  butcher:    { label: '🥩 Butcher',       color: 0xaa4433, cost: {},               materialQty: 5,  size: 2,
-                desc: 'Processes raw meat into cuts and sausages.',
-                stores: { 'Food.Meat.Venison': 40, 'Food.Meat.Venison.Sausages': 20, 'Textile.Hide.Deer': 20 } },
   olive_press:{ label: '🫒 Olive Press',   color: 0x667733, cost: { 'Materials.Stone.Limestone': 3 }, materialQty: 5,  size: 2,
                 desc: 'Presses olives into food.',
                 stores: { 'Food.Produce.Olive': 40 } },
@@ -249,9 +231,6 @@ export const BLDG = {
   masons:     { label: '🪨 Masons',        color: 0x7a7060, cost: { 'Materials.Stone.Limestone': 4 }, materialQty: 5,  size: 2,
                 desc: 'Processes stone into blocks and appliances.',
                 stores: { 'Materials.Stone.Limestone.Block': 30 } },
-  pasture:    { label: '🐑 Pasture',       color: 0x66aa44, cost: {},               materialQty: 8,  size: 3, outdoor: true,
-                desc: 'Houses sheep for wool production.',
-                sheepCap: 10, stores: { 'Textile.Fiber.Wool': 30 } },
   warehouse:  { label: '📦 Warehouse',     color: 0x554433, cost: { 'Materials.Stone.Limestone': 3 }, materialQty: 10, size: 3,
                 desc: 'Massive storage for industrial materials.',
                 stores: { 'Textile.Hide.Deer.Leather': 50, 'Textile.Fiber.Wool': 50, 'Materials.Metal.Copper.Ore': 50, 'Materials.Metal.Copper.Ingot': 50, 'Equipment.Bronze.Kit': 20, 'Materials.Wood.Pine.Plank': 40, 'Materials.Stone.Limestone.Block': 30 } },
@@ -269,7 +248,7 @@ export function computeBuildCost(type, material = 'Materials.Wood.Pine') {
     return base;
 }
 
-export const BUILD_WORK = { camp: 6, house: 14, granary: 14, woodshed: 12, stonepile: 8, farm: 16, garden: 12, barracks: 22, archery: 18, stable: 24, palisade: 4, watchtower: 14, gate: 8, wall: 6, tannery: 18, mine: 20, smelter: 24, blacksmith: 22, mill: 16, bakery: 14, butcher: 12, olive_press: 16, temple: 24, oracle: 18, pasture: 15, warehouse: 20, carpenter: 18, masons: 20, agora: 18 };
+export const BUILD_WORK = { camp: 6, house: 14, granary: 14, woodshed: 12, stonepile: 8, farm: 16, garden: 12, barracks: 22, archery: 18, stable: 24, palisade: 4, watchtower: 14, gate: 8, wall: 6, tannery: 18, smelter: 24, blacksmith: 22, mill: 16, bakery: 14, olive_press: 16, temple: 24, oracle: 18, warehouse: 20, carpenter: 18, masons: 20, agora: 18 };
 
 // ─── Day/Night Cycle Constants ──────────────────────────────────────────────
 
@@ -341,7 +320,7 @@ export function _counterMod(attackerType, defenderType) {
 
 export const BLDG_CATS = {
   // Replaced by zones + appliances; legacy buildings still load from saves but can't be newly placed.
-  Economy:  ['mine', 'pasture'],
+  Economy:  [],
   Military: ['barracks', 'archery', 'stable', 'watchtower', 'gate'],
   Culture:  ['temple', 'oracle'],
   Debug: [],
@@ -412,18 +391,15 @@ export const BLDG_VOLUME = {
     archery:   400,
     stable:    400,
     tannery:   500,
-    mine:      300,
     smelter:   500,
     blacksmith: 500,
     mill:      600,
     bakery:    500,
-    butcher:   500,
     olive_press: 500,
     temple:    300,
     oracle:    300,
     carpenter: 600,
     masons:    600,
-    pasture:   1000,
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
