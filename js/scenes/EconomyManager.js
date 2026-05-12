@@ -9,6 +9,15 @@ export default class EconomyManager {
         this.scene = scene;
     }
 
+    _workerAt(bldg, role) {
+        return this.scene.units.some(u => 
+            !u.isEnemy && u.hp > 0 && 
+            u.isInside && 
+            u.taskConstructId === bldg.id && 
+            u.role === role
+        );
+    }
+
     // Per-building ctx so addResource writes to b.inventory (not global pool)
     buildCtx(b) {
         const scene = this.scene;
