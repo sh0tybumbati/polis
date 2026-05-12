@@ -389,7 +389,7 @@ export default class GameScene extends Phaser.Scene {
         this.constructManager.updateStorageCap();
         this.economyManager.syncResources();
 
-        const sx = (camp.tx + camp.size / 2) * TILE, sy = MAP_OY + (camp.ty + camp.size / 2) * TILE;
+        const sx = (camp.tx + camp.width / 2) * TILE, sy = MAP_OY + (camp.ty + camp.height / 2) * TILE;
 
         const founder = this.spawnUnit('worker', sx, sy, false);
         founder.gender     = 'male';

@@ -205,7 +205,7 @@ export default {
             items.push({ label: 'Recall Home', color: 0x223344, callback: () => {
                 workers.forEach(u => {
                     const home = s.constructs.find(b => b.id === u.homeConstructId);
-                    if (home) u.moveTo = { x: (home.tx+home.size/2)*TILE, y: MAP_OY+(home.ty+home.size/2)*TILE };
+                    if (home) u.moveTo = { x: (home.tx+home.width/2)*TILE, y: MAP_OY+(home.ty+home.height/2)*TILE };
                     u.taskType = null; u.targetNode = null;
                 });
                 s.deselect(); this.updateUI();

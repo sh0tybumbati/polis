@@ -137,7 +137,7 @@ export default {
 
         const home = this.scene.constructs.find(b => b.id === u.homeConstructId);
         if (!home) return;
-        const hx = (home.tx + home.size / 2) * TILE, hy = MAP_OY + (home.ty + home.size / 2) * TILE;
+        const hx = (home.tx + (home.width ?? 1) / 2) * TILE, hy = MAP_OY + (home.ty + (home.height ?? 1) / 2) * TILE;
         const radius = u.age === 0 ? TILE : TILE * 3;
         const dist = Phaser.Math.Distance.Between(u.x, u.y, hx, hy);
         if (dist > radius * 2.5 || Math.random() < 0.004) {

@@ -35,8 +35,8 @@ export default {
 
         if (u.isRouting) {
             const home = this.scene.constructs.find(b => b.id === u.homeConstructId);
-            const hx = home ? (home.tx + home.size / 2) * TILE : MAP_W / 2 * TILE;
-            const hy = home ? MAP_OY + (home.ty + home.size / 2) * TILE : this.scene.MAP_BOTTOM - TILE * 4;
+            const hx = home ? (home.tx + home.width / 2) * TILE : MAP_W / 2 * TILE;
+            const hy = home ? MAP_OY + (home.ty + home.height / 2) * TILE : this.scene.MAP_BOTTOM - TILE * 4;
             const dh = Phaser.Math.Distance.Between(u.x, u.y, hx, hy);
             if (dh > 8) {
                 const a = Math.atan2(hy - u.y, hx - u.x);
@@ -53,13 +53,13 @@ export default {
             const eb = this.scene.constructs.filter(b => b.faction === 'enemy' && b.built && b.hp > 0);
             let nearBldg = null, nbd = Infinity;
             for (const b of eb) {
-                const bx = (b.tx + b.width / 2) * TILE, by = MAP_OY + (b.ty + b.width / 2) * TILE;
+                const bx = (b.tx + b.width / 2) * TILE, by = MAP_OY + (b.ty + b.height / 2) * TILE;
                 const d = Phaser.Math.Distance.Between(u.x, u.y, bx, by);
                 if (d < nbd) { nbd = d; nearBldg = b; }
             }
             if (nearBldg) {
-                const bx = (nearBldg.tx + nearBldg.size / 2) * TILE;
-                const by = MAP_OY + (nearBldg.ty + nearBldg.size / 2) * TILE;
+                const bx = (nearBldg.tx + nearBldg.width / 2) * TILE;
+                const by = MAP_OY + (nearBldg.ty + nearBldg.height / 2) * TILE;
                 if (nbd < TILE * 1.5) {
                     if (time - u.lastAtk > 1200) {
                         u.lastAtk = time;

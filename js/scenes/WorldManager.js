@@ -534,8 +534,8 @@ export default class WorldManager {
         };
         this.scene.constructManager.updateStorageCap();
 
-        const hx = (camp.tx + camp.size / 2) * TILE;
-        const hy = MAP_OY + (camp.ty + camp.size / 2) * TILE;
+        const hx = (camp.tx + camp.width / 2) * TILE;
+        const hy = MAP_OY + (camp.ty + camp.height / 2) * TILE;
 
         const male   = this.scene.spawnUnit('worker', hx - 8, hy, false);
         const female = this.scene.spawnUnit('worker', hx + 8, hy, false);

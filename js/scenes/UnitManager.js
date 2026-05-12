@@ -144,8 +144,8 @@ export default class UnitManager {
         const home = this.scene.constructs.find(b => b.id === (father.homeConstructId ?? mother.homeConstructId));
         if (!home) return null;
 
-        const cx = (home.tx + home.size / 2) * TILE;
-        const cy = MAP_OY + (home.ty + home.size / 2) * TILE;
+        const cx = (home.tx + home.width / 2) * TILE;
+        const cy = MAP_OY + (home.ty + home.height / 2) * TILE;
 
         const child = this.spawnUnit('worker', cx, cy, false);
         child.fatherId  = father.id;

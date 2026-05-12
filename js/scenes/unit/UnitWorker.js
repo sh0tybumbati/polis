@@ -57,8 +57,8 @@ export default {
             } else if (u.homeConstructId) {
                 const home = this.scene.constructs.find(b => b.id === u.homeConstructId && b.built);
                 if (home) {
-                    const hcx = (home.tx + home.size / 2) * TILE;
-                    const hcy = MAP_OY + (home.ty + home.size / 2) * TILE;
+                    const hcx = (home.tx + home.width / 2) * TILE;
+                    const hcy = MAP_OY + (home.ty + home.height / 2) * TILE;
                     if (Phaser.Math.Distance.Between(u.x, u.y, hcx, hcy) > 10) {
                         if (this.totalCarrying(u) > 0 && u.taskType !== 'deposit') {
                             u.taskType = 'deposit'; u.taskConstructId = home.id; u._depositPrivate = !home.isPublic;
@@ -152,7 +152,7 @@ export default {
                 } else if (u.homeConstructId) {
                     const home = this.scene.constructs.find(b => b.id === u.homeConstructId && b.built);
                     if (home) {
-                        u.moveTo = { x: (home.tx + home.size / 2) * TILE, y: MAP_OY + (home.ty + home.size / 2) * TILE };
+                        u.moveTo = { x: (home.tx + home.width / 2) * TILE, y: MAP_OY + (home.ty + home.height / 2) * TILE };
                     }
                 }
             } else if (intent === 'socialize') {
@@ -624,8 +624,8 @@ export default {
         const agora = this.scene.constructs.find(b => b.id === u.taskConstructId && b.built);
         if (!agora) { u.taskType = null; u.merchantPhase = null; return; }
 
-        const cx = (agora.tx + agora.size / 2) * TILE;
-        const cy = MAP_OY + (agora.ty + agora.size / 2) * TILE;
+        const cx = (agora.tx + agora.width / 2) * TILE;
+        const cy = MAP_OY + (agora.ty + agora.height / 2) * TILE;
 
         if (this.moveToward(u, cx, cy, 28, dt)) return;
         u.isInside = true;
@@ -1146,7 +1146,7 @@ export default {
         });
         if (plantFarm) {
             u.taskType = 'plant'; u.taskConstructId = plantFarm.id;
-            u.moveTo = { x: (plantFarm.tx + plantFarm.size/2) * TILE, y: MAP_OY + (plantFarm.ty + plantFarm.size/2) * TILE };
+            u.moveTo = { x: (plantFarm.tx + plantFarm.width/2) * TILE, y: MAP_OY + (plantFarm.ty + plantFarm.height/2) * TILE };
             return;
         }
 
@@ -1160,7 +1160,7 @@ export default {
         });
         if (farm) {
             u.taskType = 'harvest_farm'; u.taskConstructId = farm.id;
-            u.moveTo = { x: (farm.tx + farm.size/2) * TILE, y: MAP_OY + (farm.ty + farm.size/2) * TILE };
+            u.moveTo = { x: (farm.tx + farm.width/2) * TILE, y: MAP_OY + (farm.ty + farm.height/2) * TILE };
             return;
         }
 
@@ -1175,7 +1175,7 @@ export default {
         });
         if (garden) {
             u.taskType = 'harvest_farm'; u.taskConstructId = garden.id;
-            u.moveTo = { x: (garden.tx + garden.size/2) * TILE, y: MAP_OY + (garden.ty + garden.size/2) * TILE };
+            u.moveTo = { x: (garden.tx + garden.width/2) * TILE, y: MAP_OY + (garden.ty + garden.height/2) * TILE };
             return;
         }
 
