@@ -133,30 +133,31 @@ export const SCREEN_H = 768;
 
 // ─── Terrain Constants ───────────────────────────────────────────────────────
 
-export const T_GRASS = 0, T_SAND = 1, T_ROCK = 2, T_FOREST = 3, T_WATER = 4;
+export const T_GRASS = 0, T_SAND = 1, T_ROCK = 2, T_FOREST = 3, T_WATER = 4, T_MOUNTAIN = 5;
 // Fallback tile colours (used when biomeData not yet available)
-export const TILE_A  = [0x5a8c28, 0xc0984c, 0x706050, 0x1d4a14, 0x1a3a88];
-export const TILE_B  = [0x4a7820, 0xb08840, 0x60544a, 0x163c10, 0x142e70];
+export const TILE_A  = [0x5a8c28, 0xc0984c, 0x706050, 0x1d4a14, 0x1a3a88, 0x887888];
+export const TILE_B  = [0x4a7820, 0xb08840, 0x60544a, 0x163c10, 0x142e70, 0x706070];
 
-// Per-biome tile colours — [biome 0..3][terrain T_GRASS..T_WATER]
+// Per-biome tile colours — [biome 0..3][terrain T_GRASS..T_MOUNTAIN]
 //   Biome 0 = Heartland  (lush, fertile)
 //   Biome 1 = Scrubland  (dry, yellowy)
 //   Biome 2 = Forest     (dense, dark)
 //   Biome 3 = Badlands   (dusty, reddish)
 export const BIOME_A = [
-  [0x5a9c2c, 0xb89040, 0x686050, 0x1d4a14, 0x1a3a88], // heartland
-  [0x8a9430, 0xc8a450, 0x686050, 0x1d4a14, 0x1a3a88], // scrubland — yellower grass
-  [0x2e6818, 0x907858, 0x5a5040, 0x163c10, 0x1a3a88], // forest    — dark & mossy
-  [0x6a6840, 0xb07038, 0x786858, 0x1d4a14, 0x1a3a88], // badlands  — dusty olive, rusty rock
+  [0x5a9c2c, 0xb89040, 0x686050, 0x1d4a14, 0x1a3a88, 0x807888], // heartland
+  [0x8a9430, 0xc8a450, 0x686050, 0x1d4a14, 0x1a3a88, 0x907880], // scrubland — yellower grass
+  [0x2e6818, 0x907858, 0x5a5040, 0x163c10, 0x1a3a88, 0x706870], // forest    — dark & mossy
+  [0x6a6840, 0xb07038, 0x786858, 0x1d4a14, 0x1a3a88, 0xa08070], // badlands  — dusty olive, rusty rock
 ];
 export const BIOME_B = [
-  [0x4a8820, 0xa88030, 0x585448, 0x163c10, 0x142e70], // heartland
-  [0x7a8428, 0xb89440, 0x585040, 0x163c10, 0x142e70], // scrubland
-  [0x1e5010, 0x806848, 0x4a4438, 0x0e3208, 0x142e70], // forest
-  [0x5a5838, 0xa06030, 0x686048, 0x163c10, 0x142e70], // badlands
+  [0x4a8820, 0xa88030, 0x585448, 0x163c10, 0x142e70, 0x686070], // heartland
+  [0x7a8428, 0xb89440, 0x585040, 0x163c10, 0x142e70, 0x786868], // scrubland
+  [0x1e5010, 0x806848, 0x4a4438, 0x0e3208, 0x142e70, 0x585860], // forest
+  [0x5a5838, 0xa06030, 0x686048, 0x163c10, 0x142e70, 0x887060], // badlands
 ];
 // Movement speed multiplier per tile type (index = T_* constant)
-export const TILE_SPD  = [1.0, 0.75, 0.6, 0.65, 0.0];
+// T_MOUNTAIN = 0.0 (impassable until mined through)
+export const TILE_SPD  = [1.0, 0.75, 0.6, 0.65, 0.0, 0.0];
 
 // Road / desire-path layer (stored in roadMap, separate from terrain)
 export const ROAD_NONE   = 0;  // no road
