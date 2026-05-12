@@ -156,7 +156,7 @@ export default {
                 if (cap <= 0) return 0;
                 return 1.0 - Math.min(1.0, (this.scene.resources[res] || 0) / cap);
             },
-            buildings: this.scene.constructs,
+            constructs: this.scene.constructs,
             units: workers,
             resources: this.scene.resources,
             sheep: this.scene.sheep ?? [],
