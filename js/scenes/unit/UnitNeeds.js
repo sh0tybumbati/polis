@@ -1,4 +1,4 @@
-import { TILE, MAP_OY } from '../../config/gameConstants.js';
+import { TILE, MAP_OY, DAY_DURATION } from '../../config/gameConstants.js';
 import { JOBS, WORKSHOP_JOBS } from '../../content/jobs/index.js';
 
 // JOB_AFFINITIES and related helpers are defined in UnitManager.js (module scope)
@@ -10,13 +10,51 @@ export default {
         const food = n.food ?? 1, rest = n.rest ?? 1, social = n.social ?? 1, joy = n.joy ?? 1;
         const plan = [];
 
-        // Priority = how urgently this need wants to be met right now.
-        // eat/sleep can exceed work(30) to preempt it; social/leisure stay below so work wins.
-        if (food < 0.7)   plan.push({ intent: 'eat',       priority: 20 + (1 - food)   * 80 });
-        if (rest < 0.6)   plan.push({ intent: 'sleep',     priority: 15 + (1 - rest)   * 75 });
-                          plan.push({ intent: 'work',       priority: 30 });
-        if (social < 0.7) plan.push({ intent: 'socialize', priority:  5 + (1 - social) * 20 });
-        if (joy < 0.7)    plan.push({ intent: 'leisure',   priority:  3 + (1 - joy)    * 15 });
+        const elapsed = this.scene.phase === 'DAY' ? (1.0 - (this.scene.timerMs / DAY_DURATION)) : 1.0;
+        
+        // Base priorities
+        let workPri    = 30;
+        let eatPri     = food < 0.7 ? (20 + (1 - food) * 80) : 0;
+        let sleepPri   = rest < 0.6 ? (15 + (1 - rest) * 75) : 0;
+        let socialPri  = social < 0.7 ? (5 + (1 - social) * 20) : 0;
+        let leisurePri = joy < 0.7 ? (3 + (1 - joy) * 15) : 0;
+
+        // --- Time of Day Adjustments ---
+        if (this.scene.phase === 'DAY') {
+            // Meal times
+            if ((elapsed >= 0.23 && elapsed <= 0.28) || // Breakfast
+                (elapsed >= 0.48 && elapsed <= 0.53) || // Lunch
+                (elapsed >= 0.73 && elapsed <= 0.78)) { // Dinner
+                eatPri += 35; 
+            }
+
+            // Morning lethargy
+            if (elapsed < 0.15) {
+                workPri -= 15;
+                socialPri += 10;
+            }
+
+            // Evening leisure
+            if (elapsed > 0.80) {
+                workPri -= 20;
+                leisurePri += 15;
+                socialPri += 10;
+            }
+            
+            // Late night fatigue
+            if (elapsed > 0.92) {
+                sleepPri += 25;
+            }
+        } else if (this.scene.phase === 'NIGHT') {
+            sleepPri += 50;
+            workPri  -= 20;
+        }
+
+        if (eatPri > 0)     plan.push({ intent: 'eat',       priority: eatPri });
+        if (sleepPri > 0)   plan.push({ intent: 'sleep',     priority: sleepPri });
+                            plan.push({ intent: 'work',      priority: workPri });
+        if (socialPri > 0)  plan.push({ intent: 'socialize', priority: socialPri });
+        if (leisurePri > 0) plan.push({ intent: 'leisure',   priority: leisurePri });
 
         plan.sort((a, b) => b.priority - a.priority);
         u.dayPlan = plan;

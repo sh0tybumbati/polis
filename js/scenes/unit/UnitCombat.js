@@ -49,24 +49,24 @@ export default {
         }
 
         if (!near) {
-            // No enemy units — attack nearest enemy building instead
+            // No enemy units — attack nearest enemy construct instead
             const eb = this.scene.constructs.filter(b => b.faction === 'enemy' && b.built && b.hp > 0);
-            let nearBldg = null, nbd = Infinity;
+            let nearConstruct = null, nbd = Infinity;
             for (const b of eb) {
                 const bx = (b.tx + b.width / 2) * TILE, by = MAP_OY + (b.ty + b.height / 2) * TILE;
                 const d = Phaser.Math.Distance.Between(u.x, u.y, bx, by);
-                if (d < nbd) { nbd = d; nearBldg = b; }
+                if (d < nbd) { nbd = d; nearConstruct = b; }
             }
-            if (nearBldg) {
-                const bx = (nearBldg.tx + nearBldg.width / 2) * TILE;
-                const by = MAP_OY + (nearBldg.ty + nearBldg.height / 2) * TILE;
+            if (nearConstruct) {
+                const bx = (nearConstruct.tx + nearConstruct.width / 2) * TILE;
+                const by = MAP_OY + (nearConstruct.ty + nearConstruct.height / 2) * TILE;
                 if (nbd < TILE * 1.5) {
                     if (time - u.lastAtk > 1200) {
                         u.lastAtk = time;
-                        nearBldg.hp = Math.max(0, nearBldg.hp - u.atk);
-                        this.scene.constructManager.redrawBuildingBar(nearBldg);
+                        nearConstruct.hp = Math.max(0, nearConstruct.hp - u.atk);
+                        this.scene.constructManager.redrawConstructBar(nearConstruct);
                         this.scene.uiManager.showFloatText(bx, by - 10, `-${u.atk}`, '#ffaa44');
-                        if (nearBldg.hp <= 0) this._destroyBuilding(nearBldg);
+                        if (nearConstruct.hp <= 0) this._destroyConstruct(nearConstruct);
                     }
                 } else {
                     this.moveToward(u, bx, by, 10, dt);

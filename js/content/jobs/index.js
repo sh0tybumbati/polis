@@ -23,5 +23,5 @@ const defs = [builder, farmer, forager, woodcutter, miner, shepherd, hunter,
                carpenter, mason, merchant];
 
 export const JOBS = Object.fromEntries(defs.map(d => [d.id, d]));
-// WORKSHOP_JOBS: any job with input→output processing (building optional — zone appliances count)
+// WORKSHOP_JOBS: any job with input→output processing (construct optional — zone appliances count)
 export const WORKSHOP_JOBS = Object.fromEntries(defs.filter(d => d.input && d.output).map(d => [d.id, d]));

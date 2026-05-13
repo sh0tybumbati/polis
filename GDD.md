@@ -1,43 +1,39 @@
 # Polis — Game Design Document (V25)
 
-> A high-automation, dynastic Greek city-builder. Manage living families, build a lasting civilization, and defend it through the night.
+> A modular, dynastic city-builder transitioning to a Sumerian aesthetic. Manage living families, build a lasting civilization through modular constructs, and defend it through the night.
 
 ---
 
 ## Vision
 
-Polis is an **Oikos-first** city-builder set in classical Greece. The core unit of gameplay is not the individual worker or the generic building — it is the **family estate (Oikos)**. Players manage dynasties of named, genetically-distinct individuals who work, breed, inherit property, and die. The economy evolves organically from family-level barter to state-controlled coinage. Combat is a consequence of prosperity, not the point of it.
+Polis is a **Modular** city-builder where the core unit of gameplay is the **family estate (É / Oikos)**. Players manage dynasties of named individuals who work, breed, inherit property, and die. The economy is based on **modular constructs**—from grand townhalls to small 1x1 appliances (millstones, hearths) placed within family domains.
 
-The game sits between *Dwarf Fortress* (individual simulation depth) and *Caesar III* (city-flow automation) with a tight mobile-first interface.
+The game is currently transitioning from its original Greek theme to a **Sumerian** aesthetic.
 
 ---
 
-## The Oikos (Family Estate)
+## The Estate (É / Oikos)
 
-The Oikos is a **composite entity**: a root 2×2 domicile plus attached rooms, stalls, and farm plots — all treated as one selectable unit.
+The Estate is a **composite entity**: a root domicile plus attached rooms, stalls, and modular **Constructs**—all treated as one selectable unit.
 
 ### Domain Plot
 - The City Planner reserves an **8×8 tile grid** for each family.
 - No other family can build inside this domain. It grows organically over generations.
-- Clicking *any* child structure (stall, farm, expansion) selects the **Root Domicile** and opens the Family Menu.
+- Clicking *any* child structure (construct, appliance, farm) selects the **Root Domicile** and opens the Family Menu.
 
-### Modular Expansion
-- New rooms are **1×2 drag-expansions** attached to the domicile wall.
-- Each room adds: `+capacity`, `+1 internal appliance slot`.
-- Families auto-repair their home if `condition < 80%`, using their private material stash.
+### Modular Constructs & Appliances
+Instead of standalone buildings, production happens through modular constructs. Each appliance or machine can be placed inside a room or a outdoor domain slot.
 
-### Internal Appliances
-Each appliance slot can hold one of:
-
-| Appliance | Effect |
+| Construct | Effect |
 |---|---|
 | Loom | Family member can weave wool → cloth at home |
-| Brick Oven | Family member can bake bread without a central bakery |
-| Meat Hook | Cures meat to extend spoilage timer |
-| Distaff | Spins wool → thread (input for Loom) |
-| Beds | Increases rest quality → `willpower` regeneration |
+| Oven | Family member can bake bread without a central facility |
+| Tanning Rack | Cures hide → leather |
+| Millstone | Grinds grain → flour |
+| Workbench | Woodworking & plank cutting |
+| Anvil/Forge | Metalworking & kit crafting |
 
-Appliances are requested autonomously when a family member has sufficient skill and an empty slot.
+Constructs are requested autonomously when a family member has sufficient skill and an empty slot.
 
 ---
 
@@ -204,8 +200,8 @@ This gap between the Archon's intent and the city's emergent behaviour is the ce
 
 ## Starting Conditions
 
-### The Tetrad
-The game begins with **4 married couples** (8 adults) in 4 starter 2×2 homes with attached farms. This gives the Oikos system immediate content: pairing, inheritance, and expansion begin from turn one.
+### The Camp
+The game begins with a single **Camp** construct and 2 adults (Archon and Consort). The Camp acts as the initial home and storage hub until the first permanent housing is established.
 
 ### Migration Petitions
 Random families appear at the map border every N days. The player **Accepts** or **Rejects**:

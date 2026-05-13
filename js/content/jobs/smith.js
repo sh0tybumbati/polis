@@ -1,7 +1,7 @@
 import { workshopScore } from './workshopScore.js';
 export default {
     id: 'smith',
-    building: 'blacksmith',
+    construct: 'anvil',
     input: 'Materials.Metal.Copper.Ingot',
     output: 'Equipment.Bronze.Kit',
     carryQty: 3,

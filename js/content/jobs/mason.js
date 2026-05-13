@@ -1,7 +1,7 @@
 import { workshopScore } from './workshopScore.js';
 export default {
     id: 'mason',
-    building: 'masons',
+    construct: 'stonecutter',
     input: 'Materials.Stone.Limestone',
     output: 'Materials.Stone.Limestone.Block',
     carryQty: 4,

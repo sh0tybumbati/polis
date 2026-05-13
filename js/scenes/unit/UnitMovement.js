@@ -8,8 +8,46 @@ import { ITEMS } from '../../content/items/index.js';
 export default {
     moveToward(u, tx, ty, threshold, dt) {
         const d = Phaser.Math.Distance.Between(u.x, u.y, tx, ty);
-        if (d <= threshold) return false;
-        const a = Math.atan2(ty - u.y, tx - u.x);
+        if (d <= threshold) {
+            u.currentPath = null;
+            return false;
+        }
+
+        // --- Pathfinding Logic ---
+        const startTx = Math.floor(u.x / TILE), startTy = Math.floor((u.y - MAP_OY) / TILE);
+        const targetTx = Math.floor(tx / TILE), targetTy = Math.floor((ty - MAP_OY) / TILE);
+
+        // If target is far and no path or target moved significantly, find path
+        const isFar = d > TILE * 3;
+        const needsPath = isFar && (!u.currentPath || u._pathTargetTx !== targetTx || u._pathTargetTy !== targetTy);
+
+        if (needsPath) {
+            u.currentPath = this.pathfinder.findPath(startTx, startTy, targetTx, targetTy);
+            u._pathTargetTx = targetTx;
+            u._pathTargetTy = targetTy;
+            u._pathIndex = 0;
+        }
+
+        let moveTargetX = tx, moveTargetY = ty;
+
+        if (u.currentPath && u.currentPath.length > 0) {
+            // Follow path waypoints
+            if (u._pathIndex < u.currentPath.length) {
+                const wp = u.currentPath[u._pathIndex];
+                moveTargetX = wp.tx * TILE + TILE / 2;
+                moveTargetY = MAP_OY + wp.ty * TILE + TILE / 2;
+
+                const distToWp = Phaser.Math.Distance.Between(u.x, u.y, moveTargetX, moveTargetY);
+                if (distToWp < 8) {
+                    u._pathIndex++;
+                    return true; // continue moving next tick
+                }
+            } else {
+                u.currentPath = null;
+            }
+        }
+
+        const a = Math.atan2(moveTargetY - u.y, moveTargetX - u.x);
 
         // Gate blocking: enemy units stop and attack closed gates in their path
         if (u.isEnemy) {
@@ -26,10 +64,10 @@ export default {
                 if (u._gateAttackTimer >= 1.2) {
                     u._gateAttackTimer = 0;
                     gate.hp = (gate.hp ?? gate.maxHp) - 2;
-                    this.scene.redrawBuildingBar(gate);
+                    this.scene.redrawConstructBar(gate);
                     this.scene.uiManager.showFloatText(
                         (gate.tx + 0.5) * TILE, MAP_OY + gate.ty * TILE - 8, '-2', '#ff4444');
-                    if (gate.hp <= 0) this._destroyBuilding(gate);
+                    if (gate.hp <= 0) this._destroyConstruct(gate);
                 }
                 return true; // blocked — don't move
             }
@@ -65,21 +103,21 @@ export default {
         return true;
     },
 
-    _bldgDoor(b) {
+    _constructDoor(b) {
         return {
             x: (b.tx + b.width / 2) * TILE,
             y: MAP_OY + (b.ty + b.width) * TILE - 4,
         };
     },
 
-    _destroyBuilding(b) {
+    _destroyConstruct(b) {
         this.scene.uiManager.showFloatText(
             (b.tx + b.width / 2) * TILE, MAP_OY + b.ty * TILE - 8,
             `${CONSTRUCTS[b.type]?.label ?? b.type} destroyed!`, '#ff4422');
-        this.scene.constructManager.demolishBuilding(b);
+        this.scene.constructManager.demolishConstruct(b);
     },
 
-    _nearestPlayerBuilding(x, y) {
+    _nearestPlayerConstruct(x, y) {
         let best = null, bd = Infinity;
         for (const b of this.scene.constructs) {
             if (b.faction || !b.built) continue;

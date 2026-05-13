@@ -1,7 +1,7 @@
 import {
     MAP_W, MAP_H, TILE, MAP_OY,
     FM_TYPES, FM_LABELS, UNIT_NAMES, VET_LEVELS, SEASONS, SEASON_DAYS,
-    BLDG_VOLUME,
+    CONSTRUCT_VOLUME,
 } from '../config/gameConstants.js';
 import { CONSTRUCTS, computeBuildCost } from '../content/constructs/index.js';
 import UIPanel from './UIPanel.js';
@@ -21,13 +21,13 @@ export default class UIManager {
         this._caravanModal = null;
         // Left panel tab state
         this._unitTab     = 'Stats';
-        this._buildingTab = 'Info';
+        this._constructTab = 'Info';
         this._oikosTab    = 'Family';
         // Right panel (actions) tab state
         this._actUnitTab  = 'Jobs';
         this._actMilTab   = 'Move';
-        this._actBldgTab  = null;
-        this._actBldgId   = null;
+        this._actConstructTab  = null;
+        this._actConstructId   = null;
     }
 
     _ui(obj) { this.scene.cameras.main.ignore(obj); return obj; }

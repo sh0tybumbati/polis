@@ -1,7 +1,7 @@
 import { workshopScore } from './workshopScore.js';
 export default {
     id: 'miller',
-    building: 'mill',
+    construct: 'millstone',
     input: 'Food.Grain.Wheat',
     output: 'Food.Grain.Wheat.Flour',
     carryQty: 5,

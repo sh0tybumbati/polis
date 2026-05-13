@@ -1,4 +1,4 @@
-import { VET_LEVELS, BLDG_VOLUME, UNIT_NAMES } from '../../config/gameConstants.js';
+import { VET_LEVELS, CONSTRUCT_VOLUME, UNIT_NAMES } from '../../config/gameConstants.js';
 import { ITEMS } from '../../content/items/index.js';
 import { WORKSHOP_JOBS } from '../../content/jobs/index.js';
 import { CONSTRUCTS, computeBuildCost } from '../../content/constructs/index.js';
@@ -12,14 +12,12 @@ export default {
         const pad = 8;
         const sel = this.scene.units.filter(u => u.selected && !u.isEnemy);
 
-        if (this.scene.selectedBuilding) {
-            this._renderBuildingInfo(ox, oy, W, H, pad);
+        if (this.scene.selectedConstruct) {
+            this._renderConstructInfo(ox, oy, W, H, pad);
         } else if (sel.length > 0) {
             this._renderUnitInfo(sel, ox, oy, W, H, pad);
         } else if (this.scene.selectedNode) {
             this._renderNodeInfo(ox, oy, W, H, pad);
-        } else if (this.scene.selectedConstruct) {
-            this._renderFurnitureInfo(ox, oy, W, H, pad);
         } else if (this.scene.selectedZoneTile) {
             this._renderZoneInfo(ox, oy, W, H, pad);
         } else {
@@ -27,8 +25,8 @@ export default {
         }
     },
 
-    _renderBuildingInfo(ox, oy, W, H, pad) {
-        const b   = this.scene.selectedBuilding;
+    _renderConstructInfo(ox, oy, W, H, pad) {
+        const b   = this.scene.selectedConstruct;
         const def = CONSTRUCTS[b.type];
 
         if ((b.type === 'house' || b.type === 'townhall') && b.built) {
@@ -36,18 +34,18 @@ export default {
             return;
         }
 
-        // Non-house buildings within an oikos domain → show family panel
+        // Non-house constructs within an oikos domain → show family panel
         if (b.built && b.domainId) {
             const dom   = this.scene.domains.find(d => d.id === b.domainId);
-            const house = dom ? this.scene.constructs.find(h => h.id === dom.houseBldgId && h.built) : null;
+            const house = dom ? this.scene.constructs.find(h => h.id === dom.houseConstructId && h.built) : null;
             if (house) { this._renderOikosInfo(house, ox, oy, W, H, pad); return; }
         }
 
         const TH   = 22;
         const tabs = b.built ? ['Info', 'Workers', 'Inv'] : ['Info'];
-        if (!tabs.includes(this._buildingTab)) this._buildingTab = 'Info';
-        this._infTabBar(ox, oy, W, tabs, this._buildingTab,
-            t => { this._buildingTab = t; this.updateUI(); });
+        if (!tabs.includes(this._constructTab)) this._constructTab = 'Info';
+        this._infTabBar(ox, oy, W, tabs, this._constructTab,
+            t => { this._constructTab = t; this.updateUI(); });
 
         const cy = oy + TH;
         const ch = H - TH;
@@ -70,7 +68,7 @@ export default {
             } else {
                 ratio = b.maxBuildWork > 0 ? Math.max(0, 1 - b.buildWork / b.maxBuildWork) : 0;
                 barCol = 0xffdd44;
-                phaseLabel = '⚒ building…';
+                phaseLabel = '⚒ construct…';
             }
             this._infBar(ox + pad, cy + 18, barW, 8, ratio, barCol);
             this._infTxt(ox + pad + barW - 2, cy + 17, `${Math.round(ratio * 100)}%`,
@@ -78,17 +76,17 @@ export default {
             this._infTxt(ox + pad, cy + 29, phaseLabel,
                 { fontSize: this._fs(9), color: '#9a9077', wordWrap: { width: barW } });
             this._infBtn(ox + pad, cy + ch - 32, W - pad * 2 - 4, 28, 'Cancel Build', 0x443322, () => {
-                this.scene.demolishBuilding(b);
+                this.scene.demolishConstruct(b);
             });
             return;
         }
 
-        if (this._buildingTab === 'Info')    this._renderBldgInfo(b, def, ox, cy + 18, W, ch - 18, pad);
-        else if (this._buildingTab === 'Workers') this._renderBldgWorkers(b, def, ox, cy + 18, W, ch - 18, pad);
-        else                                 this._renderBldgInventory(b, ox, cy + 18, W, ch - 18, pad);
+        if (this._constructTab === 'Info')    this._renderConstructDetailInfo(b, def, ox, cy + 18, W, ch - 18, pad);
+        else if (this._constructTab === 'Workers') this._renderConstructWorkers(b, def, ox, cy + 18, W, ch - 18, pad);
+        else                                 this._renderConstructInventory(b, ox, cy + 18, W, ch - 18, pad);
     },
 
-    _renderBldgInfo(b, def, ox, oy, W, H, pad) {
+    _renderConstructDetailInfo(b, def, ox, oy, W, H, pad) {
         let ry = oy;
 
         if (b.type !== 'house' && b.type !== 'townhall') {
@@ -102,9 +100,9 @@ export default {
             const pop = this.scene.units.filter(u => u.homeConstructId === b.id && !u.isEnemy && u.hp > 0).length;
             status = `👥 ${pop}/${def.capacity}`;
         }
-        const maxVol = BLDG_VOLUME[b.type];
+        const maxVol = CONSTRUCT_VOLUME[b.type];
         if (maxVol) {
-            const curVol = this.scene.economyManager.getBuildingCurrentVolume(b);
+            const curVol = this.scene.economyManager.getConstructCurrentVolume(b);
             const volStr = `📦 ${curVol.toFixed(0)}/${maxVol}`;
             status = status ? `${status}  ${volStr}` : volStr;
         } else if (def.stores) {
@@ -154,8 +152,8 @@ export default {
         }
 
         if (b.type !== 'house' && b.type !== 'townhall' && !b.faction) {
-            const isPublicStorage = b.type === 'woodshed' || b.type === 'stonepile'
-                || Object.values(WORKSHOP_JOBS).some(j => j.building === b.type);
+            const isPublicStorage = b.type === 'storageshelf' || b.type === 'grainsilo'
+                || Object.values(WORKSHOP_JOBS).some(j => j.construct === b.type);
             const BTN_H = 26;
             const by    = oy + H - BTN_H - 4;
             const bw    = isPublicStorage ? (W - pad * 2 - 8) / 2 : (W - pad * 2 - 4);
@@ -174,9 +172,9 @@ export default {
         }
     },
 
-    _renderBldgWorkers(b, def, ox, oy, W, H, pad) {
+    _renderConstructWorkers(b, def, ox, oy, W, H, pad) {
         let wy = oy;
-        const workshopDef = Object.values(WORKSHOP_JOBS).find(j => j.building === b.type);
+        const workshopDef = Object.values(WORKSHOP_JOBS).find(j => j.construct === b.type);
         if (workshopDef) {
             this._infTxt(ox + pad, wy, '👷 slots:', { fontSize: this._fs(10), color: '#c8a030' });
             wy += 14;
@@ -207,7 +205,7 @@ export default {
         }
     },
 
-    _renderBldgInventory(b, ox, oy, W, H, pad) {
+    _renderConstructInventory(b, ox, oy, W, H, pad) {
         let ry = oy;
         const entries = Object.entries(b.inventory ?? {}).filter(([, v]) => v > 0);
         if (entries.length) {
@@ -270,7 +268,7 @@ export default {
         const patriarch = adults.find(u => u.isArchon) ?? adults.find(u => u.gender === 'male') ?? adults[0];
         const familyName = b.type === 'townhall'
             ? (patriarch ? `Archon: ${patriarch.name}` : 'Town Hall')
-            : (patriarch ? `${patriarch.name}'s Oikos` : `House #${b.id}`);
+            : (patriarch ? `${patriarch.name}'s Estate` : `House #${b.id}`);
         const cap = b.type === 'house'
             ? this.scene.constructManager.getHouseCapacity(b)
             : (CONSTRUCTS[b.type]?.capacity ?? '?');
@@ -362,7 +360,7 @@ export default {
         if (b.type === 'townhall') {
             const archon = this.scene.units.find(u => u.isArchon && u.hp > 0);
             const archonHome = archon?.homeConstructId
-                ? this.scene.constructs.find(bldg => bldg.id === archon.homeConstructId && bldg.id !== b.id)
+                ? this.scene.constructs.find(construct => construct.id === archon.homeConstructId && construct.id !== b.id)
                 : null;
             if (archonHome) {
                 const hInv = Object.entries(archonHome.inventory ?? {}).filter(([, v]) => v > 0);
@@ -738,7 +736,7 @@ export default {
         const btnY = oy + H - 84;
         this._infBtn(ox + pad, btnY, W - pad * 2, 22, '+ Expand Zone', 0x224433, () => {
             s.zoneMode      = expandMode;
-            s.bldgType      = null; s.roadMode  = false;
+            s.constructType      = null; s.roadMode  = false;
             s.wallMode      = false; s.constructMode = false;
             s.zoneManager?.clearSelection();
             s.selectedZoneTile  = null; s.selectedZoneTiles = null;
@@ -758,137 +756,6 @@ export default {
             s.selectedZoneTile = null; s.selectedZoneTiles = null;
             s.selectedZoneType = null; s.selectedZoneCrop  = null;
             this.updateUI();
-        });
-    },
-
-    _renderFurnitureInfo(ox, oy, W, H, pad) {
-        const s = this.scene;
-        const { tx, ty, item } = s.selectedConstruct;
-        const def = CONSTRUCTS[item.type];
-        if (!def) return;
-
-        const jobDef    = def.job ? WORKSHOP_JOBS[def.job] : null;
-        const isWorkshop = !!jobDef && item.built;
-        const btnW       = Math.floor((W - pad * 2 - 4) / 2);
-
-        this._infCard(ox, oy, W, H);
-        this._infTxt(ox + pad, oy + pad,      `${def.icon ?? ''} ${def.label}`, { fontSize: this._fs(13), color: '#d4c8a8' });
-        this._infTxt(ox + pad, oy + pad + 18, `${tx},${ty}  ·  ${def.cat}`,      { fontSize: this._fs(9),  color: '#6a5830' });
-
-        if (!item.built) {
-            const progress = item.maxBuildWork > 0 ? 1 - item.buildWork / item.maxBuildWork : 1;
-            const btnY = oy + H - 70;
-            this._infTxt(ox + pad, oy + pad + 34, def.desc ?? '', { fontSize: this._fs(10), color: '#8a8060', wordWrap: { width: W - pad * 2 } });
-            this._infTxt(ox + pad, btnY - 18, '⚒ Under construction', { fontSize: this._fs(10), color: '#c8a030' });
-            this._infBar(ox + pad, btnY - 4,  W - pad * 2, 6, progress, 0xffdd44);
-            this._infBtn(ox + pad, btnY + 8,  W - pad * 2, 26, 'Cancel Order', 0x441c1c, () => {
-                s.constructManager.remove(tx, ty);
-                s.selectedConstruct = null; this.updateUI();
-            });
-            return;
-        }
-
-        // ── Workshop appliance: production queue UI ────────────────────────────
-        if (isWorkshop) {
-            const queue   = item.productionQueue; // null=auto, array=queue-mode
-            const isAuto  = queue === null || queue === undefined;
-            const inLabel = jobDef.input.split('.').pop();
-            const outLabel= jobDef.output.split('.').pop();
-
-            this._infTxt(ox + pad, oy + pad + 32, `${inLabel} → ${outLabel}`, { fontSize: this._fs(9), color: '#8a7850' });
-
-            let ry = oy + pad + 50;
-            this._infTxt(ox + pad, ry, 'Production Queue', { fontSize: this._fs(10), color: '#c8b870' });
-            ry += 15;
-
-            if (isAuto) {
-                this._infTxt(ox + pad, ry, 'Auto: produces when needed', { fontSize: this._fs(9), color: '#6a7a50' });
-                ry += 14;
-                this._infBtn(ox + pad, ry, W - pad * 2, 16, 'Switch to Manual Queue', 0x1a2a3a, () => {
-                    item.productionQueue = []; this.updateUI();
-                });
-                ry += 20;
-            } else {
-                if (queue.length === 0) {
-                    this._infTxt(ox + pad, ry, 'No orders — worker idles', { fontSize: this._fs(9), color: '#5a5040' });
-                    ry += 14;
-                } else {
-                    for (let i = 0; i < Math.min(queue.length, 4); i++) {
-                        const e = queue[i];
-                        const pct = e.qty > 0 ? e.done / e.qty : 1;
-                        const remaining = e.qty - e.done;
-                        this._infTxt(ox + pad, ry, `${remaining}× ${outLabel}`, { fontSize: this._fs(10), color: '#d4c8a0' });
-                        this._infBar(ox + pad + 62, ry + 1, W - pad * 2 - 78, 9, pct, 0x66bb44);
-                        this._infBtn(ox + W - pad - 14, ry - 1, 14, 12, '×', 0x441818, () => {
-                            item.productionQueue.splice(i, 1); this.updateUI();
-                        });
-                        ry += 15;
-                    }
-                    if (queue.length > 4)
-                        this._infTxt(ox + pad, ry, `+${queue.length - 4} more…`, { fontSize: this._fs(9), color: '#5a5040' });
-                    ry += 14;
-                }
-
-                // Batch add buttons
-                const bw3 = Math.floor((W - pad * 2 - 8) / 3);
-                [5, 20, 50].forEach((qty, i) => {
-                    this._infBtn(ox + pad + i * (bw3 + 4), ry, bw3, 18, `+${qty}`, 0x334422, () => {
-                        item.productionQueue.push({ qty, done: 0 }); this.updateUI();
-                    });
-                });
-                ry += 22;
-                this._infBtn(ox + pad, ry, W - pad * 2, 14, 'Reset to Auto', 0x1a2030, () => {
-                    item.productionQueue = null; this.updateUI();
-                });
-                ry += 18;
-            }
-
-            // Assign selected workers button
-            const selWorkers = s.units.filter(u => u.selected && u.type === 'worker' && u.age >= 2);
-            if (selWorkers.length > 0) {
-                const fmKey = s.constructManager.tileKey(tx, ty);
-                this._infBtn(ox + pad, ry, W - pad * 2, 16, `Assign ${selWorkers.length} worker${selWorkers.length > 1 ? 's' : ''} here`, 0x223344, () => {
-                    selWorkers.forEach(u => {
-                        u.vocation   = def.job;
-                        u.role       = def.job;
-                        u.taskStack  = u.taskStack ?? [];
-                        u.taskStack.push({ type: 'zone_workshop', zoneKey: fmKey, role: def.job });
-                        u.taskType   = null;
-                    });
-                    this.updateUI();
-                });
-            }
-
-            // Bottom strip
-            const btnY2 = oy + H - 50;
-            this._infBtn(ox + pad,          btnY2,      btnW, 22, 'Relocate', 0x1c3044, () => {
-                s.relocateMode = true; s.relocateSrc = { tx, ty }; s.constructMode = false; this.updateUI();
-            });
-            this._infBtn(ox + pad + btnW + 4, btnY2,    btnW, 22, 'Remove',   0x441c1c, () => {
-                s.constructManager.remove(tx, ty); s.selectedConstruct = null; this.updateUI();
-            });
-            this._infBtn(ox + pad,          btnY2 + 26, W - pad * 2, 20, '✕ Close', 0x1a1408, () => {
-                s.selectedConstruct = null; this.updateUI();
-            });
-            return;
-        }
-
-        // ── Non-workshop (living, storage, etc.) ──────────────────────────────
-        if (def.desc) {
-            this._infTxt(ox + pad, oy + pad + 34, def.desc, { fontSize: this._fs(10), color: '#8a8060', wordWrap: { width: W - pad * 2 } });
-        }
-        const btnY = oy + H - 70;
-        const costStr = Object.entries(def.craftCost ?? {}).map(([k, v]) => `${v} ${k.split('.').pop()}`).join(', ');
-        if (costStr)
-            this._infTxt(ox + pad, btnY - 14, `Cost: ${costStr}`, { fontSize: this._fs(9), color: '#6a5830' });
-        this._infBtn(ox + pad,          btnY + 2, btnW, 24, 'Relocate', 0x1c3044, () => {
-            s.relocateMode = true; s.relocateSrc = { tx, ty }; s.constructMode = false; this.updateUI();
-        });
-        this._infBtn(ox + pad + btnW + 4, btnY + 2, btnW, 24, 'Remove', 0x441c1c, () => {
-            s.constructManager.remove(tx, ty); s.selectedConstruct = null; this.updateUI();
-        });
-        this._infBtn(ox + pad, btnY + 32, W - pad * 2, 22, '✕ Close', 0x1a1408, () => {
-            s.selectedConstruct = null; this.updateUI();
         });
     },
 };

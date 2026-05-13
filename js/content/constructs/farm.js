@@ -19,7 +19,7 @@ export default {
             b.replantTimer = 0;
             b.stock = b.maxStock ?? 32;
             b.drawnStock = b.stock;
-            _ctx.redrawBuilding(b);
+            _ctx.redrawConstruct(b);
             _ctx.floatText(b, '🌱 ready', '#88cc44');
         }
     },

@@ -13,12 +13,12 @@
 
 ### Map & World
 - [x] Procedural tile map (grass/sand/rock, 25×18)
-- [x] Tile hover highlight during building placement (ghost preview)
+- [x] Tile hover highlight during construct placement (ghost preview)
 
-### Economy & Buildings
+### Economy & Constructs
 - [x] Resources: food, stone, wood
 - [x] Farm, Barracks, Wall, Granary, Woodshed, Stone Pile, Archery Range, House
-- [x] Building placement with ghost preview + auto-cancel after place
+- [x] Construct placement with ghost preview + auto-cancel after place
 - [x] Cost deduction; resource carry-back system (workers physically haul to storeroom)
 - [x] Demolish / cancel construction with resource recoup
 - [x] Floor pile system — resources dropped on ground, workers collect later
@@ -26,7 +26,7 @@
 ### Units
 - [x] Hoplite, Archer (player); Raider, Berserker, Veteran (enemy)
 - [x] Worker with age stages: child (day 1) → youth (day 2) → adult (day 3+)
-- [x] Building-specific worker cap; respawn queue per building
+- [x] Construct-specific worker cap; respawn queue per construct
 - [x] HP bar above unit; death fade-out
 
 ### Population & Upkeep
@@ -46,7 +46,7 @@
 
 ### UI
 - [x] Resource display, day counter, phase pill, timer bar
-- [x] Building info panel (tap with no selection): name, status, Cancel/Demolish button
+- [x] Construct info panel (tap with no selection): name, status, Cancel/Demolish button
 - [x] Pinch-to-zoom, two-finger pan
 - [x] 44px touch-friendly buttons
 
@@ -62,7 +62,7 @@
 
 ### Minimap
 - [x] Small fixed overlay (bottom-right corner, ~160×90px) showing the full world at a glance
-- [x] Renders: terrain color, fog state (dark = unexplored, dim = seen, lit = current-vision), friendly units (blue dots), enemy units (red dots, only within currently-lit tiles), buildings (colored squares)
+- [x] Renders: terrain color, fog state (dark = unexplored, dim = seen, lit = current-vision), friendly units (blue dots), enemy units (red dots, only within currently-lit tiles), constructs (colored squares)
 - [x] Click/tap on minimap pans main camera to that location
 - [x] Minimap respects fog — enemy village region is black until a unit physically reaches it
 
@@ -76,24 +76,24 @@
 - [x] **`trafficMap[y][x]`** — incremented each time a unit steps on a tile; decays each day
 - [x] **Desire paths** emerge automatically: traffic > 120 → worn-path visual + ×1.15 speed; drop back to bare if traffic decays below threshold
 - [x] **Buildable paved roads** — costs 1 stone; ×1.45 speed; distinct visual; drag-paintable in road tool mode
-- [x] Road tool in build toolbar; works on any non-building, non-water tile
+- [x] Road tool in build toolbar; works on any non-construct, non-water tile
 
 ### Fog of War
 - [x] **No starting vision** — entire map begins black; player starts blind even in the heartland
 - [x] Each unit projects a vision radius updated every tick: workers 3 tiles (dim to 6), soldiers 5 tiles (dim to 10)
 - [x] Three vision states per tile:
-  - **Black** (never seen) — terrain, units, buildings completely hidden
-  - **Dimmed** (seen but not currently lit) — terrain and *player* buildings visible; enemy units/buildings not updated
+  - **Black** (never seen) — terrain, units, constructs completely hidden
+  - **Dimmed** (seen but not currently lit) — terrain and *player* constructs visible; enemy units/constructs not updated
   - **Lit** (currently in a unit's radius) — everything visible
 - [x] `visMap[y][x]` stores state (0/1/2); recomputed each frame from all living friendly units
 - [x] Fog rendered as a dark overlay (depth 8) on the world camera; minimap mirrors fog state
-- [x] Player buildings grant a large (radius 10) permanent lit circle while built
+- [x] Player constructs grant a large (radius 10) permanent lit circle while built
 - [x] Watch Tower (Milestone 3) adds a large static lit radius even with no units nearby
 
 ### Enemy Village (Mirror Sim — groundwork only)
-- [x] Enemy polis pre-placed in Badlands during world gen (buildings exist, visible once fog cleared)
+- [x] Enemy polis pre-placed in Badlands during world gen (constructs exist, visible once fog cleared)
 - [x] Enemy workers active from day 1 with full economy sim (gather resources, eat, respawn)
-- [x] Enemy village buildings act as HP pools; destroying them degrades enemy production
+- [x] Enemy village constructs act as HP pools; destroying them degrades enemy production
 - [x] Full mirror economy simulation (pulled forward from MS3)
 
 ### Gender System
@@ -102,7 +102,7 @@ Gender is a single field (`gender: 'male' | 'female'`) assigned at spawn (50/50 
 
 #### People & Workers
 - [x] All workers and soldiers get a `gender` field at spawn (50/50 random); starting pair is hardcoded male + female
-- [x] **House pairing** — a house can only spawn a new child if at least one adult male and one adult female resident are present; attraction logic only moves the missing gender from surplus buildings
+- [x] **House pairing** — a house can only spawn a new child if at least one adult male and one adult female resident are present; attraction logic only moves the missing gender from surplus constructs
 - [x] Gender shown as a tiny dot (blue = male, rose = female) just to the right of the HP bar on all units
 
 #### Pastured Sheep
@@ -131,14 +131,14 @@ Gender is a single field (`gender: 'male' | 'female'`) assigned at spawn (50/50 
 
 #### Berry Bush Spread & Regrowth
 - [x] **Berry bushes never disappear** — when stock hits 0 the bush enters a dormant state (bare visual, cannot be harvested); stock replenishes fully after ~2 days, then it can be harvested again
-- [x] **Bushes spread** — each day transition, each bush at > 50% stock has a ~10% chance to seed a new bush on a random adjacent grass or scrubland tile (not rock, water, sand, building, or existing node)
-- [x] New bush starts dormant (0 stock) and takes ~2 days to reach full stock before it becomes harvestable
+- [x] **Bushes spread** — each day transition, each bush at > 50% stock has a ~10% chance to seed a new bush on a random adjacent grass or scrubland tile (not rock, water, sand, construct, or existing node)
+- [x] New bush starts dormant (0 stock) and takes ~2 days to reach full stock before it becomes harvemounted_grounds
 - [x] Global cap: ~30 berry bushes on the map at once; spread halts if cap is reached
 
 #### Tree Growth & Saplings
 - [x] **Saplings** — when a tree node is fully harvested (stock reaches 0) it is not removed; instead it becomes a sapling with a multi-day regrowth timer (small_tree: 3 days, large_tree: 5 days)
 - [x] Sapling is drawn as a tiny green dot; it cannot be harvested; after the timer it restores to full stock and normal appearance
-- [x] **Natural seeding** — each day transition, every tree (not sapling) has a ~12% chance to drop a sapling on a random adjacent forest or grass tile (not water, rock, sand, building, or existing node); the sapling matures normally
+- [x] **Natural seeding** — each day transition, every tree (not sapling) has a ~12% chance to drop a sapling on a random adjacent forest or grass tile (not water, rock, sand, construct, or existing node); the sapling matures normally
 - [x] Seeding is capped: no more than one new sapling per tree per day; global tree node cap ~60 to prevent runaway forestation
 
 #### Wildlife Foraging
@@ -159,8 +159,8 @@ Gender is a single field (`gender: 'male' | 'female'`) assigned at spawn (50/50 
 ## Milestone 3 — Combat Depth & Living World
 
 ### Enemy Village — Full Mirror Simulation
-- [x] Enemy polis runs the same economic tick loop as the player: workers gather, population grows, food upkeep applies, buildings are placed by an AI build-order
-- [x] **AI build order** — enemy follows a loose priority sequence (farm → barracks → archery → house) based on resource thresholds, same rules as player economy
+- [x] Enemy polis runs the same economic tick loop as the player: workers gather, population grows, food upkeep applies, constructs are placed by an AI build-order
+- [x] **AI build order** — enemy follows a loose priority sequence (farm → melee_grounds → archery_grounds → house) based on resource thresholds, same rules as player economy
 - [x] Wave composition is no longer scripted — it reflects what the enemy has actually trained; starvation or raiding can weaken or delay waves organically
 - [x] Enemy workers and soldiers pathfind and behave using the same unit system; enemy soldiers patrol during day and march south at night
 - [x] Enemy village rebuilds destroyed structures using its own workers and resources
@@ -176,12 +176,12 @@ Gender is a single field (`gender: 'male' | 'female'`) assigned at spawn (50/50 
 - [ ] Villager work schedule tied to meal times — MS4+
 - [ ] Portable rations for scouts — MS4
 
-#### Food Chain Buildings (first pass — passive auto-processing)
+#### Food Chain Constructs (first pass — passive auto-processing)
 - [x] **Mill** — 2 wheat → 3 flour every 10s (auto); stores wheat (40) + flour (30)
 - [x] **Bakery** — 2 flour → 3 food every 12s (auto); shows float "🍞 bread" per batch
 - [x] **Butcher** — 1 meat → 3 food every 8s (auto); shows float "🥩 cuts" per batch
-- [x] **Wheat from farms** — farms also produce bonus wheat at dawn (~15% of food yield); wheat chains into mill only if mill is built (no storage = silently capped at 0)
-- [x] **Hunting → meat chain** — deer carcasses yield `meat` resource; hunters deposit at butcher for 3× food value, or directly as 1:1 food if no butcher exists; sheep slaughter still gives direct food
+- [x] **Wheat from farms** — farms also produce bonus wheat at dawn (~15% of food yield); wheat chains into millstone only if millstone is built (no storage = silently capped at 0)
+- [x] **Hunting → meat chain** — deer carcasses yield `meat` resource; hunters deposit at butchersblock for 3× food value, or directly as 1:1 food if no butchersblock exists; sheep slaughter still gives direct food
 - [x] **Resources** — `wheat`, `flour`, `meat` added to resource pool, storageMax, carrying, and topbar UI
 
 #### Future Food Chain (MS4+)
@@ -191,9 +191,9 @@ Gender is a single field (`gender: 'male' | 'female'`) assigned at spawn (50/50 
 - [ ] **Distinct crop types for Kepos** — wild gardens yield specific seeds (lentils, garlic, onions, etc.); each Kepos plot grows one crop type with different bonuses (e.g. lentils = steady food, garlic = soldier HP regen, onions = worker speed)
 - [ ] Cookhouse: bread + sausage → portable rations for scouts
 - [ ] Tiered food taxonomy with worker-slot shop model (customers visit shops)
-- [ ] Foodhaus fallback building with workstation bottleneck
-- [ ] Unlock gates per building
-- [ ] Enemy AI builds food chain buildings (Mylos, Artopoion, Makellon)
+- [ ] Foodhaus fallback construct with workstation bottleneck
+- [ ] Unlock gates per construct
+- [ ] Enemy AI builds food chain constructs (Mylos, Artopoion, Makellon)
 
 #### Military Production — Unit Tiers & Material Chains
 
@@ -211,19 +211,19 @@ Gender is a single field (`gender: 'male' | 'female'`) assigned at spawn (50/50 
 | Elite | Toxotes | field upgrade | leather + bronze kit |
 
 **Leather chain** (hunt → tan → equip):
-- [x] Deer carcasses drop **hide** alongside meat; hunters haul hide to tannery storage
+- [x] Deer carcasses drop **hide** alongside meat; hunters haul hide to tanningrack storage
 - [x] **Tannery**: 3 hide → 1 leather (8s); 4 leather → 1 leather kit (12s)
 - [x] At dawn: Clubmen/Slingers with a kit upgrade to **Peltast**
 
 **Bronze chain** (mine → smelt → forge → equip):
 - [x] **Ore veins** in badlands/scrubland at world-gen
-- [x] **Mine** building: workers haul ore
+- [x] **Mine** construct: workers haul ore
 - [x] **Smelter**: 2 ore → 1 ingot (10s)
 - [x] **Blacksmith**: 1 ingot + 1 leather → 1 bronze kit (15s)
 - [x] At dawn: Peltasts/Spearmen/Archers with a bronze kit upgrade to **Hoplite** / **Toxotes**
 
 **Unlock gates:**
-| Building | Unlocks after |
+| Construct | Unlocks after |
 |---|---|
 | Tannery | 3 hides ever collected |
 | Mine | Stone Pile built |
@@ -231,7 +231,7 @@ Gender is a single field (`gender: 'male' | 'female'`) assigned at spawn (50/50 
 | Blacksmith | Smelter has produced 3 ingots AND Tannery has produced 5 leather |
 
 #### Material Chains *(future milestones)*
-- **Wood**: Logs → Sawmill (1 log → 3 planks) → Carpenter (planks → furniture, tools, components)
+- **Wood**: Logs → Sawmillstone (1 log → 3 planks) → Carpenter (planks → furniture, tools, components)
 - **Stone**: Raw stone → Stonemason (1 stone → 2 blocks) → Builder's Yard (blocks → fortifications, paved areas)
 
 ### Counter-Unit Triangle
@@ -245,7 +245,7 @@ Gender is a single field (`gender: 'male' | 'female'`) assigned at spawn (50/50 
 - [x] Optional: named veteran units (procedural Greek names)
 
 ### Morale & Routing
-- [x] Units below 25% HP attempt to flee toward home building
+- [x] Units below 25% HP attempt to flee toward home construct
 - [x] Flanked units (enemies attacking from 2+ sides simultaneously) get –20% attack
 - [ ] Units near a Hero unit (see below) are immune to routing
 - [x] Rout creates a cascade: fleeing units trigger nearby units to check morale
@@ -258,8 +258,8 @@ Gender is a single field (`gender: 'male' | 'female'`) assigned at spawn (50/50 
 ### GUI & User Interface
 - [x] **Major GUI Rework** — bottom-docked control panel separating game world from UI
 - [x] **Centered Minimap** — embedded in the control panel for centralized navigation
-- [x] **Context-Aware Sidebars** — dynamically shifting buttons based on selection (Workers vs. Soldiers vs. Buildings)
-- [x] **Mobile-Friendly Optimization** — compact tabs and grid-based building menu for small screens
+- [x] **Context-Aware Sidebars** — dynamically shifting buttons based on selection (Workers vs. Soldiers vs. Constructs)
+- [x] **Mobile-Friendly Optimization** — compact tabs and grid-based construct menu for small screens
 - [x] **Special Actions** — "RECALL" for workers, "DISMISS" for non-veteran soldiers
 
 ### Terrain Advantages (combat)
@@ -271,7 +271,7 @@ Gender is a single field (`gender: 'male' | 'female'`) assigned at spawn (50/50 
 
 ## Milestone 4 — Dynastic Layer (Phase 1: Genealogy Foundation)
 
-Every unit becomes a persistent individual with biological heritage. This is the highest-priority architectural shift toward the Oikos-first vision.
+Every unit becomes a persistent individual with biological heritage. This is the highest-priority architectural shift toward the Estate-first vision.
 
 ### Unit Struct Additions
 - [x] Add `fatherId`, `motherId` (null for founder generation)
@@ -318,21 +318,21 @@ Every unit becomes a persistent individual with biological heritage. This is the
 
 ---
 
-## Milestone 5 — Oikos System (Phase 2: Family Estates)
+## Milestone 5 — Estate System (Phase 2: Family Estates)
 
-### New Buildings & Production
-- [x] `carpenter` building: wood(3) → planks(2) per 12s; pixel-art render
-- [x] `masons` building: stone(3) → stoneBlocks(2) per 14s; pixel-art render
-- [x] `blacksmith` added to BLDG_CATS Economy (was already in BLDG/EconomyManager)
-- [x] `planks` and `stoneBlocks` resources added to GameScene, BuildingManager, UIManager
+### New Constructs & Production
+- [x] `workbench` construct: wood(3) → planks(2) per 12s; pixel-art render
+- [x] `stonecutter` construct: stone(3) → stoneBlocks(2) per 14s; pixel-art render
+- [x] `anvil` added to BLDG_CATS Economy (was already in BLDG/EconomyManager)
+- [x] `planks` and `stoneBlocks` resources added to GameScene, ConstructManager, UIManager
 - [x] House size 1→2 (2×2 tile), capacity 4→6; Starting Tetrad updated
-- [x] `APPLIANCE_DEF` constant: workbench, loom, millstone, hearth, anvil
+- [x] `APPLIANCE_DEF` constant: workbench, loom, millstonestone, hearth, anvil
 
 ### Domain Plot
 - [x] `scene.domains[]` array; `assignDomain(house)` called on house placement
 - [x] Domain = 8×8 grid (3-tile pad around 2×2 house): stored as {x1,y1,x2,y2}
-- [x] `getDomainAt(tx,ty)` helper in BuildingManager
-- [x] Enforce in `isFree()` once Oikos family assignment is implemented
+- [x] `getDomainAt(tx,ty)` helper in ConstructManager
+- [x] Enforce in `isFree()` once Estate family assignment is implemented
 - [x] Clicking any domain structure opens the Family Menu
 
 ### Modular Room Expansion
@@ -344,13 +344,13 @@ Every unit becomes a persistent individual with biological heritage. This is the
 - [x] `applianceSlots: 2`, `applianceItems: []` on house bldg objects
 - [x] At dawn: `checkApplianceDesires()` — resident skill ≥ 5 triggers desire
 - [x] At-home craft: spends `costRaw` (sticks/stones) immediately if affordable
-- [x] Workshop order: queues order on carpenter/masons/blacksmith `orderQueue`
+- [x] Workshop order: queues order on workbench/stonecutter/anvil `orderQueue`
 - [x] `_processOrders()` in EconomyManager: 25s craft time, spends `costWorkshop`, delivers to house
 - [x] Float text on install: 🔨 (self-craft) or 📦 (workshop delivery)
 
 ### Family Menu UI
-- [x] `_renderOikosInfo`: replaces standard building info for built houses
-- [x] Header: "Oikos of [patriarch name]", resident count
+- [x] `_renderEstateInfo`: replaces standard construct info for built houses
+- [x] Header: "Estate of [patriarch name]", resident count
 - [x] Resident rows: gender icon (♂/♀), name, age bracket, top skill+level, burning passion dot
 - [x] Heir highlighted in gold with ★ (eldest child with a parent also in this house)
 - [x] Appliance slot summary line
@@ -366,18 +366,18 @@ Every unit becomes a persistent individual with biological heritage. This is the
 ### HUD & Feedback
 - [x] **Season name in HUD** — day info shows `☀ D5  Spring` etc. via `SEASONS[seasonIdx]`
 - [x] **Auto-save flash** — `showSaveFlash()` called from `_saveGame()`; fades over 1.5s
-- [x] **Construction progress bar** — drawn by `redrawBuildingBar`: orange for resources needed, yellow for build work
+- [x] **Construction progress bar** — drawn by `redrawConstructBar`: orange for resources needed, yellow for build work
 - [x] **Idle worker pulse** — slow yellow ring on idle adult workers via `_redrawIdlePulse` in UnitManager
 
-### Unit & Building Info
+### Unit & Construct Info
 - [x] **Worker nutrition bar** — superseded by `needs.food` bar in unit Needs tab
-- [x] **Per-building ownership badge** — `[STATE]` / `[PRIVATE]` shown in building Info tab
-- [x] **Tithe & wages pending** — shown in building Info tab when non-zero
+- [x] **Per-construct ownership badge** — `[STATE]` / `[PRIVATE]` shown in construct Info tab
+- [x] **Tithe & wages pending** — shown in construct Info tab when non-zero
 - [x] **Census panel** — exists; opened by tapping population counter in top bar
 
 ### World
 - [x] **Resource node respawn** — `WorldManager.tickNodeRespawn()` runs each dawn; `NODES[type].respawnDays` defined per type; shows "🌱 regrown" float
-- [x] **Fog reveal from all player buildings** — `MapManager` uses `BLDG[b.type]?.fogRadius ?? 3`
+- [x] **Fog reveal from all player constructs** — `MapManager` uses `BLDG[b.type]?.fogRadius ?? 3`
 
 ---
 
@@ -392,18 +392,18 @@ Every unit becomes a persistent individual with biological heritage. This is the
 - [x] Enemy townhall destroyed → WIN screen
 - [x] All player workers dead with no births possible → LOSE
 
-### Building HP
-- [x] All buildings get `hp`/`maxHp` on placement (scaled by `BUILD_WORK * 3`)
-- [x] Enemy soldiers attack nearest player building when no player units in range
-- [x] Repair task: worker assigned to damaged building restores HP (1 limestone per cycle, `maxHp/10` restored)
-- [ ] Destroyed buildings leave rubble; workers can clear and rebuild
+### Construct HP
+- [x] All constructs get `hp`/`maxHp` on placement (scaled by `BUILD_WORK * 3`)
+- [x] Enemy soldiers attack nearest player construct when no player units in range
+- [x] Repair task: worker assigned to damaged construct restores HP (1 limestone per cycle, `maxHp/10` restored)
+- [ ] Destroyed constructs leave rubble; workers can clear and rebuild
 
 ### Enemy Village as Proper Mirror
 - [x] Enemy workers spawned at start with `homeBldgId` pointing to enemy house
 - [x] Enemy farm harvested by enemy workers; enemy meals consume enemy food pool
-- [x] Enemy barracks trains soldiers when food sufficient (every 40s, `_tickEnemyBarracks`)
+- [x] Enemy melee_grounds trains soldiers when food sufficient (every 40s, `_tickEnemyBarracks`)
 - [ ] Enemy village runs same birth/age system as player (currently static adult population)
-- [ ] Enemy rebuilds destroyed buildings using own workers and resources
+- [ ] Enemy rebuilds destroyed constructs using own workers and resources
 
 ### Gates & Walls Block Movement
 - [x] Closed gates impassable (`isTileBlocked` returns true for closed gates)
@@ -418,9 +418,9 @@ Every unit becomes a persistent individual with biological heritage. This is the
 *Goal: make raids and defense feel meaningful.*
 
 ### Siege
-- [ ] Enemy units attack buildings when no player units in range (building HP system from M6)
-- [ ] Catapult unit (Siege Workshop): slow, high damage vs buildings, low vs units
-- [ ] War Elephant: large, slow, very high HP, damages buildings on contact
+- [ ] Enemy units attack constructs when no player units in range (construct HP system from M6)
+- [ ] Catapult unit (Siege Workshop): slow, high damage vs constructs, low vs units
+- [ ] War Elephant: large, slow, very high HP, damages constructs on contact
 
 ### Defensive Structures
 - [ ] Watchtower auto-fires arrows (already partially wired — make it actually deal damage)
@@ -429,7 +429,7 @@ Every unit becomes a persistent individual with biological heritage. This is the
 
 ### Strategic Layer
 - [ ] **Idle worker alerts** — pulsing indicator on idle adult workers
-- [ ] **Repair** — workers repair damaged buildings at half build cost (dovetails with M6)
+- [ ] **Repair** — workers repair damaged constructs at half build cost (dovetails with M6)
 - [ ] **Food pressure** — shortage: workers at 70% speed, no training; surplus: +10% speed
 - [ ] **Trade caravan** — random event every ~8 days; sell surplus for food
 
@@ -446,9 +446,9 @@ Every unit becomes a persistent individual with biological heritage. This is the
 
 ### Public vs Private Economy
 - [x] `scene.resources` = public commons (player-controlled, shown in topbar)
-- [x] `house.inventory` = private Oikos stock (shown in household panel)
-- [x] Freelance workers (forager/woodcutter/miner/hunter/shepherd) deposit to home Oikos
-- [x] Farmers and builders deposit to public pool (public buildings)
+- [x] `house.inventory` = private Estate stock (shown in household panel)
+- [x] Freelance workers (forager/woodcutter/miner/hunter/shepherd) deposit to home Estate
+- [x] Farmers and builders deposit to public pool (public constructs)
 - [x] Meals: each house feeds residents from private inventory first; public pool covers remainder
 - [x] Townhall: no longer a residence — public workspace only
 
@@ -460,8 +460,8 @@ Every unit becomes a persistent individual with biological heritage. This is the
 - [ ] **Tax in Coin** — replace tithe with coin-denominated tax rate once coinage is introduced *(deferred to Coinage milestone)*
 
 ### Remove Global Pool (future pass)
-- [ ] Replace `scene.resources` with per-building `inputBasket` + `outputRack`
-- [ ] Stockpile Yard building: families and workshops query their assigned yard UID
+- [ ] Replace `scene.resources` with per-construct `inputBasket` + `outputRack`
+- [ ] Stockpile Yard construct: families and workshops query their assigned yard UID
 - [ ] Workers sleep only at `home_id`, deliver only to assigned stockpile yards
 - [ ] Enemy village uses same system
 
@@ -469,7 +469,7 @@ Every unit becomes a persistent individual with biological heritage. This is the
 - [ ] **Procurer** — fetches raw materials from nodes to workshop input basket
 - [ ] **Processor** — bench-locked at workshop, highest skill, runs the conversion
 - [ ] **Porter** — moves finished goods from output rack to stockpile yard
-- [ ] Solo building: one worker rotates through all three roles at reduced throughput
+- [ ] Solo construct: one worker rotates through all three roles at reduced throughput
 
 ### Resource Physicality
 - [ ] Generalize floor piles to cover all resource types
@@ -489,7 +489,7 @@ Every unit becomes a persistent individual with biological heritage. This is the
 ## Milestone 9 — Barter Economy  *(depends on M8 per-family inventories)*
 
 ### Family Private Inventory
-- [ ] Each Oikos has a private `inventory` object separate from the stockpile yard
+- [ ] Each Estate has a private `inventory` object separate from the stockpile yard
 - [ ] Families consume from private inventory first; buy/trade for shortfalls
 
 ### Relative Utility Barter
@@ -505,15 +505,15 @@ Every unit becomes a persistent individual with biological heritage. This is the
 
 ## Milestone 10 — Living World Expansion
 
-### Oikos Completion (deferred from M5)
+### Estate Completion (deferred from M5)
 - [ ] Modular room expansion: 1×2 drag-on attached to any wall face; +2 capacity, +1 appliance slot
 - [ ] Domain enforcement in `isFree()` once family assignment is clear
 - [ ] Genealogy tree: 2-generation ancestor view in Family Menu
 
 ### City Planner AI
 - [ ] Builder reaching **skill 8** becomes City Planner (promoted automatically, unique unit)
-- [ ] Autonomously plans roads, building districts within explored territory
-- [ ] Auto-zones: separates Industrial (Tannery, Smelter, Mine) from Residential; respects 8×8 Oikos domains
+- [ ] Autonomously plans roads, construct districts within explored territory
+- [ ] Auto-zones: separates Industrial (Tannery, Smelter, Mine) from Residential; respects 8×8 Estate domains
 - [ ] **Relocation**: lays new foundation → deconstructs old → hauls materials → rebuilds; costs ×0.75 work, ~12% material loss
 
 ### Migration Petitions
@@ -536,8 +536,8 @@ Every unit becomes a persistent individual with biological heritage. This is the
 
 ### Era Progression
 - [ ] Persian Wars arc: Thermopylae-style last stand scenarios
-- [ ] Siege Workshop: catapult targeting buildings
-- [ ] Generational carry: one building bonus or veteran unit persists between runs
+- [ ] Siege Workshop: catapult targeting constructs
+- [ ] Generational carry: one construct bonus or veteran unit persists between runs
 - [ ] 4-city-state league mode: each player is a different Greek polis with unique unit bonus
 
 ### Multiplayer
@@ -555,5 +555,5 @@ Every unit becomes a persistent individual with biological heritage. This is the
 - [ ] Map editor
 - [ ] Procedural enemy general with personality (aggressive / flanking / siege)
 - [ ] Oracle: reveals next raid composition before timer ends
-- [ ] Fire mechanic: flaming arrows, burning buildings, bucket-brigade workers
+- [ ] Fire mechanic: flaming arrows, burning constructs, bucket-brigade workers
 - [ ] Naval flank: enemy ships land on the south coast (new attack vector)

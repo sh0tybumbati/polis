@@ -173,7 +173,7 @@ export default class WorldManager {
         if (this.scene.mealsDone === 2 && elapsed >= 0.75) { this.fireMeal(3); }
     }
 
-    _nearestFoodBuilding(u) {
+    _nearestFoodConstruct(u) {
         const FOOD_TYPES = new Set(['bakery', 'butcher', 'granary', 'warehouse', 'townhall']);
         const FOOD_KEYS  = ['Food.Grain.Wheat.Bread', 'Food.Meat.Venison.Sausages', 'Food.Grain.Wheat.Flour', 'Food.Produce.Olive', 'Food.Grain.Wheat', 'Food.Meat.Venison'];
         let best = null, bd = Infinity;
@@ -219,10 +219,10 @@ export default class WorldManager {
                 gained = this._feedFrom(u, house.inventory);
             }
 
-            // 2. Nearest food building inventory (bakery, butcher, granary, etc.)
+            // 2. Nearest food construct inventory (bakery, butcher, granary, etc.)
             if (gained === 0) {
-                const foodBldg = this._nearestFoodBuilding(u);
-                if (foodBldg?.inventory) gained = this._feedFrom(u, foodBldg.inventory);
+                const foodConstruct = this._nearestFoodConstruct(u);
+                if (foodConstruct?.inventory) gained = this._feedFrom(u, foodConstruct.inventory);
             }
 
             // 3. Public commons fallback (tithe reserves)
@@ -348,7 +348,7 @@ export default class WorldManager {
         for (const b of this.scene.constructs) {
             if (b.type !== 'gate' || !b.built) continue;
             b.isOpen = open;
-            this.scene.redrawBuilding(b);
+            this.scene.redrawConstruct(b);
         }
     }
 
@@ -416,7 +416,7 @@ export default class WorldManager {
                     b.built && !b.faction && b.type === app.source);
                 if (workshop) {
                     workshop.orderQueue = workshop.orderQueue ?? [];
-                    workshop.orderQueue.push({ appId, houseBldgId: house.id, timer: 0 });
+                    workshop.orderQueue.push({ appId, houseConstructId: house.id, timer: 0 });
                     house.pendingOrders = house.pendingOrders ?? [];
                     house.pendingOrders.push({ appId });
                 }
@@ -510,7 +510,7 @@ export default class WorldManager {
     }
 
     _trySpawnMigrant() {
-        // Needs a civic building (townhall or agora) to attract settlers
+        // Needs a civic construct (townhall or agora) to attract settlers
         const civic = this.scene.constructs.find(b =>
             !b.faction && b.built && (b.type === 'townhall' || b.type === 'agora'));
         if (!civic) return;
@@ -520,12 +520,12 @@ export default class WorldManager {
         if (this._migrantCooldown < 5) return;
         this._migrantCooldown = 0;
 
-        // Find a free 2×2 site near the civic building for a camp
+        // Find a free 2×2 site near the civic construct for a camp
         const site = this._findCampSite(civic);
         if (!site) return; // map too full — skip this cycle
 
         // Place a private camp with basic supplies
-        const camp = this.scene.constructManager.placeBuiltBuilding('camp', site.tx, site.ty);
+        const camp = this.scene.constructManager.placeBuiltConstruct('camp', site.tx, site.ty);
         camp.isPublic = false;
         camp.inventory = {
             'Food.Produce.Berry':              8,

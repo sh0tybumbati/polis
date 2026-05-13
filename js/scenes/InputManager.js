@@ -108,7 +108,7 @@ export default class InputManager {
             } else if (s.roadMode && ptr.isDown && !isUI) {
                 const t = s.tileAt(ptr.worldX, ptr.worldY);
                 if (t) s._paintRoad(t.tx, t.ty);
-            } else if (!s.bldgType && !s.roadMode && !s.wallMode && ptr.isDown && !ptr.middleButtonDown() && !isUI) {
+            } else if (!s.constructType && !s.roadMode && !s.wallMode && ptr.isDown && !ptr.middleButtonDown() && !isUI) {
                 const d = Phaser.Math.Distance.Between(ptr.x, ptr.y, s._ptrDownX, s._ptrDownY);
                 if (d > TAP_DIST) {
                     if (s.selIds.size >= 1) {
@@ -131,7 +131,7 @@ export default class InputManager {
                         s.hoverGfx.clear();
                     }
                 }
-            } else if (s.bldgType && !ptr.isDown) {
+            } else if (s.constructType && !ptr.isDown) {
                 this.drawBuildGhost(ptr);
             }
 
@@ -170,7 +170,7 @@ export default class InputManager {
             if (!wasTap) return;
             const wx = ptr.worldX, wy = ptr.worldY;
             const hit = s.unitAt(wx, wy);
-            const bldg = s.findBuildingAt(wx, wy);
+            const construct = s.findConstructAt(wx, wy);
             const node = s.findNodeAt(wx, wy);
 
             const isTouch = s.sys.game.device.input.touch;
@@ -189,7 +189,7 @@ export default class InputManager {
                 return;
             }
             if (s.roadMode) { const t = s.tileAt(wx, wy); if (t) s._paintRoad(t.tx, t.ty); return; }
-            if (s.bldgType) { const t = s.tileAt(wx, wy); if (t) s.placeBuilding(t.tx, t.ty); return; }
+            if (s.constructType) { const t = s.tileAt(wx, wy); if (t) s.placeConstruct(t.tx, t.ty); return; }
             if (s.relocateMode) {
                 const tile = s.tileAt(wx, wy);
                 if (tile && s.relocateSrc) {
@@ -235,7 +235,7 @@ export default class InputManager {
                 if (s.selIds.size > 0) {
                     if (hit && !hit.isEnemy) { s.selectUnit(hit.id, true); return; }
                     if (hit && hit.isEnemy) { /* Attack (TBD) */ return; }
-                    if (bldg && s.orderWorkersToBuilding(bldg)) return;
+                    if (construct && s.orderWorkersToConstruct(construct)) return;
                     if (node && s.orderWorkersToNode(node)) return;
                     const deer = s.findDeerAt(wx, wy);
                     const sheep = s.findSheepAt(wx, wy);
@@ -257,7 +257,7 @@ export default class InputManager {
             const hadWorkers = s.selIds?.size > 0 &&
                 [...s.selIds].some(id => { const u = s.units.find(u => u.id === id); return u?.type === 'worker' && u.age >= 2; });
             s.deselect();
-            s.selectedBuilding = null;
+            s.selectedConstruct = null;
             s.selectedNode = null;
             s.selectedConstruct = null;
             s.zoneManager?.clearSelection();
@@ -266,7 +266,7 @@ export default class InputManager {
             s.selectedZoneType  = null;
             s.selectedZoneCrop  = null;
             if (hit && !hit.isEnemy) { s.selectUnit(hit.id, ptr.event?.shiftKey ?? false); return; }
-            if (bldg) { s.selectedBuilding = bldg; s.updateUI(); return; }
+            if (construct) { s.selectedConstruct = construct; s.updateUI(); return; }
             if (node) { s.selectedNode = node; s.updateUI(); return; }
             const furnHit = s.constructManager?.findConstructAt(wx, wy);
             if (furnHit) { s.selectedConstruct = furnHit; s.updateUI(); return; }
@@ -297,7 +297,7 @@ export default class InputManager {
                 }
             }
 
-            if (s.selectedBuilding) { s.selectedBuilding = null; s.updateUI(); }
+            if (s.selectedConstruct) { s.selectedConstruct = null; s.updateUI(); }
             if (s.selectedNode) { s.selectedNode = null; s.updateUI(); }
         });
 
@@ -306,7 +306,7 @@ export default class InputManager {
             cam.setZoom(Phaser.Math.Clamp(cam.zoom * (dy > 0 ? 0.9 : 1.1), 0.3, 3));
         });
 
-        s.input.keyboard?.on('keydown-ESC', () => { s.bldgType = null; s.roadMode = false; s.wallMode = false; s.constructMode = false; s.placementType = null; s.relocateMode = false; s.relocateSrc = null; s.selectedConstruct = null; s.zoneMode = null; s._zoneDragStart = null; s.selectedZoneTile = null; s.selectedZoneTiles = null; s.selectedZoneType = null; s.selectedZoneCrop = null; s.zoneManager?.clearSelection(); s.deselect(); s.selectedBuilding = null; s.hoverGfx.clear(); s.updateUI(); });
+        s.input.keyboard?.on('keydown-ESC', () => { s.constructType = null; s.roadMode = false; s.wallMode = false; s.constructMode = false; s.placementType = null; s.relocateMode = false; s.relocateSrc = null; s.selectedConstruct = null; s.zoneMode = null; s._zoneDragStart = null; s.selectedZoneTile = null; s.selectedZoneTiles = null; s.selectedZoneType = null; s.selectedZoneCrop = null; s.zoneManager?.clearSelection(); s.deselect(); s.selectedConstruct = null; s.hoverGfx.clear(); s.updateUI(); });
         s.input.keyboard?.on('keydown-A', () => s.units.filter(u => !u.isEnemy).forEach(u => s.selectUnit(u.id, true)));
         s.input.keyboard?.on('keydown-F', () => { const sel = s.units.filter(u => u.selected && !u.isEnemy); if (sel.length) s.moveSelectedTo((MAP_W / 2) * TILE, MAP_OY + (MAP_H - 10) * TILE); });
         s.input.keyboard?.on('keydown-BACKTICK', () => s.scene.launch('SpriteEditorScene'));
@@ -394,11 +394,11 @@ export default class InputManager {
 
     drawBuildGhost(ptr) {
         const s = this.scene;
-        if (!s.bldgType || ptr.y < MAP_OY || ptr.y > s.SH - (s.uiManager?.L?.PANEL_H ?? 190)) { s.hoverGfx?.clear(); return; }
+        if (!s.constructType || ptr.y < MAP_OY || ptr.y > s.SH - (s.uiManager?.L?.PANEL_H ?? 190)) { s.hoverGfx?.clear(); return; }
         const tile = s.tileAt(ptr.worldX, ptr.worldY); if (!tile) { s.hoverGfx?.clear(); return; }
-        const def = CONSTRUCTS[s.bldgType];
+        const def = CONSTRUCTS[s.constructType];
         if (!def) { s.hoverGfx?.clear(); return; }
-        const free = s.constructManager.isFree(tile.tx, tile.ty, def.width, def.height, s.bldgType);
+        const free = s.constructManager.isFree(tile.tx, tile.ty, def.width, def.height, s.constructType);
         const cost = s.economyManager.afford(def.cost ?? {}); // basic afford check
         const col = !free ? 0xff4444 : cost ? 0xffffff : 0xffaa44;
         const w = def.width * TILE, h = def.height * TILE, px = tile.tx * TILE, py = MAP_OY + tile.ty * TILE;

@@ -1,7 +1,7 @@
 import { workshopScore } from './workshopScore.js';
 export default {
     id: 'baker',
-    building: 'bakery',
+    construct: 'oven',
     input: 'Food.Grain.Wheat.Flour',
     output: 'Food.Grain.Wheat.Bread',
     carryQty: 7,

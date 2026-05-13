@@ -330,7 +330,7 @@ export default class MapManager {
             }
         }
 
-        // Buildings on minimap
+        // Constructs on minimap
         for (const b of this.scene.constructs) {
             const vis = this.scene.visMap[b.ty]?.[b.tx] ?? 0;
             if (vis === 0) continue;

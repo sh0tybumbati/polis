@@ -1,7 +1,7 @@
 import {
-    TILE, MAP_OY, APPLIANCE_DEF, BLDG_VOLUME,
+    TILE, MAP_OY, APPLIANCE_DEF, CONSTRUCT_VOLUME,
 } from '../config/gameConstants.js';
-import { CONSTRUCTS as BUILDINGS } from '../content/constructs/index.js';
+import { CONSTRUCTS as CONSTRUCTS } from '../content/constructs/index.js';
 import { ITEMS } from '../content/items/index.js';
 
 export default class EconomyManager {
@@ -9,30 +9,30 @@ export default class EconomyManager {
         this.scene = scene;
     }
 
-    _workerAt(bldg, role) {
+    _workerAt(construct, role) {
         return this.scene.units.some(u => 
             !u.isEnemy && u.hp > 0 && 
             u.isInside && 
-            u.taskConstructId === bldg.id && 
+            u.taskConstructId === construct.id && 
             u.role === role
         );
     }
 
-    // Per-building ctx so addResource writes to b.inventory (not global pool)
+    // Per-construct ctx so addResource writes to b.inventory (not global pool)
     buildCtx(b) {
         const scene = this.scene;
         const mgr   = this;
         return {
-            workerAt:       (bldg, role)    => mgr._workerAt(bldg, role),
-            addResource:    (key, qty)      => mgr.depositToBuilding(b, key, qty),
-            hasStorageSpace:(key)           => true,  // local building inventory, always room
+            workerAt:       (construct, role)    => mgr._workerAt(construct, role),
+            addResource:    (key, qty)      => mgr.depositToConstruct(b, key, qty),
+            hasStorageSpace:(key)           => true,  // local construct inventory, always room
             gainXp:         (unit, skill)   => scene.unitManager._gainSkillXp(unit, skill),
-            floatText:      (bldg, txt, col) => scene.uiManager.showFloatText(
-                                                (bldg.tx + bldg.width / 2) * TILE,
-                                                MAP_OY + bldg.ty * TILE - 8, txt, col),
+            floatText:      (construct, txt, col) => scene.uiManager.showFloatText(
+                                                (construct.tx + construct.width / 2) * TILE,
+                                                MAP_OY + construct.ty * TILE - 8, txt, col),
             floatTextAt:    (x, y, txt, col) => scene.uiManager.showFloatText(x, y, txt, col),
-            redrawBuilding: (bldg)          => scene.constructManager.redrawBuilding(bldg),
-            processOrders:  (bldg, delta)   => mgr._processOrders(bldg, delta),
+            redrawConstruct: (construct)          => scene.constructManager.redrawConstruct(construct),
+            processOrders:  (construct, delta)   => mgr._processOrders(construct, delta),
             addGraphics:    ()              => scene.add.graphics().setDepth(7),
             tween:          (cfg)           => scene.tweens.add(cfg),
             get resources() { return scene.resources; },
@@ -43,7 +43,7 @@ export default class EconomyManager {
     }
 
     // Deposit production output: reserves tithe + 1 unit wage for the active worker
-    depositToBuilding(b, key, qty) {
+    depositToConstruct(b, key, qty) {
         if (!qty || qty <= 0) return;
         b.inventory    = b.inventory    ?? {};
         b.dailyProduction = b.dailyProduction ?? {};
@@ -51,7 +51,7 @@ export default class EconomyManager {
         // Track daily production
         b.dailyProduction[key] = (b.dailyProduction[key] ?? 0) + qty;
 
-        // Wage: 1 unit to the worker currently processing at this building
+        // Wage: 1 unit to the worker currently processing at this construct
         let keep = qty;
         if (keep >= 2) {
             const worker = this.scene.units.find(u =>
@@ -69,7 +69,7 @@ export default class EconomyManager {
         this.scene.updateUI();
     }
 
-    // Dawn preparation: calculate daily tithe for each building
+    // Dawn preparation: calculate daily tithe for each construct
     collectFirstFruits() {
         for (const b of this.scene.constructs) {
             if (!b.built || b.faction || !b.dailyProduction) continue;
@@ -91,8 +91,8 @@ export default class EconomyManager {
     }
 
 
-    // Buildings the player can draw resources from: public commons + archon's private domain.
-    _playerBuildings() {
+    // Constructs the player can draw resources from: public commons + archon's private domain.
+    _playerConstructs() {
         const archon = this.scene.units?.find(u => u.isArchon);
         const archonHome = archon?.homeConstructId
             ? this.scene.constructs.find(b => b.id === archon.homeConstructId)
@@ -111,7 +111,7 @@ export default class EconomyManager {
     // Call after any mutation to b.inventory so reads stay consistent.
     syncResources() {
         const totals = {};
-        for (const b of this._playerBuildings()) {
+        for (const b of this._playerConstructs()) {
             for (const [res, qty] of Object.entries(b.inventory ?? {})) {
                 if (qty > 0) totals[res] = (totals[res] ?? 0) + qty;
             }
@@ -128,7 +128,7 @@ export default class EconomyManager {
     // Returns how much was actually taken.
     takeFromCommons(res, amount) {
         let remaining = amount;
-        for (const b of this._playerBuildings()) {
+        for (const b of this._playerConstructs()) {
             if (remaining <= 0) break;
             const avail = b.inventory?.[res] ?? 0;
             const take = Math.min(remaining, avail);
@@ -224,7 +224,7 @@ export default class EconomyManager {
         this.scene.updateUI();
     }
 
-    getBuildingCurrentVolume(b) {
+    getConstructCurrentVolume(b) {
         let total = 0;
         const inv = b.inventory ?? {};
         for (const [res, qty] of Object.entries(inv)) {
@@ -241,14 +241,14 @@ export default class EconomyManager {
     hasStorageSpace(res, amount = 1, b = null) {
         const vol = (ITEMS[res]?.volume ?? 0) * amount;
         if (b) {
-            const maxVol = BLDG_VOLUME[b.type] ?? Infinity;
-            return this.getBuildingCurrentVolume(b) + vol <= maxVol;
+            const maxVol = CONSTRUCT_VOLUME[b.type] ?? Infinity;
+            return this.getConstructCurrentVolume(b) + vol <= maxVol;
         }
-        // Global/public check: sum of all public building capacities
+        // Global/public check: sum of all public construct capacities
         let totalFree = 0;
         for (const bl of this.scene.constructs) {
-            if (bl.built && bl.isPublic && BLDG_VOLUME[bl.type]) {
-                totalFree += Math.max(0, BLDG_VOLUME[bl.type] - this.getBuildingCurrentVolume(bl));
+            if (bl.built && bl.isPublic && CONSTRUCT_VOLUME[bl.type]) {
+                totalFree += Math.max(0, CONSTRUCT_VOLUME[bl.type] - this.getConstructCurrentVolume(bl));
             }
         }
         return totalFree >= vol;
@@ -259,8 +259,8 @@ export default class EconomyManager {
         const volPer = ITEMS[res]?.volume ?? 0;
         for (const b of this.scene.constructs) {
             if (remaining <= 0) break;
-            if (b.built && b.isPublic && BLDG_VOLUME[b.type]) {
-                const freeVol = BLDG_VOLUME[b.type] - this.getBuildingCurrentVolume(b);
+            if (b.built && b.isPublic && CONSTRUCT_VOLUME[b.type]) {
+                const freeVol = CONSTRUCT_VOLUME[b.type] - this.getConstructCurrentVolume(b);
                 const canFit = volPer > 0 ? Math.floor(freeVol / volPer) : remaining;
                 const toAdd = Math.min(remaining, canFit);
                 if (toAdd > 0) {
@@ -313,7 +313,7 @@ export default class EconomyManager {
 
         workshop.orderQueue.shift();
 
-        const house = this.scene.constructs.find(h => h.id === order.houseBldgId);
+        const house = this.scene.constructs.find(h => h.id === order.houseConstructId);
         if (house && (house.applianceItems?.length ?? 0) < (house.applianceSlots ?? 2)) {
             house.applianceItems = house.applianceItems ?? [];
             house.applianceItems.push({ id: order.appId, label: app.label });

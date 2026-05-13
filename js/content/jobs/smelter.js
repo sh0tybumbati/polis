@@ -1,7 +1,7 @@
 import { workshopScore } from './workshopScore.js';
 export default {
     id: 'smelter',
-    building: 'smelter',
+    construct: 'forge',
     input: 'Materials.Metal.Copper.Ore',
     output: 'Materials.Metal.Copper.Ingot',
     carryQty: 6,

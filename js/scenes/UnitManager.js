@@ -16,6 +16,7 @@ import { ITEMS } from '../content/items/index.js';
 import { JOBS, WORKSHOP_JOBS } from '../content/jobs/index.js';
 import { UNITS } from '../content/units/index.js';
 import { MathUtils } from '../utils/MathUtils.js';
+import { Pathfinder } from '../utils/Pathfinder.js';
 
 import unitRenderMethods    from './unit/UnitRender.js';
 import unitCombatMethods    from './unit/UnitCombat.js';
@@ -47,7 +48,7 @@ const JOB_AFFINITIES = {
     merchant:  { int: 1.0, wil: 0.8 },
 };
 
-// When a unit's vocation building doesn't exist yet, they prefer these fallback roles instead.
+// When a unit's vocation construct doesn't exist yet, they prefer these fallback roles instead.
 const VOCATION_FALLBACKS = {
     smith:     ['smelter', 'miner', 'woodcutter'],
     baker:     ['miller', 'farmer'],
@@ -87,13 +88,14 @@ function _passionBonus(u, skill) {
 export default class UnitManager {
     constructor(scene) {
         this.scene = scene;
+        this.pathfinder = new Pathfinder(scene);
         // Idle-worker pulse ring layer (depth 4) and selection layer (depth 5).
         this.idleGfx = scene.add.graphics().setDepth(4);
         this.selGfx  = scene.add.graphics().setDepth(5);
     }
 
-    spawnTrainedUnit(bldg, type) {
-        const u = this.spawnUnit(type, bldg.tx * TILE + TILE/2, MAP_OY + bldg.ty * TILE + TILE/2, !!bldg.faction);
+    spawnTrainedUnit(construct, type) {
+        const u = this.spawnUnit(type, construct.tx * TILE + TILE/2, MAP_OY + construct.ty * TILE + TILE/2, !!construct.faction);
         this.scene.uiManager.showFloatText(u.x, u.y - 20, `${type} ready!`, '#88ff88');
     }
 
@@ -123,7 +125,7 @@ export default class UnitManager {
             role: null, replantTimer: 0, trainTimer: 0, lastSeek: 0,
             roleMemory: {}, targetDeer: null, targetSheep: null,
             nightsSurvived: 0, vetLevel: 0, isInside: false, _wageCollected: false,
-            fetchBldgId: null, _prevRole: null,
+            fetchConstructId: null, _prevRole: null,
             taskStack: [],
             // Genealogy
             fatherId: null, motherId: null, spouseId: null,
@@ -171,7 +173,7 @@ export default class UnitManager {
         // Save current task state
         u.taskStack.push({
             type: u.taskType,
-            bldgId: u.taskConstructId,
+            constructId: u.taskConstructId,
             node: u.targetNode,
             workProgress: u.workProgress,
             role: u.role,
@@ -197,7 +199,7 @@ export default class UnitManager {
         }
         const prev = u.taskStack.pop();
         u.taskType = prev.type;
-        u.taskConstructId = prev.bldgId;
+        u.taskConstructId = prev.constructId;
         u.targetNode = prev.node;
         u.workProgress = prev.workProgress;
         if (prev.role) u.role = prev.role;

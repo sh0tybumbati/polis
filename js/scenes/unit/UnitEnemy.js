@@ -86,19 +86,19 @@ export default {
                     u._assaultTowerId = assaultable.id;
                     return;
                 }
-                // Attack nearest player building if no units nearby
-                const bldg = this._nearestPlayerBuilding(u.x, u.y);
-                if (bldg) {
-                    const bx = (bldg.tx + bldg.width / 2) * TILE;
-                    const by = MAP_OY + (bldg.ty + bldg.width / 2) * TILE;
+                // Attack nearest player construct if no units nearby
+                const construct = this._nearestPlayerConstruct(u.x, u.y);
+                if (construct) {
+                    const bx = (construct.tx + construct.width / 2) * TILE;
+                    const by = MAP_OY + (construct.ty + construct.width / 2) * TILE;
                     const bd = Phaser.Math.Distance.Between(u.x, u.y, bx, by);
                     if (bd < TILE * 1.2) {
                         if (time - (u.lastAtk ?? 0) > 1200) {
                             u.lastAtk = time;
-                            bldg.hp = Math.max(0, bldg.hp - u.atk);
-                            this.scene.constructManager.redrawBuildingBar(bldg);
+                            construct.hp = Math.max(0, construct.hp - u.atk);
+                            this.scene.constructManager.redrawConstructBar(construct);
                             this.scene.uiManager.showFloatText(bx, by - 10, `-${u.atk}`, '#ff8844');
-                            if (bldg.hp <= 0) this._destroyBuilding(bldg);
+                            if (construct.hp <= 0) this._destroyConstruct(construct);
                         }
                     } else {
                         this.moveToward(u, bx, by, 10, dt);

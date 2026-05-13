@@ -1,5 +1,5 @@
 import {
-    TILE, MAP_OY, MAP_W, MAP_H, ROOM_DEFS, ROOM_MAX_SLOTS, BLDG_VOLUME
+    TILE, MAP_OY, MAP_W, MAP_H, ROOM_DEFS, ROOM_MAX_SLOTS, CONSTRUCT_VOLUME
 } from '../config/gameConstants.js';
 import { CONSTRUCTS, computeBuildCost } from '../content/constructs/index.js';
 
@@ -145,11 +145,11 @@ export default class ConstructManager {
         return c;
     }
 
-    placeBuilding(tx, ty) {
-        return this.placeConstruct(this.scene.bldgType, tx, ty, this.scene.bldgMaterial);
+    placeConstructAt(tx, ty) {
+        return this.placeConstruct(this.scene.constructType, tx, ty, this.scene.constructMaterial);
     }
 
-    placeBuiltBuilding(type, tx, ty) {
+    placeBuiltConstruct(type, tx, ty) {
         const def = CONSTRUCTS[type];
         if (!def) return null;
         
@@ -178,7 +178,7 @@ export default class ConstructManager {
         return c;
     }
 
-    completeBuildingConstruction(b) {
+    completeConstructConstruction(b) {
         b.built = true;
         b.hp = b.maxHp;
         b.buildWork = 0;
@@ -187,7 +187,7 @@ export default class ConstructManager {
         this.scene.uiManager.showFloatText((b.tx + b.width / 2) * TILE, MAP_OY + b.ty * TILE - 10, 'Done!', '#88ff88');
     }
 
-    _serBuilding(b) {
+    _serConstruct(b) {
         const { gfx, barGfx, labelObj, ...d } = b;
         return d;
     }
@@ -201,18 +201,18 @@ export default class ConstructManager {
     }
 
     getHouseVolume(house) {
-        return BLDG_VOLUME[house.type] || 200;
+        return CONSTRUCT_VOLUME[house.type] || 200;
     }
 
     getApplianceSlots(house) {
         return house.applianceSlots || 2;
     }
 
-    demolishBuilding(bldg, refundFraction = 0.5) {
-        if (bldg.type === 'townhall') return;
-        const def = CONSTRUCTS[bldg.type];
+    demolishConstruct(construct, refundFraction = 0.5) {
+        if (construct.type === 'townhall') return;
+        const def = CONSTRUCTS[construct.type];
         const cost = def?.cost ?? {};
-        const resNeeded = bldg.resNeeded ?? {};
+        const resNeeded = construct.resNeeded ?? {};
         for (const [r, n] of Object.entries(cost)) {
             const spent = n - (resNeeded[r] ?? 0);
             if (spent > 0) {
@@ -220,17 +220,17 @@ export default class ConstructManager {
                 if (refund > 0) this.scene.economyManager.addResource(r, refund);
             }
         }
-        for (const [r, qty] of Object.entries(bldg.inventory ?? {})) {
+        for (const [r, qty] of Object.entries(construct.inventory ?? {})) {
             if (qty > 0) this.scene.economyManager.addResource(r, Math.floor(qty * refundFraction));
         }
         
-        this.removeConstruct(bldg);
+        this.removeConstruct(construct);
 
-        if (bldg.type === 'house' && bldg.domainId) {
-            this.scene.domains = this.scene.domains.filter(d => d.id !== bldg.domainId);
+        if (construct.type === 'house' && construct.domainId) {
+            this.scene.domains = this.scene.domains.filter(d => d.id !== construct.domainId);
         }
         
-        if (this.scene.selectedBuilding === bldg) this.scene.selectedBuilding = null;
+        if (this.scene.selectedConstruct === construct) this.scene.selectedConstruct = null;
         this.scene.mapManager.redrawDomainBorders();
         this.scene.updateUI();
     }
@@ -322,9 +322,7 @@ export default class ConstructManager {
     renderWalls() { this.renderAll(); } // Alias used by InputManager
 
 
-    findBuildingAt(wx, wy) { return this.findConstructAt(wx, wy); }
-
-    orderWorkersToBuilding(b) {
+    orderWorkersToConstruct(b) {
         return this.scene.unitManager.orderWorkersToConstruct(b);
     }
 
@@ -394,7 +392,6 @@ export default class ConstructManager {
         }
     }
 
-    redrawBuilding(c) { this.renderAll(); } // Alias
     redrawConstruct(c) { this.renderAll(); }
 
     redrawConstructBar(c) {
@@ -412,8 +409,6 @@ export default class ConstructManager {
             c.barGfx.fillStyle(0x44aa44).fillRect(bx, by, bw * r, 4);
         }
     }
-
-    redrawBuildingBar(c) { this.redrawConstructBar(c); }
 
 
     _renderConstruct(c) {
@@ -465,13 +460,13 @@ export default class ConstructManager {
         }
     }
 
-    // ─── Domain & Storage Logic (from BuildingManager) ─────────────────────────
+    // ─── Domain & Storage Logic (from ConstructManager) ─────────────────────────
 
     assignDomain(house) {
         const pad = 3;
         const dom = {
             id: this.scene.getId(),
-            houseBldgId: house.id,
+            houseConstructId: house.id,
             x1: house.tx - pad,
             y1: house.ty - pad,
             x2: house.tx + house.width - 1 + pad,
@@ -615,7 +610,7 @@ export default class ConstructManager {
     }
 
     tickGarrisonHeal(delta) {
-        // Heal units inside buildings at a slow rate
+        // Heal units inside constructs at a slow rate
         for (const b of this.constructs) {
             if (!b.built || !b.garrison?.length) continue;
             const healAmt = delta * 0.0002; // 1 HP per 5s
@@ -641,7 +636,7 @@ export default class ConstructManager {
             if (task.progress >= trainingTime) {
                 b.trainingQueue.shift();
                 this.scene.unitManager.spawnTrainedUnit(b, task.unitType);
-                this.redrawBuildingBar(b);
+                this.redrawConstructBar(b);
             }
         }
     }
@@ -655,7 +650,7 @@ export default class ConstructManager {
                 if (b._regrowTimer >= 90000) { // 90s day
                     b._regrowTimer = 0;
                     b.needsPlanting = true;
-                    this.redrawBuildingBar(b);
+                    this.redrawConstructBar(b);
                 }
             } else if (b.type === 'garden') {
                 if (b.stock >= 20) continue;
@@ -663,7 +658,7 @@ export default class ConstructManager {
                 if (b._regrowTimer >= 45000) {
                     b._regrowTimer = 0;
                     b.stock = Math.min(20, b.stock + 5);
-                    this.redrawBuildingBar(b);
+                    this.redrawConstructBar(b);
                 }
             }
         }
@@ -803,12 +798,12 @@ export default class ConstructManager {
         this._garrisonBarTimer = 0;
         for (const b of this.constructs) {
             if (b.built && b.type === 'watchtower' && !b.faction)
-                this.redrawBuildingBar(b);
+                this.redrawConstructBar(b);
         }
     }
 
     save() {
-        return this.constructs.map(c => this._serBuilding(c));
+        return this.constructs.map(c => this._serConstruct(c));
     }
 
     load(data) {
@@ -835,7 +830,7 @@ export default class ConstructManager {
             };
             this.constructs.push(c);
             
-            // Re-occupy mapData if it's a building
+            // Re-occupy mapData if it's a construct
             if (c.placement !== 'edge') {
                 const isWallType = ['wall', 'palisade', 'gate', 'watchtower'].includes(c.type);
                 this.occupy(c.tx, c.ty, c.width, c.height, isWallType ? 98 : 99);

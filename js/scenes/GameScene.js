@@ -66,13 +66,13 @@ export default class GameScene extends Phaser.Scene {
         this.day        = 1;
         this.phase      = 'DAY';
         this.nightsSurvived = 0;
-        this.bldgType     = null;
-        this.bldgMaterial = 'Materials.Wood.Pine.Sticks'; // sticks are the starting material
+        this.constructType     = null;
+        this.constructMaterial = 'Materials.Wood.Pine.Sticks'; // sticks are the starting material
         this.fmType    = 'phalanx';
         this.tradeOrders = [];
         this.tradeLog    = [];
         this.floorPiles = [];
-        this.selectedBuilding = null;
+        this.selectedConstruct = null;
         this.visMap      = [];   
         this._litTiles   = [];   
         this._minimapTimer = 0;
@@ -103,7 +103,7 @@ export default class GameScene extends Phaser.Scene {
         this.enemiesDisabled = ENEMIES_DISABLED;
         this.fmGfx = null; this.hoverGfx = null; this.dragGfx = null;
         this._fmDragging = false; this._fmDragStart = null;
-        this.buildingBtns = {}; this.fmBtns = {};
+        this.constructBtns = {}; this.fmBtns = {};
         this._ptrDownX = 0; this._ptrDownY = 0; this._dragging = false;
         this._barTimer = 0; this._attractTimer = 0;
         this._pinch   = { active: false, dist: 0, mx: 0, my: 0 };
@@ -230,9 +230,9 @@ export default class GameScene extends Phaser.Scene {
         // Don't persist live object references — re-seek on load
         return { ...d, moveTo: null, targetNode: null, targetDeer: null, targetSheep: null,
                  taskType: null, workProgress: 0, workshopPhase: null, isInside: false,
-                 fetchBldgId: null, _wageCollected: false, _prevRole: null };
+                 fetchConstructId: null, _wageCollected: false, _prevRole: null };
     }
-    _serBuilding(b) { const { gfx, barGfx, labelObj, ...d } = b; return d; }
+    _serConstruct(b) { const { gfx, barGfx, labelObj, ...d } = b; return d; }
     _serNode(n)     { const { gfx, labelObj, ...d } = n; return d; }
     _serAnimal(a)   { const { gfx, ...d } = a; return { ...d, followUnit: null }; }
 
@@ -287,7 +287,7 @@ export default class GameScene extends Phaser.Scene {
 
             this.day = s.day; this.phase = s.phase; this.timerMs = s.timerMs;
             this.nightsSurvived = s.nightsSurvived ?? 0; this.mealsDone = s.mealsDone ?? 0;
-            // Kept for old-save migration: buildings without inventory get seeded from s.resources below
+            // Kept for old-save migration: constructs without inventory get seeded from s.resources below
             const legacyResources = migrateKeys(s.resources ?? {});
             Object.assign(this.storageMax, migrateKeys(s.storageMax));
             Object.assign(this.discoveries, s.discoveries ?? {});
@@ -314,13 +314,13 @@ export default class GameScene extends Phaser.Scene {
             });
             this.deer      = (s.deer      ?? []).map(d => ({ ...d, gfx: null }));
             this.sheep     = (s.sheep     ?? []).map(ss => ({ ...ss, gfx: null, followUnit: null }));
-            // If no building has inventory (old saves pre-localization), seed townhall from legacy resources
+            // If no construct has inventory (old saves pre-localization), seed townhall from legacy resources
             const anyInventory = this.constructs.some(b => b.isPublic && Object.values(b.inventory ?? {}).some(v => v > 0));
             if (!anyInventory) {
                 const th = this.constructs.find(b => b.type === 'townhall' && b.isPublic);
                 if (th) th.inventory = { ...legacyResources };
             }
-            // Derive scene.resources from building inventories (source of truth after this point)
+            // Derive scene.resources from construct inventories (source of truth after this point)
             this.economyManager.syncResources();
             return true;
         } catch(e) { console.warn('[load] failed:', e); return false; }
@@ -330,14 +330,14 @@ export default class GameScene extends Phaser.Scene {
 
     showPhaseMessage(text, color) { this.uiManager.showPhaseMessage(text, color); }
     
-    placeBuiltBuilding(type, tx, ty) { return this.constructManager.placeBuiltBuilding(type, tx, ty); }
-    placeBuilding(tx, ty) { this.constructManager.placeBuilding(tx, ty); }
-    redrawBuilding(b) { this.constructManager.redrawBuilding(b); }
-    redrawBuildingBar(b) { this.constructManager.redrawBuildingBar(b); }
+    placeBuiltConstruct(type, tx, ty) { return this.constructManager.placeBuiltConstruct(type, tx, ty); }
+    placeConstruct(tx, ty) { this.constructManager.placeConstructAt(tx, ty); }
+    redrawConstruct(b) { this.constructManager.redrawConstruct(b); }
+    redrawConstructBar(b) { this.constructManager.redrawConstructBar(b); }
     updateStorageCap() { this.constructManager.updateStorageCap(); }
-    findBuildingAt(wx, wy) { return this.constructManager.findBuildingAt(wx, wy); }
-    orderWorkersToBuilding(bldg) { return this.constructManager.orderWorkersToBuilding(bldg); }
-    demolishBuilding(b) { this.constructManager.demolishBuilding(b); }
+    findConstructAt(wx, wy) { return this.constructManager.findConstructAt(wx, wy); }
+    orderWorkersToConstruct(construct) { return this.constructManager.orderWorkersToConstruct(construct); }
+    demolishConstruct(b) { this.constructManager.demolishConstruct(b); }
     findNodeAt(wx, wy) { return this.mapManager.findNodeAt(wx, wy); }
     orderWorkersToNode(node) { return this.unitManager.orderWorkersToNode(node); }
     _slaughterSheep(b) { this.natureManager.slaughterSheep(b); }
@@ -379,7 +379,7 @@ export default class GameScene extends Phaser.Scene {
         const mx = Math.floor(MAP_W / 2) - 1;
         const by = MAP_H - 14;
 
-        const camp = this.placeBuiltBuilding('camp', mx, by);
+        const camp = this.placeBuiltConstruct('camp', mx, by);
         camp.isPublic = false;
         camp.inventory = {
             'Food.Produce.Berry':                10,
@@ -434,7 +434,7 @@ export default class GameScene extends Phaser.Scene {
             { type: 'house',    tx: mx + 3,  ty: ey     },  // couple B
         ];
         for (const s of sites) {
-            const b = this.placeBuiltBuilding(s.type, s.tx, s.ty);
+            const b = this.placeBuiltConstruct(s.type, s.tx, s.ty);
             b.faction = 'enemy';
             b.hp = b.maxHp = s.type === 'townhall' ? 20
                            : s.type === 'farm'     ? 10

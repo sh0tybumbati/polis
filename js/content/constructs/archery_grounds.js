@@ -2,10 +2,10 @@ import { TILE, MAP_OY } from '../../config/gameConstants.js';
 const g = b => { const px = b.tx*TILE, py = MAP_OY+b.ty*TILE, s = b.width*TILE; return { px, py, s, cx: px+s/2, cy: py+s/2 }; };
 
 export default {
-    id: 'archery',
+    id: 'archery_grounds',
     placement: 'tile',
     width: 2, height: 2,
-    label: "🏹 Archery Range",
+    label: "🏹 Archery Training Grounds",
     color: 2783818,
     cost: {"Materials.Stone.Limestone":2},
     materialQty: 6,

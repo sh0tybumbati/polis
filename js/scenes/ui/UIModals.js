@@ -1,4 +1,4 @@
-import { BLDG_VOLUME } from '../../config/gameConstants.js';
+import { CONSTRUCT_VOLUME } from '../../config/gameConstants.js';
 import { CONSTRUCTS } from '../../content/constructs/index.js';
 import { ITEMS } from '../../content/items/index.js';
 
@@ -34,10 +34,10 @@ export default {
         objs.push(closeBtn);
 
         // Volume bar
-        const maxVol = BLDG_VOLUME[b.type] ?? 0;
+        const maxVol = CONSTRUCT_VOLUME[b.type] ?? 0;
         let contentY = my + 42;
         if (maxVol > 0) {
-            const curVol = this.scene.economyManager.getBuildingCurrentVolume(b);
+            const curVol = this.scene.economyManager.getConstructCurrentVolume(b);
             const ratio = Math.min(1, curVol / maxVol);
             const barX = mx + 12, barW = mw - 24, barH = 10;
             const vg = this._ui(this.scene.add.graphics().setDepth(43));

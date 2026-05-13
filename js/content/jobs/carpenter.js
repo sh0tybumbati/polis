@@ -1,7 +1,7 @@
 import { workshopScore } from './workshopScore.js';
 export default {
     id: 'carpenter',
-    building: 'carpenter',
+    construct: 'workbench',
     input: 'Materials.Wood.Pine',
     output: 'Materials.Wood.Pine.Plank',
     carryQty: 6,

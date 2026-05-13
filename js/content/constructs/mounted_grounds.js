@@ -2,13 +2,14 @@ import { TILE, MAP_OY } from '../../config/gameConstants.js';
 const g = b => { const px = b.tx*TILE, py = MAP_OY+b.ty*TILE, s = b.width*TILE; return { px, py, s, cx: px+s/2, cy: py+s/2 }; };
 
 export default {
-    id: 'stable',
+    id: 'mounted_grounds',
     placement: 'tile',
     width: 2, height: 2,
-    label: "🐎 Stable",
+    label: "🐎 Mounted Training Grounds",
     color: 8017186,
     cost: {},
     materialQty: 9,
+    outdoor: true,
     spawnMs: 22000,
     desc: "Trains and houses cavalry units.",
     tick: null,

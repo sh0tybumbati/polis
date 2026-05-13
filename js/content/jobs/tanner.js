@@ -1,7 +1,7 @@
 import { workshopScore } from './workshopScore.js';
 export default {
     id: 'tanner',
-    building: 'tannery',
+    construct: 'tanningrack',
     input: 'Textile.Hide.Deer',
     output: 'Textile.Hide.Deer.Leather',
     carryQty: 6,

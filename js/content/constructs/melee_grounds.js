@@ -2,13 +2,14 @@ import { TILE, MAP_OY } from '../../config/gameConstants.js';
 const g = b => { const px = b.tx*TILE, py = MAP_OY+b.ty*TILE, s = b.width*TILE; return { px, py, s, cx: px+s/2, cy: py+s/2 }; };
 
 export default {
-    id: 'barracks',
+    id: 'melee_grounds',
     placement: 'tile',
     width: 2, height: 2,
-    label: "⚔ Barracks",
+    label: "⚔ Melee Training Grounds",
     color: 9070664,
     cost: {"Materials.Stone.Limestone":2},
     materialQty: 6,
+    outdoor: true,
     spawnMs: 18000,
     desc: "Trains and houses melee infantry.",
     tick: null,

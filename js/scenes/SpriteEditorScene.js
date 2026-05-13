@@ -300,7 +300,7 @@ export default class SpriteEditorScene extends Phaser.Scene {
         }
     }
 
-    // ── UI building ─────────────────────────────────────────────────────────────
+    // ── UI construct ─────────────────────────────────────────────────────────────
 
     _buildUI() {
         // Destroy previous UI objects

@@ -14,13 +14,13 @@ export default {
         const fullH = PANEL_H - KEY_H;
 
         const sel      = this.scene.units.filter(u => u.selected && !u.isEnemy);
-        const bldg     = this.scene.selectedBuilding;
+        const construct     = this.scene.selectedConstruct;
         const workers  = sel.filter(u => u.type === 'worker' && u.age >= 2);
         const military = sel.filter(u => u.type !== 'worker');
         const scouts   = sel.filter(u => u.type === 'scout');
 
-        if (bldg) {
-            this._renderBldgActions(bldg, zx, zy, ACT_W, fullH);
+        if (construct) {
+            this._renderConstructActions(construct, zx, zy, ACT_W, fullH);
         } else if (workers.length > 0 && military.length === 0) {
             this._renderWorkerActions(sel, workers, zx, zy, ACT_W, fullH);
         } else if (sel.length > 0) {
@@ -40,36 +40,36 @@ export default {
         }
     },
 
-    _renderBldgActions(b, zx, zy, ACT_W, fullH) {
+    _renderConstructActions(b, zx, zy, ACT_W, fullH) {
         const s     = this.scene;
         const TAB_H = 22;
         const STRIP = 34;
-        const close = () => { s.selectedBuilding = null; this.updateUI(); };
+        const close = () => { s.selectedConstruct = null; this.updateUI(); };
 
-        if (b.id !== this._actBldgId) { this._actBldgId = b.id; this._actBldgTab = null; }
+        if (b.id !== this._actConstructId) { this._actConstructId = b.id; this._actConstructTab = null; }
 
         if (!b.built) {
             this._actStrip(zx, zy + fullH - STRIP, ACT_W, STRIP, [
-                { label: 'Cancel Build', color: 0x443322, cb: () => { s.demolishBuilding(b); } },
+                { label: 'Cancel Build', color: 0x443322, cb: () => { s.demolishConstruct(b); } },
                 { label: '✕ Close', color: 0x2a1c10, cb: close },
             ]);
             return;
         }
 
-        const tabs = this._bldgTabs(b);
-        if (!this._actBldgTab || !tabs.includes(this._actBldgTab)) this._actBldgTab = tabs[0];
-        this._actTabBar(zx, zy, ACT_W, tabs, this._actBldgTab,
-            t => { this._actBldgTab = t; this.updateUI(); });
+        const tabs = this._constructTabs(b);
+        if (!this._actConstructTab || !tabs.includes(this._actConstructTab)) this._actConstructTab = tabs[0];
+        this._actTabBar(zx, zy, ACT_W, tabs, this._actConstructTab,
+            t => { this._actConstructTab = t; this.updateUI(); });
 
         const panelH = fullH - TAB_H - STRIP;
         this._actionPanel = new UIPanel(this.scene, zx, zy + TAB_H, ACT_W, panelH);
-        this._actionPanel.setItems(this._bldgTabItems(b, this._actBldgTab));
+        this._actionPanel.setItems(this._constructTabItems(b, this._actConstructTab));
 
         const noAssign = b.type === 'wall' || b.type === 'palisade';
         const hasInv   = !b.faction && Object.values(b.inventory ?? {}).some(v => v > 0);
         this._actStrip(zx, zy + TAB_H + panelH, ACT_W, STRIP, [
             { label: '👷 Workers', color: 0x334422, dimmed: noAssign,
-              cb: () => { s.orderWorkersToBuilding(b); this.updateUI(); } },
+              cb: () => { s.orderWorkersToConstruct(b); this.updateUI(); } },
             { label: '📦 Inv', color: 0x1a2030, dimmed: !hasInv,
               cb: () => { this.showInventoryModal(b); } },
             b.deconstructing
@@ -79,13 +79,13 @@ export default {
         ]);
     },
 
-    _bldgTabs(b) {
+    _constructTabs(b) {
         if (b.type === 'barracks' || b.type === 'archery' || b.type === 'stable') return ['Train'];
         if (b.type === 'townhall') return ['Manage'];
         return ['Actions'];
     },
 
-    _bldgTabItems(b, tab) {
+    _constructTabItems(b, tab) {
         const items = [];
         const s = this.scene;
         const afford = cost => s.economyManager.afford(cost);
@@ -93,7 +93,7 @@ export default {
         if (tab === 'Actions') {
             if (b.type === 'gate') {
                 items.push({ label: b.isOpen ? 'Close Gate' : 'Open Gate', color: 0x442200,
-                    callback: () => { b.isOpen = !b.isOpen; s.redrawBuilding(b); this.updateUI(); } });
+                    callback: () => { b.isOpen = !b.isOpen; s.redrawConstruct(b); this.updateUI(); } });
             }
             if (b.type === 'pasture' && ((b.males ?? 0) + (b.females ?? 0)) >= 1) {
                 items.push({ label: 'Slaughter Sheep', color: 0x661111,
@@ -118,15 +118,15 @@ export default {
                         this.updateUI();
                     }});
             };
-            if (b.type === 'barracks') {
+            if (b.type === 'melee_grounds') {
                 trainUnit('clubman',  { 'Food.Grain.Wheat': 3 },                                   'Clubman',  0x4a3820);
                 trainUnit('spearman', { 'Food.Grain.Wheat': 5, 'Materials.Stone.Limestone': 1 }, 'Spearman', 0x4a3820);
             }
-            if (b.type === 'archery') {
+            if (b.type === 'archery_grounds') {
                 trainUnit('slinger', { 'Food.Grain.Wheat': 3 },                            'Slinger', 0x2a4030);
                 trainUnit('archer',  { 'Food.Grain.Wheat': 5, 'Materials.Wood.Pine': 1 }, 'Archer',  0x2a4030);
             }
-            if (b.type === 'stable') {
+            if (b.type === 'mounted_grounds') {
                 const cost = { 'Food.Grain.Wheat': 8, 'Materials.Wood.Pine': 2 };
                 const can  = afford(cost);
                 items.push({ label: 'Cavalry', sublabel: '8f 2w', color: can ? 0x4a3010 : 0x2a1c10, dimmed: !can,
@@ -230,7 +230,7 @@ export default {
 
         this._actStrip(zx, zy + TAB_H + panelH, ACT_W, STRIP, [
             { label: '✕ Clear', color: 0x2a1c10, cb: () => {
-                s.bldgType = null; s.roadMode = false;
+                s.constructType = null; s.roadMode = false;
                 s.deselect(); s.hoverGfx?.clear(); this.updateUI();
             }},
         ]);
@@ -280,7 +280,7 @@ export default {
                         const d = Phaser.Math.Distance.Between(cx, cy, (b.tx+1)*TILE, MAP_OY+(b.ty+1)*TILE);
                         return (!best || d < best.d) ? { b, d } : best;
                     }, null)?.b;
-                    if (tower) s.orderWorkersToBuilding(tower);
+                    if (tower) s.orderWorkersToConstruct(tower);
                     s.deselect(); this.updateUI();
                 }});
             }
@@ -297,14 +297,14 @@ export default {
 
         this._actStrip(zx, zy + TAB_H + panelH, ACT_W, STRIP, [
             { label: '✕ Clear', color: 0x2a1c10, cb: () => {
-                s.bldgType = null; s.roadMode = false;
+                s.constructType = null; s.roadMode = false;
                 s.deselect(); s.hoverGfx?.clear(); this.updateUI();
             }},
         ]);
     },
 
     _renderMaterialToggle(x, y, w, h) {
-        const mat = this.scene.bldgMaterial ?? 'Materials.Wood.Pine.Sticks';
+        const mat = this.scene.constructMaterial ?? 'Materials.Wood.Pine.Sticks';
         const options = [
             ['Materials.Wood.Pine.Sticks',       'Sticks'],
             ['Materials.Wood.Pine',               'Logs'],
@@ -329,7 +329,7 @@ export default {
                 .setInteractive({ cursor: 'pointer' }).setDepth(24));
             z.on('pointerover', () => { if (!active) hov.setAlpha(1); });
             z.on('pointerout',  () => hov.setAlpha(0));
-            z.on('pointerdown', () => { this.scene.bldgMaterial = m; this.updateUI(); });
+            z.on('pointerdown', () => { this.scene.constructMaterial = m; this.updateUI(); });
         });
     },
 
@@ -406,7 +406,7 @@ export default {
                         } else {
                             this.scene.constructMode   = true;
                             this.scene.placementType = type;
-                            this.scene.bldgType  = null;
+                            this.scene.constructType  = null;
                             this.scene.roadMode  = false;
                             this.scene.wallMode  = false;
                         }
@@ -426,7 +426,7 @@ export default {
                     color: active ? color : Math.max(0, (color & 0xfefefe) >> 1),
                     callback: () => {
                         s.zoneMode      = active ? null : mode;
-                        s.bldgType      = null; s.roadMode  = false;
+                        s.constructType      = null; s.roadMode  = false;
                         s.wallMode      = false; s.constructMode = false;
                         s.hoverGfx?.clear();
                         this.updateUI();
@@ -453,13 +453,13 @@ export default {
             ];
         }
 
-        const mat   = this.scene.bldgMaterial ?? 'Materials.Wood.Pine';
-        const bldgs = CONSTRUCT_CATS[this.scene.buildCat] ?? [];
-        const items = bldgs.filter(t => CONSTRUCTS[t]).map(type => {
+        const mat   = this.scene.constructMaterial ?? 'Materials.Wood.Pine';
+        const constructs = CONSTRUCT_CATS[this.scene.buildCat] ?? [];
+        const items = constructs.filter(t => CONSTRUCTS[t]).map(type => {
             const def      = CONSTRUCTS[type];
             const cost     = computeBuildCost(type, mat);
             const canAfford = !Object.keys(cost).length || this.scene.economyManager.afford(cost);
-            const isActive  = this.scene.bldgType === type;
+            const isActive  = this.scene.constructType === type;
             const costStr   = Object.keys(cost).length
                 ? Object.entries(cost).map(([r, n]) => `${n}${r[0]}`).join(' ')
                 : null;
@@ -468,7 +468,7 @@ export default {
                 color: isActive ? 0x4a6070 : canAfford ? (def.color > 0 ? Math.max(0, (def.color & 0xfefefe) >> 1) : 0x2a1e0e) : 0x1a1208,
                 dimmed: false, active: isActive,
                 callback: () => {
-                    this.scene.bldgType      = isActive ? null : type;
+                    this.scene.constructType      = isActive ? null : type;
                     this.scene.roadMode      = false;
                     this.scene.wallMode      = false;
                     this.scene.constructMode = false;
@@ -484,7 +484,7 @@ export default {
             active: this.scene.wallMode,
             callback: () => {
                 this.scene.wallMode = !this.scene.wallMode;
-                this.scene.bldgType = null;
+                this.scene.constructType = null;
                 this.scene.roadMode = false;
                 this.scene.hoverGfx?.clear();
                 this.updateUI();
@@ -497,7 +497,7 @@ export default {
             active: this.scene.roadMode,
             callback: () => {
                 this.scene.roadMode = !this.scene.roadMode;
-                this.scene.bldgType = null;
+                this.scene.constructType = null;
                 this.scene.wallMode = false;
                 this.scene.hoverGfx?.clear();
                 this.updateUI();
@@ -512,6 +512,10 @@ export default {
         if (m.includes('Stone'))  return 'stone';
         if (m.includes('Brick'))  return 'brick';
         if (m.includes('Daub'))   return 'daub';
+        return 'wood';
+    },
+};
+;
         return 'wood';
     },
 };

@@ -1,6 +1,6 @@
 export default {
     id: 'merchant',
-    building: 'agora',
+    construct: 'agora',
     baseScore: 40,
     maxPerAgora: 2,
     simulateMs: 45.0,       // seconds at counter simulating a buyer

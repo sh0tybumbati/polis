@@ -168,7 +168,7 @@ export const DESIRE_THRESHOLD  = 120;   // traffic count before a desire path ap
 export const HUNGER_THRESHOLD  = 28;    // game-seconds between meals (~3 meals per 90s day)
 export const TRAFFIC_DECAY_PER_DAY = 18; // subtracted from every tile each day transition
 
-// ─── Building Definitions ────────────────────────────────────────────────────
+// ─── Construct Definitions ────────────────────────────────────────────────────
 
 // ─── Day/Night Cycle Constants ──────────────────────────────────────────────
 
@@ -236,29 +236,26 @@ export function _counterMod(attackerType, defenderType) {
   return 1.0;
 }
 
-// ─── Building Categories (for UI) ────────────────────────────────────────────
+// ─── Construct Categories (for UI) ────────────────────────────────────────────
 
-export const BLDG_VOLUME = {
+export const CONSTRUCT_VOLUME = {
     camp:      400,
-    granary:   1000,
-    woodshed:  800,
-    stonepile: 600,
-    warehouse: 2000,
+    grainsilo: 1000,
+    storageshelf: 800,
     house:     150,
     townhall:  500,
-    barracks:  400,
-    archery:   400,
-    stable:    400,
-    tannery:   500,
-    smelter:   500,
-    blacksmith: 500,
-    mill:      600,
-    bakery:    500,
-    olive_press: 500,
+    melee_grounds:  400,
+    archery_grounds:   400,
+    mounted_grounds:    400,
+    tanningrack:   500,
+    forge:   500,
+    anvil: 500,
+    millstone:      600,
+    oven:    500,
+    olivepress: 500,
     temple:    300,
     oracle:    300,
-    carpenter: 600,
-    masons:    600,
+    workbench: 600,
     stonecutter: 600,
 };
 
