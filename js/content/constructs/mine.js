@@ -3,6 +3,12 @@ const g = b => { const px = b.tx*TILE, py = MAP_OY+b.ty*TILE, s = b.width*TILE; 
 
 export default {
     id: 'mine',
+    label: 'Mine',
+    color: 0x444444,
+    placement: 'tile', width: 2, height: 2,
+    cost: { 'Materials.Stone.Limestone.Stones': 8 },
+    buildWork: 20,
+    desc: 'Workers extract stone and ore.',
     tick: null,
     draw(gfx, b) {
         const { px, py, s } = g(b);

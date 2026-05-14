@@ -4,6 +4,12 @@ const g = b => { const px = b.tx*TILE, py = MAP_OY+b.ty*TILE, s = b.width*TILE; 
 
 export default {
     id: 'pasture',
+    label: 'Pasture',
+    color: 0x447733,
+    placement: 'tile', width: 3, height: 3,
+    cost: { 'Materials.Wood.Pine.Sticks': 4 },
+    buildWork: 10,
+    desc: 'Encloses animals for herding and wool.',
     tick(b, delta, ctx) {
         const pastured = ctx.sheep?.filter(s => s.pastureId === b.id && s.isTamed && !s.isDead) ?? [];
         for (const s of pastured) {

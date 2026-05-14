@@ -304,7 +304,7 @@ export default {
     },
 
     _renderCategoryTabs(x, y, w, h) {
-        const cats  = [...Object.keys(CONSTRUCT_CATS).filter(k => k !== 'Furnish'), 'Furnish', 'Zones'];
+        const cats  = [...Object.keys(CONSTRUCT_CATS).filter(k => k !== 'Furnish'), 'Furnish', 'Zones', 'Debug'];
         const tabW  = Math.floor((w - 2) / cats.length);
 
         cats.forEach((cat, i) => {
