@@ -14,8 +14,8 @@ const SC = { empty: 0x334422, early: 0x66aa44, late: 0x99dd44, ready: 0xffdd22 }
 export default class ZoneManager {
     constructor(scene) {
         this.scene        = scene;
-        this.workTiles    = new Set();    // tileKey
-        this.storageTiles = new Set();    // tileKey
+        this.workTiles    = new Set();                  // tileKey
+        this.storageTiles = new Map();    // tileKey → { accepts: string[] }
         this.growTiles    = new Map();    // tileKey → { crop, slots: number[] }
         this.marketTiles  = new Set();    // tileKey
         this.pastureTiles = new Set();    // tileKey
@@ -36,7 +36,7 @@ export default class ZoneManager {
 
     _claimed(k) {
         return this.workTiles.has(k) || this.storageTiles.has(k) || this.marketTiles.has(k)
-            || this.growTiles.has(k) || this.pastureTiles.has(k);
+            || this.growTiles.has(k)  || this.pastureTiles.has(k);
     }
 
     paintWork(tx, ty) {
@@ -51,7 +51,7 @@ export default class ZoneManager {
         if (tx < 0 || tx >= MAP_W || ty < 0 || ty >= MAP_H) return;
         const k = this.tileKey(tx, ty);
         if (this._claimed(k) && !this.storageTiles.has(k)) return;
-        this.storageTiles.add(k);
+        if (!this.storageTiles.has(k)) this.storageTiles.set(k, { accepts: [] });
         this.renderAll();
     }
 
@@ -82,6 +82,16 @@ export default class ZoneManager {
         this.renderAll();
     }
 
+    // Set accepts filter for all connected storage tiles containing (tx, ty)
+    setStorageAccepts(tx, ty, categories) {
+        const { tiles } = this.getConnectedTiles(tx, ty);
+        for (const { tx: ttx, ty: tty } of tiles) {
+            const k = this.tileKey(ttx, tty);
+            const cfg = this.storageTiles.get(k);
+            if (cfg) cfg.accepts = [...categories];
+        }
+    }
+
     // Assign a crop to all tiles in the connected grow zone containing (tx, ty)
     setGrowZoneCrop(tx, ty, crop) {
         const def = CROPS[crop];
@@ -102,7 +112,7 @@ export default class ZoneManager {
 
     erase(tx, ty) {
         const k = this.tileKey(tx, ty);
-        const changed = this.workTiles.delete(k) | this.storageTiles.delete(k) | this.growTiles.delete(k) | this.marketTiles.delete(k) | this.pastureTiles.delete(k);
+        const changed = this.workTiles.delete(k) || this.storageTiles.delete(k) || this.growTiles.delete(k) || this.marketTiles.delete(k) || this.pastureTiles.delete(k);
         if (changed) this.renderAll();
     }
 
@@ -110,7 +120,7 @@ export default class ZoneManager {
         const k = this.tileKey(tx, ty);
         return {
             work:    this.workTiles.has(k),
-            storage: this.storageTiles.has(k),
+            storage: this.storageTiles.get(k) ?? null,
             grow:    this.growTiles.get(k) ?? null,
             market:  this.marketTiles.has(k),
             pasture: this.pastureTiles.has(k),
@@ -171,19 +181,22 @@ export default class ZoneManager {
 
     _renderLayer(tileSet, style) {
         if (tileSet.size === 0) return;
+        // tileSet may be a Set or Map — iterate keys either way
+        const keys = tileSet instanceof Map ? [...tileSet.keys()] : [...tileSet];
+        const has  = k => tileSet.has(k);
         this._gfx.fillStyle(style.fill, style.fillAlpha);
-        for (const key of tileSet) {
+        for (const key of keys) {
             const tx = key % MAP_W, ty = Math.floor(key / MAP_W);
             this._gfx.fillRect(tx * TILE, MAP_OY + ty * TILE, TILE, TILE);
         }
         this._gfx.lineStyle(1, style.line, style.lineAlpha);
-        for (const key of tileSet) {
+        for (const key of keys) {
             const tx = key % MAP_W, ty = Math.floor(key / MAP_W);
             const px = tx * TILE, py = MAP_OY + ty * TILE;
-            if (!tileSet.has(this.tileKey(tx,   ty-1))) this._gfx.lineBetween(px,        py,        px + TILE, py);
-            if (!tileSet.has(this.tileKey(tx,   ty+1))) this._gfx.lineBetween(px,        py + TILE, px + TILE, py + TILE);
-            if (!tileSet.has(this.tileKey(tx-1, ty  ))) this._gfx.lineBetween(px,        py,        px,        py + TILE);
-            if (!tileSet.has(this.tileKey(tx+1, ty  ))) this._gfx.lineBetween(px + TILE, py,        px + TILE, py + TILE);
+            if (!has(this.tileKey(tx,   ty-1))) this._gfx.lineBetween(px,        py,        px + TILE, py);
+            if (!has(this.tileKey(tx,   ty+1))) this._gfx.lineBetween(px,        py + TILE, px + TILE, py + TILE);
+            if (!has(this.tileKey(tx-1, ty  ))) this._gfx.lineBetween(px,        py,        px,        py + TILE);
+            if (!has(this.tileKey(tx+1, ty  ))) this._gfx.lineBetween(px + TILE, py,        px + TILE, py + TILE);
         }
     }
 
@@ -236,7 +249,7 @@ export default class ZoneManager {
         let tileSet = null, zoneType = null, cropKey = null;
 
         if (zAt.work)         { tileSet = this.workTiles;    zoneType = 'work'; }
-        else if (zAt.storage) { tileSet = this.storageTiles; zoneType = 'storage'; }
+        else if (zAt.storage) { tileSet = this.storageTiles; zoneType = 'storage'; }  // Map
         else if (zAt.market)  { tileSet = this.marketTiles;  zoneType = 'market'; }
         else if (zAt.pasture) { tileSet = this.pastureTiles; zoneType = 'pasture'; }
         else if (zAt.grow)    { zoneType = 'grow'; cropKey = zAt.grow.crop; }
@@ -294,7 +307,8 @@ export default class ZoneManager {
     _components(tileSet) {
         const visited = new Set();
         const zones   = [];
-        for (const key of tileSet) {
+        const iter    = tileSet instanceof Map ? tileSet.keys() : tileSet;
+        for (const key of iter) {
             if (visited.has(key)) continue;
             const zone = [], queue = [key];
             visited.add(key);
@@ -317,7 +331,7 @@ export default class ZoneManager {
     save() {
         return {
             work:    [...this.workTiles],
-            storage: [...this.storageTiles],
+            storage: [...this.storageTiles].map(([k, v]) => ({ k, accepts: v.accepts ?? [] })),
             market:  [...this.marketTiles],
             grow:    [...this.growTiles].map(([k, v]) => ({ k, crop: v.crop, slots: [...v.slots] })),
         };
@@ -325,9 +339,15 @@ export default class ZoneManager {
 
     load(data) {
         if (!data) return;
-        this.workTiles    = new Set(data.work    ?? []);
-        this.storageTiles = new Set(data.storage ?? []);
-        this.marketTiles  = new Set(data.market  ?? []);
-        this.growTiles    = new Map((data.grow ?? []).map(({ k, crop, slots }) => [k, { crop, slots }]));
+        this.workTiles  = new Set(data.work   ?? []);
+        this.marketTiles = new Set(data.market ?? []);
+        this.growTiles  = new Map((data.grow ?? []).map(({ k, crop, slots }) => [k, { crop, slots }]));
+        // Support both old format (array of numbers) and new format (array of {k, accepts})
+        const storageRaw = data.storage ?? [];
+        if (storageRaw.length > 0 && typeof storageRaw[0] === 'number') {
+            this.storageTiles = new Map(storageRaw.map(k => [k, { accepts: [] }]));
+        } else {
+            this.storageTiles = new Map(storageRaw.map(({ k, accepts }) => [k, { accepts: accepts ?? [] }]));
+        }
     }
 }

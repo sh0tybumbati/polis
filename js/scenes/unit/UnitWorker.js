@@ -1064,19 +1064,27 @@ export default {
         const zm = this.scene.zoneManager;
         const fm = this.scene.constructManager;
         if (zm?.storageTiles.size > 0) {
+            // Check whether a storage tile accepts the resources being carried
+            const carryKeys = Object.keys(u.carrying).filter(r => (u.carrying[r] ?? 0) > 0);
+            const tileAccepts = (cfg) => {
+                if (!cfg?.accepts?.length) return true;
+                return carryKeys.some(r => cfg.accepts.some(cat => r.startsWith(cat)));
+            };
             const STORAGE_APPL = new Set(['grainsilo', 'storageshelf']);
             let bestKey = null, bestDist = Infinity;
-            // First pass: tiles with a built storage appliance
-            for (const key of zm.storageTiles) {
+            // First pass: tiles with a built storage appliance that accepts carried resources
+            for (const [key, cfg] of zm.storageTiles) {
+                if (!tileAccepts(cfg)) continue;
                 const tx = key % MAP_W, ty = Math.floor(key / MAP_W);
                 const item = fm?.getAt(tx, ty);
                 if (!item?.built || !STORAGE_APPL.has(item.type)) continue;
                 const d = Phaser.Math.Distance.Between(u.x, u.y, (tx + 0.5) * TILE, MAP_OY + (ty + 0.5) * TILE);
                 if (d < bestDist) { bestDist = d; bestKey = key; }
             }
-            // Second pass: any storage tile
+            // Second pass: any accepting storage tile
             if (bestKey === null) {
-                for (const key of zm.storageTiles) {
+                for (const [key, cfg] of zm.storageTiles) {
+                    if (!tileAccepts(cfg)) continue;
                     const tx = key % MAP_W, ty = Math.floor(key / MAP_W);
                     const d = Phaser.Math.Distance.Between(u.x, u.y, tx * TILE + TILE / 2, MAP_OY + ty * TILE + TILE / 2);
                     if (d < bestDist) { bestDist = d; bestKey = key; }
@@ -1166,13 +1174,16 @@ export default {
 
     handleDepositZoneTask(u, dt) {
         const zm = this.scene.zoneManager;
-        if (!zm?.storageTiles.has(u.taskZoneKey)) { u.taskType = null; return; }
+        const cfg = zm?.storageTiles.get(u.taskZoneKey);
+        if (!cfg) { u.taskType = null; return; }
         const tx = u.taskZoneKey % MAP_W, ty = Math.floor(u.taskZoneKey / MAP_W);
         const cx = tx * TILE + TILE / 2, cy = MAP_OY + ty * TILE + TILE / 2;
         if (this.moveToward(u, cx, cy, 30, dt)) return;
 
+        const accepts = cfg.accepts ?? [];
         for (const [res, amt] of Object.entries(u.carrying)) {
             if ((amt ?? 0) <= 0) continue;
+            if (accepts.length && !accepts.some(cat => res.startsWith(cat))) continue;
             this.scene.economyManager.addResource(res, amt);
             u.carrying[res] = 0;
             this.scene.uiManager.showFloatText(cx, cy - 14, `+${amt} ${res.split('.').pop()}`, '#88ff88');

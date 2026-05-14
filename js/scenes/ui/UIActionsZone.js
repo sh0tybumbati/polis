@@ -121,9 +121,99 @@ export default {
                 fontFamily: 'monospace', fontSize: '10px', color: '#d4c8a8',
             }).setOrigin(0.5).setDepth(22));
 
-        // Body
-        const panelH = fullH - TAB_H - STRIP;
         const bodyY  = zy + TAB_H;
+
+        if (type === 'storage') {
+            // Storage: show category filter toggles
+            const CATS = [
+                { id: 'Food.',              label: 'Food',   color: 0x336622 },
+                { id: 'Materials.Wood.',    label: 'Wood',   color: 0x6a3a14 },
+                { id: 'Materials.Stone.',   label: 'Stone',  color: 0x445566 },
+                { id: 'Materials.Metal.',   label: 'Metal',  color: 0x334466 },
+                { id: 'Materials.Textile.', label: 'Cloth',  color: 0x5a3a5a },
+                { id: 'Equipment.',         label: 'Equip',  color: 0x4a3a22 },
+            ];
+            // Read current accepts from the first tile
+            const cfg     = tile ? zm.storageTiles.get(zm.tileKey(tile.tx, tile.ty)) : null;
+            const accepts = cfg?.accepts ?? [];
+            const allOn   = accepts.length === 0;
+
+            const catH   = 22;
+            const labelH = 14;
+            const bodyH  = fullH - TAB_H - STRIP;
+            const bg2 = this._tab(s.add.graphics().setDepth(21));
+            bg2.fillStyle(0x100c06, 0.85).fillRect(zx, bodyY, ACT_W, bodyH);
+
+            // "Accept all" hint
+            const hintY = bodyY + 6;
+            this._tab(s.add.text(zx + 6, hintY, allOn ? 'Accepts: all resources' : 'Accepts only:', {
+                fontFamily: 'monospace', fontSize: '8px', color: '#7a6a50',
+            }).setDepth(22));
+
+            // Category toggle buttons
+            const btnW = Math.floor((ACT_W - 8) / CATS.length);
+            const btnY = hintY + labelH + 2;
+            CATS.forEach((cat, i) => {
+                const on   = allOn || accepts.includes(cat.id);
+                const bx   = zx + 4 + i * btnW;
+                const bg3  = this._tab(s.add.graphics().setDepth(22));
+                bg3.fillStyle(cat.color, on ? 0.88 : 0.25).fillRect(bx, btnY, btnW - 2, catH);
+                bg3.lineStyle(1, on ? 0xffaa22 : 0x3a2a10, on ? 0.7 : 0.3).strokeRect(bx, btnY, btnW - 2, catH);
+                const hov = this._tab(s.add.graphics().setDepth(23).setAlpha(0));
+                hov.fillStyle(0xffffff, 0.12).fillRect(bx, btnY, btnW - 2, catH);
+                this._tab(s.add.text(bx + (btnW - 2) / 2, btnY + catH / 2, cat.label, {
+                    fontFamily: 'monospace', fontSize: '8px',
+                    color: on ? '#e8d8a0' : '#554433', align: 'center',
+                }).setOrigin(0.5).setDepth(23));
+                const z = this._tab(s.add.zone(bx + (btnW - 2) / 2, btnY + catH / 2, btnW - 2, catH)
+                    .setInteractive({ cursor: 'pointer' }).setDepth(24));
+                z.on('pointerover', () => hov.setAlpha(1));
+                z.on('pointerout',  () => hov.setAlpha(0));
+                z.on('pointerdown', () => {
+                    // Toggle this category; empty = accept all
+                    let next;
+                    if (allOn) {
+                        // Was all-on: switch to only this one OFF (all others on)
+                        next = CATS.map(c => c.id).filter(id => id !== cat.id);
+                    } else if (accepts.includes(cat.id)) {
+                        next = accepts.filter(id => id !== cat.id);
+                    } else {
+                        next = [...accepts, cat.id];
+                    }
+                    // All toggled on = treat as "accept all" (empty)
+                    if (next.length === CATS.length) next = [];
+                    zm.setStorageAccepts(tile.tx, tile.ty, next);
+                    this.updateUI();
+                });
+            });
+
+            const noteY = btnY + catH + 4;
+            this._tab(s.add.text(zx + ACT_W / 2, noteY, 'Toggle to restrict · all on = accept everything', {
+                fontFamily: 'monospace', fontSize: '8px', color: '#443c2c', align: 'center',
+                wordWrap: { width: ACT_W - 12 },
+            }).setOrigin(0.5, 0).setDepth(22));
+
+            this._actStrip(zx, bodyY + bodyH, ACT_W, STRIP, [
+                { label: '＋ Expand', color: 0x0e200e, cb: () => {
+                    s.zoneMode = type;
+                    s.selectedZoneType = null; s.selectedZoneTile = null; s.selectedZoneTiles = null;
+                    zm.clearSelection(); this.updateUI();
+                }},
+                { label: '🗑 Erase', color: 0x280e0e, cb: () => {
+                    tiles.forEach(t => zm.erase(t.tx, t.ty));
+                    s.selectedZoneType = null; s.selectedZoneTile = null; s.selectedZoneTiles = null;
+                    zm.clearSelection(); this.updateUI();
+                }},
+                { label: '✕ Close', color: 0x1a1408, cb: () => {
+                    s.selectedZoneType = null; s.selectedZoneTile = null; s.selectedZoneTiles = null;
+                    zm.clearSelection(); this.updateUI();
+                }},
+            ]);
+            return;
+        }
+
+        // Non-storage zones: simple hint body
+        const panelH = fullH - TAB_H - STRIP;
         const bg2 = this._tab(s.add.graphics().setDepth(21));
         bg2.fillStyle(0x100c06, 0.85).fillRect(zx, bodyY, ACT_W, panelH);
 
