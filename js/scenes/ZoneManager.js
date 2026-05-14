@@ -34,10 +34,15 @@ export default class ZoneManager {
 
     // ─── Painting ────────────────────────────────────────────────────────────────
 
+    _claimed(k) {
+        return this.workTiles.has(k) || this.storageTiles.has(k) || this.marketTiles.has(k)
+            || this.growTiles.has(k) || this.pastureTiles.has(k);
+    }
+
     paintWork(tx, ty) {
         if (tx < 0 || tx >= MAP_W || ty < 0 || ty >= MAP_H) return;
         const k = this.tileKey(tx, ty);
-        this.growTiles.delete(k);
+        if (this._claimed(k) && !this.workTiles.has(k)) return;
         this.workTiles.add(k);
         this.renderAll();
     }
@@ -45,7 +50,7 @@ export default class ZoneManager {
     paintStorage(tx, ty) {
         if (tx < 0 || tx >= MAP_W || ty < 0 || ty >= MAP_H) return;
         const k = this.tileKey(tx, ty);
-        this.growTiles.delete(k);
+        if (this._claimed(k) && !this.storageTiles.has(k)) return;
         this.storageTiles.add(k);
         this.renderAll();
     }
@@ -53,7 +58,7 @@ export default class ZoneManager {
     paintMarket(tx, ty) {
         if (tx < 0 || tx >= MAP_W || ty < 0 || ty >= MAP_H) return;
         const k = this.tileKey(tx, ty);
-        this.growTiles.delete(k);
+        if (this._claimed(k) && !this.marketTiles.has(k)) return;
         this.marketTiles.add(k);
         this.renderAll();
     }
@@ -61,7 +66,7 @@ export default class ZoneManager {
     paintPasture(tx, ty) {
         if (tx < 0 || tx >= MAP_W || ty < 0 || ty >= MAP_H) return;
         const k = this.tileKey(tx, ty);
-        this.growTiles.delete(k);
+        if (this._claimed(k) && !this.pastureTiles.has(k)) return;
         this.pastureTiles.add(k);
         this.renderAll();
     }
@@ -69,11 +74,7 @@ export default class ZoneManager {
     paintGrow(tx, ty, crop) {
         if (tx < 0 || tx >= MAP_W || ty < 0 || ty >= MAP_H) return;
         const k = this.tileKey(tx, ty);
-        // Grow zones are mutually exclusive with all other zone types
-        this.workTiles.delete(k);
-        this.storageTiles.delete(k);
-        this.marketTiles.delete(k);
-        this.pastureTiles.delete(k);
+        if (this._claimed(k) && !this.growTiles.has(k)) return;
         if (!this.growTiles.has(k)) {
             const def = crop ? CROPS[crop] : null;
             this.growTiles.set(k, { crop: crop ?? null, slots: new Array(def?.density ?? 0).fill(-1) });

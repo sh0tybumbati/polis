@@ -54,7 +54,7 @@ Four independently painted zone types:
 
 Zones are painted with rectangle drag. Erase mode removes all zone types from tiles.
 
-Work, storage, and market zones can coexist on the same tile. Grow zones are exclusive.
+All zone types are mutually exclusive per tile. Painting a new zone type over an existing zone skips the already-claimed tiles — the new zone only fills unclaimed tiles within the painted rectangle. Use the Erase Zones tool to reclaim tiles.
 
 ### Build Menu Structure ✅
 

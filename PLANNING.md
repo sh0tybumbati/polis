@@ -399,7 +399,7 @@ Goal: buildings emerge from walls + furniture + zones, not from prefab `house`/`
 - [x] **Adjacent tile grouping** — BFS connects touching grow tiles into one logical zone
 - [x] **Post-paint crop picker** — painting a zone immediately exits paint mode and opens the crop picker for that zone
 - [x] **`setGrowZoneCrop(tx, ty, crop)`** — assigns crop to entire connected component, resets slot progress
-- [x] **Mutual exclusion** — painting a grow zone clears any work/storage/market on those tiles, and vice versa
+- [x] **Skip-claimed painting** — painting any zone type skips tiles already owned by a different zone; new zones fill only unclaimed tiles within the rectangle
 - [x] **Per-slot growth dots** — each tile renders colored dots (empty/early/late/ready) for individual crop slots
 - [x] **Farmers use grow zones** — `seekFarmerTask` plants/harvests grow zone slots; `farm`/`garden` construct branches removed
 
