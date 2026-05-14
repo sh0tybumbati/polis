@@ -1,7 +1,7 @@
 export default {
     id: 'farmer',
     skill: 'farming',
-    depositTypes: ['granary', 'warehouse', 'townhall'],
+    depositTypes: ['grainsilo', 'storageshelf', 'townhall'],
     score(u, ctx) {
         const home = u.homeConstructId ? ctx.constructs.find(b => b.id === u.homeConstructId) : null;
         const homeDomain = home?.domainId ? ctx.domains.find(d => d.id === home.domainId) : null;

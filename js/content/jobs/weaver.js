@@ -6,8 +6,8 @@ export default {
     skill: 'weave',
     needKey: 'Textile.Cloth.Wool',
     baseScore: 30,
-    fetchSources: ['warehouse', 'granary'],
-    depositTypes: ['warehouse'],
+    fetchSources: ['storageshelf', 'townhall'],
+    depositTypes: ['storageshelf', 'townhall'],
     score(u, ctx) {
         const hasInput = (ctx.resources[this.input] ?? 0) > 0;
         return hasInput

@@ -8,8 +8,8 @@ export default {
     skill: 'masonry',
     needKey: 'Materials.Stone.Limestone.Block',
     baseScore: 28,
-    fetchSources: ['stonepile', 'warehouse', 'townhall'],
-    selfSupply: { nodes: ['boulder', 'ore_vein'], depositTypes: ['stonepile', 'warehouse', 'townhall'] },
-    depositTypes: ['masons', 'warehouse'],
+    fetchSources: ['storageshelf', 'townhall'],
+    selfSupply: { nodes: ['boulder', 'ore_vein'], depositTypes: ['storageshelf', 'townhall'] },
+    depositTypes: ['storageshelf', 'townhall'],
     score(u, ctx) { return workshopScore(u, ctx, this); },
 };

@@ -8,7 +8,7 @@ export default {
     skill: 'tan',
     needKey: 'Textile.Hide.Deer.Leather',
     baseScore: 35,
-    fetchSources: ['butcher', 'tannery', 'warehouse'],
-    depositTypes: ['tannery', 'warehouse'],
+    fetchSources: ['butchersblock', 'storageshelf', 'townhall'],
+    depositTypes: ['storageshelf', 'townhall'],
     score(u, ctx) { return workshopScore(u, ctx, this); },
 };

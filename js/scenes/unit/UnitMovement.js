@@ -19,13 +19,18 @@ export default {
 
         // If target is far and no path or target moved significantly, find path
         const isFar = d > TILE * 3;
-        const needsPath = isFar && (!u.currentPath || u._pathTargetTx !== targetTx || u._pathTargetTy !== targetTy);
+        const targetChanged = u._pathTargetTx !== targetTx || u._pathTargetTy !== targetTy;
+        // Throttle retries on failed paths: don't re-attempt for 2s after a null result
+        if (targetChanged) { u._pathRetryTimer = 0; u._pathFailed = false; }
+        if (u._pathRetryTimer > 0) { u._pathRetryTimer -= dt; if (u._pathRetryTimer <= 0) u._pathFailed = false; }
+        const needsPath = isFar && (!u.currentPath || targetChanged) && !u._pathFailed;
 
         if (needsPath) {
             u.currentPath = this.pathfinder.findPath(startTx, startTy, targetTx, targetTy);
             u._pathTargetTx = targetTx;
             u._pathTargetTy = targetTy;
             u._pathIndex = 0;
+            if (!u.currentPath) { u._pathFailed = true; u._pathRetryTimer = 2.0; }
         }
 
         let moveTargetX = tx, moveTargetY = ty;

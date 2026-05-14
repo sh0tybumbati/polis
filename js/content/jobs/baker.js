@@ -8,7 +8,7 @@ export default {
     skill: 'bake',
     needKey: 'Food.Grain.Wheat.Bread',
     baseScore: 45,
-    fetchSources: ['mill', 'granary', 'warehouse'],
-    depositTypes: ['bakery', 'granary', 'warehouse'],
+    fetchSources: ['grainsilo', 'storageshelf', 'townhall'],
+    depositTypes: ['grainsilo', 'storageshelf', 'townhall'],
     score(u, ctx) { return workshopScore(u, ctx, this); },
 };

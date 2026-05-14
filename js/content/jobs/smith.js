@@ -8,7 +8,7 @@ export default {
     skill: 'forge',
     needKey: 'Equipment.Bronze.Kit',
     baseScore: 30,
-    fetchSources: ['smelter', 'blacksmith', 'warehouse'],
-    depositTypes: ['blacksmith', 'warehouse'],
+    fetchSources: ['storageshelf', 'townhall'],
+    depositTypes: ['storageshelf', 'townhall'],
     score(u, ctx) { return workshopScore(u, ctx, this); },
 };

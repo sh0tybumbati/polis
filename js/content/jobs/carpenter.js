@@ -8,8 +8,8 @@ export default {
     skill: 'woodcutting',
     needKey: 'Materials.Wood.Pine.Plank',
     baseScore: 30,
-    fetchSources: ['woodshed', 'warehouse', 'townhall'],
-    selfSupply: { nodes: ['large_tree', 'small_tree'], depositTypes: ['woodshed', 'warehouse', 'townhall'] },
-    depositTypes: ['carpenter', 'warehouse'],
+    fetchSources: ['storageshelf', 'townhall'],
+    selfSupply: { nodes: ['large_tree', 'small_tree'], depositTypes: ['storageshelf', 'townhall'] },
+    depositTypes: ['storageshelf', 'townhall'],
     score(u, ctx) { return workshopScore(u, ctx, this); },
 };

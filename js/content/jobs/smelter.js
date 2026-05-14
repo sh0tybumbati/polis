@@ -8,8 +8,8 @@ export default {
     skill: 'smelt',
     needKey: 'Materials.Metal.Copper.Ingot',
     baseScore: 35,
-    fetchSources: ['mine', 'smelter', 'warehouse'],
-    selfSupply: { nodes: ['ore_vein'], depositTypes: ['smelter', 'warehouse'] },
-    depositTypes: ['smelter', 'warehouse'],
+    fetchSources: ['mine', 'storageshelf', 'townhall'],
+    selfSupply: { nodes: ['ore_vein'], depositTypes: ['storageshelf', 'townhall'] },
+    depositTypes: ['storageshelf', 'townhall'],
     score(u, ctx) { return workshopScore(u, ctx, this); },
 };

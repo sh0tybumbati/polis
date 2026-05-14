@@ -8,7 +8,7 @@ export default {
     skill: 'mill',
     needKey: 'Food.Grain.Wheat.Flour',
     baseScore: 50,
-    fetchSources: ['granary', 'warehouse', 'townhall'],
-    depositTypes: ['mill', 'granary', 'warehouse'],
+    fetchSources: ['grainsilo', 'storageshelf', 'townhall'],
+    depositTypes: ['grainsilo', 'storageshelf', 'townhall'],
     score(u, ctx) { return workshopScore(u, ctx, this); },
 };

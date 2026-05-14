@@ -6,8 +6,8 @@ export default {
     skill: 'press',
     needKey: 'Food.Produce.Olive.Oil',
     baseScore: 30,
-    fetchSources: ['granary', 'warehouse', 'townhall'],
-    depositTypes: ['granary', 'warehouse'],
+    fetchSources: ['grainsilo', 'storageshelf', 'townhall'],
+    depositTypes: ['grainsilo', 'storageshelf', 'townhall'],
     score(u, ctx) {
         const hasInput = (ctx.resources[this.input] ?? 0) > 0;
         return hasInput

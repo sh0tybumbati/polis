@@ -2,5 +2,5 @@
 export default {
     id: 'hunter',
     skill: 'hunting',
-    depositTypes: ['butcher'],
+    depositTypes: ['butchersblock', 'storageshelf', 'townhall'],
 };

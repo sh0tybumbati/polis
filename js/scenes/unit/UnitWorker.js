@@ -119,7 +119,8 @@ export default {
         }
 
         // Deposit takes priority
-        if (this.totalCarrying(u) > 0 && !u.targetNode && u.taskType !== 'build' && u.taskType !== 'zone_workshop' && u.taskType !== 'eat' && u.taskType !== 'collect_tithe' && u.taskType !== 'leisure') {
+        const _noDeposit = new Set(['build', 'zone_workshop', 'workshop', 'eat', 'collect_tithe', 'leisure', 'merchant']);
+        if (this.totalCarrying(u) > 0 && !u.targetNode && !_noDeposit.has(u.taskType)) {
             if (u.taskType !== 'deposit' && u.taskType !== 'deposit_zone') this.seekDeposit(u);
             if (u.taskType === 'deposit')      { this.handleDepositTask(u, dt);     return; }
             if (u.taskType === 'deposit_zone') { this.handleDepositZoneTask(u, dt); return; }
@@ -426,7 +427,9 @@ export default {
                     this.scene.economyManager.takeFromCommons(res, 1);
                     u.carrying[res] = (u.carrying[res] ?? 0) + 1;
                 } else {
-                    // Cannot build without resources
+                    // Wait up to 10s for resources before releasing the site
+                    u._buildWaitTimer = (u._buildWaitTimer ?? 0) + dt;
+                    if (u._buildWaitTimer > 10.0) { u._buildWaitTimer = 0; u.taskType = null; }
                     return;
                 }
             }
@@ -829,7 +832,7 @@ export default {
     },
 
     handleDepositTitheTask(u, dt) {
-        const th = this._nearestOfTypes(u.x, u.y, ['granary', 'warehouse', 'woodshed', 'stonepile']);
+        const th = this._nearestOfTypes(u.x, u.y, ['grainsilo', 'storageshelf', 'townhall', 'chest']);
         if (th) {
             const door = this._constructDoor(th);
             if (this.moveToward(u, door.x, door.y, 30, dt)) return;
@@ -852,7 +855,7 @@ export default {
 
     // Converted from getter: returns the Set of public storage construct types
     _publicStorage() {
-        return new Set(['granary', 'warehouse', 'stonepile', 'woodshed']);
+        return new Set(['grainsilo', 'storageshelf', 'townhall', 'chest']);
     },
 
     // Converted from getter: returns deposit route map from job definitions
@@ -1030,17 +1033,11 @@ export default {
                 b.inventory[res] = (b.inventory[res] ?? 0) + amt;
                 u.carrying[res] = 0;
                 this.scene.uiManager.showFloatText(u.x, u.y - 14, `+${amt} ${res}`, '#aaffcc');
-            } else if (this._publicStorage().has(b.type) && b.isPublic) {
-                // State-owned public storage: deposit to both b.inventory and commons
-                b.inventory[res] = (b.inventory[res] ?? 0) + amt;
-                const got = this.scene.economyManager.addResource(res, amt);
-                u.carrying[res] = 0;
-                if (got > 0) this.scene.uiManager.showFloatText(u.x, u.y - 14, `+${got} ${res}`, '#88ff88');
             } else {
-                // Workshop/other construct: deposit to b.inventory only
+                // Deposit to construct inventory; syncResources() below keeps commons in sync
                 b.inventory[res] = (b.inventory[res] ?? 0) + amt;
                 u.carrying[res] = 0;
-                this.scene.uiManager.showFloatText(u.x, u.y - 14, `+${amt} ${res}`, '#88ccff');
+                this.scene.uiManager.showFloatText(u.x, u.y - 14, `+${amt} ${res}`, b.isPublic ? '#88ff88' : '#88ccff');
             }
         }
         const wasPrivate = u._depositPrivate;

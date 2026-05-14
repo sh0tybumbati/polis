@@ -6,8 +6,8 @@ export default {
     skill: 'butcher',
     needKey: 'Food.Meat.Venison.Sausages',
     baseScore: 40,
-    fetchSources: ['warehouse', 'townhall'],
-    depositTypes: ['warehouse'],
+    fetchSources: ['storageshelf', 'townhall'],
+    depositTypes: ['storageshelf', 'townhall'],
     score(u, ctx) {
         const hasInput = (ctx.resources[this.input] ?? 0) > 0;
         return hasInput
