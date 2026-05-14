@@ -185,22 +185,24 @@ export default class InputManager {
                     for (let ry = y1; ry <= y2; ry++)
                         for (let rx = x1; rx <= x2; rx++)
                             this._applyZonePaint(rx, ry);
-                    // After painting a grow zone, immediately exit paint mode and open crop picker
-                    if (isGrow) {
+                    // After painting, exit paint mode and auto-select the zone to show its panel
+                    const isStorage = s.zoneMode === 'storage';
+                    if (isGrow || isStorage) {
                         s.zoneMode = null;
-                        const { tiles, cropKey } = s.zoneManager.getConnectedTiles(startTile.tx, startTile.ty);
+                        const selCol = isGrow ? 0x88ee55 : 0xffcc44;
+                        const { tiles, zoneType, cropKey } = s.zoneManager.getConnectedTiles(startTile.tx, startTile.ty);
                         if (tiles.length) {
                             s.selectedZoneTile  = { tx: startTile.tx, ty: startTile.ty };
                             s.selectedZoneTiles = tiles;
-                            s.selectedZoneType  = 'grow';
+                            s.selectedZoneType  = zoneType;
                             s.selectedZoneCrop  = cropKey;
-                            s.zoneManager.setSelection(tiles, 0x88ee55);
+                            s.zoneManager.setSelection(tiles, selCol);
                         }
                     }
                 }
                 s._zoneDragStart = null;
                 s.hoverGfx?.clear();
-                if (isGrow) { s.updateUI(); return; }
+                s.updateUI();
                 return;
             }
             if (s.roadMode) { const t = s.tileAt(wx, wy); if (t) s._paintRoad(t.tx, t.ty); return; }
@@ -312,8 +314,7 @@ export default class InputManager {
                 }
             }
 
-            if (s.selectedConstruct) { s.selectedConstruct = null; s.updateUI(); }
-            if (s.selectedNode) { s.selectedNode = null; s.updateUI(); }
+            s.updateUI();
         });
 
         s.input.on('wheel', (ptr, _objs, _dx, dy) => {
