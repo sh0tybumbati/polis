@@ -44,10 +44,10 @@ const defs = [
 export const CONSTRUCTS = Object.fromEntries(defs.map(d => [d.id, d]));
 
 export const CONSTRUCT_CATS = {
-    Civil:    ['house', 'townhall', 'agora', 'temple', 'oracle', 'tavernseat'],
-    Industry: ['farm', 'pasture', 'mine', 'millstone', 'oven', 'forge', 'anvil', 'tanningrack', 'workbench', 'stonecutter', 'olivepress'],
+    Civil:    ['camp', 'townhall', 'agora', 'temple', 'oracle', 'tavernseat'],
+    Industry: ['pasture', 'mine', 'millstone', 'oven', 'forge', 'anvil', 'tanningrack', 'workbench', 'stonecutter', 'olivepress'],
     Military: ['melee_grounds', 'archery_grounds', 'mounted_grounds', 'watchtower', 'wall', 'palisade', 'gate', 'fence'],
-    Furnish:  ['bed', 'chest', 'hearth', 'loom', 'millstone', 'workbench', 'anvil', 'forge', 'oven', 'tanningrack', 'butchersblock', 'storageshelf', 'marketstall', 'camp', 'grainsilo']
+    Furnish:  ['bed', 'chest', 'hearth', 'loom', 'millstone', 'workbench', 'anvil', 'forge', 'oven', 'tanningrack', 'butchersblock', 'storageshelf', 'marketstall', 'grainsilo']
 };
 
 export function computeBuildCost(type, material = 'Materials.Wood.Pine') {

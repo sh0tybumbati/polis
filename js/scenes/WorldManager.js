@@ -50,7 +50,7 @@ export default class WorldManager {
 
         if (!outcome) {
             const alive = this.scene.units.filter(u => !u.isEnemy && u.hp > 0);
-            const canBreed = this.scene.constructs.some(b => !b.faction && b.built && b.type === 'house');
+            const canBreed = this.scene.constructs.some(b => !b.faction && b.built && CONSTRUCTS[b.type]?.isHomeType);
             if (!alive.length && !canBreed) {
                 outcome = 'lose'; reason = 'Your people are gone.';
             }
@@ -213,7 +213,7 @@ export default class WorldManager {
 
             // 1. Private house inventory (wages brought home)
             const house = this.scene.constructs.find(b =>
-                b.id === u.homeConstructId && b.built && b.type === 'house');
+                b.id === u.homeConstructId && b.built && CONSTRUCTS[b.type]?.isHomeType);
             if (house) {
                 if (!house.inventory) house.inventory = {};
                 gained = this._feedFrom(u, house.inventory);
@@ -372,7 +372,7 @@ export default class WorldManager {
 
     checkApplianceDesires() {
         const houses = this.scene.constructs.filter(b =>
-            b.built && !b.faction && b.type === 'house');
+            b.built && !b.faction && CONSTRUCTS[b.type]?.isHomeType);
 
         for (const house of houses) {
             const slots = this.scene.constructManager.getApplianceSlots(house);
@@ -429,7 +429,7 @@ export default class WorldManager {
         const REPAIR_PER_DAWN = 5;
         const REPAIR_THRESHOLD = 0.8;
         for (const house of this.scene.constructs) {
-            if (!house.built || house.faction || house.type !== 'house') continue;
+            if (!house.built || house.faction || !CONSTRUCTS[house.type]?.isHomeType) continue;
             if (house.hp >= house.maxHp * REPAIR_THRESHOLD) continue;
             const inv = house.inventory ?? {};
             const sticks = inv['Materials.Wood.Pine.Sticks'] ?? 0;
@@ -491,7 +491,7 @@ export default class WorldManager {
 
         let totalContrib = {};
         for (const house of this.scene.constructs) {
-            if (!house.built || house.faction || house.type !== 'house') continue;
+            if (!house.built || house.faction || !CONSTRUCTS[house.type]?.isHomeType) continue;
             if (!house.inventory) continue;
             for (const [res, amt] of Object.entries(house.inventory)) {
                 if ((amt ?? 0) <= 0) continue;

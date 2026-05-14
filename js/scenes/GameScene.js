@@ -347,8 +347,8 @@ export default class GameScene extends Phaser.Scene {
     attractAdults() {
         const homeless = this.units.filter(u => !u.isEnemy && u.hp > 0 && u.type === 'worker' && u.age >= 2 && !u.homeConstructId);
         for (const u of homeless) {
-            const house = this.constructs.find(b => b.built && !b.faction && CONSTRUCTS[b.type]?.capacity &&
-                this.units.filter(w => w.homeConstructId === b.id && !w.isEnemy && w.hp > 0).length < CONSTRUCTS[b.type].capacity);
+            const house = this.constructs.find(b => b.built && !b.faction && CONSTRUCTS[b.type]?.isHomeType &&
+                this.units.filter(w => w.homeConstructId === b.id && !w.isEnemy && w.hp > 0).length < (CONSTRUCTS[b.type].capacity ?? 4));
             if (house) u.homeConstructId = house.id;
         }
     }

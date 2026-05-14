@@ -34,9 +34,9 @@ export default class ConstructManager {
                 if (this.scene.terrainData[y][x] === 4) return false; // T_WATER
             }
         }
-        // House domain collision logic
+        // Home construct domain collision logic
         const def = CONSTRUCTS[type];
-        if (def && def.id === 'house') {
+        if (def?.isHomeType) {
             const pad = 3;
             for (let y = ty - pad; y <= ty + height - 1 + pad; y++) {
                 for (let x = tx - pad; x <= tx + width - 1 + pad; x++) {
@@ -61,7 +61,7 @@ export default class ConstructManager {
         if (!def) return null;
         const work = def.buildWork || 1;
         const maxHp = work * 3;
-        const isHouse = (type === 'house');
+        const isHouse = !!def?.isHomeType;
 
         const c = {
             id: this.scene.getId(),
@@ -120,7 +120,7 @@ export default class ConstructManager {
 
         this.constructs.push(c);
 
-        if (type === 'house') {
+        if (CONSTRUCTS[type]?.isHomeType) {
             this.assignDomain(c);
             c.isPublic = false;
         } else {
@@ -166,7 +166,7 @@ export default class ConstructManager {
         c.resNeeded = {};
         this.constructs.push(c);
 
-        if (type === 'house') {
+        if (CONSTRUCTS[type]?.isHomeType) {
             this.assignDomain(c);
             c.isPublic = false;
         } else {
@@ -232,7 +232,7 @@ export default class ConstructManager {
         
         this.removeConstruct(construct);
 
-        if (construct.type === 'house' && construct.domainId) {
+        if (CONSTRUCTS[construct.type]?.isHomeType && construct.domainId) {
             this.scene.domains = this.scene.domains.filter(d => d.id !== construct.domainId);
         }
         
@@ -675,11 +675,10 @@ export default class ConstructManager {
         const totalAdults = this.scene.units.filter(u =>
             !u.isEnemy && u.type === 'worker' && u.age >= 2 && u.hp > 0).length;
         const growthScale = Math.max(0.5, totalAdults / POP_BASELINE);
-        const houseDef = CONSTRUCTS.house;
-        const effectiveSpawnMs = (houseDef?.spawnMs || 200000) * growthScale;
+        const effectiveSpawnMs = 200000 * growthScale;
 
         for (const house of this.constructs) {
-            if (!house.built || house.faction || house.type !== 'house') continue;
+            if (!house.built || house.faction || !CONSTRUCTS[house.type]?.isHomeType) continue;
 
             const cap = this.getHouseCapacity(house);
             const residents = this.scene.units.filter(u =>
@@ -718,7 +717,7 @@ export default class ConstructManager {
 
     tickHouseProduction(delta) {
         for (const house of this.constructs) {
-            if (!house.built || house.faction || house.type !== 'house') continue;
+            if (!house.built || house.faction || !CONSTRUCTS[house.type]?.isHomeType) continue;
             const apps = house.applianceItems;
             if (!apps?.length) continue;
             const inv = house.inventory ?? (house.inventory = {});

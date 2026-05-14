@@ -12,6 +12,7 @@ export default {
     allowedMaterials: ["Materials.Wood.Pine.Sticks","Materials.Wood.Pine","Materials.Stone.Limestone.Stones","Materials.Stone.Limestone"],
     desc: "Provides housing for up to 6 citizens.",
     capacity: 6,
+    isHomeType: true,
     spawnMs: 200000,
     stores: {"Food.Produce.Berry":120,"Food.Grain.Wheat.Bread":10,"Materials.Wood.Pine.Sticks":30,"Materials.Stone.Limestone.Stones":20},
     tick: null,

@@ -10,9 +10,11 @@ export default {
     cost: {},
     materialQty: 4,
     allowedMaterials: ["Materials.Wood.Pine.Sticks","Materials.Wood.Pine","Materials.Stone.Limestone.Stones","Materials.Stone.Limestone"],
-    desc: "Temporary shelter with basic storage. Upgrade to a house to establish an oikos.",
+    desc: "Shelter and home base. Enclose with walls and furnish to build a proper dwelling.",
     outdoor: true,
     capacity: 4,
+    isHomeType: true,
+    spawnMs: 200000,
     stores: {"Food.Produce.Berry":40,"Materials.Wood.Pine.Sticks":30,"Materials.Stone.Limestone.Stones":20},
     tick: null,
     draw(gfx, b) {

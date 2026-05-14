@@ -1043,7 +1043,7 @@ export default {
         // Private roles → home oikos
         const privateRoles = new Set(Object.values(JOBS).filter(j => j.private).map(j => j.id));
         if (privateRoles.has(u.role) && u.homeConstructId) {
-            const home = this.scene.constructs.find(b => b.id === u.homeConstructId && b.built && b.type === 'house');
+            const home = this.scene.constructs.find(b => b.id === u.homeConstructId && b.built && CONSTRUCTS[b.type]?.isHomeType);
             if (home) {
                 u.taskType = 'deposit'; u.taskConstructId = home.id; u._depositPrivate = true;
                 return;
@@ -1055,7 +1055,7 @@ export default {
             const workplace = this.scene.constructs.find(b => b.id === u.taskConstructId && b.built);
             const isPublicFarm = !workplace || workplace.isPublic;
             if (!isPublicFarm && u.homeConstructId) {
-                const home = this.scene.constructs.find(b => b.id === u.homeConstructId && b.built && b.type === 'house');
+                const home = this.scene.constructs.find(b => b.id === u.homeConstructId && b.built && CONSTRUCTS[b.type]?.isHomeType);
                 if (home) { u.taskType = 'deposit'; u.taskConstructId = home.id; u._depositPrivate = true; return; }
             }
         }
@@ -1239,51 +1239,7 @@ export default {
             if (plantKey !== null) { u.taskType = 'plant_grow';   u.taskZoneKey = plantKey; u.workProgress = 0; return; }
         }
 
-        const preCivic = this._isPreCivicAge();
-
-        // 1. Try planting first (high priority)
-        const plantFarm = this.scene.constructs.find(b => {
-            if (b.type !== 'farm' || !b.built || !b.needsPlanting) return false;
-            if (b.isPublic || preCivic) return true;
-            const farmDomain = this.scene.constructManager.getDomainAt(b.tx, b.ty);
-            return !farmDomain || (homeDomain && farmDomain.id === homeDomain.id);
-        });
-        if (plantFarm) {
-            u.taskType = 'plant'; u.taskConstructId = plantFarm.id;
-            u.moveTo = { x: (plantFarm.tx + plantFarm.width/2) * TILE, y: MAP_OY + (plantFarm.ty + plantFarm.height/2) * TILE };
-            return;
-        }
-
-        // 2. Try farm harvest
-        const farm = this.scene.constructs.find(b => {
-            if (b.type !== 'farm' || !b.built || b.stock <= 0 || b.faction === 'enemy') return false;
-            if (b.isPublic || preCivic) return true;
-            const farmDomain = this.scene.constructManager.getDomainAt(b.tx, b.ty);
-            if (!farmDomain) return true;
-            return homeDomain && farmDomain.id === homeDomain.id;
-        });
-        if (farm) {
-            u.taskType = 'harvest_farm'; u.taskConstructId = farm.id;
-            u.moveTo = { x: (farm.tx + farm.width/2) * TILE, y: MAP_OY + (farm.ty + farm.height/2) * TILE };
-            return;
-        }
-
-        // 3. Try garden harvest (auto-produces into construct inventory)
-        const garden = this.scene.constructs.find(b => {
-            if (b.type !== 'garden' || !b.built || b.faction === 'enemy') return false;
-            if ((b.inventory?.['Food.Produce.Olive'] ?? 0) <= 0) return false;
-            if (b.isPublic || preCivic) return true;
-            const gDom = this.scene.constructManager.getDomainAt(b.tx, b.ty);
-            if (!gDom) return true;
-            return homeDomain && gDom.id === homeDomain.id;
-        });
-        if (garden) {
-            u.taskType = 'harvest_farm'; u.taskConstructId = garden.id;
-            u.moveTo = { x: (garden.tx + garden.width/2) * TILE, y: MAP_OY + (garden.ty + garden.height/2) * TILE };
-            return;
-        }
-
-        // No farm or garden ready — forage nodes
+        // No grow zones ready — forage nodes
         this.seekNodeTask(u, ['berry_bush', 'wild_garden', 'olive_grove']);
     },
 
@@ -1572,7 +1528,7 @@ export default {
             if (!b.built || b.faction || !FOOD_CONSTRUCT_TYPES.has(b.type)) continue;
             // Houses and camps: only eat from own home, or if the construct is public
             const isHome = b.id === u.homeConstructId;
-            const inv = (b.type === 'house' || b.type === 'camp') && !isHome && !b.isPublic ? null : b.inventory;
+            const inv = (CONSTRUCTS[b.type]?.isHomeType) && !isHome && !b.isPublic ? null : b.inventory;
             if (!inv || !FOOD_PRIORITY.some(k => (inv[k] ?? 0) > 0)) continue;
             const bx = (b.tx + b.width / 2) * TILE, by = MAP_OY + (b.ty + b.width / 2) * TILE;
             const d = Phaser.Math.Distance.Between(u.x, u.y, bx, by);
@@ -1669,10 +1625,8 @@ export default {
     },
 
     runCityPlannerAI(u) {
-        // Simple version for now
         const needs = [
-            { type: 'farm', urgency: (this.scene.resources['Food.Grain.Wheat'] / (this.scene.storageMax['Food.Grain.Wheat'] || 1)) < 0.4 ? 10 : 0 },
-            { type: 'house', urgency: (this.scene.units.length / (this.scene.storageMax.pop || 10)) > 0.8 ? 8 : 0 }
+            { type: 'camp', urgency: (this.scene.units.length / (this.scene.storageMax.pop || 10)) > 0.8 ? 8 : 0 }
         ];
         needs.sort((a,b) => b.urgency - a.urgency);
         const target = needs.find(n => n.urgency > 0 && !this.scene.constructs.some(b => b.type === n.type && !b.built));

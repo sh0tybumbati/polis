@@ -29,7 +29,7 @@ export default {
         const b   = this.scene.selectedConstruct;
         const def = CONSTRUCTS[b.type];
 
-        if ((b.type === 'house' || b.type === 'townhall') && b.built) {
+        if ((CONSTRUCTS[b.type]?.isHomeType || b.type === 'townhall') && b.built) {
             this._renderOikosInfo(b, ox, oy, W, H, pad);
             return;
         }
@@ -89,7 +89,7 @@ export default {
     _renderConstructDetailInfo(b, def, ox, oy, W, H, pad) {
         let ry = oy;
 
-        if (b.type !== 'house' && b.type !== 'townhall') {
+        if (!CONSTRUCTS[b.type]?.isHomeType && b.type !== 'townhall') {
             const label = b.isPublic ? '[STATE]' : '[PRIVATE]';
             const col   = b.isPublic ? '#c8a030' : '#6a5840';
             this._infTxt(ox + W - pad, ry, label, { fontSize: this._fs(9), color: col }).setOrigin(1, 0);
@@ -151,7 +151,7 @@ export default {
                 { fontSize: this._fs(9), color: '#6a6050', wordWrap: { width: W - pad * 2 } });
         }
 
-        if (b.type !== 'house' && b.type !== 'townhall' && !b.faction) {
+        if (!CONSTRUCTS[b.type]?.isHomeType && b.type !== 'townhall' && !b.faction) {
             const isPublicStorage = b.type === 'storageshelf' || b.type === 'grainsilo'
                 || Object.values(WORKSHOP_JOBS).some(j => j.construct === b.type);
             const BTN_H = 26;
@@ -269,7 +269,7 @@ export default {
         const familyName = b.type === 'townhall'
             ? (patriarch ? `Archon: ${patriarch.name}` : 'Town Hall')
             : (patriarch ? `${patriarch.name}'s Estate` : `House #${b.id}`);
-        const cap = b.type === 'house'
+        const cap = CONSTRUCTS[b.type]?.isHomeType
             ? this.scene.constructManager.getHouseCapacity(b)
             : (CONSTRUCTS[b.type]?.capacity ?? '?');
 
@@ -383,7 +383,7 @@ export default {
             ry += 14;
         }
 
-        if (b.type === 'house') {
+        if (CONSTRUCTS[b.type]?.isHomeType) {
             const rooms = b.rooms;
             if (rooms) {
                 const roomStr = rooms.length
