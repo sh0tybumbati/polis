@@ -359,6 +359,54 @@ Every unit becomes a persistent individual with biological heritage. This is the
 
 ---
 
+## UX Sprint — Interface Clarity  ← DONE
+
+*Small targeted improvements that reduce confusion and make gameplay legible.*
+
+### Mode Indicator ✅
+- [x] **Active mode status bar** — a 15px tinted strip appears at the top of the actions zone whenever a build/paint/place mode is active; shows mode name + quick reminder (e.g. `⚒ Stone Wall · drag edges · ESC to cancel`)
+- [x] Color-coded per mode: grey=wall, green=grow, blue=work, orange=storage, gold=market, red=erase, teal=construct, brown=road
+- [x] Bar disappears when no mode is active (no wasted space)
+
+### Toast Notifications ✅
+- [x] **`showToast(msg, color)`** — brief pill notification slides up from above the bottom panel and fades out after ~2.5s
+- [x] Multiple toasts stack upward (older ones shift up as new ones arrive)
+- [x] **Construct complete**: fires on every `completeConstructConstruction` call (`⚒ Camp complete`)
+- [ ] Low food warning toast (deferred — needs threshold logic in EconomyManager)
+- [ ] Night wave incoming toast (deferred)
+
+### Cursor Feedback ✅
+- [x] **`_updateCursor()`** called from `updateUI()`; sets browser cursor per mode:
+  - `crosshair` — wall mode, zone paint mode, road mode
+  - `cell` — construct placement, furniture placement, relocate mode
+  - `default` — everything else
+
+### Zone Action Panel ✅
+- [x] **Non-grow zone selection** now shows an action panel instead of falling through to the build menu
+- [x] Panel header shows zone type + tile count (color-coded)
+- [x] **＋ Expand** button re-enters paint mode for that zone type
+- [x] **🗑 Erase** button removes all tiles in the connected zone
+- [x] **✕ Close** button deselects without changing anything
+- [x] Grow zone already had its own crop-picker panel; now all zone types have consistent selection UI
+
+### Scroll Discoverability ✅
+- [x] **Bottom fade** — when a UIPanel has content below the visible area, a dark gradient fade covers the last ~22px to signal "more below"
+- [x] Fade disappears when scrolled to the bottom
+
+### Hover Tooltips ✅
+- [x] **Build button tooltips** — hovering a button in the UIPanel grid shows a small popover with `item.desc` (the construct's description text)
+- [x] Tooltip appears above the button when space permits, below otherwise
+- [x] Tooltips only appear when `item.desc` is set (all construct defs have a `desc` field)
+
+### Future UX Work
+- [ ] Low-food / starvation toast warning
+- [ ] "Night approaching" toast (e.g. 30s before sundown)
+- [ ] Keyboard shortcuts: number keys for category tabs, `W` for wall mode
+- [ ] Construct info summary in tooltip (workers assigned, current job status)
+- [ ] Batch worker assignment (set all idle workers to a role in one click)
+
+---
+
 ## Polish & UX Sprint  ← NEAR TERM
 
 *Small targeted improvements; can be worked alongside any milestone.*

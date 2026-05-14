@@ -191,6 +191,8 @@ export default class ConstructManager {
         this.renderAll();
         this.updateStorageCap();
         this.scene.uiManager.showFloatText((b.tx + b.width / 2) * TILE, MAP_OY + b.ty * TILE - 10, 'Done!', '#88ff88');
+        const label = b.label ?? (b.type ? b.type[0].toUpperCase() + b.type.slice(1) : 'Building');
+        this.scene.uiManager?.showToast?.(`⚒ ${label} complete`, '#a8dda8');
     }
 
     _serConstruct(b) {

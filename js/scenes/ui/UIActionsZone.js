@@ -10,11 +10,15 @@ export default {
 
         const { PANEL_H, KEY_H, TAB_H, panelY, INFO_W, MM_W, ACT_W } = this.L;
         const zx = INFO_W + MM_W;
-        const zy = panelY + KEY_H;
-        const fullH = PANEL_H - KEY_H;
+        let zy = panelY + KEY_H;
+        let fullH = PANEL_H - KEY_H;
+
+        // Mode indicator — always visible when a mode is active
+        const modeH = this._renderModeBar(zx, zy, ACT_W);
+        zy += modeH; fullH -= modeH;
 
         const sel      = this.scene.units.filter(u => u.selected && !u.isEnemy);
-        const construct     = this.scene.selectedConstruct;
+        const construct = this.scene.selectedConstruct;
         const workers  = sel.filter(u => u.type === 'worker' && u.age >= 2);
         const military = sel.filter(u => u.type !== 'worker');
         const scouts   = sel.filter(u => u.type === 'scout');
@@ -27,6 +31,8 @@ export default {
             this._renderMilActions(sel, military, scouts, zx, zy, ACT_W, fullH);
         } else if (this.scene.selectedZoneType === 'grow' && this.scene.selectedZoneTile) {
             this._renderGrowZonePanel(zx, zy, ACT_W, fullH);
+        } else if (this.scene.selectedZoneType && this.scene.selectedZoneTile) {
+            this._renderZonePanel(zx, zy, ACT_W, fullH);
         } else if (this.scene.materialPickMode) {
             this._renderMaterialPickPanel(this.scene.materialPickMode, zx, zy, ACT_W, fullH);
         } else {
@@ -38,6 +44,114 @@ export default {
             this._actionPanel = new UIPanel(this.scene, zx, zy + TAB_H + subH, ACT_W, panelH);
             this._actionPanel.setItems(this._buildMenuItems());
         }
+    },
+
+    _renderModeBar(zx, zy, ACT_W) {
+        const label = this._getModeLabel();
+        if (!label) return 0;
+        const H = 15;
+        const { col, bg } = this._modeBarStyle();
+        const g = this._tab(this.scene.add.graphics().setDepth(21));
+        g.fillStyle(bg, 0.97).fillRect(zx, zy, ACT_W, H);
+        g.lineStyle(1, col, 0.5).lineBetween(zx, zy + H - 1, zx + ACT_W, zy + H - 1);
+        this._tab(this.scene.add.text(zx + ACT_W / 2, zy + H / 2, label, {
+            fontFamily: 'monospace', fontSize: '9px', color: '#c8d4c0',
+        }).setOrigin(0.5).setDepth(22));
+        return H;
+    },
+
+    _getModeLabel() {
+        const s = this.scene;
+        if (s.wallMode) {
+            const def = CONSTRUCTS[s.wallType ?? 'wall_edge'];
+            return `⚒ ${def?.label ?? 'Wall'} · drag edges · ESC to cancel`;
+        }
+        if (s.zoneMode === 'grow')    return '🖌 Grow Zone · drag to paint · ESC to cancel';
+        if (s.zoneMode === 'work')    return '🖌 Work Zone · drag to paint · ESC to cancel';
+        if (s.zoneMode === 'storage') return '🖌 Storage Zone · drag to paint · ESC to cancel';
+        if (s.zoneMode === 'market')  return '🖌 Market Zone · drag to paint · ESC to cancel';
+        if (s.zoneMode === 'erase')   return '🧹 Erase · drag to clear zones · ESC to cancel';
+        if (s.constructType) {
+            const def = CONSTRUCTS[s.constructType];
+            return `📍 ${def?.label ?? s.constructType} · click map to place · ESC to cancel`;
+        }
+        if (s.roadMode) return '🛣 Road · click or drag · ESC to cancel';
+        if (s.constructMode) {
+            const def = CONSTRUCTS[s.placementType];
+            return `🪑 ${def?.label ?? 'Furniture'} · click map to place · ESC to cancel`;
+        }
+        return null;
+    },
+
+    _modeBarStyle() {
+        const s = this.scene;
+        if (s.wallMode)                           return { col: 0x9999cc, bg: 0x1a1a2a };
+        if (s.zoneMode === 'grow')                return { col: 0x66aa44, bg: 0x0e1e0e };
+        if (s.zoneMode === 'work')                return { col: 0x4488ff, bg: 0x0e1428 };
+        if (s.zoneMode === 'storage')             return { col: 0xffaa22, bg: 0x28180a };
+        if (s.zoneMode === 'market')              return { col: 0xddaa22, bg: 0x241e06 };
+        if (s.zoneMode === 'erase')               return { col: 0xff5555, bg: 0x280e0e };
+        if (s.constructType || s.constructMode)   return { col: 0x66aacc, bg: 0x0c1c28 };
+        if (s.roadMode)                           return { col: 0xaa8855, bg: 0x1e1608 };
+        return { col: 0x555555, bg: 0x141414 };
+    },
+
+    _renderZonePanel(zx, zy, ACT_W, fullH) {
+        const s   = this.scene;
+        const zm  = s.zoneManager;
+        const type  = s.selectedZoneType;
+        const tile  = s.selectedZoneTile;
+        const tiles = s.selectedZoneTiles ?? [];
+        const TAB_H = 22, STRIP = 28;
+
+        const ZONE_INFO = {
+            work:    { col: 0x4488ff, bg: 0x0e1420, label: 'Work Zone',    hint: 'Workers labor in this area' },
+            storage: { col: 0xffaa22, bg: 0x281800, label: 'Storage Zone', hint: 'Resources are stockpiled here' },
+            market:  { col: 0xddaa22, bg: 0x242000, label: 'Market Zone',  hint: 'Merchants trade from stalls' },
+            pasture: { col: 0x66aa44, bg: 0x0e2010, label: 'Pasture Zone', hint: 'Animals graze here' },
+        };
+        const info = ZONE_INFO[type] ?? { col: 0xaaaaaa, bg: 0x1a1a1a, label: type, hint: '' };
+
+        // Header bar
+        const hdr = this._tab(s.add.graphics().setDepth(21));
+        hdr.fillStyle(info.bg, 0.96).fillRect(zx, zy, ACT_W, TAB_H);
+        hdr.lineStyle(1, info.col, 0.45).lineBetween(zx, zy + TAB_H, zx + ACT_W, zy + TAB_H);
+        this._tab(s.add.text(zx + ACT_W / 2, zy + TAB_H / 2,
+            `${info.label} — ${tiles.length} tile${tiles.length !== 1 ? 's' : ''}`, {
+                fontFamily: 'monospace', fontSize: '10px', color: '#d4c8a8',
+            }).setOrigin(0.5).setDepth(22));
+
+        // Body
+        const panelH = fullH - TAB_H - STRIP;
+        const bodyY  = zy + TAB_H;
+        const bg2 = this._tab(s.add.graphics().setDepth(21));
+        bg2.fillStyle(0x100c06, 0.85).fillRect(zx, bodyY, ACT_W, panelH);
+
+        this._tab(s.add.text(zx + ACT_W / 2, bodyY + panelH / 2 - 10, info.hint, {
+            fontFamily: 'monospace', fontSize: '9px', color: '#7a6a50', align: 'center',
+            wordWrap: { width: ACT_W - 12 },
+        }).setOrigin(0.5).setDepth(22));
+        this._tab(s.add.text(zx + ACT_W / 2, bodyY + panelH / 2 + 8, `Expand to add tiles · Erase to delete`, {
+            fontFamily: 'monospace', fontSize: '8px', color: '#554a38', align: 'center',
+        }).setOrigin(0.5).setDepth(22));
+
+        // Action strip
+        this._actStrip(zx, bodyY + panelH, ACT_W, STRIP, [
+            { label: '＋ Expand', color: 0x0e200e, cb: () => {
+                s.zoneMode = type;
+                s.selectedZoneType = null; s.selectedZoneTile = null; s.selectedZoneTiles = null;
+                zm.clearSelection(); this.updateUI();
+            }},
+            { label: '🗑 Erase', color: 0x280e0e, cb: () => {
+                tiles.forEach(t => zm.erase(t.tx, t.ty));
+                s.selectedZoneType = null; s.selectedZoneTile = null; s.selectedZoneTiles = null;
+                zm.clearSelection(); this.updateUI();
+            }},
+            { label: '✕ Close', color: 0x1a1408, cb: () => {
+                s.selectedZoneType = null; s.selectedZoneTile = null; s.selectedZoneTiles = null;
+                zm.clearSelection(); this.updateUI();
+            }},
+        ]);
     },
 
     _renderConstructActions(b, zx, zy, ACT_W, fullH) {

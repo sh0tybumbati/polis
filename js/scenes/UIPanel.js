@@ -164,6 +164,36 @@ export default class UIPanel {
             const sg = add(this.scene.add.graphics().setDepth(23));
             sg.fillStyle(0x3a2e18, 0.5).fillRect(x + w - 5, y + 4, 3, tH);
             sg.fillStyle(0xc8a030, 0.7).fillRect(x + w - 5, thumbY, 3, thumbH);
+
+            // Bottom fade-out when more content below
+            if (this._scrollY < ms - 1) {
+                const fg = add(this.scene.add.graphics().setDepth(25));
+                fg.fillStyle(0x130e06, 0.18).fillRect(x, y + h - 22, w - 5, 6);
+                fg.fillStyle(0x130e06, 0.55).fillRect(x, y + h - 16, w - 5, 6);
+                fg.fillStyle(0x130e06, 0.88).fillRect(x, y + h - 10, w - 5, 10);
+            }
+        }
+
+        // Hover tooltip for item description
+        if (this._hovIdx !== -1) {
+            const hovItem = this._items[this._hovIdx];
+            if (hovItem?.desc) {
+                const hCol = this._hovIdx % cols;
+                const hRow = Math.floor(this._hovIdx / cols);
+                const bx   = x + gap + hCol * (sz + gap);
+                const by   = y + gap + hRow * (sz + gap) - this._scrollY;
+                const ttW  = Math.min(this.w - 8, 170);
+                const ttH  = 26;
+                const ttX  = Math.max(x + 2, Math.min(bx, x + this.w - ttW - 2));
+                const ttY  = (by - y > ttH + 6) ? by - ttH - 4 : Math.min(by + sz + 4, y + h - ttH - 2);
+                const tg   = add(this.scene.add.graphics().setDepth(28));
+                tg.fillStyle(0x100c06, 0.96).fillRect(ttX, ttY, ttW, ttH);
+                tg.lineStyle(1, 0x5a4010, 0.7).strokeRect(ttX, ttY, ttW, ttH);
+                add(this.scene.add.text(ttX + 5, ttY + ttH / 2, hovItem.desc, {
+                    fontFamily: 'monospace', fontSize: '9px', color: '#a89870',
+                    wordWrap: { width: ttW - 10 },
+                }).setOrigin(0, 0.5).setDepth(29));
+            }
         }
     }
 

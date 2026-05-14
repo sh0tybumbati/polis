@@ -218,6 +218,7 @@ export default class UIManager {
         this._updateResources();
         this._renderInfoPane();
         this._renderActionsZone();
+        this._updateCursor();
     }
 
     updateEnemyCount() {
@@ -266,6 +267,46 @@ export default class UIManager {
             stroke: '#000000', strokeThickness: 1,
         }).setDepth(25).setOrigin(1, 0);
         this.scene.tweens.add({ targets: txt, alpha: 0, duration: 1500, onComplete: () => txt.destroy() });
+    }
+
+    showToast(msg, color = '#b8e8a0') {
+        if (!this.L) return;
+        const { W, panelY } = this.L;
+        const baseY = panelY - 8;
+        // Shift existing toasts up
+        this._toasts = (this._toasts ?? []).filter(t => t.active);
+        this._toasts.forEach(t => {
+            this.scene.tweens.killTweensOf(t);
+            this.scene.tweens.add({ targets: t, y: t.y - 20, duration: 150, ease: 'Sine.easeOut' });
+        });
+        const t = this.scene.add.text(W / 2, baseY, msg, {
+            fontFamily: 'monospace', fontSize: this._fs(10), color,
+            stroke: '#000000', strokeThickness: 2, align: 'center',
+            backgroundColor: '#000000a0', padding: { x: 6, y: 3 },
+        }).setOrigin(0.5, 1).setDepth(60).setAlpha(0);
+        this._ui(t);
+        this._toasts.push(t);
+        this.scene.tweens.add({
+            targets: t, alpha: 1, y: baseY - 6,
+            duration: 180, ease: 'Sine.easeOut',
+            onComplete: () => {
+                this.scene.tweens.add({
+                    targets: t, alpha: 0, y: baseY - 18,
+                    duration: 600, delay: 2200, ease: 'Sine.easeIn',
+                    onComplete: () => { t.destroy(); this._toasts = (this._toasts ?? []).filter(x => x !== t); },
+                });
+            },
+        });
+    }
+
+    _updateCursor() {
+        const s = this.scene;
+        let cursor = 'default';
+        if (s.wallMode)                           cursor = 'crosshair';
+        else if (s.zoneMode)                      cursor = 'crosshair';
+        else if (s.roadMode)                      cursor = 'crosshair';
+        else if (s.constructType || s.constructMode || s.relocateMode) cursor = 'cell';
+        try { s.input.setDefaultCursor(cursor); } catch (_) {}
     }
 
     // ─── Info Pane helpers ───────────────────────────────────────────────────
