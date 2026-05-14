@@ -157,7 +157,16 @@ export default {
                     }
                 }
             } else if (intent === 'socialize') {
-                this._handleSocializeIntent(u);
+                // Try to chat with a nearby awake adult; fall back to strolling
+                const chatTarget = this.scene.units.find(w =>
+                    w !== u && !w.isEnemy && w.hp > 0 && w.age >= 2 && !w.isSleeping &&
+                    !['chat', 'sleep'].includes(w.taskType) &&
+                    Phaser.Math.Distance.Between(u.x, u.y, w.x, w.y) < 200);
+                if (chatTarget) {
+                    u.taskType = 'chat'; u._chatTargetId = chatTarget.id; u.workProgress = 0;
+                } else {
+                    this._handleSocializeIntent(u);
+                }
             } else if (intent === 'leisure') {
                 this.seekLeisureTask(u);
             } else {
@@ -172,11 +181,18 @@ export default {
                         else if (u.role in WORKSHOP_JOBS) this.seekWorkshopTask(u);
                         else if (JOBS[u.role]?.nodeTypes) this.seekNodeTask(u, JOBS[u.role].nodeTypes);
                     }
-                    // No task found — fall through to socialize, leisure, or generic gather
+                    // No task found — satisfy pressing needs before generic gather
                     if (!u.taskType && !u.targetNode) {
-                        const fallback = u.dayPlan?.find(p => p.intent === 'socialize' || p.intent === 'leisure');
-                        if (fallback?.intent === 'socialize') this._handleSocializeIntent(u);
-                        else if (fallback?.intent === 'leisure') this.seekLeisureTask(u);
+                        const n = u.needs ?? {};
+                        if ((n.rest ?? 1) < 0.45 && !u.isSleeping) {
+                            u.taskType = 'rest_break'; u.workProgress = 0;
+                        } else if ((n.joy ?? 1) < 0.4) {
+                            u.taskType = 'stroll'; u.workProgress = 0; u._strollPoints = null;
+                        } else {
+                            const fallback = u.dayPlan?.find(p => p.intent === 'socialize' || p.intent === 'leisure');
+                            if (fallback?.intent === 'socialize') this._handleSocializeIntent(u);
+                            else if (fallback?.intent === 'leisure') this.seekLeisureTask(u);
+                        }
                         // Absolute last resort: gather any nearby resource node
                         if (!u.taskType && !u.targetNode) {
                             this.seekNodeTask(u, ['berry_bush', 'wild_garden', 'olive_grove', 'small_tree', 'large_tree', 'small_boulder', 'large_boulder']);
@@ -209,6 +225,9 @@ export default {
 
         if (u.taskType === 'eat') this.handleEatTask(u, dt);
         else if (u.taskType === 'leisure') this.handleLeisureTask(u, dt);
+        else if (u.taskType === 'chat') this.handleChatTask(u, dt);
+        else if (u.taskType === 'rest_break') this.handleRestBreakTask(u, dt);
+        else if (u.taskType === 'stroll') this.handleStrollTask(u, dt);
         else if (u.taskType === 'build') this.handleBuildTask(u, dt);
         else if (u.taskType === 'zone_workshop')   this.handleZoneWorkshopTask(u, dt);
         else if (u.taskType === 'deconstruct') this.handleDeconstructTask(u, dt);
@@ -919,11 +938,11 @@ export default {
         if (this.moveToward(u, cx, cy, 18, dt)) return;
 
         if (!u.needs) u.needs = { food: 0.8, rest: 1, social: 0.8, joy: 0.8 };
-        u.needs.joy = Math.min(1.0, (u.needs.joy ?? 0.5) + dt * 0.000018);
+        u.needs.joy = Math.min(1.0, (u.needs.joy ?? 0.5) + dt * 0.018);
         u.workProgress = (u.workProgress ?? 0) + dt;
 
         // Drink beer for bonus joy (once every 2s)
-        if (!u._lastBeerDrink || u.workProgress > u._lastBeerDrink + 2000) {
+        if (!u._lastBeerDrink || u.workProgress > u._lastBeerDrink + 2) {
             if ((this.scene.resources['Food.Drink.Beer'] ?? 0) >= 1) {
                 this.scene.economyManager.takeFromCommons('Food.Drink.Beer', 1);
                 u.needs.joy = Math.min(1.0, u.needs.joy + 0.12);
@@ -932,8 +951,88 @@ export default {
             }
         }
 
-        if (u.workProgress >= 5000 || (u.needs.joy ?? 0) >= 0.95) {
+        if (u.workProgress >= 5 || (u.needs.joy ?? 0) >= 0.95) {
             u.taskType = null; u.taskZoneKey = null; u.workProgress = 0; u._lastBeerDrink = null;
+        }
+    },
+
+    // Chat with a nearby unit for ~6-8s; fast social recovery
+    handleChatTask(u, dt) {
+        if (!u.needs) u.needs = { food: 1, rest: 1, social: 0.8, joy: 0.8 };
+        const target = this.scene.units.find(w => w.id === u._chatTargetId);
+        if (!target || target.hp <= 0 || target.isSleeping) { u.taskType = null; return; }
+
+        const d = Phaser.Math.Distance.Between(u.x, u.y, target.x, target.y);
+        if (d > 28) { this.moveToward(u, target.x, target.y, 20, dt); return; }
+
+        u.needs.social = Math.min(1.0, u.needs.social + dt * 0.03);
+        u.needs.joy    = Math.min(1.0, u.needs.joy    + dt * 0.01);
+        u.workProgress = (u.workProgress ?? 0) + dt;
+
+        if (!u._chatEmitted) {
+            this.scene.uiManager.showFloatText(u.x, u.y - 18, '💬', '#aaddff');
+            u._chatEmitted = true;
+        }
+
+        if (u.workProgress >= 7 || u.needs.social >= 0.9) {
+            u.taskType = null; u.workProgress = 0; u._chatTargetId = null; u._chatEmitted = false;
+        }
+    },
+
+    // Sit or pause for ~15s; partial rest recovery (not full sleep)
+    handleRestBreakTask(u, dt) {
+        if (!u.needs) u.needs = { food: 1, rest: 1, social: 0.8, joy: 0.8 };
+
+        // Walk to nearest seat/bench if one exists, otherwise rest in place
+        const seat = this.scene.constructs.find(b => b.built && (b.type === 'bench' || b.type === 'tavernseat' || b.type === 'throne'));
+        if (seat) {
+            const sx = (seat.tx + 0.5) * TILE, sy = MAP_OY + (seat.ty + 0.5) * TILE;
+            if (Phaser.Math.Distance.Between(u.x, u.y, sx, sy) > 20) {
+                this.moveToward(u, sx, sy, 16, dt); return;
+            }
+        }
+
+        u.needs.rest = Math.min(1.0, u.needs.rest + dt * 0.012);
+        u.needs.joy  = Math.min(1.0, u.needs.joy  + dt * 0.005);
+        u.workProgress = (u.workProgress ?? 0) + dt;
+
+        if (!u._restEmitted) {
+            this.scene.uiManager.showFloatText(u.x, u.y - 18, '😴', '#ccccff');
+            u._restEmitted = true;
+        }
+
+        if (u.workProgress >= 15 || u.needs.rest >= 0.8) {
+            u.taskType = null; u.workProgress = 0; u._restEmitted = false;
+        }
+    },
+
+    // Stroll to 3 random nearby points for ~20s; joy recovery via wandering
+    handleStrollTask(u, dt) {
+        if (!u.needs) u.needs = { food: 1, rest: 1, social: 0.8, joy: 0.8 };
+
+        if (!u._strollPoints || u._strollPoints.length === 0) {
+            // Generate 3 random waypoints near current position
+            u._strollPoints = Array.from({ length: 3 }, () => ({
+                x: u.x + Phaser.Math.Between(-120, 120),
+                y: u.y + Phaser.Math.Between(-80, 80),
+            }));
+            u._strollEmitted = false;
+        }
+
+        if (!u._strollEmitted) {
+            this.scene.uiManager.showFloatText(u.x, u.y - 18, '🚶', '#bbffcc');
+            u._strollEmitted = true;
+        }
+
+        const wp = u._strollPoints[0];
+        const arrived = !this.moveToward(u, wp.x, wp.y, 12, dt);
+        if (arrived) u._strollPoints.shift();
+
+        u.needs.joy = Math.min(1.0, u.needs.joy + dt * 0.008);
+        u.workProgress = (u.workProgress ?? 0) + dt;
+
+        if (u._strollPoints.length === 0 || u.workProgress >= 25 || u.needs.joy >= 0.9) {
+            u.taskType = null; u.workProgress = 0; u._strollPoints = null; u._strollEmitted = false;
         }
     },
 

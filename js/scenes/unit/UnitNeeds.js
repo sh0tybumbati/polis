@@ -84,15 +84,15 @@ export default {
 
         // Food decays while awake; restored by eating
         // Rate: empties in ~3 full day/night cycles (9 min real time)
-        if (!u.isSleeping) n.food = Math.max(0, n.food - dt * 0.0000019);
+        if (!u.isSleeping) n.food = Math.max(0, n.food - dt * 0.0019);
 
         // Rest: decays while awake, recovers while sleeping at home
         // Rate: needs sleep after ~2 day cycles; recovers fully in ~1 night
         if (u.isSleeping) {
-            n.rest = Math.min(1.0, n.rest + dt * 0.000011);
+            n.rest = Math.min(1.0, n.rest + dt * 0.011);
             if (n.rest >= 0.95) u.isSleeping = false; // wake up
         } else {
-            n.rest = Math.max(0, n.rest - dt * 0.0000028);
+            n.rest = Math.max(0, n.rest - dt * 0.0028);
         }
 
         // Social: decays slowly; partially recovered by proximity to other villagers
@@ -100,17 +100,17 @@ export default {
             w !== u && !w.isEnemy && w.hp > 0 &&
             Phaser.Math.Distance.Between(u.x, u.y, w.x, w.y) < 64).length;
         if (nearby > 0) {
-            n.social = Math.min(1.0, n.social + dt * 0.000004 * Math.min(nearby, 3));
+            n.social = Math.min(1.0, n.social + dt * 0.004 * Math.min(nearby, 3));
         } else {
-            n.social = Math.max(0, n.social - dt * 0.0000012);
+            n.social = Math.max(0, n.social - dt * 0.0012);
         }
 
         // Joy: decays while working, recovers slightly when social need is met
         const isWorking = u.taskType && u.taskType !== 'eat' && !u.isSleeping;
         if (isWorking) {
-            n.joy = Math.max(0, n.joy - dt * 0.0000015);
+            n.joy = Math.max(0, n.joy - dt * 0.0015);
         } else {
-            n.joy = Math.min(1.0, n.joy + dt * 0.000003);
+            n.joy = Math.min(1.0, n.joy + dt * 0.003);
         }
 
         // Mood: weighted average of needs
