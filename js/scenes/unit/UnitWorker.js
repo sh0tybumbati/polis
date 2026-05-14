@@ -131,7 +131,7 @@ export default {
         }
 
         // Deposit takes priority
-        const _noDeposit = new Set(['build', 'zone_workshop', 'workshop', 'eat', 'collect_tithe', 'leisure', 'merchant']);
+        const _noDeposit = new Set(['build', 'zone_workshop', 'workshop', 'eat', 'collect_tithe', 'leisure', 'merchant', 'plant_grow', 'harvest_grow', 'plant']);
         if (this.totalCarrying(u) > 0 && !u.targetNode && !_noDeposit.has(u.taskType)) {
             if (u.taskType !== 'deposit' && u.taskType !== 'deposit_zone') this.seekDeposit(u);
             if (u.taskType === 'deposit')      { this.handleDepositTask(u, dt);     return; }
