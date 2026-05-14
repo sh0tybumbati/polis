@@ -105,5 +105,30 @@ export default {
         const zoom = this.scene.cameras.main.zoom;
         const lod  = zoom < 0.20 ? 0 : zoom < 0.50 ? 1 : zoom < 1.50 ? 2 : 3;
         UNITS[u.type]?.draw(u.gfx, u, { totalCarrying: u => this.totalCarrying(u), lod, ageScale: scale });
+
+        // Task progress bar — shown above unit when actively working
+        const TASK_MAX = {
+            plant_grow: 3000, harvest_grow: 2000, plant: 6000,
+            build: 25, repair: 25, deconstruct: 25,
+            workshop: null, zone_workshop: null,
+        };
+        const hasMax = Object.prototype.hasOwnProperty.call(TASK_MAX, u.taskType);
+        if (hasMax && (u.workProgress ?? 0) > 0 && u.hp > 0) {
+            const maxVal = TASK_MAX[u.taskType];
+            const fraction = maxVal !== null
+                ? Math.min(1, u.workProgress / maxVal)
+                : null;
+            const bw = 20 * scale, bh = 2.5 * scale;
+            const bx = -bw / 2, by = -16 * scale;
+            u.gfx.fillStyle(0x000000, 0.45).fillRect(bx - 0.5, by - 0.5, bw + 1, bh + 1);
+            u.gfx.fillStyle(0x334455, 0.7).fillRect(bx, by, bw, bh);
+            if (fraction !== null) {
+                u.gfx.fillStyle(0x55ddaa, 1.0).fillRect(bx, by, bw * fraction, bh);
+            } else {
+                // Indeterminate — animated stripe
+                const phase = (Date.now() % 1200) / 1200;
+                u.gfx.fillStyle(0x55ddaa, 0.8).fillRect(bx + bw * phase - 4, by, 6, bh);
+            }
+        }
     },
 };

@@ -153,14 +153,13 @@ export default {
             if (intent === 'eat') {
                 this.pushTask(u, 'eat');
             } else if (intent === 'sleep') {
-                // Proactive sleep: head home before the emergency threshold (< 0.25)
+                // Proactive sleep: head to tent door before the emergency threshold (< 0.25)
                 if (u.homeConstructId != null) {
                     const fm = this.scene.constructManager;
                     const campItem = fm?.getById(u.homeConstructId);
                     if (campItem?.built) {
-                        const htx = campItem.tx, hty = campItem.ty;
-                        const dist = Phaser.Math.Distance.Between(u.x, u.y, htx * TILE + TILE / 2, MAP_OY + hty * TILE + TILE / 2);
-                        u.moveTo = { x: htx * TILE + TILE / 2, y: MAP_OY + hty * TILE + TILE / 2 };
+                        const hw = campItem.width ?? 2, hh = campItem.height ?? 2;
+                        u.moveTo = { x: (campItem.tx + hw / 2) * TILE, y: MAP_OY + (campItem.ty + hh) * TILE - 8 };
                     }
                 } else if (u.homeConstructId) {
                     const home = this.scene.constructs.find(b => b.id === u.homeConstructId && b.built);
@@ -216,7 +215,7 @@ export default {
 
         // Design fix: if unit has a role but no task/node for 12s, re-evaluate
         // Prevents permanent lock when e.g. all farms are fallow and no nodes in range
-        const stickyRoles = new Set(['hunter', 'shepherd']); // player-directed, don't auto-reassign
+        const stickyRoles = new Set(['hunter', 'shepherd', 'farmer']); // player-directed, don't auto-reassign
         if (u._prevRole) stickyRoles.add(u.role); // self-supplying — keep temporary role until deposit done
         if (!stickyRoles.has(u.role) && !u.taskType && !u.targetNode) {
             u._roleIdleTimer = (u._roleIdleTimer ?? 0) + dt;
@@ -226,9 +225,9 @@ export default {
         }
 
         if (u.role === 'builder') {
-            if (time - u.lastSeek > 1500) { u.lastSeek = time; this.seekBuilderTask(u); }
+            if (!u.taskType && time - u.lastSeek > 1500) { u.lastSeek = time; this.seekBuilderTask(u); }
         } else if (u.role === 'farmer') {
-            if (time - u.lastSeek > 1500) { u.lastSeek = time; this.seekFarmerTask(u); }
+            if (!u.taskType && time - u.lastSeek > 1500) { u.lastSeek = time; this.seekFarmerTask(u); }
         } else if (u.role in WORKSHOP_JOBS) {
             if (!u.taskType && time - u.lastSeek > 2000) { u.lastSeek = time; this.seekWorkshopTask(u); }
         } else if (u.role === 'merchant') {
@@ -1262,7 +1261,24 @@ export default {
             if (plantKey !== null) { u.taskType = 'plant_grow';   u.taskZoneKey = plantKey; u.workProgress = 0; return; }
         }
 
-        // No grow zones ready — forage nodes
+        // Crops are growing — wait near the field rather than wandering off
+        if (zm && zm.growTiles.size > 0) {
+            let bestKey = null, bestDist = Infinity;
+            for (const key of zm.growTiles.keys()) {
+                const ktx = key % MAP_W, kty = Math.floor(key / MAP_W);
+                const d = Phaser.Math.Distance.Between(u.x, u.y, ktx * TILE + TILE / 2, MAP_OY + kty * TILE + TILE / 2);
+                if (d < bestDist) { bestDist = d; bestKey = key; }
+            }
+            if (bestKey !== null) {
+                const ktx = bestKey % MAP_W, kty = Math.floor(bestKey / MAP_W);
+                u.moveTo = {
+                    x: (ktx + 0.5) * TILE + Phaser.Math.Between(-TILE, TILE),
+                    y: MAP_OY + (kty + 0.5) * TILE + Phaser.Math.Between(-TILE / 2, TILE / 2),
+                };
+                return;
+            }
+        }
+        // No grow zones at all — forage nearby nodes
         this.seekNodeTask(u, ['berry_bush', 'wild_garden', 'olive_grove']);
     },
 
