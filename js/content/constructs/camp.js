@@ -9,6 +9,7 @@ export default {
     color: 9138256,
     cost: {},
     materialQty: 4,
+    allowedMaterials: ["Materials.Wood.Pine.Sticks","Materials.Wood.Pine","Materials.Stone.Limestone.Stones","Materials.Stone.Limestone"],
     desc: "Temporary shelter with basic storage. Upgrade to a house to establish an oikos.",
     outdoor: true,
     capacity: 4,

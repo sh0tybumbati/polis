@@ -10,6 +10,7 @@ export default {
     color: 8024160,
     cost: {"Materials.Stone.Limestone":3},
     materialQty: 5,
+    allowedMaterials: ["Materials.Stone.Limestone.Stones","Materials.Stone.Limestone"],
     outdoor: true,
     desc: "Provides vision and a platform for archers.",
     fogRadius: 6,

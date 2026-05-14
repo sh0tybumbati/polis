@@ -9,6 +9,7 @@ export default {
     color: 9070664,
     cost: {"Materials.Stone.Limestone":2},
     materialQty: 6,
+    allowedMaterials: ["Materials.Stone.Limestone.Stones","Materials.Stone.Limestone"],
     outdoor: true,
     spawnMs: 18000,
     desc: "Trains and houses melee infantry.",

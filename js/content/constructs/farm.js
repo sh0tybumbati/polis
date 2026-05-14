@@ -9,6 +9,7 @@ export default {
     color: 5937704,
     cost: {},
     materialQty: 5,
+    allowedMaterials: ["Materials.Wood.Pine.Sticks","Materials.Wood.Pine","Materials.Stone.Limestone.Stones","Materials.Stone.Limestone"],
     outdoor: true,
     stockMax: 48,
     desc: "Produces wheat. Requires a farmer to harvest.",

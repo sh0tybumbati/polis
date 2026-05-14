@@ -9,4 +9,9 @@ export const GAME_CONFIG = {
   render: {
     antialias: false,
   },
+  input: {
+    mouse: {
+      preventDefaultDown: false,  // let pointerdown reach Phaser for all buttons
+    },
+  },
 };

@@ -27,6 +27,7 @@ export default class UIPanel {
             ds.startY = ptr.y;
             ds.startScroll = this._scrollY;
             ds.moved = false;
+            ds.right = ptr.button === 2;
         });
         z.on('pointermove', (ptr) => {
             if (ds.on) {
@@ -49,9 +50,12 @@ export default class UIPanel {
         z.on('pointerup', (ptr) => {
             if (ds.on && !ds.moved) {
                 const item = this._hitItem(ptr.x, ptr.y);
-                if (item && !item.dimmed) item.callback();
+                if (item && !item.dimmed) {
+                    if (ds.right && item.rightCallback) item.rightCallback();
+                    else if (!ds.right) item.callback();
+                }
             }
-            ds.on = false;
+            ds.on = false; ds.right = false;
         });
         z.on('pointerupoutside', () => { ds.on = false; this._hovIdx = -1; this._renderContent(); });
         return z;
@@ -133,6 +137,21 @@ export default class UIPanel {
                     color: item.dimmed ? '#443322' : '#aa9966',
                     align: 'center', wordWrap: { width: sz - 6 },
                 }).setOrigin(0.5).setDepth(22));
+            }
+
+            // Material badge: small dot + label in top-right corner
+            if (item.matLabel && item.matColor != null && visH >= sz * 0.5) {
+                const dot = add(this.scene.add.graphics().setDepth(23));
+                dot.fillStyle(item.matColor, 0.9).fillCircle(bx + sz - 7, by + 7, 4);
+                add(this.scene.add.text(bx + sz - 12, by + 2, item.matLabel, {
+                    fontFamily: 'monospace', fontSize: '7px', color: '#ccbbaa',
+                }).setOrigin(1, 0).setDepth(23));
+            }
+            // Right-click hint chevron when picker available
+            if (item.rightCallback && visH >= sz * 0.5) {
+                add(this.scene.add.text(bx + sz - 3, by + sz - 3, '▾', {
+                    fontFamily: 'monospace', fontSize: '8px', color: '#887755',
+                }).setOrigin(1, 1).setDepth(23));
             }
         });
 

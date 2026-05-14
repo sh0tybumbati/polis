@@ -1,4 +1,4 @@
-import { TILE, MAP_OY, FM_TYPES, FM_LABELS } from '../../config/gameConstants.js';
+import { TILE, MAP_OY, FM_TYPES, FM_LABELS, MATERIAL_LABELS, MATERIAL_COLORS } from '../../config/gameConstants.js';
 import { CONSTRUCTS, CONSTRUCT_CATS, computeBuildCost } from '../../content/constructs/index.js';
 import { CROPS } from '../../content/crops/index.js';
 import UIPanel from '../UIPanel.js';
@@ -25,17 +25,15 @@ export default {
             this._renderWorkerActions(sel, workers, zx, zy, ACT_W, fullH);
         } else if (sel.length > 0) {
             this._renderMilActions(sel, military, scouts, zx, zy, ACT_W, fullH);
+        } else if (this.scene.materialPickMode) {
+            this._renderMaterialPickPanel(this.scene.materialPickMode, zx, zy, ACT_W, fullH);
         } else {
-            const isFurnish  = this.scene.buildCat === 'Furnish';
-            const isZones    = this.scene.buildCat === 'Zones';
-            const noMaterial = isFurnish || isZones;
-            const MAT_H = noMaterial ? 0 : 18;
-            if (!noMaterial) this._renderMaterialToggle(zx, zy, ACT_W, MAT_H);
-            this._renderCategoryTabs(zx, zy + MAT_H, ACT_W, TAB_H);
+            const isFurnish = this.scene.buildCat === 'Furnish';
+            this._renderCategoryTabs(zx, zy, ACT_W, TAB_H);
             let subH = 0;
-            if (isFurnish) { this._renderFurnishSubTabs(zx, zy + MAT_H + TAB_H, ACT_W, TAB_H); subH = TAB_H; }
-            const panelH = fullH - MAT_H - TAB_H - subH;
-            this._actionPanel = new UIPanel(this.scene, zx, zy + MAT_H + TAB_H + subH, ACT_W, panelH);
+            if (isFurnish) { this._renderFurnishSubTabs(zx, zy + TAB_H, ACT_W, TAB_H); subH = TAB_H; }
+            const panelH = fullH - TAB_H - subH;
+            this._actionPanel = new UIPanel(this.scene, zx, zy + TAB_H + subH, ACT_W, panelH);
             this._actionPanel.setItems(this._buildMenuItems());
         }
     },
@@ -303,36 +301,6 @@ export default {
         ]);
     },
 
-    _renderMaterialToggle(x, y, w, h) {
-        const mat = this.scene.constructMaterial ?? 'Materials.Wood.Pine.Sticks';
-        const options = [
-            ['Materials.Wood.Pine.Sticks',       'Sticks'],
-            ['Materials.Wood.Pine',               'Logs'],
-            ['Materials.Stone.Limestone.Stones',  'Stones'],
-            ['Materials.Stone.Limestone',         'Slabs'],
-        ];
-        const btnW = Math.floor(w / options.length);
-        options.forEach(([m, label], i) => {
-            const active = mat === m;
-            const bx = x + i * btnW;
-            const bg = this._tab(this.scene.add.graphics().setDepth(22));
-            bg.fillStyle(active ? 0x4a3018 : 0x1a1208, active ? 0.95 : 0.7)
-              .fillRect(bx, y, btnW - 1, h - 1);
-            if (active) bg.lineStyle(1, 0xc8a030, 0.7).strokeRect(bx, y, btnW - 1, h - 1);
-            const hov = this._tab(this.scene.add.graphics().setDepth(23).setAlpha(0));
-            hov.fillStyle(0xffffff, 0.10).fillRect(bx, y, btnW - 1, h - 1);
-            this._tab(this.scene.add.text(bx + btnW / 2, y + h / 2, label, {
-                fontFamily: 'monospace', fontSize: '9px',
-                color: active ? '#e8d090' : '#5a4a28',
-            }).setOrigin(0.5).setDepth(22));
-            const z = this._tab(this.scene.add.zone(bx + btnW / 2, y + h / 2, btnW - 1, h - 1)
-                .setInteractive({ cursor: 'pointer' }).setDepth(24));
-            z.on('pointerover', () => { if (!active) hov.setAlpha(1); });
-            z.on('pointerout',  () => hov.setAlpha(0));
-            z.on('pointerdown', () => { this.scene.constructMaterial = m; this.updateUI(); });
-        });
-    },
-
     _renderCategoryTabs(x, y, w, h) {
         const cats  = [...Object.keys(CONSTRUCT_CATS).filter(k => k !== 'Furnish'), 'Furnish', 'Zones'];
         const tabW  = Math.floor((w - 2) / cats.length);
@@ -453,28 +421,38 @@ export default {
             ];
         }
 
-        const mat   = this.scene.constructMaterial ?? 'Materials.Wood.Pine';
         const constructs = CONSTRUCT_CATS[this.scene.buildCat] ?? [];
         const items = constructs.filter(t => CONSTRUCTS[t]).map(type => {
             const def      = CONSTRUCTS[type];
+            const mats     = def.allowedMaterials ?? [];
+            const mat      = (mats.length > 0)
+                ? (this.scene.constructMaterials?.[type] ?? mats[0])
+                : null;
             const cost     = computeBuildCost(type, mat);
             const canAfford = !Object.keys(cost).length || this.scene.economyManager.afford(cost);
             const isActive  = this.scene.constructType === type;
             const costStr   = Object.keys(cost).length
-                ? Object.entries(cost).map(([r, n]) => `${n}${r[0]}`).join(' ')
+                ? Object.entries(cost).map(([r, n]) => `${n} ${MATERIAL_LABELS[r] ?? r.split('.').pop()}`).join(' ')
                 : null;
+            const hasPicker = mats.length > 1;
             return {
                 label: def.label, sublabel: costStr, desc: def.desc,
                 color: isActive ? 0x4a6070 : canAfford ? (def.color > 0 ? Math.max(0, (def.color & 0xfefefe) >> 1) : 0x2a1e0e) : 0x1a1208,
                 dimmed: false, active: isActive,
+                matLabel: hasPicker ? (MATERIAL_LABELS[mat] ?? null) : null,
+                matColor: hasPicker ? (MATERIAL_COLORS[mat] ?? null) : null,
                 callback: () => {
-                    this.scene.constructType      = isActive ? null : type;
-                    this.scene.roadMode      = false;
-                    this.scene.wallMode      = false;
-                    this.scene.constructMode = false;
+                    this.scene.constructType  = isActive ? null : type;
+                    this.scene.roadMode       = false;
+                    this.scene.wallMode       = false;
+                    this.scene.constructMode  = false;
                     this.scene.hoverGfx?.clear();
                     this.updateUI();
                 },
+                rightCallback: hasPicker ? () => {
+                    this.scene.materialPickMode = type;
+                    this.updateUI();
+                } : null,
             };
         });
 
@@ -513,5 +491,54 @@ export default {
         if (m.includes('Brick'))  return 'brick';
         if (m.includes('Daub'))   return 'daub';
         return 'wood';
+    },
+
+    _renderMaterialPickPanel(type, zx, zy, ACT_W, fullH) {
+        const def  = CONSTRUCTS[type];
+        const mats = def?.allowedMaterials ?? [];
+        const cur  = this.scene.constructMaterials?.[type] ?? mats[0];
+        const s    = this.scene;
+        const TAB_H = 22;
+        const STRIP = 28;
+
+        // Header: construct name
+        const hdr = this._tab(s.add.graphics().setDepth(21));
+        hdr.fillStyle(0x1a1810, 0.92).fillRect(zx, zy, ACT_W, TAB_H);
+        this._tab(s.add.text(zx + ACT_W / 2, zy + TAB_H / 2,
+            `Material: ${def?.label ?? type}`, {
+                fontFamily: 'monospace', fontSize: '11px', color: '#d4c890',
+            }).setOrigin(0.5).setDepth(22));
+
+        // Material pick items
+        const panelH = fullH - TAB_H - STRIP;
+        const items  = mats.map(mat => {
+            const isActive = mat === cur;
+            const cost = computeBuildCost(type, mat);
+            const costStr = Object.keys(cost).length
+                ? Object.entries(cost).map(([r, n]) => `${n} ${MATERIAL_LABELS[r] ?? r.split('.').pop()}`).join(' ')
+                : 'free';
+            const canAfford = !Object.keys(cost).length || s.economyManager.afford(cost);
+            return {
+                label: MATERIAL_LABELS[mat] ?? mat.split('.').pop(),
+                sublabel: costStr,
+                color: isActive ? (MATERIAL_COLORS[mat] ?? 0x334455) : Math.max(0, ((MATERIAL_COLORS[mat] ?? 0x334455) & 0xfefefe) >> 1),
+                active: isActive,
+                dimmed: !canAfford,
+                matColor: MATERIAL_COLORS[mat] ?? null,
+                callback: () => {
+                    if (!s.constructMaterials) s.constructMaterials = {};
+                    s.constructMaterials[type] = mat;
+                    s.materialPickMode = null;
+                    this.updateUI();
+                },
+            };
+        });
+
+        this._actionPanel = new UIPanel(s, zx, zy + TAB_H, ACT_W, panelH);
+        this._actionPanel.setItems(items);
+
+        this._actStrip(zx, zy + TAB_H + panelH, ACT_W, STRIP, [
+            { label: '← Back', color: 0x2a1c10, cb: () => { s.materialPickMode = null; this.updateUI(); } },
+        ]);
     },
 };

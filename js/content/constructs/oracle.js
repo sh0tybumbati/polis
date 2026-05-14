@@ -9,6 +9,7 @@ export default {
     color: 8939178,
     cost: {"Materials.Stone.Limestone":3},
     materialQty: 6,
+    allowedMaterials: ["Materials.Stone.Limestone"],
     desc: "Provides foresight and wisdom.",
     tick: null,
     draw(gfx, b) {

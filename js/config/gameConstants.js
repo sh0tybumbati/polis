@@ -312,4 +312,26 @@ export const ROOM_MAX_SLOTS = 6; // max rooms per house
 export const FM_TYPES = ['phalanx', 'wedge', 'screen'];
 export const FM_LABELS = ['Phalanx', 'Wedge', 'Screen'];
 
+// ─── Material display helpers ─────────────────────────────────────────────────
+
+export const MATERIAL_LABELS = {
+    'Materials.Wood.Pine.Sticks':      'Sticks',
+    'Materials.Wood.Pine':             'Logs',
+    'Materials.Stone.Limestone.Stones':'Stones',
+    'Materials.Stone.Limestone':       'Slabs',
+    'Materials.Metal.Iron':            'Iron',
+    'Materials.Metal.Bronze':          'Bronze',
+    'Materials.Metal.Gold':            'Gold',
+};
+
+export const MATERIAL_COLORS = {
+    'Materials.Wood.Pine.Sticks':      0x7a4e28,
+    'Materials.Wood.Pine':             0x5a3018,
+    'Materials.Stone.Limestone.Stones':0x888888,
+    'Materials.Stone.Limestone':       0x5a5a70,
+    'Materials.Metal.Iron':            0x8899aa,
+    'Materials.Metal.Bronze':          0xaa7722,
+    'Materials.Metal.Gold':            0xddaa22,
+};
+
 // ─────────────────────────────────────────────────────────────────────────────

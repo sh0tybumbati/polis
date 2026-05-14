@@ -9,6 +9,7 @@ export default {
     color: 13404228,
     cost: {},
     materialQty: 5,
+    allowedMaterials: ["Materials.Wood.Pine.Sticks","Materials.Wood.Pine","Materials.Stone.Limestone.Stones","Materials.Stone.Limestone"],
     desc: "Provides housing for up to 6 citizens.",
     capacity: 6,
     spawnMs: 200000,

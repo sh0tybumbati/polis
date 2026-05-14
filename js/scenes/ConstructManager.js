@@ -146,7 +146,13 @@ export default class ConstructManager {
     }
 
     placeConstructAt(tx, ty) {
-        return this.placeConstruct(this.scene.constructType, tx, ty, this.scene.constructMaterial);
+        const type = this.scene.constructType;
+        const def  = CONSTRUCTS[type];
+        const mats = def?.allowedMaterials ?? [];
+        const mat  = mats.length > 0
+            ? (this.scene.constructMaterials?.[type] ?? mats[0])
+            : null;
+        return this.placeConstruct(type, tx, ty, mat);
     }
 
     placeBuiltConstruct(type, tx, ty) {

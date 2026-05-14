@@ -9,6 +9,7 @@ export default {
     color: 10520664,
     cost: {"Materials.Stone.Limestone":1},
     materialQty: 3,
+    allowedMaterials: ["Materials.Stone.Limestone.Stones","Materials.Stone.Limestone"],
     outdoor: true,
     desc: "Allows friendly units to pass through walls.",
     tick: null,

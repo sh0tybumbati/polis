@@ -9,6 +9,7 @@ export default {
     color: 14527044,
     cost: {"Materials.Stone.Limestone":6},
     materialQty: 6,
+    allowedMaterials: ["Materials.Stone.Limestone"],
     desc: "A place of worship for the gods.",
     tick: null,
     draw(gfx, b) {

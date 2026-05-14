@@ -9,6 +9,7 @@ export default {
     color: 8017186,
     cost: {},
     materialQty: 9,
+    allowedMaterials: ["Materials.Wood.Pine.Sticks","Materials.Wood.Pine","Materials.Stone.Limestone.Stones","Materials.Stone.Limestone"],
     outdoor: true,
     spawnMs: 22000,
     desc: "Trains and houses cavalry units.",

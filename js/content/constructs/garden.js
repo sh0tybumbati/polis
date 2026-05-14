@@ -9,6 +9,7 @@ export default {
     color: 4491315,
     cost: {},
     materialQty: 6,
+    allowedMaterials: ["Materials.Wood.Pine.Sticks","Materials.Wood.Pine","Materials.Stone.Limestone.Stones","Materials.Stone.Limestone"],
     outdoor: true,
     stockMax: 20,
     desc: "Grows olives for food and oil.",

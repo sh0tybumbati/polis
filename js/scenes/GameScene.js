@@ -66,8 +66,9 @@ export default class GameScene extends Phaser.Scene {
         this.day        = 1;
         this.phase      = 'DAY';
         this.nightsSurvived = 0;
-        this.constructType     = null;
-        this.constructMaterial = 'Materials.Wood.Pine.Sticks'; // sticks are the starting material
+        this.constructType      = null;
+        this.constructMaterials = {};   // per-type material selection { [type]: materialKey }
+        this.materialPickMode   = null; // type currently being configured, or null
         this.fmType    = 'phalanx';
         this.tradeOrders = [];
         this.tradeLog    = [];
@@ -247,6 +248,7 @@ export default class GameScene extends Phaser.Scene {
                 discoveries: { ...this.discoveries },
                 enemyAware: this.enemyAware, enemyRes: { ...this.enemyRes },
                 nextId: this.nextId, tickSpeed: this.tickSpeed, titheRate: this.titheRate,
+                constructMaterials: { ...(this.constructMaterials ?? {}) },
                 terrainData: this.terrainData, biomeData: this.biomeData, mapData: this.mapData,
                 fordSet: [...this.fordSet], roadMap: this.roadMap, domains: this.domains,
                 constructs: this.constructManager.save(),
@@ -294,6 +296,7 @@ export default class GameScene extends Phaser.Scene {
             this.enemyAware = s.enemyAware ?? false;
             Object.assign(this.enemyRes, s.enemyRes ?? {});
             this.nextId = s.nextId; this.tickSpeed = s.tickSpeed ?? 1; this.titheRate = s.titheRate ?? 10;
+            this.constructMaterials = s.constructMaterials ?? {};
 
             this.terrainData = s.terrainData; this.biomeData = s.biomeData; this.mapData = s.mapData;
             this.fordSet = new Set(s.fordSet ?? []); this.roadMap = s.roadMap ?? []; this.domains = s.domains ?? [];

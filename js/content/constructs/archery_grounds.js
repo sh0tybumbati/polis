@@ -9,6 +9,7 @@ export default {
     color: 2783818,
     cost: {"Materials.Stone.Limestone":2},
     materialQty: 6,
+    allowedMaterials: ["Materials.Stone.Limestone.Stones","Materials.Stone.Limestone"],
     outdoor: true,
     spawnMs: 16000,
     desc: "Trains and houses ranged units.",
