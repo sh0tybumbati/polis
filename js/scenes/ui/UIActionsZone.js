@@ -334,7 +334,7 @@ export default {
     },
 
     _renderCategoryTabs(x, y, w, h) {
-        const cats  = [...Object.keys(CONSTRUCT_CATS), 'Furnish', 'Zones'];
+        const cats  = [...Object.keys(CONSTRUCT_CATS).filter(k => k !== 'Furnish'), 'Furnish', 'Zones'];
         const tabW  = Math.floor((w - 2) / cats.length);
 
         cats.forEach((cat, i) => {
@@ -365,7 +365,7 @@ export default {
     },
 
     _renderFurnishSubTabs(x, y, w, h) {
-        const cats = Object.keys(CONSTRUCT_CATS);
+        const cats = Object.keys(CONSTRUCT_CATS).filter(k => k !== 'Furnish');
         const tabW = Math.floor((w - 2) / cats.length);
         cats.forEach((cat, i) => {
             const active = (this.scene.furnishCat ?? 'Living') === cat;
