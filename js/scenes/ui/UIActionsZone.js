@@ -25,6 +25,8 @@ export default {
             this._renderWorkerActions(sel, workers, zx, zy, ACT_W, fullH);
         } else if (sel.length > 0) {
             this._renderMilActions(sel, military, scouts, zx, zy, ACT_W, fullH);
+        } else if (this.scene.selectedZoneType === 'grow' && this.scene.selectedZoneTile) {
+            this._renderGrowZonePanel(zx, zy, ACT_W, fullH);
         } else if (this.scene.materialPickMode) {
             this._renderMaterialPickPanel(this.scene.materialPickMode, zx, zy, ACT_W, fullH);
         } else {
@@ -406,8 +408,7 @@ export default {
                 mk('Storage Zone', 'drag to paint stockpile areas',           'storage', 0x885511),
                 mk('Market Zone',  'merchants trade from stalls here',        'market',  0xaa8811),
             ];
-            for (const [key, crop] of Object.entries(CROPS))
-                items.push(mk(`Grow: ${crop.label}`, `${crop.density}/tile · ${crop.growTime / 1000}s`, `grow:${key}`, crop.zoneColor));
+            items.push(mk('Grow Zone', 'paint fields · right-click to set crop', 'grow', 0x336622));
             items.push(mk('Erase Zones', 'drag to clear all zone markings', 'erase', 0x552222));
             return items;
         }
@@ -456,18 +457,34 @@ export default {
             };
         });
 
-        items.push({
-            label: 'Wall', sublabel: this._wallMatLabel(),
-            color: this.scene.wallMode ? 0x5c3317 : 0x2a1a0e,
-            active: this.scene.wallMode,
-            callback: () => {
-                this.scene.wallMode = !this.scene.wallMode;
-                this.scene.constructType = null;
-                this.scene.roadMode = false;
-                this.scene.hoverGfx?.clear();
-                this.updateUI();
-            },
-        });
+        // Wall-type buttons — each activates wallMode with its edge type
+        const wallTypes = [
+            { type: 'wall_edge',  label: 'Wall',       sublabel: 'stone full',  color: 0x4a4a5a },
+            { type: 'low_wall',   label: 'Low Wall',   sublabel: 'stone low',   color: 0x3a3a4a },
+            { type: 'fence',      label: 'Fence',      sublabel: 'wood fence',  color: 0x5a3818 },
+            { type: 'door',       label: 'Door',       sublabel: 'wood door',   color: 0x6a4020 },
+            { type: 'fence_gate', label: 'Fence Gate', sublabel: 'wood gate',   color: 0x5a3010 },
+        ];
+        for (const { type, label, sublabel, color } of wallTypes) {
+            const active = this.scene.wallMode && this.scene.wallType === type;
+            items.push({
+                label, sublabel,
+                color: active ? color + 0x222222 : color,
+                active,
+                callback: () => {
+                    if (active) {
+                        this.scene.wallMode = false;
+                    } else {
+                        this.scene.wallMode  = true;
+                        this.scene.wallType  = type;
+                        this.scene.constructType = null;
+                        this.scene.roadMode  = false;
+                    }
+                    this.scene.hoverGfx?.clear();
+                    this.updateUI();
+                },
+            });
+        }
 
         items.push({
             label: 'Road', sublabel: '1s',
@@ -485,12 +502,65 @@ export default {
         return items;
     },
 
-    _wallMatLabel() {
-        const m = this.scene.wallMaterial ?? 'Materials.Wood.Pine';
-        if (m.includes('Stone'))  return 'stone';
-        if (m.includes('Brick'))  return 'brick';
-        if (m.includes('Daub'))   return 'daub';
-        return 'wood';
+    _renderGrowZonePanel(zx, zy, ACT_W, fullH) {
+        const s       = this.scene;
+        const zm      = s.zoneManager;
+        const tile    = s.selectedZoneTile;
+        const tiles   = s.selectedZoneTiles ?? [];
+        const curCrop = s.selectedZoneCrop;
+        const TAB_H   = 22;
+        const STRIP   = 28;
+
+        // Compute yield estimate from current crop def
+        const cropDef     = curCrop ? CROPS[curCrop] : null;
+        const totalSlots  = cropDef ? tiles.length * cropDef.density : 0;
+        const growSec     = cropDef ? (cropDef.growTime / 1000).toFixed(0) : '—';
+        const infoLine    = curCrop
+            ? `${tiles.length} tiles · ${totalSlots} ${cropDef.output?.split('.').pop() ?? ''} · ${growSec}s`
+            : `${tiles.length} tiles · no crop assigned`;
+
+        // Header
+        const hdr = this._tab(s.add.graphics().setDepth(21));
+        hdr.fillStyle(0x1a2010, 0.92).fillRect(zx, zy, ACT_W, TAB_H);
+        this._tab(s.add.text(zx + ACT_W / 2, zy + TAB_H / 2, `Grow Zone — ${infoLine}`, {
+            fontFamily: 'monospace', fontSize: '9px', color: '#a8d880',
+        }).setOrigin(0.5).setDepth(22));
+
+        // Crop picker items
+        const panelH = fullH - TAB_H - STRIP;
+        const items  = Object.entries(CROPS).map(([key, crop]) => {
+            const isActive = key === curCrop;
+            const yieldStr = `${tiles.length * crop.density} · ${(crop.growTime / 1000).toFixed(0)}s`;
+            return {
+                label:    crop.label,
+                sublabel: yieldStr,
+                color:    isActive ? crop.zoneColor : Math.max(0, (crop.zoneColor & 0xfefefe) >> 1),
+                active:   isActive,
+                callback: () => {
+                    zm.setGrowZoneCrop(tile.tx, tile.ty, key);
+                    s.selectedZoneCrop = key;
+                    // Re-select to refresh tile list
+                    const { tiles: t2, cropKey: c2 } = zm.getConnectedTiles(tile.tx, tile.ty);
+                    const selCol = 0x88ee55;
+                    zm.setSelection(t2, selCol);
+                    s.selectedZoneTiles = t2;
+                    s.selectedZoneCrop  = c2;
+                    this.updateUI();
+                },
+            };
+        });
+
+        this._actionPanel = new UIPanel(s, zx, zy + TAB_H, ACT_W, panelH);
+        this._actionPanel.setItems(items);
+
+        this._actStrip(zx, zy + TAB_H + panelH, ACT_W, STRIP, [
+            { label: '✕ Close', color: 0x2a1c10, cb: () => {
+                s.selectedZoneType = null; s.selectedZoneTile = null;
+                s.selectedZoneTiles = null; s.selectedZoneCrop = null;
+                zm.clearSelection();
+                this.updateUI();
+            }},
+        ]);
     },
 
     _renderMaterialPickPanel(type, zx, zy, ACT_W, fullH) {

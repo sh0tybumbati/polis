@@ -60,11 +60,29 @@ export default class ZoneManager {
 
     paintGrow(tx, ty, crop) {
         if (tx < 0 || tx >= MAP_W || ty < 0 || ty >= MAP_H) return;
+        const k = this.tileKey(tx, ty);
+        if (!this.growTiles.has(k)) {
+            const def = crop ? CROPS[crop] : null;
+            this.growTiles.set(k, { crop: crop ?? null, slots: new Array(def?.density ?? 0).fill(-1) });
+        }
+        this.renderAll();
+    }
+
+    // Assign a crop to all tiles in the connected grow zone containing (tx, ty)
+    setGrowZoneCrop(tx, ty, crop) {
         const def = CROPS[crop];
         if (!def) return;
-        const k = this.tileKey(tx, ty);
-        if (!this.growTiles.has(k))
-            this.growTiles.set(k, { crop, slots: new Array(def.density).fill(-1) });
+        const { tiles } = this.getConnectedTiles(tx, ty);
+        for (const { tx: ttx, ty: tty } of tiles) {
+            const k = this.tileKey(ttx, tty);
+            const existing = this.growTiles.get(k);
+            if (existing && existing.crop !== crop) {
+                existing.crop  = crop;
+                existing.slots = new Array(def.density).fill(-1);
+            } else if (!existing) {
+                this.growTiles.set(k, { crop, slots: new Array(def.density).fill(-1) });
+            }
+        }
         this.renderAll();
     }
 
@@ -93,14 +111,14 @@ export default class ZoneManager {
     getReadyGrowTiles() {
         const result = [];
         for (const [key, state] of this.growTiles)
-            if (state.slots.some(s => s >= 1)) result.push(key);
+            if (state.crop && state.slots.some(s => s >= 1)) result.push(key);
         return result;
     }
 
     getPlantableTiles() {
         const result = [];
         for (const [key, state] of this.growTiles)
-            if (state.slots.some(s => s < 0)) result.push(key);
+            if (state.crop && state.slots.some(s => s < 0)) result.push(key);
         return result;
     }
 
@@ -114,6 +132,7 @@ export default class ZoneManager {
         this._growTickAcc = 0;
 
         for (const state of this.growTiles.values()) {
+            if (!state.crop) continue;
             const def = CROPS[state.crop];
             if (!def) continue;
             for (let i = 0; i < state.slots.length; i++) {
@@ -157,9 +176,9 @@ export default class ZoneManager {
     _renderGrowLayer() {
         if (this.growTiles.size === 0) return;
         for (const [key, state] of this.growTiles) {
-            const def = CROPS[state.crop];
-            if (!def) continue;
-            this._gfx.fillStyle(def.zoneColor, 0.16);
+            const def = state.crop ? CROPS[state.crop] : null;
+            const col = def ? def.zoneColor : 0x336622;
+            this._gfx.fillStyle(col, 0.16);
             this._gfx.fillRect((key % MAP_W) * TILE, MAP_OY + Math.floor(key / MAP_W) * TILE, TILE, TILE);
         }
         this._gfx.lineStyle(1, 0x558833, 0.55);
@@ -216,10 +235,12 @@ export default class ZoneManager {
                 result.push({ tx: ctx, ty: cty });
                 for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1]]) {
                     const nk = this.tileKey(ctx + dx, cty + dy);
-                    if (!visited.has(nk) && this.growTiles.has(nk) &&
-                        this.growTiles.get(nk).crop === cropKey) { visited.add(nk); queue.push(nk); }
+                    if (!visited.has(nk) && this.growTiles.has(nk)) { visited.add(nk); queue.push(nk); }
                 }
             }
+            // Use the most common assigned crop as the zone crop
+            const crops = result.map(t => this.growTiles.get(this.tileKey(t.tx, t.ty))?.crop).filter(Boolean);
+            cropKey = crops[0] ?? null;
             return { tiles: result, zoneType, cropKey };
         }
 

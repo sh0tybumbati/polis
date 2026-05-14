@@ -8,7 +8,9 @@ import butchersblock from './butchersblock.js';
 import camp from './camp.js';
 import chest from './chest.js';
 import farm from './farm.js';
+import door from './door.js';
 import fence from './fence.js';
+import fence_gate from './fence_gate.js';
 import forge from './forge.js';
 import garden from './garden.js';
 import gate from './gate.js';
@@ -32,13 +34,14 @@ import tanningrack from './tanningrack.js';
 import tavernseat from './tavernseat.js';
 import temple from './temple.js';
 import townhall from './townhall.js';
+import low_wall from './low_wall.js';
 import wall from './wall.js';
 import wall_edge from './wall_edge.js';
 import watchtower from './watchtower.js';
 import workbench from './workbench.js';
 
 const defs = [
-    agora, anvil, archery_grounds, melee_grounds, bed, butchersblock, camp, chest, farm, fence, forge, garden, gate, grainsilo, hearth, house, loom, marketstall, millstone, mine, mounted_grounds, olivepress, oracle, oven, palisade, pasture, stonecutter, storageshelf, tanningrack, tavernseat, temple, townhall, wall, wall_edge, watchtower, workbench
+    agora, anvil, archery_grounds, melee_grounds, bed, butchersblock, camp, chest, door, farm, fence, fence_gate, forge, garden, gate, grainsilo, hearth, house, low_wall, loom, marketstall, millstone, mine, mounted_grounds, olivepress, oracle, oven, palisade, pasture, stonecutter, storageshelf, tanningrack, tavernseat, temple, townhall, wall, wall_edge, watchtower, workbench
 ];
 
 export const CONSTRUCTS = Object.fromEntries(defs.map(d => [d.id, d]));

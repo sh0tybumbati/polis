@@ -88,6 +88,7 @@ export default class GameScene extends Phaser.Scene {
         this.roadMode    = false;
         this._roadsDirty = false;
         this.wallMode    = false;
+        this.wallType    = 'wall_edge';  // edge type used when wallMode=true
         this.wallMaterial = 'Materials.Wood.Pine';
         this._wallDragEdges = new Set();
         this._wallDragErasing = false;

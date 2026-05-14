@@ -350,6 +350,8 @@ export default class InputManager {
         else if (s.zoneMode === 'storage')     s.zoneManager.paintStorage(tx, ty);
         else if (s.zoneMode === 'market')      s.zoneManager.paintMarket(tx, ty);
         else if (s.zoneMode === 'erase')       s.zoneManager.erase(tx, ty);
+        else if (s.zoneMode === 'grow')
+            s.zoneManager.paintGrow(tx, ty, null);
         else if (s.zoneMode?.startsWith('grow:'))
             s.zoneManager.paintGrow(tx, ty, s.zoneMode.split(':')[1]);
     }
@@ -363,6 +365,7 @@ export default class InputManager {
         else if (s.zoneMode === 'storage') col = 0xffaa22;
         else if (s.zoneMode === 'market')  col = 0xddaa22;
         else if (s.zoneMode === 'erase')   col = 0xff4444;
+        else if (s.zoneMode === 'grow')    col = 0x558833;
         else if (s.zoneMode?.startsWith('grow:'))
             col = CROPS[s.zoneMode.split(':')[1]]?.zoneColor ?? 0x558833;
         const px = x1 * TILE, py = MAP_OY + y1 * TILE;
@@ -384,6 +387,7 @@ export default class InputManager {
         else if (s.zoneMode === 'storage') col = 0xffaa22;
         else if (s.zoneMode === 'market')  col = 0xddaa22;
         else if (s.zoneMode === 'erase')   col = 0xff4444;
+        else if (s.zoneMode === 'grow')    col = 0x558833;
         else if (s.zoneMode?.startsWith('grow:'))
             col = CROPS[s.zoneMode.split(':')[1]]?.zoneColor ?? 0x558833;
         else col = 0xffffff;

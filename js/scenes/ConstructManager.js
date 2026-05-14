@@ -445,23 +445,47 @@ export default class ConstructManager {
     }
 
     _renderEdge(c) {
-        const def = CONSTRUCTS[c.type];
-        const g = this.edgeGfx;
-        const T = TILE, OY = MAP_OY;
-        const W = 6;
-        
-        const px = c.col * T, py = OY + c.row * T;
+        const def   = CONSTRUCTS[c.type];
+        const g     = this.edgeGfx;
+        const T     = TILE, OY = MAP_OY;
         const color = def.color || 0xcccccc;
         const alpha = c.built ? 1.0 : 0.4;
+        const px    = c.col * T, py = OY + c.row * T;
+        const isFence = def.height === 'fence' || def.height === 'low';
+        const isPassable = def.passable;
 
-        g.fillStyle(color, alpha);
-        if (c.isH) g.fillRect(px, py - W / 2, T, W);
-        else       g.fillRect(px - W / 2, py, W, T);
-        
+        if (c.isH) {
+            // E-W wall: 2.5D face panel — extends UP from the boundary into the tile above
+            const faceH = isFence ? Math.round(T * 0.14) : Math.round(T * 0.26);
+            const topY  = py - faceH;
+
+            // Top cap (lighter)
+            const r = (color >> 16) & 0xff, gr = (color >> 8) & 0xff, b = color & 0xff;
+            const topCol = Math.min(0xffffff, ((Math.min(255, r + 40) << 16) | (Math.min(255, gr + 40) << 8) | Math.min(255, b + 40)));
+            g.fillStyle(topCol, alpha).fillRect(px, topY - 2, T, 3);
+
+            // Front face
+            g.fillStyle(color, alpha).fillRect(px, topY, T, faceH);
+
+            // Bottom shadow line
+            g.fillStyle(0x000000, alpha * 0.25).fillRect(px, py - 2, T, 2);
+
+            // Door/gate opening
+            if (isPassable) {
+                g.fillStyle(0x111008, alpha * 0.8).fillRect(px + T * 0.3, topY, T * 0.4, faceH);
+            }
+        } else {
+            // N-S wall: thin strip (side-on view)
+            const W = isFence ? 3 : 5;
+            g.fillStyle(color, alpha).fillRect(px - W / 2, py, W, T);
+            // Slight right-side shadow
+            g.fillStyle(0x000000, alpha * 0.2).fillRect(px + W / 2 - 1, py, 2, T);
+        }
+
         if (!c.built) {
             const progress = c.maxBuildWork > 0 ? 1 - c.buildWork / c.maxBuildWork : 0;
             g.fillStyle(0xffdd44, 0.7);
-            if (c.isH) g.fillRect(px, py - 1, Math.round(T * progress), 2);
+            if (c.isH) g.fillRect(px, py - 2, Math.round(T * progress), 2);
             else       g.fillRect(px - 1, py, 2, Math.round(T * progress));
         }
     }
