@@ -3,7 +3,11 @@ export default {
     placement: 'edge',
     label: "Fence Gate",
     color: 0x7a5020,
-    cost: { "Materials.Wood.Pine.Sticks": 3 },
+    costs: {
+        'Materials.Wood.Pine.Sticks': { 'Materials.Wood.Pine.Sticks': 3 },
+        'Materials.Wood.Pine':        { 'Materials.Wood.Pine': 1 },
+    },
+    allowedMaterials: ['Materials.Wood.Pine.Sticks', 'Materials.Wood.Pine'],
     buildWork: 5,
     height: 'fence',
     passable: true,

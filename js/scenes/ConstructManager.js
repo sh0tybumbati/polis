@@ -245,13 +245,22 @@ export default class ConstructManager {
 
 
     // Edge-based placement (walls, fences)
-    placeEdge(type, isH, row, col, material = 'Materials.Wood.Pine') {
+    placeEdge(type, isH, row, col, material) {
         const def = CONSTRUCTS[type];
         if (!def) return null;
-        
-        const work = def.buildWork || 10;
+
+        // Resolve material from allowedMaterials if not supplied
+        const mats = def.allowedMaterials ?? [];
+        const mat = material ?? (mats.length > 0 ? mats[0] : null);
+
+        // Resolve cost: prefer per-material costs map, fall back to def.cost
+        const cost = (def.costs && mat && def.costs[mat]) ? def.costs[mat]
+                   : def.cost ? { ...def.cost }
+                   : (mat ? { [mat]: 1 } : {});
+
+        const work  = def.buildWork || 10;
         const maxHp = work * 3;
-        
+
         const c = {
             id: this.scene.getId(),
             type,
@@ -261,9 +270,9 @@ export default class ConstructManager {
             maxBuildWork: work,
             hp: 0,
             maxHp,
-            material,
+            material: mat,
             height: def.height || 'full',
-            resNeeded: { [material]: def.cost?.[material] ?? 1 },
+            resNeeded: Object.keys(cost).length ? { ...cost } : undefined,
             buildProgress: 0,
         };
 
@@ -313,8 +322,12 @@ export default class ConstructManager {
 
     // Aliases for InputManager wall drag mode
     getWall(isH, row, col) { return this.getEdge(isH, row, col); }
-    placeWall(isH, row, col, material) {
-        return this.placeEdge(this.scene.wallType ?? 'wall', isH, row, col, material);
+    placeWall(isH, row, col) {
+        const type = this.scene.wallType ?? 'wall_edge';
+        const def  = CONSTRUCTS[type];
+        const mats = def?.allowedMaterials ?? [];
+        const mat  = mats.length > 0 ? (this.scene.constructMaterials?.[type] ?? mats[0]) : null;
+        return this.placeEdge(type, isH, row, col, mat);
     }
     removeWall(isH, row, col) { return this.removeEdge(isH, row, col); }
 

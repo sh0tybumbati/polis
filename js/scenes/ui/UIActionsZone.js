@@ -572,23 +572,26 @@ export default {
         });
 
         // Wall-type buttons — each activates wallMode with its edge type
-        const wallTypes = [
-            { type: 'wall_edge',  label: 'Wall',       sublabel: 'stone full',  color: 0x4a4a5a },
-            { type: 'low_wall',   label: 'Low Wall',   sublabel: 'stone low',   color: 0x3a3a4a },
-            { type: 'fence',      label: 'Fence',      sublabel: 'wood fence',  color: 0x5a3818 },
-            { type: 'door',       label: 'Door',       sublabel: 'wood door',   color: 0x6a4020 },
-            { type: 'fence_gate', label: 'Fence Gate', sublabel: 'wood gate',   color: 0x5a3010 },
-        ];
-        for (const { type, label, sublabel, color } of wallTypes) {
-            const active = this.scene.wallMode && this.scene.wallType === type;
+        for (const type of ['wall_edge', 'low_wall', 'fence', 'door', 'fence_gate']) {
+            const def      = CONSTRUCTS[type];
+            if (!def) continue;
+            const mats     = def.allowedMaterials ?? [];
+            const mat      = mats.length > 0 ? (this.scene.constructMaterials?.[type] ?? mats[0]) : null;
+            const cost     = mat && def.costs?.[mat] ? def.costs[mat] : (def.cost ?? {});
+            const costStr  = Object.keys(cost).length
+                ? Object.entries(cost).map(([r, n]) => `${n} ${MATERIAL_LABELS[r] ?? r.split('.').pop()}`).join(' ')
+                : null;
+            const hasPicker = mats.length > 1;
+            const active    = this.scene.wallMode && this.scene.wallType === type;
             items.push({
-                label, sublabel,
-                color: active ? color + 0x222222 : color,
+                label: def.label, sublabel: costStr, desc: def.desc,
+                color: active ? (def.color + 0x222222) : def.color,
                 active,
+                matLabel: hasPicker ? (MATERIAL_LABELS[mat] ?? null) : null,
+                matColor: hasPicker ? (MATERIAL_COLORS[mat] ?? null) : null,
                 callback: () => {
-                    if (active) {
-                        this.scene.wallMode = false;
-                    } else {
+                    if (active) { this.scene.wallMode = false; }
+                    else {
                         this.scene.wallMode  = true;
                         this.scene.wallType  = type;
                         this.scene.constructType = null;
@@ -597,6 +600,10 @@ export default {
                     this.scene.hoverGfx?.clear();
                     this.updateUI();
                 },
+                rightCallback: hasPicker ? () => {
+                    this.scene.materialPickMode = type;
+                    this.updateUI();
+                } : null,
             });
         }
 
@@ -693,11 +700,11 @@ export default {
                 fontFamily: 'monospace', fontSize: '11px', color: '#d4c890',
             }).setOrigin(0.5).setDepth(22));
 
-        // Material pick items
+        // Material pick items — use per-material costs map if present, else computeBuildCost
         const panelH = fullH - TAB_H - STRIP;
         const items  = mats.map(mat => {
             const isActive = mat === cur;
-            const cost = computeBuildCost(type, mat);
+            const cost = (def?.costs && def.costs[mat]) ? def.costs[mat] : computeBuildCost(type, mat);
             const costStr = Object.keys(cost).length
                 ? Object.entries(cost).map(([r, n]) => `${n} ${MATERIAL_LABELS[r] ?? r.split('.').pop()}`).join(' ')
                 : 'free';

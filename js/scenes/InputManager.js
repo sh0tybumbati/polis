@@ -91,7 +91,7 @@ export default class InputManager {
                         if (!s._wallDragEdges.has(key)) {
                             s._wallDragEdges.add(key);
                             if (s._wallDragErasing) s.constructManager.removeWall(edge.isH, edge.row, edge.col);
-                            else s.constructManager.placeWall(edge.isH, edge.row, edge.col, s.wallMaterial);
+                            else s.constructManager.placeWall(edge.isH, edge.row, edge.col);
                             s.constructManager.renderWalls();
                         }
                     }
@@ -237,7 +237,7 @@ export default class InputManager {
                     if (edge) {
                         const existing = s.constructManager.getWall(edge.isH, edge.row, edge.col);
                         if (existing) s.constructManager.removeWall(edge.isH, edge.row, edge.col);
-                        else s.constructManager.placeWall(edge.isH, edge.row, edge.col, s.wallMaterial);
+                        else s.constructManager.placeWall(edge.isH, edge.row, edge.col);
                         s.constructManager.renderWalls();
                     }
                 }
@@ -351,7 +351,9 @@ export default class InputManager {
         const px = col * TILE, py = MAP_OY + row * TILE;
         const existing = s.constructManager.getWall(isH, row, col);
         const W = 6; // mirror WallManager.W
-        const col_c = existing ? 0xff4444 : s.constructManager.getMaterialColor(s.wallMaterial ?? 'Materials.Wood.Pine');
+        const wallType = s.wallType ?? 'wall_edge';
+        const wallMat  = s.constructMaterials?.[wallType] ?? CONSTRUCTS[wallType]?.allowedMaterials?.[0] ?? 'Materials.Stone.Limestone';
+        const col_c = existing ? 0xff4444 : s.constructManager.getMaterialColor(wallMat);
         const alpha = existing ? 0.9 : 0.7;
         s.hoverGfx.clear().fillStyle(col_c, alpha);
         if (isH) s.hoverGfx.fillRect(px, py - W / 2, TILE, W);
