@@ -177,15 +177,30 @@ export default class InputManager {
 
             if (s.zoneMode) {
                 const t = s.tileAt(wx, wy);
-                if (t && s._zoneDragStart) {
-                    const x1 = Math.min(s._zoneDragStart.tx, t.tx), x2 = Math.max(s._zoneDragStart.tx, t.tx);
-                    const y1 = Math.min(s._zoneDragStart.ty, t.ty), y2 = Math.max(s._zoneDragStart.ty, t.ty);
+                const isGrow = s.zoneMode === 'grow';
+                const startTile = s._zoneDragStart;
+                if (t && startTile) {
+                    const x1 = Math.min(startTile.tx, t.tx), x2 = Math.max(startTile.tx, t.tx);
+                    const y1 = Math.min(startTile.ty, t.ty), y2 = Math.max(startTile.ty, t.ty);
                     for (let ry = y1; ry <= y2; ry++)
                         for (let rx = x1; rx <= x2; rx++)
                             this._applyZonePaint(rx, ry);
+                    // After painting a grow zone, immediately exit paint mode and open crop picker
+                    if (isGrow) {
+                        s.zoneMode = null;
+                        const { tiles, cropKey } = s.zoneManager.getConnectedTiles(startTile.tx, startTile.ty);
+                        if (tiles.length) {
+                            s.selectedZoneTile  = { tx: startTile.tx, ty: startTile.ty };
+                            s.selectedZoneTiles = tiles;
+                            s.selectedZoneType  = 'grow';
+                            s.selectedZoneCrop  = cropKey;
+                            s.zoneManager.setSelection(tiles, 0x88ee55);
+                        }
+                    }
                 }
                 s._zoneDragStart = null;
                 s.hoverGfx?.clear();
+                if (isGrow) { s.updateUI(); return; }
                 return;
             }
             if (s.roadMode) { const t = s.tileAt(wx, wy); if (t) s._paintRoad(t.tx, t.ty); return; }

@@ -36,31 +36,44 @@ export default class ZoneManager {
 
     paintWork(tx, ty) {
         if (tx < 0 || tx >= MAP_W || ty < 0 || ty >= MAP_H) return;
-        this.workTiles.add(this.tileKey(tx, ty));
+        const k = this.tileKey(tx, ty);
+        this.growTiles.delete(k);
+        this.workTiles.add(k);
         this.renderAll();
     }
 
     paintStorage(tx, ty) {
         if (tx < 0 || tx >= MAP_W || ty < 0 || ty >= MAP_H) return;
-        this.storageTiles.add(this.tileKey(tx, ty));
+        const k = this.tileKey(tx, ty);
+        this.growTiles.delete(k);
+        this.storageTiles.add(k);
         this.renderAll();
     }
 
     paintMarket(tx, ty) {
         if (tx < 0 || tx >= MAP_W || ty < 0 || ty >= MAP_H) return;
-        this.marketTiles.add(this.tileKey(tx, ty));
+        const k = this.tileKey(tx, ty);
+        this.growTiles.delete(k);
+        this.marketTiles.add(k);
         this.renderAll();
     }
 
     paintPasture(tx, ty) {
         if (tx < 0 || tx >= MAP_W || ty < 0 || ty >= MAP_H) return;
-        this.pastureTiles.add(this.tileKey(tx, ty));
+        const k = this.tileKey(tx, ty);
+        this.growTiles.delete(k);
+        this.pastureTiles.add(k);
         this.renderAll();
     }
 
     paintGrow(tx, ty, crop) {
         if (tx < 0 || tx >= MAP_W || ty < 0 || ty >= MAP_H) return;
         const k = this.tileKey(tx, ty);
+        // Grow zones are mutually exclusive with all other zone types
+        this.workTiles.delete(k);
+        this.storageTiles.delete(k);
+        this.marketTiles.delete(k);
+        this.pastureTiles.delete(k);
         if (!this.growTiles.has(k)) {
             const def = crop ? CROPS[crop] : null;
             this.growTiles.set(k, { crop: crop ?? null, slots: new Array(def?.density ?? 0).fill(-1) });

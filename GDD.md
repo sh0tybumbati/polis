@@ -14,24 +14,48 @@ The game is currently transitioning from its original Greek theme to a **Sumeria
 
 ## The Estate (É / Oikos)
 
-The Estate is a **composite entity**: a root domicile plus attached rooms, stalls, and modular **Constructs**—all treated as one selectable unit.
+The Estate is a **composite entity**: a living space built by the player from walls, furniture, and zone layers. There are no prefab "house" or "farm" objects to drop on the map — instead:
+
+1. **Walls** on tile edges define physical enclosure (full stone, low stone, wood fence, doors/gates)
+2. **Furniture** on tiles defines function and job slots (loom, oven, hearth, bed, etc.)
+3. **Zones** painted on tiles define work type, storage, grow fields, and ownership
+
+The **Camp** is the starting construct — a ready-made shelter before walls are built. As the player draws enclosing walls and places furniture, rooms emerge organically and are classified by their contents.
 
 ### Domain Plot
-- The City Planner reserves an **8×8 tile grid** for each family.
-- No other family can build inside this domain. It grows organically over generations.
-- Clicking *any* child structure (construct, appliance, farm) selects the **Root Domicile** and opens the Family Menu.
+- Each family's Oikos auto-claims the tiles where their walls and furniture are placed.
+- Domain enforcement (preventing other families from building inside) is a future milestone.
+- Clicking any child structure within an estate opens the Family Menu.
+
+### Build Menu Structure
+
+| Tab | Contents |
+|---|---|
+| Civil | Camp, Townhall, Agora, Temple, Oracle, Tavernseat |
+| Industry | Pasture, Mine, and processing constructs (mill, forge, oven, etc.) |
+| Military | Training grounds, watchtower, tile-based walls/palisade/gate |
+| Furnish | All furniture/appliances placed as 1×1 tile items |
+| Zones | Work, Storage, Market, Grow zone painting tools |
+| Debug | New Game, Sprite Editor |
+
+Wall-type edge constructs (Wall, Low Wall, Fence, Door, Fence Gate) appear in the Civil/Industry/Military tabs for convenience. Right-click a construct button to pick its build material when multiple are allowed.
 
 ### Modular Constructs & Appliances
-Instead of standalone buildings, production happens through modular constructs. Each appliance or machine can be placed inside a room or a outdoor domain slot.
+Each appliance placed inside a room provides a job slot:
 
 | Construct | Effect |
 |---|---|
-| Loom | Family member can weave wool → cloth at home |
-| Oven | Family member can bake bread without a central facility |
-| Tanning Rack | Cures hide → leather |
-| Millstone | Grinds grain → flour |
-| Workbench | Woodworking & plank cutting |
-| Anvil/Forge | Metalworking & kit crafting |
+| Loom | Weaving job slot (wool → cloth) |
+| Oven | Baking job slot (flour → bread) |
+| Tanning Rack | Tanning job slot (hide → leather) |
+| Millstone | Milling job slot (wheat → flour) |
+| Workbench | Carpentry job slot (logs → planks) |
+| Anvil/Forge | Smithing job slot (ore → ingots → kits) |
+| Hearth | Rest quality bonus for living rooms |
+| Bed | Sleeping slot (rest need recovery) |
+
+### Grow Zones
+Fields are painted as Grow Zones (a zone layer), not as prefab farm buildings. After painting, the player clicks the zone to assign a crop. Adjacent tiles auto-group into one connected zone. Farmers plant and harvest the per-slot crop progression autonomously.
 
 Constructs are requested autonomously when a family member has sufficient skill and an empty slot.
 

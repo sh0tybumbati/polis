@@ -381,6 +381,68 @@ Every unit becomes a persistent individual with biological heritage. This is the
 
 ---
 
+## Milestone F — Freeform Building System  ← IN PROGRESS
+
+*See `docs/freeform-building-system.md` for full design spec.*
+
+Goal: buildings emerge from walls + furniture + zones, not from prefab `house`/`farm` objects.
+
+### Phase 1 — Edge Walls ✅ DONE
+- [x] **Edge construct model** — `placement: 'edge'` on construct defs; walls stored per `(isH, row, col)` in ConstructManager
+- [x] **Wall types** — `wall_edge` (full stone), `low_wall` (stone low), `fence` (wood), `door` (passable wood), `fence_gate` (passable wood); all selectable individually in the build menu
+- [x] **2.5D rendering** — E-W walls show a face panel ~¼ tile tall above the boundary (lighter top cap, shadow, passable opening for doors/gates); N-S walls are thin vertical strips
+- [x] **Wall drag-draw** — click/drag to place a run of edges; automatically detects erase mode if the first edge already exists
+- [x] **Per-construct material selection** — construct defs declare `allowedMaterials[]`; right-click a button to open a temporary material picker; choice persists per type in `scene.constructMaterials`
+
+### Phase 2 — Grow Zones as Class ✅ DONE
+- [x] **Single "Grow Zone" mode** — paints unassigned tiles (no crop); replaces per-crop zone buttons
+- [x] **Adjacent tile grouping** — BFS connects touching grow tiles into one logical zone
+- [x] **Post-paint crop picker** — painting a zone immediately exits paint mode and opens the crop picker for that zone
+- [x] **`setGrowZoneCrop(tx, ty, crop)`** — assigns crop to entire connected component, resets slot progress
+- [x] **Mutual exclusion** — painting a grow zone clears any work/storage/market on those tiles, and vice versa
+- [x] **Per-slot growth dots** — each tile renders colored dots (empty/early/late/ready) for individual crop slots
+- [x] **Farmers use grow zones** — `seekFarmerTask` plants/harvests grow zone slots; `farm`/`garden` construct branches removed
+
+### Phase 3 — Room Auto-Detection ❌ TODO
+- [ ] Flood-fill enclosed spaces from wall edges
+- [ ] Classify room type from dominant furniture inside
+- [ ] Room activates work zone automatically; deactivates if wall is broken
+- [ ] Player can pre-assign room type before enclosure is complete
+
+### Phase 4 — Zone-Based Job Dispatch ❌ TODO
+- [ ] Workers scan work zone tiles for available jobs (not construct types)
+- [ ] Zone type + furniture determine available job slots
+- [ ] Eliminates all `b.type === 'specific_type'` job-matching code
+
+### Phase 5 — Ownership Auto-Assignment ❌ TODO
+- [ ] Tiles auto-claimed by the oikos that built the walls/placed furniture
+- [ ] Civic designation for shared spaces
+- [ ] Oikos AI autonomously expands (adds rooms, claims adjacent tiles)
+
+### Supporting Changes (done as part of Phase 1–2)
+- [x] **`house`/`farm`/`garden` removed from player build menu** — `camp` (`isHomeType: true`) is the starting home; `house` type kept internally for enemy village compatibility
+- [x] **`isHomeType` flag** — all `b.type === 'house'` checks replaced with `CONSTRUCTS[b.type]?.isHomeType`; allows `camp` and any future home constructs to behave as homes
+- [x] **`scene.wallType`** — tracks which edge construct type the wall-drawing tool currently places
+
+---
+
+## Milestone N — Villager Needs & Social Life  ← DONE
+
+*Villagers are no longer just work-bots; they have inner states that must be satisfied.*
+
+- [x] **Four-need system** — each unit tracks `food`, `rest`, `social`, `joy` (0–1 floats); shown as bars in the unit info panel
+- [x] **Need decay** — all four needs decay continuously at calibrated rates; `food` decays fastest, `joy` slowest
+- [x] **Needs-driven intent** — before seeking work, units check needs: `food < 0.3` → find food, `rest < 0.3` → sleep at home, `social < 0.45` → socialize, `joy < 0.35` → leisure
+- [x] **Leisure at tavern/seat** — units seek a `tavernseat` for joy; consume beer if available (`+0.018 joy/s`)
+- [x] **Chat micro-task** — unit walks to nearest worker within 8 tiles, chats for 7s (`+0.03 social/s`, `+0.01 joy/s`); falls back to general socialize intent if no one nearby
+- [x] **Rest break micro-task** — unit finds a bench or tavernseat, rests for 15s (`+0.012 rest/s`, `+0.005 joy/s`)
+- [x] **Stroll micro-task** — unit walks 3 random waypoints, strolling for 25s (`+0.008 joy/s`); triggered when joy is low but no seat is available
+- [x] **Work fallback** — if `rest < 0.45` during a work task, interrupt for a rest break; if `joy < 0.4`, interrupt for a stroll
+- [ ] **Mood effects on output** — happy workers should be faster/more productive; sad workers slower (not yet wired)
+- [ ] **Social relationships** — track friendship bonds between specific units; prefer chatting with friends (not yet implemented)
+
+---
+
 ## Milestone 6 — Close the Game Loop
 
 *Goal: make the game a real, winnable/loseable experience before adding more systems.*
