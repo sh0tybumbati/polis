@@ -270,13 +270,13 @@ export default class InputManager {
                 return;
             }
 
-            // Left click: select
-            const hadWorkers = s.selIds?.size > 0 &&
-                [...s.selIds].some(id => { const u = s.units.find(u => u.id === id); return u?.type === 'worker' && u.age >= 2; });
+            // Left click: select — capture workers BEFORE deselect clears s.selIds
+            const preWorkers = s.selIds?.size > 0
+                ? s.units.filter(u => s.selIds.has(u.id) && u.type === 'worker' && u.age >= 2)
+                : [];
             s.deselect();
             s.selectedConstruct = null;
             s.selectedNode = null;
-            s.selectedConstruct = null;
             s.zoneManager?.clearSelection();
             s.selectedZoneTile  = null;
             s.selectedZoneTiles = null;
@@ -300,15 +300,32 @@ export default class InputManager {
                     s.selectedZoneTiles = tiles;
                     s.selectedZoneType  = zoneType;
                     s.selectedZoneCrop  = cropKey;
-                    // If workers were selected, assign them to this zone
-                    if (hadWorkers) {
-                        const workers = s.units.filter(u => u.selected && u.type === 'worker' && u.age >= 2);
-                        const role = zoneType === 'grow' ? 'farmer' : zoneType === 'market' ? 'merchant' : null;
-                        workers.forEach(u => {
-                            if (role) { u.vocation = role; u.role = role; }
-                            u.taskType = null; u.targetNode = null; u.moveTo = null;
-                        });
-                        if (workers.length) s.uiManager?.showFloatText?.(tile.tx * TILE + TILE / 2, MAP_OY + tile.ty * TILE, `→ ${zoneType}`, '#aaddff');
+                    // Assign pre-captured workers to this zone
+                    if (preWorkers.length > 0) {
+                        if (zoneType === 'grow') {
+                            preWorkers.forEach(u => {
+                                u.vocation = 'farmer'; u.role = 'farmer';
+                                u.taskType = null; u.targetNode = null; u.moveTo = null;
+                            });
+                            s.uiManager?.showFloatText?.(tile.tx * TILE + TILE / 2, MAP_OY + tile.ty * TILE, '→ farm', '#88ee55');
+                        } else if (zoneType === 'storage') {
+                            // Route workers carrying anything to deposit here immediately
+                            const zm = s.zoneManager;
+                            preWorkers.forEach(u => {
+                                const carrying = Object.values(u.carrying ?? {}).some(v => v > 0);
+                                if (carrying) {
+                                    u.taskType = 'deposit_zone';
+                                    u.taskZoneKey = zm.tileKey(tile.tx, tile.ty);
+                                }
+                            });
+                            s.uiManager?.showFloatText?.(tile.tx * TILE + TILE / 2, MAP_OY + tile.ty * TILE, '→ deposit', '#ffcc44');
+                        } else if (zoneType === 'market') {
+                            preWorkers.forEach(u => {
+                                u.vocation = 'merchant'; u.role = 'merchant';
+                                u.taskType = null; u.targetNode = null; u.moveTo = null;
+                            });
+                            s.uiManager?.showFloatText?.(tile.tx * TILE + TILE / 2, MAP_OY + tile.ty * TILE, '→ market', '#ffdd66');
+                        }
                     }
                     s.updateUI(); return;
                 }

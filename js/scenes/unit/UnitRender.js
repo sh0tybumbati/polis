@@ -71,6 +71,25 @@ export default {
         u.gfx.fillStyle(0x000000, 0.18)
              .fillEllipse(0, 9 * scale, 22 * scale, 7 * scale);
 
+        // Sleeping ZZZ label — create/destroy on transition, bob each frame
+        if (u.isSleeping && u.hp > 0) {
+            if (!u._zzzLabel) {
+                u._zzzLabel = this.scene._w(this.scene.add.text(u.x, u.y - 14, 'z z z', {
+                    fontFamily: 'monospace', fontSize: '8px',
+                    color: u._passedOut ? '#ff8866' : '#aabbff',
+                    stroke: '#000000', strokeThickness: 1,
+                }).setOrigin(0.5, 1).setDepth(7));
+                u._zzzPhase = Math.random() * Math.PI * 2; // stagger units
+            }
+            u._zzzPhase = (u._zzzPhase ?? 0) + 0.04;
+            const bob = Math.sin(u._zzzPhase) * 3;
+            u._zzzLabel.setPosition(u.x, u.y - 14 + bob)
+                       .setAlpha(0.55 + Math.sin(u._zzzPhase * 0.7) * 0.35)
+                       .setVisible(true);
+        } else if (u._zzzLabel) {
+            u._zzzLabel.destroy(); u._zzzLabel = null;
+        }
+
         const showLabel = age < 2 && !u.isEnemy && u.hp > 0;
         if (showLabel) {
             if (!u.nameLabel) {

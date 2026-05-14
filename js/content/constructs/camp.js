@@ -15,7 +15,6 @@ export default {
     capacity: 4,
     isHomeType: true,
     spawnMs: 200000,
-    stores: {"Food.Produce.Berry":40,"Materials.Wood.Pine.Sticks":30,"Materials.Stone.Limestone.Stones":20},
     tick: null,
     draw(gfx, b) {
         const { px, py, s, cx } = g(b);

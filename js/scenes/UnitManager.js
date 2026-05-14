@@ -360,7 +360,8 @@ export default class UnitManager {
 
         this.scene.units.filter(u => u.hp <= 0).forEach(u => {
             this.scene.tweens.add({ targets: u.gfx, alpha: 0, duration: 280, onComplete: () => u.gfx.destroy() });
-            if (u.nameLabel) u.nameLabel.destroy();
+            if (u.nameLabel) { u.nameLabel.destroy(); u.nameLabel = null; }
+            if (u._zzzLabel) { u._zzzLabel.destroy(); u._zzzLabel = null; }
             if (u.isScout) { this.waveIntelFlash(); return; }
             if (!u.isEnemy && u.type === 'worker') {
                 // Widow/widower becomes eligible to remarry

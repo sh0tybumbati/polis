@@ -79,6 +79,15 @@ export default {
                 }
             }
             if (u.isSleeping) return;
+
+            // No home and still exhausted — pass out where they stand
+            if ((u.needs?.rest ?? 1.0) < 0.05) {
+                u.isSleeping = true;
+                u._passedOut = true;
+                u.taskType = null; u.targetNode = null; u.moveTo = null;
+                this.scene.uiManager?.showFloatText?.(u.x, u.y - 18, '😴 passed out!', '#ff8866');
+                return;
+            }
         }
 
         // Wake up when rested

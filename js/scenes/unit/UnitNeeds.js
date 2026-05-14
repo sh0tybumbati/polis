@@ -86,11 +86,18 @@ export default {
         // Rate: empties in ~3 full day/night cycles (9 min real time)
         if (!u.isSleeping) n.food = Math.max(0, n.food - dt * 0.0019);
 
-        // Rest: decays while awake, recovers while sleeping at home
-        // Rate: needs sleep after ~2 day cycles; recovers fully in ~1 night
+        // Rest: decays while awake, recovers while sleeping
+        // Passed-out sleep recovers at 35% rate and applies a joy penalty on wake
         if (u.isSleeping) {
-            n.rest = Math.min(1.0, n.rest + dt * 0.011);
-            if (n.rest >= 0.95) u.isSleeping = false; // wake up
+            const rate = u._passedOut ? 0.004 : 0.011;
+            n.rest = Math.min(1.0, n.rest + dt * rate);
+            if (n.rest >= 0.95) {
+                u.isSleeping = false;
+                if (u._passedOut) {
+                    u._passedOut = false;
+                    n.joy = Math.max(0, n.joy - 0.30); // slept rough penalty
+                }
+            }
         } else {
             n.rest = Math.max(0, n.rest - dt * 0.0028);
         }
