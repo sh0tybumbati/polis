@@ -34,19 +34,26 @@ export default {
                 if (!campItem?.built) {
                     u.homeConstructId = null;
                 } else {
-                    const htx = campItem.tx, hty = campItem.ty;
-                    const hcx = htx * TILE + TILE / 2, hcy = MAP_OY + hty * TILE + TILE / 2;
-                    if (Phaser.Math.Distance.Between(u.x, u.y, hcx, hcy) > 10) {
+                    const hw = campItem.width ?? 2, hh = campItem.height ?? 2;
+                    // Door = bottom-centre of tent opening; interior = mid-centre inside
+                    const doorX     = (campItem.tx + hw / 2) * TILE;
+                    const doorY     = MAP_OY + (campItem.ty + hh) * TILE - 8;
+                    const interiorX = doorX;
+                    const interiorY = MAP_OY + (campItem.ty + hh / 2) * TILE - 4;
+
+                    if (Phaser.Math.Distance.Between(u.x, u.y, doorX, doorY) > 14) {
                         if (this.totalCarrying(u) > 0 && u.taskType !== 'deposit' && u.taskType !== 'deposit_zone')
                             this.seekDeposit(u);
                         if (u.taskType === 'deposit')      { this.handleDepositTask(u, dt);     return; }
                         if (u.taskType === 'deposit_zone') { this.handleDepositZoneTask(u, dt); return; }
                         u.targetNode = null; u.moveTo = null;
-                        this.moveToward(u, hcx, hcy, u.speed, dt);
+                        this.moveToward(u, doorX, doorY, u.speed, dt);
                         u.isInside = false;
                         return;
                     } else {
-                        u.isInside = false; // camps are outdoors
+                        // Entered the tent — snap to interior and hide
+                        u.x = interiorX; u.y = interiorY;
+                        u.isInside = true;
                         u.isSleeping = true;
                         if (u.taskType && u.taskType !== 'garrison') {
                             u.taskType = null; u.targetNode = null; u.workProgress = 0;
@@ -90,11 +97,7 @@ export default {
             }
         }
 
-        // Wake up when rested
-        if (u.isSleeping && (u.needs?.rest ?? 0) >= 0.95) {
-            u.isSleeping = false;
-            u.isInside = false;
-        }
+        // _tickNeeds handles wake + tent exit; guard here in case needs aren't ticked yet
         if (u.isSleeping) return;
 
         // Exit construct when not sleeping

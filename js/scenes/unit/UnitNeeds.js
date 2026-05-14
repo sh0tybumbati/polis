@@ -93,6 +93,16 @@ export default {
             n.rest = Math.min(1.0, n.rest + dt * rate);
             if (n.rest >= 0.95) {
                 u.isSleeping = false;
+                // Exit tent: place unit at the door so they walk out visibly
+                if (u.isInside && u.homeConstructId) {
+                    const home = this.scene.constructManager?.getById?.(u.homeConstructId);
+                    if (home) {
+                        const hw = home.width ?? 2, hh = home.height ?? 2;
+                        u.x = (home.tx + hw / 2) * TILE;
+                        u.y = MAP_OY + (home.ty + hh) * TILE - 8;
+                    }
+                }
+                u.isInside = false;
                 if (u._passedOut) {
                     u._passedOut = false;
                     n.joy = Math.max(0, n.joy - 0.30); // slept rough penalty
