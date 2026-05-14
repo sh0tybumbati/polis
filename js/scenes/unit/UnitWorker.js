@@ -172,10 +172,15 @@ export default {
                         else if (u.role in WORKSHOP_JOBS) this.seekWorkshopTask(u);
                         else if (JOBS[u.role]?.nodeTypes) this.seekNodeTask(u, JOBS[u.role].nodeTypes);
                     }
-                    // No task found — fall through to socialize if available
+                    // No task found — fall through to socialize, leisure, or generic gather
                     if (!u.taskType && !u.targetNode) {
                         const fallback = u.dayPlan?.find(p => p.intent === 'socialize' || p.intent === 'leisure');
                         if (fallback?.intent === 'socialize') this._handleSocializeIntent(u);
+                        else if (fallback?.intent === 'leisure') this.seekLeisureTask(u);
+                        // Absolute last resort: gather any nearby resource node
+                        if (!u.taskType && !u.targetNode) {
+                            this.seekNodeTask(u, ['berry_bush', 'wild_garden', 'olive_grove', 'small_tree', 'large_tree', 'small_boulder', 'large_boulder']);
+                        }
                     }
                 }
             }
@@ -187,7 +192,7 @@ export default {
         if (u._prevRole) stickyRoles.add(u.role); // self-supplying — keep temporary role until deposit done
         if (!stickyRoles.has(u.role) && !u.taskType && !u.targetNode) {
             u._roleIdleTimer = (u._roleIdleTimer ?? 0) + dt;
-            if (u._roleIdleTimer > 45) { u._roleIdleTimer = 0; u.role = null; }
+            if (u._roleIdleTimer > 15) { u._roleIdleTimer = 0; u.role = null; }
         } else {
             u._roleIdleTimer = 0;
         }
@@ -1004,9 +1009,10 @@ export default {
                 u.taskType = 'deposit'; u.taskConstructId = privateDest.id; u._depositPrivate = false; return;
             }
 
-            // Second try: nearest public construct of the route type
+            // Second try: public (or any, pre-civic) construct of the route type
+            const preCivic = this._isPreCivicAge();
             const publicDest = this.scene.constructs.find(b =>
-                b.built && !b.faction && b.isPublic && routeTypes.includes(b.type));
+                b.built && !b.faction && (b.isPublic || preCivic) && routeTypes.includes(b.type));
             if (publicDest) { u.taskType = 'deposit'; u.taskConstructId = publicDest.id; u._depositPrivate = false; return; }
         }
 
@@ -1134,10 +1140,12 @@ export default {
             if (plantKey !== null) { u.taskType = 'plant_grow';   u.taskZoneKey = plantKey; u.workProgress = 0; return; }
         }
 
+        const preCivic = this._isPreCivicAge();
+
         // 1. Try planting first (high priority)
         const plantFarm = this.scene.constructs.find(b => {
             if (b.type !== 'farm' || !b.built || !b.needsPlanting) return false;
-            if (b.isPublic) return true;
+            if (b.isPublic || preCivic) return true;
             const farmDomain = this.scene.constructManager.getDomainAt(b.tx, b.ty);
             return !farmDomain || (homeDomain && farmDomain.id === homeDomain.id);
         });
@@ -1150,7 +1158,7 @@ export default {
         // 2. Try farm harvest
         const farm = this.scene.constructs.find(b => {
             if (b.type !== 'farm' || !b.built || b.stock <= 0 || b.faction === 'enemy') return false;
-            if (b.isPublic) return true;
+            if (b.isPublic || preCivic) return true;
             const farmDomain = this.scene.constructManager.getDomainAt(b.tx, b.ty);
             if (!farmDomain) return true;
             return homeDomain && farmDomain.id === homeDomain.id;
@@ -1165,7 +1173,7 @@ export default {
         const garden = this.scene.constructs.find(b => {
             if (b.type !== 'garden' || !b.built || b.faction === 'enemy') return false;
             if ((b.inventory?.['Food.Produce.Olive'] ?? 0) <= 0) return false;
-            if (b.isPublic) return true;
+            if (b.isPublic || preCivic) return true;
             const gDom = this.scene.constructManager.getDomainAt(b.tx, b.ty);
             if (!gDom) return true;
             return homeDomain && gDom.id === homeDomain.id;
@@ -1247,8 +1255,14 @@ export default {
         return b.domainId === home.domainId;
     },
 
+    // Pre-civic age: no townhall yet → ownership/domain distinctions don't apply
+    _isPreCivicAge() {
+        return !this.scene.constructs.some(b => b.type === 'townhall' && b.built && !b.faction);
+    },
+
     // Returns true if unit u is allowed to work in construct b
     _canAccessConstruct(u, b) {
+        if (this._isPreCivicAge()) return true; // Before townhall, everything is shared
         if (b.isPublic) return true;
         if (!b.domainId) return true; // unowned — accessible to all until claimed by an oikos
         return this._isInUnitDomain(u, b);

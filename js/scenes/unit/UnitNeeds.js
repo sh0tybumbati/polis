@@ -216,7 +216,15 @@ export default {
             cands.push({ role: job.id, score: s });
         }
         cands.sort((a, b) => b.score - a.score);
-        if (cands.length > 0) u.role = cands[0].role;
+        if (cands.length > 0) {
+            u.role = cands[0].role;
+        } else {
+            // Guaranteed fallback so units never stay permanently idle
+            const hasUnbuilt = this.scene.constructs.some(b => !b.built && !b.faction);
+            const hasNodes   = this.scene.resNodes?.some(n => n.stock > 0);
+            if (hasUnbuilt && u.age >= 2) u.role = 'builder';
+            else if (hasNodes) u.role = 'forager';
+        }
     },
 
     assignVocation(u) {
