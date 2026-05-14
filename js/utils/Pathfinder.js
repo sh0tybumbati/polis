@@ -15,47 +15,54 @@ export class Pathfinder {
 
         if (endTx < 0 || endTx >= MAP_W || endTy < 0 || endTy >= MAP_H) return null;
         if (this.scene.mapManager.isTileBlocked(endTx * TILE + TILE/2, MAP_OY + endTy * TILE + TILE/2)) {
-             // If target is blocked, try to find an adjacent free tile
              const adj = this._getAdjacent(endTx, endTy, MAP_W, MAP_H).find(t => !this._isBlocked(t.x, t.y));
              if (adj) { endTx = adj.x; endTy = adj.y; }
              else return null;
         }
 
-        const openSet = [{ x: startTx, y: startTy, g: 0, h: this._dist(startTx, startTy, endTx, endTy), parent: null }];
-        const closedSet = new Set();
         const key = (x, y) => y * MAP_W + x;
+        const closedSet = new Set();
+        // openMap gives O(1) lookup instead of O(n) find()
+        const openMap  = new Map();
+        const openSet  = [];
+
+        const startNode = { x: startTx, y: startTy, g: 0, h: this._dist(startTx, startTy, endTx, endTy), parent: null };
+        openSet.push(startNode);
+        openMap.set(key(startTx, startTy), startNode);
 
         let iterations = 0;
-        const MAX_ITERATIONS = 400; // Cap search for performance
+        const MAX_ITERATIONS = 1200;
 
         while (openSet.length > 0 && iterations < MAX_ITERATIONS) {
             iterations++;
-            openSet.sort((a, b) => (a.g + a.h) - (b.g + b.h));
-            const current = openSet.shift();
+            // Linear min-scan instead of sorting the whole array each iteration
+            let minIdx = 0;
+            for (let i = 1; i < openSet.length; i++) {
+                if ((openSet[i].g + openSet[i].h) < (openSet[minIdx].g + openSet[minIdx].h)) minIdx = i;
+            }
+            const current = openSet[minIdx];
+            openSet.splice(minIdx, 1);
+            openMap.delete(key(current.x, current.y));
 
             if (current.x === endTx && current.y === endTy) {
                 return this._reconstructPath(current);
             }
 
-            closedSet.add(key(current.x, current.y));
+            const ck = key(current.x, current.y);
+            if (closedSet.has(ck)) continue;
+            closedSet.add(ck);
 
-            const neighbors = this._getAdjacent(current.x, current.y, MAP_W, MAP_H);
-            for (const neighbor of neighbors) {
-                if (closedSet.has(key(neighbor.x, neighbor.y)) || this._isBlocked(neighbor.x, neighbor.y)) {
-                    continue;
-                }
+            for (const neighbor of this._getAdjacent(current.x, current.y, MAP_W, MAP_H)) {
+                const nk = key(neighbor.x, neighbor.y);
+                if (closedSet.has(nk) || this._isBlocked(neighbor.x, neighbor.y)) continue;
 
                 const gScore = current.g + 1;
-                let existing = openSet.find(o => o.x === neighbor.x && o.y === neighbor.y);
-
+                const existing = openMap.get(nk);
                 if (!existing) {
-                    openSet.push({
-                        x: neighbor.x,
-                        y: neighbor.y,
-                        g: gScore,
-                        h: this._dist(neighbor.x, neighbor.y, endTx, endTy),
-                        parent: current
-                    });
+                    const node = { x: neighbor.x, y: neighbor.y, g: gScore,
+                        h: this._dist(neighbor.x, neighbor.y, endTx, endTy), parent: current };
+                    openSet.push(node);
+                    openMap.set(nk, node);
                 } else if (gScore < existing.g) {
                     existing.g = gScore;
                     existing.parent = current;

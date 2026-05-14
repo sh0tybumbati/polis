@@ -13,12 +13,28 @@ export default {
             return false;
         }
 
+        // --- Stuck detection: if barely moved in 1.5s while still far from target, nudge and retry ---
+        if (d > threshold * 3) {
+            u._stuckAcc = (u._stuckAcc ?? 0) + dt;
+            if (u._stuckAcc >= 1500) {
+                const moved = Math.abs(u.x - (u._stuckPrevX ?? u.x)) + Math.abs(u.y - (u._stuckPrevY ?? u.y));
+                if (moved < 3) {
+                    u.x += (Math.random() - 0.5) * TILE * 1.2;
+                    u.y += (Math.random() - 0.5) * TILE * 0.8;
+                    u.currentPath = null; u._pathFailed = false; u._pathRetryTimer = 0;
+                }
+                u._stuckAcc = 0; u._stuckPrevX = u.x; u._stuckPrevY = u.y;
+            }
+        } else {
+            u._stuckAcc = 0;
+        }
+
         // --- Pathfinding Logic ---
         const startTx = Math.floor(u.x / TILE), startTy = Math.floor((u.y - MAP_OY) / TILE);
         const targetTx = Math.floor(tx / TILE), targetTy = Math.floor((ty - MAP_OY) / TILE);
 
-        // If target is far and no path or target moved significantly, find path
-        const isFar = d > TILE * 3;
+        // Use pathfinding whenever more than ~1 tile away — prevents sticking near obstacles
+        const isFar = d > TILE * 1.2;
         const targetChanged = u._pathTargetTx !== targetTx || u._pathTargetTy !== targetTy;
         // Throttle retries on failed paths: don't re-attempt for 2s after a null result
         if (targetChanged) { u._pathRetryTimer = 0; u._pathFailed = false; }
