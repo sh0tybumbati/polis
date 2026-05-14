@@ -515,7 +515,3 @@ export default {
         return 'wood';
     },
 };
-;
-        return 'wood';
-    },
-};
