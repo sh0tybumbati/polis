@@ -11,11 +11,17 @@
 - **Discovery-driven chunk loading** — chunks are generated and rendered only when a unit's vision circle first reaches them (`MapManager.recomputeVis` → `ChunkManager.onChunkDiscovered`). Camera panning does not trigger generation. Adjacent chunks are pre-generated (data only, not rendered) for pathfinding lookahead.
 - **MenuScene visual redesign** — main menu now uses `background_splash.png` (Greek temple with golden sunrays) as a full-screen background with a WebGL blur (`preFX.addBlur`) overlay. Buttons are plain spaced serif text (no boxes) matching the reference design. Title is large gold Georgia serif.
 
+### Performance (render optimization pass — session 2026-05-15)
+
+- **Single shared unit Graphics (P4)** — replaced N per-unit `Phaser.Graphics` objects with one `scene.unitsGfx` drawn in a single batch pass each frame (`_redrawAllUnits`). All unit draw methods updated to accept `ctx.ox/ctx.oy` world-space offsets; `renderShapes.js` adds offsets to every shape position. Death fade tweens `u._alpha` directly; unit removed on tween complete. N draw calls → 1.
+- **Blitter fog (P2)** — `drawFog()` rewritten from `Phaser.Graphics` fillRect calls to two `Phaser.GameObjects.Blitter` pools (2500 bobs each, black at 0.97α and dim at 0.52α). Fog now repositions bobs every frame instead of every 500ms, eliminating the raw-terrain-on-pan gap. ~880 fillRect/frame → 2 draw calls.
+- **RenderTexture chunks (P3)** — `ChunkManager.renderChunk()` bakes terrain into a `Phaser.RenderTexture` on discovery. Each chunk is one GPU texture sample thereafter; re-baked only on tile mutation. Far chunks unload their RT to reclaim VRAM.
+- **Discovery-driven generation** — chunk generation and rendering only triggered when unit vision reaches new tiles, not by camera pan. 3×3 spawn chunks pre-generated synchronously; all others streamed in at ≤3/vis-cycle.
+
 ### Changed
 
 - **Survival mode** — enemy faction removed entirely. No enemy village, no combat waves, no conquest victory. The game is now an open-ended survival/city-builder. Enemy-conquest victory check removed from `WorldManager`.
 - **Tile keys** — all tile indexing changed from `ty * MAP_W + tx` integer to `"tx,ty"` string. Affects `UnitWorker`, `ZoneManager`, `ConstructManager`, `Pathfinder`, `MapManager`.
-- **Chunk graphics** — each chunk uses one `Phaser.Graphics` object rendered once on discovery; re-rendered only when a tile is modified (road, construction). Graphics unloaded when the chunk is >6 camera-chunks away from current view.
 - **Startup performance** — only the 3×3 chunks around spawn pre-generate synchronously at game start (9 chunks). Everything else streams in as units explore, capped at 3 new chunks per vis cycle.
 
 ### Fixed

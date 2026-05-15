@@ -67,7 +67,11 @@ Polis already has `lod` tiers (0–3) computed per frame in `UnitRender.redrawUn
 
 ## Prioritized Implementation Plan
 
-### Priority 1 — Dirty-flag unit redraw (low effort, immediate fps gain)
+_Status as of 2026-05-15: P1–P4 all shipped in the same session._
+
+### Priority 1 — Dirty-flag unit redraw ✅ DONE
+
+**Superseded by P4.** The single shared Graphics batch (`_redrawAllUnits`) is cheap enough that per-unit dirty tracking is no longer needed. All unit state is flushed in one Graphics clear+draw pass each frame.
 
 **Problem**: `redrawUnit()` runs every frame for every visible unit. Most frames a sleeping or idle unit hasn't changed at all.
 
@@ -88,7 +92,7 @@ for (const u of this.scene.units) {
 
 Expected gain: near-zero CPU for idle/sleeping units, which can be the majority during peacetime.
 
-### Priority 2 — White pixel fog (medium effort, biggest visual bottleneck)
+### Priority 2 — White pixel fog ✅ DONE
 
 **Problem**: `drawFog()` runs every 500ms, iterates all viewport tiles (~880 for 1280×720), and issues `fillRect` for every black/dim tile via `Phaser.Graphics`. Each call is a separate GPU command before batching.
 
@@ -105,9 +109,9 @@ this.scene.fogBlitter = this.scene._w(
 //  fallback: two separate Blitters, one for black, one for dim)
 ```
 
-Note: verify `Blitter` bob tinting is available in Phaser 3.87 before committing.
+Implemented with two Blitters (`_fogBlack` at 0.97α, `_fogDim` at 0.52α), pre-allocated 2500-bob pools each, repositioned every frame. Moved from 500ms timer to every-frame call — now cheap enough with Blitters and eliminates the "raw terrain visible on pan" gap.
 
-### Priority 3 — RenderTexture chunk terrain (medium effort, eliminates per-tile CPU work)
+### Priority 3 — RenderTexture chunk terrain ✅ DONE
 
 **Problem**: `ChunkManager.renderChunk()` calls 256 `fillRect` on a `Phaser.Graphics` every time a chunk is first rendered or a tile changes. On first discovery of many chunks this spikes CPU.
 
@@ -137,7 +141,17 @@ renderChunk(cx, cy) {
 
 The `RenderTexture` is then a single GPU texture — 1 draw call per chunk regardless of tile count.
 
+Implemented: `ChunkManager.renderChunk()` creates a `rt` at world position, draws tiles into a temp Graphics at local coords (0→chunk size), calls `rt.draw(g)`, destroys the temp Graphics. `chunk.rt` replaces the old `chunk.gfx`. Far chunks unload `chunk.rt` to reclaim VRAM; re-rendered on next discovery.
+
 **Trade-off**: RenderTextures consume VRAM. With 20 rendered chunks at 16×16×32px = 512×512px each, VRAM usage is acceptable on desktop but monitor on mobile.
+
+### Priority 4 — Single shared Graphics for all units ✅ DONE
+
+**Problem**: Each unit had its own `Phaser.Graphics` object. N units = N draw calls per frame for bodies alone.
+
+**Fix**: One `scene.unitsGfx` Graphics object; `_redrawAllUnits()` clears it once and draws every visible unit in world coords. Unit draw methods updated to accept `ctx.ox / ctx.oy` world offsets. `renderShapes.js` adds `ox/oy` to all position calculations. Unit `_alpha` and `_visible` flags replace `u.gfx.setAlpha()` / `u.gfx.setVisible()`. Death fade tweens `u._alpha → 0` directly; unit removed from array on tween complete.
+
+N draw calls → 1 draw call for all unit bodies.
 
 ---
 
@@ -150,11 +164,18 @@ The `RenderTexture` is then a single GPU texture — 1 draw call per chunk regar
 
 ## Summary Table
 
-| Technique | Effort | Impact | When |
+| Technique | Effort | Impact | Status |
 |---|---|---|---|
-| Dirty-flag unit redraw | Low | Medium (idle units near-free) | Next sprint |
-| White pixel fog tiles | Medium | High (fog is redrawn every 500ms) | Next sprint |
-| LOD layer toggle | Low | Low–Medium (zoom events are rare) | With dirty-flag |
-| RenderTexture chunks | Medium | High (eliminates per-tile CPU on discovery) | After fog fix |
-| White pixel unit bars | Low | Low (few units) | Opportunistic |
-| Full sprite component system | High | Low for current scale | Skip for now |
+| Dirty-flag unit redraw | Low | Medium | ✅ Superseded by P4 |
+| White pixel fog tiles (Blitter) | Medium | High | ✅ Done |
+| LOD layer toggle | Low | Low–Medium | Open |
+| RenderTexture chunks | Medium | High | ✅ Done |
+| Single shared unit Graphics | Medium | High | ✅ Done |
+| White pixel unit bars | Low | Low | Open (opportunistic) |
+| Full sprite component system | High | Low for current scale | Skip |
+
+## Remaining Opportunities
+
+- **LOD layer toggle**: group detail Graphics objects into a `Phaser.Layer`, toggle visible on zoom threshold change (O(1) vs per-frame lod int check). Low priority until unit counts grow.
+- **White pixel progress bars**: replace the 3 `fillRect` calls per unit in `_drawProgressBar` with scaled white-pixel sprites. Would require moving bars out of the shared Graphics pass into a separate Image pool. Low value at current unit scale.
+- **Nature entity batch**: deer and sheep still have individual `d.gfx` / `s.gfx` Graphics. Same P4 treatment could apply to `NatureManager` if animal counts grow large.
