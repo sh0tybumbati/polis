@@ -72,7 +72,7 @@ export default class MenuScene extends Phaser.Scene {
         this._stars = this.add.image(cx, belowHorizonCy, 'menu_stars')
             .setDisplaySize(starDiameter, starDiameter)
             .setAlpha(0.055)
-            .setBlendMode(Phaser.BlendModes.MULTIPLY);
+            .setBlendMode(Phaser.BlendModes.SCREEN);
 
         // ── 3. Sun rays — behind disc, spinning; MULTIPLY so white bg vanishes ─
         const raysCy  = belowHorizonCy + H * 0.04;
@@ -175,12 +175,5 @@ export default class MenuScene extends Phaser.Scene {
         zone.on('pointerdown',  cb);
     }
 
-    _drawFooter(W, H) {
-        this.add.text(W / 2, H - 20, 'PRESS ANY BUTTON TO CONTINUE', {
-            fontFamily: 'Georgia, "Times New Roman", serif',
-            fontSize:   '11px',
-            color:      '#8a7050',
-            letterSpacing: 3,
-        }).setOrigin(0.5);
-    }
+    _drawFooter(W, H) { }
 }
