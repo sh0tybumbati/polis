@@ -38,10 +38,8 @@ export default class MenuScene extends Phaser.Scene {
         const tex = this.textures.get('menu_bg');
         const tw = tex.getSourceImage().width;
         const th = tex.getSourceImage().height;
-        // Zoom out on mobile (narrow screens) so more of the image is visible
-        const isMobile = W < 900;
-        const coverScale = Math.max(W / tw, H / th);
-        const scale = isMobile ? coverScale * 0.78 : coverScale;
+        // 1:1 source — cover-scale fills any aspect ratio cleanly
+        const scale = Math.max(W / tw, H / th);
         this.add.image(W / 2, H / 2, 'menu_bg').setScale(scale);
 
         // Light vignette so buttons remain readable
