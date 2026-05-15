@@ -721,7 +721,7 @@ export default {
         if (this.moveToward(u, cx, cy, 28, dt)) return;
 
         u.workProgress = (u.workProgress ?? 0) + dt;
-        if (u.workProgress >= 2000) {
+        if (u.workProgress >= 2.0) {
             u.workProgress = 0;
             const crop = CROPS[state.crop];
             if (!crop) { u.taskType = null; return; }
@@ -750,7 +750,7 @@ export default {
         if (this.moveToward(u, cx, cy, 28, dt)) return;
 
         u.workProgress = (u.workProgress ?? 0) + dt;
-        if (u.workProgress >= 1000) {
+        if (u.workProgress >= 1.0) {
             u.workProgress = 0;
             // Plant one slot at a time — loops until tile is fully planted
             const idx = state.slots.findIndex(s => s < 0);

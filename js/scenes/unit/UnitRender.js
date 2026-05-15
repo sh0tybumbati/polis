@@ -108,7 +108,7 @@ export default {
 
         // Task progress bar — shown above unit when actively working
         const TASK_MAX = {
-            plant_grow: 1000, harvest_grow: 2000, plant: 6000,
+            plant_grow: 1.0, harvest_grow: 2.0, plant: 6.0,
             build: 25, repair: 25, deconstruct: 25,
             workshop: null, zone_workshop: null,
         };
