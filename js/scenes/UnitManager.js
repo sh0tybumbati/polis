@@ -218,9 +218,13 @@ export default class UnitManager {
     }
 
     // Rest need feeds into work speed. Exhausted workers (rest=0) work at 50% speed.
-    getRestMult(u) {
+    getRestMult(u) { return this.getWorkMult(u); }  // backwards-compat alias
+
+    getWorkMult(u) {
         if (u.isEnemy || u.type !== 'worker') return 1.0;
-        return 0.5 + (u.needs?.rest ?? 1.0) * 0.5;
+        const restMult = 0.5 + (u.needs?.rest ?? 1.0) * 0.5;  // 0.5–1.0
+        const moodMult = 0.6 + (u.mood ?? 1.0) * 0.4;          // 0.6–1.0
+        return restMult * moodMult;
     }
 
     _applyRareTraits(u) {

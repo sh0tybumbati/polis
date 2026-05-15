@@ -950,7 +950,8 @@ export default {
         if (this.moveToward(u, cx, cy, 18, dt)) return;
 
         if (!u.needs) u.needs = { food: 0.8, rest: 1, social: 0.8, joy: 0.8 };
-        u.needs.joy = Math.min(1.0, (u.needs.joy ?? 0.5) + dt * 0.018);
+        u.needs.joy    = Math.min(1.0, (u.needs.joy    ?? 0.5) + dt * 0.018);
+        u.needs.social = Math.min(1.0, (u.needs.social ?? 0.5) + dt * 0.010);
         u.workProgress = (u.workProgress ?? 0) + dt;
 
         // Drink beer for bonus joy (once every 2s)
