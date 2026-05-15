@@ -1,6 +1,7 @@
 import { CONSTRUCT_VOLUME } from '../../config/gameConstants.js';
 import { CONSTRUCTS } from '../../content/constructs/index.js';
 import { ITEMS } from '../../content/items/index.js';
+import { floatText } from '../../ui/UIKit.js';
 
 export default {
     showInventoryModal(b) {
@@ -534,13 +535,8 @@ export default {
     },
 
     showFloatText(x, y, text, color) {
-        const txt = this.scene._w(this.scene.add.text(x, y, text, {
-            fontSize: '11px', color, fontFamily: 'monospace',
-            stroke: '#000000', strokeThickness: 2,
-        }).setOrigin(0.5).setDepth(50));
-        this.scene.tweens.add({
-            targets: txt, y: y - 24, alpha: 0, duration: 900,
-            onComplete: () => txt.destroy(),
+        floatText(this.scene, x, y, text, {
+            color, register: (o) => this.scene._w(o),
         });
     },
 

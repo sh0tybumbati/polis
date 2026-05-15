@@ -3,7 +3,7 @@ import {
     FM_TYPES, FM_LABELS, UNIT_NAMES, VET_LEVELS, SEASONS, SEASON_DAYS,
     CONSTRUCT_VOLUME, DAY_DURATION, NIGHT_DURATION,
 } from '../config/gameConstants.js';
-import { clockString } from '../ui/UIKit.js';
+import { clockString, tabStrip } from '../ui/UIKit.js';
 import { CONSTRUCTS, computeBuildCost } from '../content/constructs/index.js';
 import UIPanel from './UIPanel.js';
 import { ITEMS } from '../content/items/index.js';
@@ -376,48 +376,20 @@ export default class UIManager {
     }
 
     _infTabBar(ox, oy, W, tabs, active, onSwitch) {
-        const TH = 22, tw = Math.floor(W / tabs.length);
-        tabs.forEach((t, i) => {
-            const tx = ox + i * tw;
-            const isActive = t === active;
-            const g = this._inf(this.scene.add.graphics().setDepth(23));
-            g.fillStyle(isActive ? 0x2a2010 : 0x130e06, 0.95).fillRect(tx, oy, tw, TH);
-            g.lineStyle(1, isActive ? 0xc8a030 : 0x3a2e18, 0.7).strokeRect(tx, oy, tw, TH);
-            const hov = this._inf(this.scene.add.graphics().setDepth(23).setAlpha(0));
-            hov.fillStyle(0xffffff, 0.10).fillRect(tx, oy, tw, TH);
-            const lbl = this._infTxt(tx + tw / 2, oy + TH / 2, t,
-                { fontSize: this._fs(10), color: isActive ? '#c8a030' : '#6a5830' }).setOrigin(0.5);
-            if (!isActive) {
-                const z = this._inf(this.scene.add.zone(tx + tw / 2, oy + TH / 2, tw, TH)
-                    .setInteractive({ cursor: 'pointer' }).setDepth(24));
-                z.on('pointerover', () => { hov.setAlpha(1); lbl.setColor('#a08050'); });
-                z.on('pointerout',  () => { hov.setAlpha(0); lbl.setColor('#6a5830'); });
-                z.on('pointerdown', () => onSwitch(t));
-            }
+        const TH = 22;
+        tabStrip(this.scene, ox, oy, W, TH, tabs, active, (t) => onSwitch(t), {
+            depth: 23, activeBg: 0x2a2010, inactiveBg: 0x130e06,
+            activeColor: '#c8a030', inactiveColor: '#6a5830',
+            onAdd: (o) => this._inf(o),
         });
     }
 
     _actTabBar(ox, oy, W, tabs, active, onSwitch) {
-        const TH = 22, tw = Math.floor(W / tabs.length);
-        tabs.forEach((t, i) => {
-            const tx = ox + i * tw;
-            const isActive = t === active;
-            const g = this._tab(this.scene.add.graphics().setDepth(23));
-            g.fillStyle(isActive ? 0x2a2010 : 0x130e06, 0.95).fillRect(tx, oy, tw, TH);
-            g.lineStyle(1, isActive ? 0xc8a030 : 0x3a2e18, 0.7).strokeRect(tx, oy, tw, TH);
-            const hov = this._tab(this.scene.add.graphics().setDepth(23).setAlpha(0));
-            hov.fillStyle(0xffffff, 0.10).fillRect(tx, oy, tw, TH);
-            const lbl = this._tab(this.scene.add.text(tx + tw / 2, oy + TH / 2, t, {
-                fontFamily: 'monospace', fontSize: this._fs(10),
-                color: isActive ? '#c8a030' : '#6a5830',
-            }).setOrigin(0.5).setDepth(23));
-            if (!isActive) {
-                const z = this._tab(this.scene.add.zone(tx + tw / 2, oy + TH / 2, tw, TH)
-                    .setInteractive({ cursor: 'pointer' }).setDepth(24));
-                z.on('pointerover', () => { hov.setAlpha(1); lbl.setColor('#a08050'); });
-                z.on('pointerout',  () => { hov.setAlpha(0); lbl.setColor('#6a5830'); });
-                z.on('pointerdown', () => onSwitch(t));
-            }
+        const TH = 22;
+        tabStrip(this.scene, ox, oy, W, TH, tabs, active, (t) => onSwitch(t), {
+            depth: 23, activeBg: 0x2a2010, inactiveBg: 0x130e06,
+            activeColor: '#c8a030', inactiveColor: '#6a5830',
+            onAdd: (o) => this._tab(o),
         });
         return TH;
     }

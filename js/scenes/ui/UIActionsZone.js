@@ -2,6 +2,7 @@ import { TILE, MAP_OY, FM_TYPES, FM_LABELS, MATERIAL_LABELS, MATERIAL_COLORS } f
 import { CONSTRUCTS, CONSTRUCT_CATS, computeBuildCost } from '../../content/constructs/index.js';
 import { CROPS } from '../../content/crops/index.js';
 import UIPanel from '../UIPanel.js';
+import { tabStrip } from '../../ui/UIKit.js';
 
 export default {
     _renderActionsZone() {
@@ -508,57 +509,23 @@ export default {
     },
 
     _renderCategoryTabs(x, y, w, h) {
-        const cats  = [...Object.keys(CONSTRUCT_CATS).filter(k => k !== 'Furnish'), 'Furnish', 'Zones', 'Debug'];
-        const tabW  = Math.floor((w - 2) / cats.length);
-
-        cats.forEach((cat, i) => {
-            const active = this.scene.buildCat === cat;
-            const tx = x + 1 + i * tabW;
-            const bg = this._tab(this.scene.add.graphics().setDepth(22));
-            bg.fillStyle(active ? 0x4a6070 : 0x221a0e, active ? 0.95 : 0.8)
-              .fillRect(tx, y, tabW - 1, h - 1);
-            if (active) bg.lineStyle(1, 0xc8a030, 0.8).strokeRect(tx, y, tabW - 1, h - 1);
-
-            const hov = this._tab(this.scene.add.graphics().setDepth(23).setAlpha(0));
-            hov.fillStyle(0xffffff, 0.10).fillRect(tx, y, tabW - 1, h - 1);
-
-            const label = cat.length > 5 ? cat.slice(0, 4) : cat;
-            const txt = this._tab(this.scene.add.text(tx + tabW / 2, y + h / 2, label, {
-                fontFamily: 'monospace', fontSize: '11px',
-                color: active ? '#e8d8a0' : '#6a5a3a',
-            }).setOrigin(0.5).setDepth(22));
-
-            const z = this._tab(this.scene.add.zone(tx + tabW / 2, y + h / 2, tabW - 1, h - 1)
-                .setInteractive({ cursor: 'pointer' }).setDepth(24));
-            z.on('pointerover', () => { if (!active) { hov.setAlpha(1); txt.setColor('#a08050'); } });
-            z.on('pointerout',  () => { hov.setAlpha(0); if (!active) txt.setColor('#6a5a3a'); });
-            z.on('pointerdown', () => {
-                this.scene.buildCat = cat; this.updateUI();
-            });
-        });
+        const cats = [...Object.keys(CONSTRUCT_CATS).filter(k => k !== 'Furnish'), 'Furnish', 'Zones', 'Debug'];
+        const labels = cats.map(c => c.length > 5 ? c.slice(0, 4) : c);
+        tabStrip(this.scene, x + 1, y, w - 2, h - 1, labels, labels[cats.indexOf(this.scene.buildCat)],
+            (lbl) => { this.scene.buildCat = cats[labels.indexOf(lbl)]; this.updateUI(); },
+            { depth: 22, activeBg: 0x4a6070, inactiveBg: 0x221a0e,
+              activeColor: '#e8d8a0', inactiveColor: '#6a5a3a',
+              onAdd: (o) => this._tab(o) });
     },
 
     _renderFurnishSubTabs(x, y, w, h) {
         const cats = Object.keys(CONSTRUCT_CATS).filter(k => k !== 'Furnish');
-        const tabW = Math.floor((w - 2) / cats.length);
-        cats.forEach((cat, i) => {
-            const active = (this.scene.furnishCat ?? 'Living') === cat;
-            const tx = x + 1 + i * tabW;
-            const bg = this._tab(this.scene.add.graphics().setDepth(22));
-            bg.fillStyle(active ? 0x3a2a50 : 0x1a1020, active ? 0.95 : 0.8).fillRect(tx, y, tabW - 1, h - 1);
-            if (active) bg.lineStyle(1, 0x9966cc, 0.8).strokeRect(tx, y, tabW - 1, h - 1);
-            const hov = this._tab(this.scene.add.graphics().setDepth(23).setAlpha(0));
-            hov.fillStyle(0xffffff, 0.10).fillRect(tx, y, tabW - 1, h - 1);
-            const txt = this._tab(this.scene.add.text(tx + tabW / 2, y + h / 2, cat, {
-                fontFamily: 'monospace', fontSize: '10px',
-                color: active ? '#cc99ff' : '#6a5a7a',
-            }).setOrigin(0.5).setDepth(22));
-            const z = this._tab(this.scene.add.zone(tx + tabW / 2, y + h / 2, tabW - 1, h - 1)
-                .setInteractive({ cursor: 'pointer' }).setDepth(24));
-            z.on('pointerover', () => { if (!active) { hov.setAlpha(1); txt.setColor('#aa88cc'); } });
-            z.on('pointerout',  () => { hov.setAlpha(0); if (!active) txt.setColor('#6a5a7a'); });
-            z.on('pointerdown', () => { this.scene.furnishCat = cat; this.updateUI(); });
-        });
+        tabStrip(this.scene, x + 1, y, w - 2, h - 1, cats, this.scene.furnishCat ?? 'Living',
+            (cat) => { this.scene.furnishCat = cat; this.updateUI(); },
+            { depth: 22, activeBg: 0x3a2a50, inactiveBg: 0x1a1020,
+              activeColor: '#cc99ff', inactiveColor: '#6a5a7a',
+              activeBorderColor: 0x9966cc,
+              onAdd: (o) => this._tab(o) });
     },
 
     _buildMenuItems() {
