@@ -36,10 +36,7 @@ export default class WorldManager {
 
         let outcome = null, reason = null;
 
-        const enemyTH = this.scene.constructs.find(b => b.faction === 'enemy' && b.type === 'townhall');
-        if (!enemyTH || enemyTH.hp <= 0) {
-            outcome = 'win'; reason = 'The enemy polis has fallen.';
-        }
+        // Victory via enemy conquest disabled — no enemy faction in survival mode
 
         if (!outcome) {
             const playerTH = this.scene.constructs.find(b => !b.faction && b.type === 'townhall' && b.built);
