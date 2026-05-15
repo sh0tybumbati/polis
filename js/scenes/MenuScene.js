@@ -30,8 +30,7 @@ export default class MenuScene extends Phaser.Scene {
 
     update(time, delta) {
         const dt = delta / 1000;
-        // Sky drifts sideways (dawn wind feel) rather than upward
-        if (this._sky)     this._sky.tilePositionX += 8 * dt;
+        if (this._sky)     this._sky.tilePositionY += 8 * dt;
         if (this._stars)   this._stars.angle        += 1.2 * dt;
         if (this._sunrays) this._sunrays.angle       += 3.5 * dt;
     }
@@ -66,7 +65,7 @@ export default class MenuScene extends Phaser.Scene {
 
         // ── 2. Constellations — faint rotating star chart ─────────────────────
         const starDiameter = Math.max(W, H) * 1.618;
-        this._stars = this.add.image(cx, belowHorizonCy, 'menu_stars')
+        this._stars = this.add.image(cx, belowHorizonCy + H * 0.04, 'menu_stars')
             .setDisplaySize(starDiameter, starDiameter)
             .setAlpha(0.08)
             .setBlendMode(Phaser.BlendModes.SCREEN);
