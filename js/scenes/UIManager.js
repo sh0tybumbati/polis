@@ -274,6 +274,19 @@ export default class UIManager {
         this.updateEnemyCount();
     }
 
+    tickClock() {
+        if (!this.scene.dayInfo) return;
+        const phase = this.scene.phase;
+        const seasonIdx = Math.floor((this.scene.day - 1) / SEASON_DAYS) % 4;
+        const seasonName = SEASONS[seasonIdx];
+        const clock = phase === 'NIGHT'
+            ? clockString(this.scene.timerMs, NIGHT_DURATION, 12, 18)
+            : clockString(this.scene.timerMs, DAY_DURATION,   12,  6);
+        this.scene.dayInfo.setText(phase === 'NIGHT'
+            ? `🌙 D${this.scene.day}  ${seasonName}  ${clock}`
+            : `☀  D${this.scene.day}  ${seasonName}  ${clock}`);
+    }
+
     showSaveFlash() {
         const txt = this.scene.add.text(this.scene.SW - 45, 10, '💾 saved', {
             fontSize: '9px', color: '#88cc88', fontFamily: 'monospace',

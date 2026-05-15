@@ -448,6 +448,7 @@ export default class GameScene extends Phaser.Scene {
         const dt = (delta / 1000) * this.tickSpeed;
 
         this.chunkManager?.tick(this.cameras.main);
+        this.uiManager.tickClock();
         this.worldManager.tick(delta);
         this.unitManager.tick(time, dt);
         this.economyManager.tick(delta * this.tickSpeed);
