@@ -750,17 +750,17 @@ export default {
         if (this.moveToward(u, cx, cy, 28, dt)) return;
 
         u.workProgress = (u.workProgress ?? 0) + dt;
-        if (u.workProgress >= 3000) {
+        if (u.workProgress >= 1000) {
             u.workProgress = 0;
-            let planted = 0;
-            for (let i = 0; i < state.slots.length; i++) {
-                if (state.slots[i] < 0) { state.slots[i] = 0; planted++; }
-            }
-            this._gainSkillXp(u, 'farming');
-            zm._renderGrowSlots();
-            if (planted > 0)
+            // Plant one slot at a time — loops until tile is fully planted
+            const idx = state.slots.findIndex(s => s < 0);
+            if (idx >= 0) {
+                state.slots[idx] = 0;
+                this._gainSkillXp(u, 'farming');
+                zm._renderGrowSlots();
                 this.scene.uiManager.showFloatText(cx, cy - 14, 'planted!', '#aaddaa');
-            u.taskType = null;
+            }
+            if (!state.slots.some(s => s < 0)) u.taskType = null;
         }
     },
 
