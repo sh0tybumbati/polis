@@ -57,23 +57,29 @@ export default class MenuScene extends Phaser.Scene {
         this._sky = this.add.tileSprite(cx, H / 2, W, H, 'menu_sky')
             .setTileScale(skyScale, skyScale);
 
+        // Compute foreground horizon Y on screen so sun/stars track it
+        const fgTex = this.textures.get('menu_fg').getSourceImage();
+        const fgScale = W / fgTex.width;
+        const fgRenderedH = fgTex.height * fgScale;
+        const fgTopY = H - fgRenderedH;
+        // Horizon sits at ~44% from top of the fg image (where sky meets terrain)
+        const fgHorizonY = fgTopY + 0.44 * fgRenderedH;
+        // Target: halfway between the horizon and the bottom of the screen
+        const belowHorizonCy = (fgHorizonY + H) / 2;
+
         // ── 2. Constellations — very faint, slowly rotating star chart ─────────
-        // MULTIPLY blend: white areas pass through, dark lines subtly darken sky
         const starDiameter = Math.max(W, H) * 1.15;
-        this._stars = this.add.image(cx, H * 0.40, 'menu_stars')
+        this._stars = this.add.image(cx, belowHorizonCy, 'menu_stars')
             .setDisplaySize(starDiameter, starDiameter)
             .setAlpha(0.09)
             .setBlendMode(Phaser.BlendModes.MULTIPLY);
 
-        // ── 3. Sun — positioned at horizon, rays spin ──────────────────────────
+        // ── 3. Sun — centred on same point, rays spin ──────────────────────────
         const sunSize = Math.min(W, H) * 0.52;
-        this._sun = this.add.image(cx, H * 0.56, 'menu_sun')
+        this._sun = this.add.image(cx, belowHorizonCy, 'menu_sun')
             .setDisplaySize(sunSize, sunSize);
 
         // ── 4. Foreground — transparent PNG composited over everything ──────────
-        // Anchor to bottom-centre; scale to cover full width
-        const fgTex = this.textures.get('menu_fg').getSourceImage();
-        const fgScale = W / fgTex.width;
         this.add.image(cx, H, 'menu_fg')
             .setScale(fgScale)
             .setOrigin(0.5, 1);
