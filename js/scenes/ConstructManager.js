@@ -190,7 +190,13 @@ export default class ConstructManager {
         b.buildWork = 0;
         this.renderAll();
         this.updateStorageCap();
-        this.scene.uiManager.showFloatText((b.tx + b.width / 2) * TILE, MAP_OY + b.ty * TILE - 10, 'Done!', '#88ff88');
+        const fx = b.placement === 'edge'
+            ? (b.isH ? (b.col + 0.5) * TILE : b.col * TILE)
+            : (b.tx + b.width / 2) * TILE;
+        const fy = b.placement === 'edge'
+            ? MAP_OY + b.row * TILE - 10
+            : MAP_OY + b.ty * TILE - 10;
+        this.scene.uiManager.showFloatText(fx, fy, 'Done!', '#88ff88');
         const label = b.label ?? (b.type ? b.type[0].toUpperCase() + b.type.slice(1) : 'Building');
         this.scene.uiManager?.showToast?.(`⚒ ${label} complete`, '#a8dda8');
     }
@@ -264,6 +270,7 @@ export default class ConstructManager {
         const c = {
             id: this.scene.getId(),
             type,
+            placement: 'edge',
             isH, row, col,
             built: false,
             buildWork: work,
