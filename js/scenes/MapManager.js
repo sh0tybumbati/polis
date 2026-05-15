@@ -53,7 +53,32 @@ export default class MapManager {
     initFog() {
         this.scene.visMap = new Map();
         this.scene._litTiles = [];
-        this.scene.fogGfx = this.scene._w(this.scene.add.graphics().setDepth(8));
+
+        // 1×TILE white square — used as the fog tile sprite for both blitters
+        if (!this.scene.textures.exists('fog_px')) {
+            const g = this.scene.make.graphics({ add: false });
+            g.fillStyle(0xffffff, 1).fillRect(0, 0, TILE, TILE);
+            g.generateTexture('fog_px', TILE, TILE);
+            g.destroy();
+        }
+
+        // Two blitters share the same texture, differ only in alpha:
+        //   black = undiscovered (vis 0),  dim = explored-not-lit (vis 1)
+        const mkBlitter = (alpha) => this.scene._w(
+            this.scene.add.blitter(0, MAP_OY, 'fog_px')
+                .setDepth(8).setTint(0x000000).setAlpha(alpha)
+        );
+        this._fogBlack = mkBlitter(0.97);
+        this._fogDim   = mkBlitter(0.52);
+
+        // Pre-allocate bob pools sized for ~60×40 tiles (covers zoomed-out viewport)
+        const POOL = 2500;
+        this._fogPoolBlack = [];
+        this._fogPoolDim   = [];
+        for (let i = 0; i < POOL; i++) {
+            this._fogPoolBlack.push(this._fogBlack.create(0, 0, null, false));
+            this._fogPoolDim.push(this._fogDim.create(0, 0, null, false));
+        }
     }
 
     recomputeVis() {
@@ -137,34 +162,32 @@ export default class MapManager {
     }
 
     drawFog() {
-        const gfx = this.scene.fogGfx;
-        if (!gfx) return;
-        gfx.clear();
-        const camera = this.scene.cameras.main;
-        const view = camera.worldView;
+        if (!this._fogPoolBlack) return;
+        const visMap = this.scene.visMap;
+        const view   = this.scene.cameras.main.worldView;
 
-        // Tile bounds of viewport
         const minTx = Math.floor(view.x / TILE) - 1;
         const maxTx = Math.ceil(view.right / TILE) + 1;
         const minTy = Math.floor((view.y - MAP_OY) / TILE) - 1;
         const maxTy = Math.ceil((view.bottom - MAP_OY) / TILE) + 1;
 
-        const visMap = this.scene.visMap;
+        const pb = this._fogPoolBlack, pd = this._fogPoolDim;
+        let bi = 0, di = 0;
 
-        gfx.fillStyle(0x000000, 0.97);
         for (let ty = minTy; ty <= maxTy; ty++) {
             for (let tx = minTx; tx <= maxTx; tx++) {
-                if ((visMap.get(`${tx},${ty}`) ?? 0) === 0)
-                    gfx.fillRect(tx * TILE, MAP_OY + ty * TILE, TILE, TILE);
+                const vis = visMap.get(`${tx},${ty}`) ?? 0;
+                if (vis === 0 && bi < pb.length) {
+                    const b = pb[bi++]; b.x = tx * TILE; b.y = ty * TILE; b.setVisible(true);
+                } else if (vis === 1 && di < pd.length) {
+                    const b = pd[di++]; b.x = tx * TILE; b.y = ty * TILE; b.setVisible(true);
+                }
             }
         }
-        gfx.fillStyle(0x000000, 0.52);
-        for (let ty = minTy; ty <= maxTy; ty++) {
-            for (let tx = minTx; tx <= maxTx; tx++) {
-                if ((visMap.get(`${tx},${ty}`) ?? 0) === 1)
-                    gfx.fillRect(tx * TILE, MAP_OY + ty * TILE, TILE, TILE);
-            }
-        }
+
+        // Return unused bobs to invisible
+        for (let i = bi; i < pb.length; i++) pb[i].setVisible(false);
+        for (let i = di; i < pd.length; i++) pd[i].setVisible(false);
     }
 
     drawMinimap() {

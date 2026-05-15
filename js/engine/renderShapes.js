@@ -24,8 +24,12 @@ export function res(val, vars) {
 export function renderShapes(gfx, shapes, vars, opts = {}) {
     const scale = opts.scale ?? 1;
     const globalAlpha = opts.alpha ?? 1;
+    const ox = opts.ox ?? 0;
+    const oy = opts.oy ?? 0;
 
-    const sc = v => res(v, vars) * scale;
+    const sc  = v => res(v, vars) * scale;          // size: no offset
+    const scx = v => res(v, vars) * scale + ox;     // x position
+    const scy = v => res(v, vars) * scale + oy;     // y position
 
     for (const s of shapes) {
         if (s.when && !s.when(vars)) continue;
@@ -44,20 +48,20 @@ export function renderShapes(gfx, shapes, vars, opts = {}) {
 
         switch (s.type) {
             case 'circle':
-                if (s.fill !== undefined) gfx.fillCircle(sc(s.x), sc(s.y), sc(s.r));
-                if (s.stroke)            gfx.strokeCircle(sc(s.x), sc(s.y), sc(s.r));
+                if (s.fill !== undefined) gfx.fillCircle(scx(s.x), scy(s.y), sc(s.r));
+                if (s.stroke)            gfx.strokeCircle(scx(s.x), scy(s.y), sc(s.r));
                 break;
             case 'triangle':
                 if (s.fill !== undefined) gfx.fillTriangle(
-                    sc(s.x1), sc(s.y1), sc(s.x2), sc(s.y2), sc(s.x3), sc(s.y3));
+                    scx(s.x1), scy(s.y1), scx(s.x2), scy(s.y2), scx(s.x3), scy(s.y3));
                 if (s.stroke) gfx.strokeTriangle(
-                    sc(s.x1), sc(s.y1), sc(s.x2), sc(s.y2), sc(s.x3), sc(s.y3));
+                    scx(s.x1), scy(s.y1), scx(s.x2), scy(s.y2), scx(s.x3), scy(s.y3));
                 break;
             case 'rect':
-                if (s.fill !== undefined) gfx.fillRect(sc(s.x), sc(s.y), sc(s.w), sc(s.h));
+                if (s.fill !== undefined) gfx.fillRect(scx(s.x), scy(s.y), sc(s.w), sc(s.h));
                 break;
             case 'line':
-                if (s.stroke) gfx.lineBetween(sc(s.x1), sc(s.y1), sc(s.x2), sc(s.y2));
+                if (s.stroke) gfx.lineBetween(scx(s.x1), scy(s.y1), scx(s.x2), scy(s.y2));
                 break;
         }
     }

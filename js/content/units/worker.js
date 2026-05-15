@@ -35,6 +35,6 @@ export default {
         const vars  = { bodyCol: u.phenotype?.skinHex ?? this.color };
         const lod   = ctx.lod ?? 2;
         const scale = ctx.ageScale ?? 1.0;
-        renderShapes(gfx, SHAPES[lod] ?? SHAPES[2], vars, { scale });
+        renderShapes(gfx, SHAPES[lod] ?? SHAPES[2], vars, { scale, ox: ctx.ox ?? 0, oy: ctx.oy ?? 0 });
     },
 };

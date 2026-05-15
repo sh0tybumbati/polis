@@ -4,76 +4,56 @@ import { UNITS } from '../../content/units/index.js';
 export default {
     _isUnitCulled(u) {
         // Enemy units only appear in tiles the player can currently see (vis=2).
-        // Explored (vis=1) and unexplored (vis=0) tiles hide them completely.
         if (u.isEnemy) {
             const tx = Math.floor(u.x / TILE);
             const ty = Math.floor((u.y - MAP_OY) / TILE);
             if ((this.scene.visMap[ty]?.[tx] ?? 0) < 2) {
-                u.gfx.setVisible(false);
+                u._visible = false;
                 if (u.nameLabel) u.nameLabel.setVisible(false);
                 if (u._zzzLabel) u._zzzLabel.setVisible(false);
                 return true;
             }
         }
 
-        // Viewport culling: skip redraw for units outside the camera view.
-        // Margin allows for large sprites and the selection oval to fade in cleanly.
+        // Viewport culling with margin for large sprites / selection oval.
         const wv = this.scene.cameras.main.worldView;
         const M  = 64;
         if (u.x < wv.left - M || u.x > wv.right  + M ||
             u.y < wv.top  - M || u.y > wv.bottom  + M) {
-            u.gfx.setVisible(false);
+            u._visible = false;
             if (u.nameLabel) u.nameLabel.setVisible(false);
             if (u._zzzLabel) u._zzzLabel.setVisible(false);
             return true;
         }
 
-        u.gfx.setVisible(true);
+        u._visible = true;
         if (u.nameLabel) u.nameLabel.setVisible(true);
         return false;
     },
 
-    _redrawSelections() {
-        this.selGfx.clear();
+    // Single shared Graphics pass — clears once and draws every visible unit.
+    _redrawAllUnits() {
+        const gfx = this.scene.unitsGfx;
+        gfx.clear();
         for (const u of this.scene.units) {
-            if (!u.selected || u.hp <= 0 || !u.gfx.visible) continue;
-            const scale = this._ageScale(u.age ?? 2);
-            const w = 22 * scale, h = 9 * scale;
-            this.selGfx.fillStyle(0x44dd55, 0.28).fillEllipse(u.x, u.y + 7 * scale, w, h);
-            this.selGfx.lineStyle(1, 0x55ff66, 0.75).strokeEllipse(u.x, u.y + 7 * scale, w, h);
+            const alpha = u._alpha ?? 1;
+            if (alpha <= 0.01) continue;
+            // Draw dying units regardless of visibility; skip non-visible alive units.
+            if (!u._dying && !u._visible) continue;
+            this._drawUnit(gfx, u, alpha);
         }
     },
 
-    _redrawIdlePulse(time) {
-        this.idleGfx.clear();
-        const alpha = 0.15 + 0.22 * Math.abs(Math.sin(time * 0.0018));
-        for (const u of this.scene.units) {
-            if (u.isEnemy || u.type !== 'worker' || (u.age ?? 2) < 2 || u.role || u.hp <= 0 || !u.gfx.visible) continue;
-            const scale = this._ageScale(u.age ?? 2);
-            this.idleGfx.lineStyle(1.5, 0xddcc44, alpha)
-                .strokeEllipse(u.x, u.y + 7 * scale, 26 * scale, 11 * scale);
-        }
-    },
-
-    // Instance-method version of the static ageScale (used internally by mixins).
-    // The static UnitManager.ageScale is kept on the class for external callers.
-    _ageScale(age) {
-        if (age === 0) return 0.48;
-        if (age === 1) return 0.72;
-        return 1.0;
-    },
-
-    redrawUnit(u) {
+    _drawUnit(gfx, u, alpha = 1) {
         const age   = u.age ?? 2;
         const scale = this._ageScale(age);
+        const ox = u.x, oy = u.y;
 
-        u.gfx.clear().setPosition(u.x, u.y);
+        // Shadow ellipse
+        gfx.fillStyle(0x000000, 0.18 * alpha)
+           .fillEllipse(ox, oy + 9 * scale, 22 * scale, 7 * scale);
 
-        // Shadow ellipse — scales with unit size
-        u.gfx.fillStyle(0x000000, 0.18)
-             .fillEllipse(0, 9 * scale, 22 * scale, 7 * scale);
-
-        // Sleeping ZZZ label — floats above tent roof when inside, above head otherwise
+        // ZZZ label — still a separate Text object, just positioned here
         if (u.isSleeping && u.hp > 0) {
             if (!u._zzzLabel) {
                 u._zzzLabel = this.scene._w(this.scene.add.text(0, 0, 'Zzz', {
@@ -85,42 +65,76 @@ export default {
             }
             u._zzzPhase = (u._zzzPhase ?? 0) + 0.04;
             const bob = Math.sin(u._zzzPhase) * 3;
-            // When inside tent, push ZZZ above tent roof (extra TILE offset)
             const yOff = u.isInside ? -(TILE * 1.5) : -18;
-            u._zzzLabel.setPosition(u.x + 6, u.y + yOff + bob)
-                       .setAlpha(0.7 + Math.sin(u._zzzPhase * 0.7) * 0.25)
+            u._zzzLabel.setPosition(ox + 6, oy + yOff + bob)
+                       .setAlpha((0.7 + Math.sin(u._zzzPhase * 0.7) * 0.25) * alpha)
                        .setVisible(true);
         } else if (u._zzzLabel) {
             u._zzzLabel.destroy(); u._zzzLabel = null;
         }
 
-        const showLabel = age < 2 && !u.isEnemy && u.hp > 0;
+        // Name label for young units
+        const showLabel = (age < 2) && !u.isEnemy && u.hp > 0;
         if (showLabel) {
             if (!u.nameLabel) {
-                u.nameLabel = this.scene._w(this.scene.add.text(u.x, u.y - 12, u.name, {
+                u.nameLabel = this.scene._w(this.scene.add.text(ox, oy - 12, u.name, {
                     fontSize: '7px', color: '#ffeecc', fontFamily: 'monospace',
                     stroke: '#000000', strokeThickness: 1,
                 }).setOrigin(0.5, 1).setDepth(7));
             }
+            u.nameLabel.setPosition(ox, oy - 12).setAlpha(alpha);
         } else if (u.nameLabel) {
             u.nameLabel.destroy(); u.nameLabel = null;
         }
 
         const zoom = this.scene.cameras.main.zoom;
         const lod  = zoom < 0.20 ? 0 : zoom < 0.50 ? 1 : zoom < 1.50 ? 2 : 3;
-        UNITS[u.type]?.draw(u.gfx, u, { totalCarrying: u => this.totalCarrying(u), lod, ageScale: scale });
+        UNITS[u.type]?.draw(gfx, u, {
+            totalCarrying: u => this.totalCarrying(u),
+            lod, ageScale: scale, ox, oy,
+        });
 
-        // Task progress bar — shown above unit when actively working
-        this._drawProgressBar(u, scale);
+        this._drawProgressBar(gfx, u, scale, ox, oy, alpha);
     },
 
-    _drawProgressBar(u, scale) {
+    _redrawSelections() {
+        this.selGfx.clear();
+        for (const u of this.scene.units) {
+            if (!u.selected || u.hp <= 0 || !u._visible) continue;
+            const scale = this._ageScale(u.age ?? 2);
+            const w = 22 * scale, h = 9 * scale;
+            this.selGfx.fillStyle(0x44dd55, 0.28).fillEllipse(u.x, u.y + 7 * scale, w, h);
+            this.selGfx.lineStyle(1, 0x55ff66, 0.75).strokeEllipse(u.x, u.y + 7 * scale, w, h);
+        }
+    },
+
+    _redrawIdlePulse(time) {
+        this.idleGfx.clear();
+        const alpha = 0.15 + 0.22 * Math.abs(Math.sin(time * 0.0018));
+        for (const u of this.scene.units) {
+            if (u.isEnemy || u.type !== 'worker' || (u.age ?? 2) < 2 || u.role || u.hp <= 0 || !u._visible) continue;
+            const scale = this._ageScale(u.age ?? 2);
+            this.idleGfx.lineStyle(1.5, 0xddcc44, alpha)
+                .strokeEllipse(u.x, u.y + 7 * scale, 26 * scale, 11 * scale);
+        }
+    },
+
+    _ageScale(age) {
+        if (age === 0) return 0.48;
+        if (age === 1) return 0.72;
+        return 1.0;
+    },
+
+    // Kept for compatibility — individual redraws now route through _redrawAllUnits.
+    // Called at spawn and on forced state changes before the next full-batch pass.
+    redrawUnit(u) { /* no-op; rendering happens in _redrawAllUnits each frame */ },
+
+    _drawProgressBar(gfx, u, scale, ox, oy, alpha = 1) {
         if (u.hp <= 0 || u.isSleeping) return;
 
         let fraction = null;
         let show = false;
 
-        // Node gathering: felling or harvesting
         const n = u.targetNode;
         if (n && (u.workProgress ?? 0) > 0) {
             const isTree = n.type === 'small_tree' || n.type === 'large_tree';
@@ -134,7 +148,6 @@ export default {
             show = true;
         }
 
-        // Task-based progress
         if (!show) {
             const TASK_MAX = {
                 plant_grow: 1.0, harvest_grow: 2.0, plant: 6.0,
@@ -144,7 +157,7 @@ export default {
                 fraction = Math.min(1, u.workProgress / TASK_MAX[u.taskType]);
                 show = true;
             } else if ((u.taskType === 'workshop' || u.taskType === 'zone_workshop') && (u.workProgress ?? 0) > 0) {
-                fraction = null; // indeterminate stripe
+                fraction = null;
                 show = true;
             }
         }
@@ -152,14 +165,14 @@ export default {
         if (!show) return;
 
         const bw = 20 * scale, bh = 2.5 * scale;
-        const bx = -bw / 2, by = -16 * scale;
-        u.gfx.fillStyle(0x000000, 0.45).fillRect(bx - 0.5, by - 0.5, bw + 1, bh + 1);
-        u.gfx.fillStyle(0x334455, 0.7).fillRect(bx, by, bw, bh);
+        const bx = ox - bw / 2, by = oy - 16 * scale;
+        gfx.fillStyle(0x000000, 0.45 * alpha).fillRect(bx - 0.5, by - 0.5, bw + 1, bh + 1);
+        gfx.fillStyle(0x334455, 0.7 * alpha).fillRect(bx, by, bw, bh);
         if (fraction !== null) {
-            u.gfx.fillStyle(0x55ddaa, 1.0).fillRect(bx, by, bw * fraction, bh);
+            gfx.fillStyle(0x55ddaa, alpha).fillRect(bx, by, bw * fraction, bh);
         } else {
             const phase = (Date.now() % 1200) / 1200;
-            u.gfx.fillStyle(0x55ddaa, 0.8).fillRect(bx + bw * phase - 4, by, 6, bh);
+            gfx.fillStyle(0x55ddaa, 0.8 * alpha).fillRect(bx + bw * phase - 4, by, 6, bh);
         }
     },
 };

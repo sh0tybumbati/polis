@@ -4,10 +4,11 @@ export default {
     color: 0x336655,
     isScout: true,
     vetLevels: false,
-    draw(gfx, u) {
-        gfx.fillStyle(0x1a3328).fillTriangle(0, -9, -7, 4, 7, 4).fillTriangle(0, 7, -7, 4, 7, 4);
-        gfx.lineStyle(1, 0x33aa77, 0.9).strokeTriangle(0, -9, -7, 4, 7, 4).strokeTriangle(0, 7, -7, 4, 7, 4);
-        gfx.fillStyle(0x55ffaa, 0.85).fillCircle(0, 0, 2);
-        if (u.selected) gfx.lineStyle(2, 0xffdd44).strokeCircle(0, 0, 11);
+    draw(gfx, u, ctx) {
+        const ox = ctx?.ox ?? 0, oy = ctx?.oy ?? 0;
+        gfx.fillStyle(0x1a3328).fillTriangle(ox, oy-9, ox-7, oy+4, ox+7, oy+4).fillTriangle(ox, oy+7, ox-7, oy+4, ox+7, oy+4);
+        gfx.lineStyle(1, 0x33aa77, 0.9).strokeTriangle(ox, oy-9, ox-7, oy+4, ox+7, oy+4).strokeTriangle(ox, oy+7, ox-7, oy+4, ox+7, oy+4);
+        gfx.fillStyle(0x55ffaa, 0.85).fillCircle(ox, oy, 2);
+        if (u.selected) gfx.lineStyle(2, 0xffdd44).strokeCircle(ox, oy, 11);
     },
 };

@@ -183,9 +183,10 @@ export default class GameScene extends Phaser.Scene {
 
             this.constructManager.renderAll();
             for (const u of this.units) {
-                u.gfx = this._w(this.add.graphics().setDepth(6));
-                this.unitManager.redrawUnit(u);
+                u._visible = true;
+                u._alpha = 1.0;
             }
+            this.unitManager._redrawAllUnits();
             for (const d of this.deer) {
                 d.gfx = this._w(this.add.graphics().setDepth(5));
                 this.natureManager.redrawDeer(d);
@@ -453,11 +454,13 @@ export default class GameScene extends Phaser.Scene {
         this.natureManager.tick(delta * this.tickSpeed, dt);
         this.zoneManager?.tickGrow(delta * this.tickSpeed);
 
+        // Fog drawn every frame — cheap with Blitter (just bob position assignments)
+        this.mapManager.drawFog();
+
         this._minimapTimer += delta;
         if (this._minimapTimer >= 500) {
             this._minimapTimer = 0;
             this.mapManager.recomputeVis();
-            this.mapManager.drawFog();
             this.mapManager.drawMinimap();
         }
     }

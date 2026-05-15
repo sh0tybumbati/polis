@@ -90,8 +90,10 @@ export default class UnitManager {
         this.scene = scene;
         this.pathfinder = new Pathfinder(scene);
         // Idle-worker pulse ring layer (depth 4) and selection layer (depth 5).
-        this.idleGfx = scene.add.graphics().setDepth(4);
-        this.selGfx  = scene.add.graphics().setDepth(5);
+        this.idleGfx  = scene.add.graphics().setDepth(4);
+        this.selGfx   = scene.add.graphics().setDepth(5);
+        // Single shared Graphics for all unit bodies — 1 draw call regardless of unit count.
+        scene.unitsGfx = scene._w(scene.add.graphics().setDepth(6));
     }
 
     spawnTrainedUnit(construct, type) {
@@ -134,7 +136,8 @@ export default class UnitManager {
             workProgress: 0,
             needs: { food: 1.0, rest: 1.0, social: 0.8, joy: 0.8 },
             mood: 1.0,
-            gfx: this.scene._w(this.scene.add.graphics().setDepth(6)),
+            _visible: true,
+            _alpha: 1.0,
         };
         if (isWorker) this.assignVocation(unit);
         this.redrawUnit(unit);
@@ -346,32 +349,27 @@ export default class UnitManager {
             } else {
                 this.tickPlayer(u, time, dt);
             }
-            u.gfx.setPosition(u.x, u.y);
-            if (u.nameLabel) u.nameLabel.setPosition(u.x, u.y - 12);
-
             const inTower = u.taskType === 'garrison' || u.aiMode === 'tower_assault';
-            u.gfx.setAlpha(inTower ? 0.55 : u.isInside ? 0.15 : 1.0);
+            u._alpha = inTower ? 0.55 : u.isInside ? 0.15 : 1.0;
 
-            if (!this._isUnitCulled(u)) this.redrawUnit(u);
+            this._isUnitCulled(u);
         }
-        this._redrawIdlePulse(time);
 
-        this._redrawSelections();
-
-        this.scene.units.filter(u => u.hp <= 0).forEach(u => {
-            this.scene.tweens.add({ targets: u.gfx, alpha: 0, duration: 280, onComplete: () => u.gfx.destroy() });
+        // Kick off fade-out for newly-dead units (deferred removal after tween).
+        for (const u of this.scene.units) {
+            if (u.hp > 0 || u._dying) continue;
+            u._dying = true;
+            u._alpha = 1.0;
             if (u.nameLabel) { u.nameLabel.destroy(); u.nameLabel = null; }
             if (u._zzzLabel) { u._zzzLabel.destroy(); u._zzzLabel = null; }
-            if (u.isScout) { this.waveIntelFlash(); return; }
+            if (u.isScout) this.waveIntelFlash();
             if (!u.isEnemy && u.type === 'worker') {
-                // Widow/widower becomes eligible to remarry
                 if (u.spouseId) {
                     const spouse = this.scene.units.find(s => s.id === u.spouseId);
                     if (spouse) spouse.spouseId = null;
                 }
                 this.handleSuccession(u);
             }
-            // Hero death: morale collapse
             if (!u.isEnemy && u.isHero) {
                 this.scene.showPhaseMessage(`${u.name} has fallen! Morale collapses!`, 0xff3311);
                 this.scene.units.filter(f => !f.isEnemy && !f.isRouting && f.type !== 'worker' && f.hp > 0
@@ -381,8 +379,16 @@ export default class UnitManager {
                     this.scene.uiManager.showFloatText(f.x, f.y - 18, 'routing!', '#ff4422');
                 });
             }
-        });
-        this.scene.units = this.scene.units.filter(u => u.hp > 0);
+            this.scene.tweens.add({
+                targets: u, _alpha: 0, duration: 280,
+                onComplete: () => { this.scene.units = this.scene.units.filter(x => x !== u); },
+            });
+        }
+
+        // Single-pass draw of all units into one shared Graphics object.
+        this._redrawAllUnits();
+        this._redrawIdlePulse(time);
+        this._redrawSelections();
         this.scene.uiManager.updateEnemyCount();
     }
 

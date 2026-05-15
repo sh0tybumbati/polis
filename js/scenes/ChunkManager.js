@@ -121,7 +121,7 @@ export default class ChunkManager {
             }
         }
 
-        const chunk = { tiles, biomes, gfx: null, nodes: [], generated: true };
+        const chunk = { tiles, biomes, rt: null, nodes: [], generated: true };
         this.chunks.set(key, chunk);
 
         // Spawn resource nodes for this chunk
@@ -309,11 +309,21 @@ export default class ChunkManager {
         const chunk = this.chunks.get(key);
         if (!chunk) return;
 
-        if (!chunk.gfx) {
-            chunk.gfx = this.scene._w(this.scene.add.graphics().setDepth(0));
+        const size   = CHUNK_SIZE * TILE;
+        const worldX = cx * size;
+        const worldY = MAP_OY + cy * size;
+
+        // Create the RenderTexture once; reuse it on subsequent re-renders (e.g. setTile)
+        if (!chunk.rt) {
+            chunk.rt = this.scene._w(
+                this.scene.add.renderTexture(worldX, worldY, size, size)
+                    .setDepth(0).setOrigin(0, 0)
+            );
         }
-        const gfx = chunk.gfx;
-        gfx.clear();
+
+        // Draw all tiles into a temporary off-screen Graphics using LOCAL coords
+        // (0,0) → (size,size), so the RT position handles world placement.
+        const g = this.scene.make.graphics({ add: false });
 
         for (let ly = 0; ly < CHUNK_SIZE; ly++) {
             for (let lx = 0; lx < CHUNK_SIZE; lx++) {
@@ -324,38 +334,38 @@ export default class ChunkManager {
                 const b  = chunk.biomes[i];
                 const colA = (BIOME_A[b] ?? TILE_A)[t] ?? TILE_A[t];
                 const colB = (BIOME_B[b] ?? TILE_B)[t] ?? TILE_B[t];
-                gfx.fillStyle((tx + ty) % 2 === 0 ? colA : colB)
-                   .fillRect(tx * TILE, MAP_OY + ty * TILE, TILE, TILE);
+                g.fillStyle((tx + ty) % 2 === 0 ? colA : colB)
+                 .fillRect(lx * TILE, ly * TILE, TILE, TILE);
 
                 if (t === T_WATER) {
-                    gfx.fillStyle(0x4488cc, 0.28)
-                       .fillRect(tx * TILE + 2, MAP_OY + ty * TILE + 5,  TILE - 4, 3)
-                       .fillRect(tx * TILE + 4, MAP_OY + ty * TILE + 17, TILE - 8, 3);
+                    g.fillStyle(0x4488cc, 0.28)
+                     .fillRect(lx * TILE + 2, ly * TILE + 5,  TILE - 4, 3)
+                     .fillRect(lx * TILE + 4, ly * TILE + 17, TILE - 8, 3);
                 }
 
-                // Ford overlay
                 const fkey = `${tx},${ty}`;
                 if (this.fordSet.has(fkey)) {
-                    gfx.fillStyle(0x3388cc, 0.35)
-                       .fillRect(tx * TILE, MAP_OY + ty * TILE, TILE, TILE);
-                    gfx.fillStyle(0x66aaee, 0.22)
-                       .fillRect(tx * TILE + 3,  MAP_OY + ty * TILE + 7,  TILE - 6, 2)
-                       .fillRect(tx * TILE + 5,  MAP_OY + ty * TILE + 18, TILE - 10, 2)
-                       .fillRect(tx * TILE + 2,  MAP_OY + ty * TILE + 26, TILE - 4, 2);
+                    g.fillStyle(0x3388cc, 0.35)
+                     .fillRect(lx * TILE, ly * TILE, TILE, TILE);
+                    g.fillStyle(0x66aaee, 0.22)
+                     .fillRect(lx * TILE + 3,  ly * TILE + 7,  TILE - 6, 2)
+                     .fillRect(lx * TILE + 5,  ly * TILE + 18, TILE - 10, 2)
+                     .fillRect(lx * TILE + 2,  ly * TILE + 26, TILE - 4, 2);
                 }
             }
         }
 
-        // Grid lines
-        gfx.lineStyle(1, 0x000000, 0.04);
-        for (let lx = 0; lx <= CHUNK_SIZE; lx++) {
-            const px = (cx * CHUNK_SIZE + lx) * TILE;
-            gfx.lineBetween(px, MAP_OY + cy * CHUNK_SIZE * TILE, px, MAP_OY + (cy + 1) * CHUNK_SIZE * TILE);
-        }
-        for (let ly = 0; ly <= CHUNK_SIZE; ly++) {
-            const py = MAP_OY + (cy * CHUNK_SIZE + ly) * TILE;
-            gfx.lineBetween(cx * CHUNK_SIZE * TILE, py, (cx + 1) * CHUNK_SIZE * TILE, py);
-        }
+        // Grid lines (local coords)
+        g.lineStyle(1, 0x000000, 0.04);
+        for (let lx = 0; lx <= CHUNK_SIZE; lx++)
+            g.lineBetween(lx * TILE, 0, lx * TILE, size);
+        for (let ly = 0; ly <= CHUNK_SIZE; ly++)
+            g.lineBetween(0, ly * TILE, size, ly * TILE);
+
+        // Stamp into the RT then discard the temp Graphics
+        chunk.rt.clear();
+        chunk.rt.draw(g, 0, 0);
+        g.destroy();
     }
 
     // ─── Tick (called every frame) ───────────────────────────────────────────────
@@ -373,12 +383,12 @@ export default class ChunkManager {
         const unloadMaxCy = Math.ceil((view.bottom - MAP_OY + unloadPad * TILE) / (CHUNK_SIZE * TILE));
 
         for (const [key, chunk] of this.chunks) {
-            if (!chunk.gfx) continue;
+            if (!chunk.rt) continue;
             const [cxStr, cyStr] = key.split(',');
             const cx = +cxStr, cy = +cyStr;
             if (cx < unloadMinCx || cx > unloadMaxCx || cy < unloadMinCy || cy > unloadMaxCy) {
-                chunk.gfx.destroy();
-                chunk.gfx = null;
+                chunk.rt.destroy();
+                chunk.rt = null;
                 this.renderedChunks.delete(key);
             }
         }
@@ -415,7 +425,7 @@ export default class ChunkManager {
                     }
                 }
             }
-            if (dirty && chunk.gfx) this.renderChunk(cx, cy);
+            if (dirty && chunk.rt) this.renderChunk(cx, cy);
         }
     }
 }
