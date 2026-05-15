@@ -1,8 +1,9 @@
 import {
     TILE, MAP_OY,
     FM_TYPES, FM_LABELS, UNIT_NAMES, VET_LEVELS, SEASONS, SEASON_DAYS,
-    CONSTRUCT_VOLUME,
+    CONSTRUCT_VOLUME, DAY_DURATION, NIGHT_DURATION,
 } from '../config/gameConstants.js';
+import { clockString } from '../ui/UIKit.js';
 import { CONSTRUCTS, computeBuildCost } from '../content/constructs/index.js';
 import UIPanel from './UIPanel.js';
 import { ITEMS } from '../content/items/index.js';
@@ -263,8 +264,12 @@ export default class UIManager {
         const phase = this.scene.phase;
         const seasonIdx = Math.floor((this.scene.day - 1) / SEASON_DAYS) % 4;
         const seasonName = SEASONS[seasonIdx];
+        const clock = phase === 'NIGHT'
+            ? clockString(this.scene.timerMs, NIGHT_DURATION, 12, 18)
+            : clockString(this.scene.timerMs, DAY_DURATION,   12,  6);
         this.scene.dayInfo?.setText(phase === 'NIGHT'
-            ? `🌙 N${this.scene.day}  ${seasonName}` : `☀ D${this.scene.day}  ${seasonName}`);
+            ? `🌙 D${this.scene.day}  ${seasonName}  ${clock}`
+            : `☀  D${this.scene.day}  ${seasonName}  ${clock}`);
 
         this.updateEnemyCount();
     }
