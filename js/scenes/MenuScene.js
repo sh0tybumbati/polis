@@ -105,23 +105,19 @@ export default class MenuScene extends Phaser.Scene {
         const cy = H * 0.28;
         const fontSize = Math.min(72, Math.floor(W * 0.13));
 
-        this.add.text(cx, cy - fontSize * 0.32, 'EPOCHS:', {
+        const titleStyle = {
             fontFamily: 'Georgia, "Times New Roman", serif',
             fontSize: fontSize + 'px',
             color: '#e8d070',
             stroke: '#1a0c00',
             strokeThickness: 3,
+            letterSpacing: Math.floor(fontSize * 0.08),
+            align: 'center',
             shadow: { offsetX: 0, offsetY: 3, color: '#6a3800', blur: 16, fill: true },
-        }).setOrigin(0.5);
+        };
 
-        this.add.text(cx, cy + fontSize * 0.42, 'THE DAWN', {
-            fontFamily: 'Georgia, "Times New Roman", serif',
-            fontSize: fontSize + 'px',
-            color: '#e8d070',
-            stroke: '#1a0c00',
-            strokeThickness: 3,
-            shadow: { offsetX: 0, offsetY: 3, color: '#6a3800', blur: 16, fill: true },
-        }).setOrigin(0.5);
+        this.add.text(cx, cy - fontSize * 0.32, 'EPOCHS:', titleStyle).setOrigin(0.5);
+        this.add.text(cx, cy + fontSize * 0.42, 'THE DAWN', titleStyle).setOrigin(0.5);
 
         // Thin rule
         const g = this.add.graphics();
@@ -144,13 +140,14 @@ export default class MenuScene extends Phaser.Scene {
             { label: 'CREDITS',    cb: null },
         ];
 
-        // Dark backing strip for readability over bright sun glow
-        const backH = gap * (buttons.length - 0.2);
-        const backW = 220;
-        const backY = topY + backH / 2 - gap * 0.4;
+        // Dark backing strip — spans from first to last button with equal padding
+        const backPad = gap * 0.55;
+        const backTop = topY - backPad;
+        const backH   = (buttons.length - 1) * gap + backPad * 2;
+        const backW   = 220;
         this.add.graphics()
-            .fillStyle(0x000000, 0.32)
-            .fillRoundedRect(cx - backW / 2, backY - gap * 0.6, backW, backH, 8);
+            .fillStyle(0x000000, 0.38)
+            .fillRoundedRect(cx - backW / 2, backTop, backW, backH, 8);
 
         buttons.forEach((btn, i) => this._makeTextButton(cx, topY + i * gap, btn));
     }
