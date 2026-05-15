@@ -201,6 +201,23 @@ export default class ConstructManager {
         this.scene.uiManager.showFloatText(fx, fy, 'Done!', '#88ff88');
         const label = b.label ?? (b.type ? b.type[0].toUpperCase() + b.type.slice(1) : 'Building');
         this.scene.uiManager?.showToast?.(`⚒ ${label} complete`, '#a8dda8');
+
+        if (b.placement === 'edge') this._checkRoomsFormedAtEdge(b);
+    }
+
+    _checkRoomsFormedAtEdge(edge) {
+        const sides = edge.isH
+            ? [{ tx: edge.col, ty: edge.row - 1 }, { tx: edge.col, ty: edge.row }]
+            : [{ tx: edge.col - 1, ty: edge.row }, { tx: edge.col, ty: edge.row }];
+        for (const { tx, ty } of sides) {
+            const room = this.getRoomAt(tx, ty, 80);
+            if (room && room.length >= 2 && room.length <= 60) {
+                const type = this.classifyRoom(room);
+                const name = type ? `${type} room` : 'room';
+                this.scene.uiManager?.showToast?.(`🏠 ${name} formed (${room.length} tiles)`, '#88ccff');
+                return;
+            }
+        }
     }
 
     _serConstruct(b) {
@@ -552,7 +569,7 @@ export default class ConstructManager {
 
     _blocks(isH, row, col) {
         const edge = this.getEdge(isH, row, col);
-        return !!(edge && edge.height === 'full' && edge.built);
+        return !!(edge && (edge.height === 'full' || edge.height === 'door') && edge.built);
     }
 
     _blocksEnclosure(isH, row, col) {

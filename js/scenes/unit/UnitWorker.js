@@ -64,19 +64,27 @@ export default {
             } else if (u.homeConstructId) {
                 const home = this.scene.constructs.find(b => b.id === u.homeConstructId && b.built);
                 if (home) {
-                    const hcx = (home.tx + home.width / 2) * TILE;
-                    const hcy = MAP_OY + (home.ty + home.height / 2) * TILE;
-                    if (Phaser.Math.Distance.Between(u.x, u.y, hcx, hcy) > 10) {
+                    // Prefer a built bed in the home's domain over the home center
+                    const dom = u.homeConstructId
+                        ? this.scene.domains?.find(d => d.houseConstructId === u.homeConstructId) : null;
+                    const bed = dom
+                        ? this.scene.constructs.find(b => b.built && b.type === 'bed' && b.domainId === dom.id
+                            && !this.scene.units.some(w => w !== u && w.isSleeping && w._sleepConstructId === b.id))
+                        : null;
+                    const targetX = bed ? (bed.tx + 0.5) * TILE : (home.tx + home.width / 2) * TILE;
+                    const targetY = bed ? MAP_OY + (bed.ty + 0.5) * TILE : MAP_OY + (home.ty + home.height / 2) * TILE;
+                    if (Phaser.Math.Distance.Between(u.x, u.y, targetX, targetY) > 10) {
                         if (this.totalCarrying(u) > 0 && u.taskType !== 'deposit') {
                             u.taskType = 'deposit'; u.taskConstructId = home.id; u._depositPrivate = !home.isPublic;
                         }
                         if (u.taskType === 'deposit') { this.handleDepositTask(u, dt); return; }
                         u.targetNode = null; u.moveTo = null;
-                        this.moveToward(u, hcx, hcy, u.speed, dt);
+                        this.moveToward(u, targetX, targetY, u.speed, dt);
                         u.isInside = false;
                         return;
                     } else {
-                        u.isInside = true;
+                        u.isInside = !bed;  // only go inside if sleeping in home, not at outdoor bed
+                        u._sleepConstructId = bed?.id ?? null;
                         u.isSleeping = true;
                         if (u.taskType && u.taskType !== 'garrison') {
                             u.taskType = null; u.targetNode = null; u.workProgress = 0;
