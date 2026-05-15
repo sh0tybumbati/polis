@@ -14,7 +14,6 @@ export default class MenuScene extends Phaser.Scene {
         const hasSave = !!localStorage.getItem('epochs_save');
 
         this._drawBackground(W, H);
-        this._drawTitle(W, H);
         this._drawButtons(W, H, hasSave);
         this._drawFooter(W, H);
 
@@ -36,83 +35,23 @@ export default class MenuScene extends Phaser.Scene {
     }
 
     _drawBackground(W, H) {
-        // Full-screen background image, cover-scaled
         const tex = this.textures.get('menu_bg');
         const tw = tex.getSourceImage().width;
         const th = tex.getSourceImage().height;
-        const scale = Math.max(W / tw, H / th);
-        const bg = this.add.image(W / 2, H / 2, 'menu_bg')
-            .setScale(scale);
+        // Zoom out on mobile (narrow screens) so more of the image is visible
+        const isMobile = W < 900;
+        const coverScale = Math.max(W / tw, H / th);
+        const scale = isMobile ? coverScale * 0.78 : coverScale;
+        this.add.image(W / 2, H / 2, 'menu_bg').setScale(scale);
 
-        // Blur FX (Phaser 3.60+ WebGL feature — no-ops silently in Canvas renderer)
-        if (bg.preFX) {
-            bg.preFX.addBlur(0, 2, 2, 0.5);
-        }
-
-        // Dark vignette overlay to make text readable
-        this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0.42);
-
-        // Warm sunrise glow concentrated at the horizon (lower-centre)
-        const g = this.add.graphics();
-        for (let i = 5; i >= 0; i--) {
-            const r = Math.max(W, H) * (0.18 + i * 0.16);
-            g.fillStyle(0x7a4010, (5 - i) * 0.022).fillCircle(W / 2, H * 0.55, r);
-        }
-    }
-
-    _drawTitle(W, H) {
-        const cy = H * 0.28;
-
-        // Soft glow halo
-        const glow = this.add.graphics();
-        for (let i = 5; i >= 0; i--) {
-            glow.fillStyle(0xc87020, 0.018 - i * 0.001)
-                .fillEllipse(W / 2, cy, 620 + i * 60, 140 + i * 30);
-        }
-
-        const fontSize = Math.min(80, Math.floor(W * 0.14));
-        const subSize  = Math.max(16, Math.floor(fontSize * 0.28));
-
-        // Drop shadow layer
-        this.add.text(W / 2 + 3, cy + 5, 'EPOCHS:', {
-            fontFamily: 'Georgia, "Times New Roman", serif',
-            fontSize: fontSize + 'px',
-            color: '#000000',
-        }).setOrigin(0.5).setAlpha(0.45);
-
-        // Main gold title — two lines to match the image typography
-        this.add.text(W / 2, cy - fontSize * 0.3, 'EPOCHS:', {
-            fontFamily: 'Georgia, "Times New Roman", serif',
-            fontSize: fontSize + 'px',
-            color: '#d4aa40',
-            stroke: '#1a0e00',
-            strokeThickness: 3,
-            shadow: { offsetX: 0, offsetY: 2, color: '#7a4400', blur: 14, fill: true },
-        }).setOrigin(0.5);
-
-        this.add.text(W / 2, cy + fontSize * 0.42, 'THE DAWN', {
-            fontFamily: 'Georgia, "Times New Roman", serif',
-            fontSize: fontSize + 'px',
-            color: '#d4aa40',
-            stroke: '#1a0e00',
-            strokeThickness: 3,
-            shadow: { offsetX: 0, offsetY: 2, color: '#7a4400', blur: 14, fill: true },
-        }).setOrigin(0.5);
-
-        // Thin horizontal rule under title
-        const g = this.add.graphics();
-        const ry = cy + fontSize * 1.1;
-        const rw = Math.min(340, W * 0.52);
-        g.lineStyle(1, 0xc8a030, 0.45).lineBetween(W / 2 - rw / 2, ry, W / 2 + rw / 2, ry);
-        g.fillStyle(0xd4aa40, 0.6).fillCircle(W / 2, ry, 2.5);
-        g.fillStyle(0xc8a030, 0.35).fillCircle(W / 2 - rw / 2, ry, 1.5);
-        g.fillStyle(0xc8a030, 0.35).fillCircle(W / 2 + rw / 2, ry, 1.5);
+        // Light vignette so buttons remain readable
+        this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0.28);
     }
 
     _drawButtons(W, H, hasSave) {
         const cx  = W / 2;
         const gap = Math.min(52, H * 0.08);
-        const topY = H * 0.56;
+        const topY = H * 0.68;
 
         const buttons = [
             hasSave
