@@ -55,6 +55,8 @@ export default class MenuScene extends Phaser.Scene {
         const skyScale = Math.max(W / skyTex.width, H / skyTex.height);
         this._sky = this.add.tileSprite(cx, H / 2, W, H, 'menu_sky')
             .setTileScale(skyScale, skyScale);
+        // Centre the red/blue split (~47% from left in texture) at screen centre
+        this._sky.tilePositionX = skyTex.width * 0.47 - (W / 2) / skyScale;
 
         // Compute foreground horizon Y on screen so sun/stars track it
         const fgTex = this.textures.get('menu_fg').getSourceImage();
