@@ -71,7 +71,7 @@ export default class MenuScene extends Phaser.Scene {
         const starDiameter = Math.max(W, H) * 1.168;
         this._stars = this.add.image(cx, belowHorizonCy, 'menu_stars')
             .setDisplaySize(starDiameter, starDiameter)
-            .setAlpha(0.5)
+            .setAlpha(0.05)
             .setBlendMode(Phaser.BlendModes.SCREEN);
 
         // ── 3. Sun rays — behind disc, spinning; MULTIPLY so white bg vanishes ─
