@@ -63,8 +63,8 @@ export default class MenuScene extends Phaser.Scene {
         const fgTopY = H - fgRenderedH;
         // Horizon sits at ~44% from top of the fg image (where sky meets terrain)
         const fgHorizonY = fgTopY + 0.44 * fgRenderedH;
-        // Target: halfway between the horizon and the bottom of the screen
-        const belowHorizonCy = (fgHorizonY + H) / 2;
+        // Target: halfway between the horizon and the bottom, shifted up a bit
+        const belowHorizonCy = (fgHorizonY + H) / 2 - H * 0.07;
 
         // ── 2. Constellations — very faint, slowly rotating star chart ─────────
         const starDiameter = Math.max(W, H) * 1.15;
@@ -126,7 +126,7 @@ export default class MenuScene extends Phaser.Scene {
     _drawButtons(W, H, hasSave) {
         const cx  = W / 2;
         const gap = Math.min(48, H * 0.075);
-        const topY = H * 0.68;
+        const topY = H * 0.63;
 
         const buttons = [
             hasSave
