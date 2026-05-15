@@ -277,14 +277,17 @@ export default class UIManager {
     tickClock() {
         if (!this.scene.dayInfo) return;
         const phase = this.scene.phase;
-        const seasonIdx = Math.floor((this.scene.day - 1) / SEASON_DAYS) % 4;
+        const day = this.scene.day;
+        const seasonIdx = Math.floor((day - 1) / SEASON_DAYS) % 4;
         const seasonName = SEASONS[seasonIdx];
+        const year = Math.floor((day - 1) / (SEASON_DAYS * 4)) + 1;
         const clock = phase === 'NIGHT'
             ? clockString(this.scene.timerMs, NIGHT_DURATION, 12, 18)
             : clockString(this.scene.timerMs, DAY_DURATION,   12,  6);
+        const yearStr = year > 1 ? `  Yr${year}` : '';
         this.scene.dayInfo.setText(phase === 'NIGHT'
-            ? `🌙 D${this.scene.day}  ${seasonName}  ${clock}`
-            : `☀  D${this.scene.day}  ${seasonName}  ${clock}`);
+            ? `🌙 D${day}  ${seasonName}${yearStr}  ${clock}`
+            : `☀  D${day}  ${seasonName}${yearStr}  ${clock}`);
     }
 
     showSaveFlash() {

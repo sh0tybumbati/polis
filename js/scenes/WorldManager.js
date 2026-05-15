@@ -1,6 +1,6 @@
 import {
     DAY_DURATION, NIGHT_DURATION, TILE, MAP_OY, VET_LEVELS, pickVetName,
-    APPLIANCE_DEF,
+    APPLIANCE_DEF, SEASON_DAYS,
 } from '../config/gameConstants.js';
 import { CONSTRUCTS } from '../content/constructs/index.js';
 import { UNITS } from '../content/units/index.js';
@@ -311,7 +311,14 @@ export default class WorldManager {
 
             this._trySpawnMigrant();
             this.scene.updateUI();
-            this.scene.showPhaseMessage(`Day ${this.scene.day} begins.`, 0xddaa44);
+
+            const newDay = this.scene.day;
+            const YEAR_DAYS = SEASON_DAYS * 4;
+            const year = Math.floor((newDay - 1) / YEAR_DAYS) + 1;
+            if ((newDay - 1) % YEAR_DAYS === 0 && newDay > 1) {
+                this.scene.uiManager?.showToast?.(`🌅 Year ${year} begins`, '#ffd88a');
+            }
+            this.scene.showPhaseMessage(`Day ${newDay} begins.`, 0xddaa44);
             if ((this.scene.day - 1) % 8 === 0 && this.scene.day > 1)
                 this.scene.time.delayedCall(2500, () => this._spawnCaravan());
         });
