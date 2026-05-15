@@ -79,10 +79,10 @@ export default class MenuScene extends Phaser.Scene {
         const raysSize = Math.min(W, H) * 1.4;
         this._sunrays = this.add.image(cx, belowHorizonCy, 'menu_sunrays')
             .setDisplaySize(raysSize, raysSize)
-            .setBlendMode(Phaser.BlendModes.MULTIPLY);
+            .setBlendMode(Phaser.BlendModes.HARD_LIGHT);
 
         // ── 4. Sun disc — stationary, fully opaque ─────────────────────────────
-        const sunSize = Math.min(W, H) * 0.55;
+        const sunSize = Math.min(W, H) * 1.1;
         this._sun = this.add.image(cx, belowHorizonCy, 'menu_sun')
             .setDisplaySize(sunSize, sunSize);
 
