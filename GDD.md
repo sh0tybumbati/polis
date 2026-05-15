@@ -1,14 +1,48 @@
-# Polis — Game Design Document (V26)
+# Epochs: The Dawn — Game Design Document (V27)
 
-> A dynastic city-builder set in the ancient world. Manage living families, build a lasting civilization through freeform construction, and shape your polis through policy rather than direct command.
+> A dynastic city-builder spanning the ancient world. Build a civilization from mudbrick huts to marble colonnades — as Sumerian lugal or Hellenic archon. Manage living families, forge localized economies, and shape your city through policy rather than direct command.
 
 ---
 
 ## Vision
 
-Polis is a **freeform dynastic city-builder** where the core unit of gameplay is the **family estate (É / Oikos)**. Players manage dynasties of named individuals who work, breed, inherit property, and die. The economy is built on **localized production chains** — buildings pull from and push to specific stockpile zones, not a global pool. The player acts as **Archon** — setting policy and incentives, not issuing individual orders.
+**Epochs: The Dawn** is a **freeform dynastic city-builder** where the core unit of gameplay is the **family estate (É / Oikos)**. Players manage dynasties of named individuals who work, breed, inherit property, and die. The economy is built on **localized production chains** — buildings pull from and push to specific stockpile zones, not a global pool. The player governs as a **civic leader** — setting policy and incentives, not issuing individual orders.
 
-The game is transitioning from a Greek to a **Sumerian** aesthetic (ziggurat civic structures, mudbrick construction, cuneiform-style UI accents).
+The game supports **civilization selection**: players choose between the gritty Bronze Age survival of **Sumeria** or the classical civic management of **Ancient Greece**. Both share the same engine, mechanics, and content-driven entity system — civilization selection swaps the aesthetic layer, starting conditions, and building set, not the simulation underneath.
+
+---
+
+## Civilizations
+
+At new game start, the player selects a civilization. This determines starting conditions, building vocabulary, visual theme, and military units. The core simulation — needs, genealogy, freeform building, barter economy — is identical across both.
+
+### Sumeria (Bronze Age Survival)
+
+| Aspect | Detail |
+|---|---|
+| **Aesthetic** | Mudbrick, reed, bitumen; ziggurat as civic center |
+| **UI** | Clay-tablet tones, cuneiform accent glyphs |
+| **Starting** | Lugal (ruler) + household in a reed camp; scarce water and grain |
+| **Buildings** | Reed House, Clay Oven, Grain Store, Ziggurat, Irrigation Channel, Brewery |
+| **Military** | Spearmen, axemen, chariots (late-game) |
+| **Economy** | Barley/emmer grain, dates, bitumen, copper from trade |
+| **Pressure** | Flood seasons, soil salinity, rival city-states |
+
+### Ancient Greece (Classical Civic Management)
+
+| Aspect | Detail |
+|---|---|
+| **Aesthetic** | Marble, terracotta, olive; stoa as civic center |
+| **UI** | Greek-key border, `#c8a030` gold accents, serif typography |
+| **Starting** | Archon + consort in a stone camp; coastal or inland site |
+| **Buildings** | House, Agora, Stoa, Temple, Gymnasium, Olive Press |
+| **Military** | Hoplite, Peltast, Toxotes, Cavalry |
+| **Economy** | Wheat, olive oil, wine, wool, coinage via mint |
+| **Pressure** | Enemy polis raids, migration pressure, civic unrest |
+
+### Shared Engine
+
+Both civilizations run on the same systems: freeform wall/furniture/zone building, needs (food/rest/social/joy), genealogy and inheritance, localized production chains, the Archon/Lugal policy lever model, and the content-driven entity architecture.
 
 ---
 
@@ -468,9 +502,10 @@ The enemy runs a full mirror economy simulation:
 
 ## Visual Direction
 
-- **Style**: Top-down, 32×32px tiles. Transitioning from Greek to Sumerian aesthetic (ziggurat civic structures, mudbrick earthy palette, cuneiform UI accents).
-- **Current palette**: Sandstone yellows, Aegean blues, olive greens; `#c8a030` gold UI accents.
-- **UI**: Dark panel, resolution-agnostic anchoring, contextual sidebars.
+- **Style**: Top-down, 32×32px tiles. Dual aesthetic driven by active civilization.
+- **Sumerian palette**: Raw clay ochre, bitumen black, river-reed green, lapis lazuli accent.
+- **Greek palette**: Sandstone yellows, Aegean blues, olive greens; `#c8a030` gold UI accents.
+- **UI**: Dark panel, resolution-agnostic anchoring, contextual sidebars. Border style and typography swap per civ (cuneiform glyphs vs Greek-key).
 - **Rendering**: Shape-based sprite system (`renderShapes.js`). Declarative `SHAPES` data per entity, LOD tiers 0–3 (minimap square → silhouette → full detail → zoomed flourishes). All unit bodies drawn in one shared `unitsGfx` Graphics batch per frame.
 - **In-game sprite editor**: backtick key opens shape editor.
 
