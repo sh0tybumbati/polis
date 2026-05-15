@@ -68,7 +68,7 @@ export default class MenuScene extends Phaser.Scene {
         const belowHorizonCy = (fgHorizonY + H) / 2 - H * 0.07;
 
         // ── 2. Constellations — very faint, slowly rotating star chart ─────────
-        const starDiameter = Math.max(W, H) * 1.168;
+        const starDiameter = Math.max(W, H) * 1.618;
         this._stars = this.add.image(cx, belowHorizonCy, 'menu_stars')
             .setDisplaySize(starDiameter, starDiameter)
             .setAlpha(0.05)
