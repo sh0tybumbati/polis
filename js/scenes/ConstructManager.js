@@ -22,6 +22,8 @@ export default class ConstructManager {
     init() {
         this.constructGfx = this.scene._w(this.scene.add.graphics().setDepth(5));
         this.edgeGfx      = this.scene._w(this.scene.add.graphics().setDepth(4));
+        // Keep scene.constructs pointing at our array for all consumers (UnitWorker etc.)
+        this.scene.constructs = this.constructs;
     }
 
     // ─── Placement Logic ────────────────────────────────────────────────────────
