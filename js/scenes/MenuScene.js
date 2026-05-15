@@ -11,7 +11,7 @@ export default class MenuScene extends Phaser.Scene {
 
     create() {
         const W = this.scale.width, H = this.scale.height;
-        const hasSave = !!localStorage.getItem('polis_save');
+        const hasSave = !!localStorage.getItem('epochs_save');
 
         this._drawBackground(W, H);
         this._drawTitle(W, H);
@@ -27,7 +27,7 @@ export default class MenuScene extends Phaser.Scene {
     }
 
     _startNew() {
-        localStorage.removeItem('polis_save');
+        localStorage.removeItem('epochs_save');
         this.scene.start(SCENE_KEYS.GAME);
     }
 
@@ -52,58 +52,67 @@ export default class MenuScene extends Phaser.Scene {
         // Dark vignette overlay to make text readable
         this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0.42);
 
-        // Warm amber centre glow matching the sunray tones
+        // Warm sunrise glow concentrated at the horizon (lower-centre)
         const g = this.add.graphics();
         for (let i = 5; i >= 0; i--) {
-            const r = Math.max(W, H) * (0.2 + i * 0.14);
-            g.fillStyle(0x5a3010, (5 - i) * 0.028).fillCircle(W / 2, H * 0.38, r);
+            const r = Math.max(W, H) * (0.18 + i * 0.16);
+            g.fillStyle(0x7a4010, (5 - i) * 0.022).fillCircle(W / 2, H * 0.55, r);
         }
     }
 
     _drawTitle(W, H) {
-        const cy = H * 0.30;
+        const cy = H * 0.28;
 
         // Soft glow halo
         const glow = this.add.graphics();
         for (let i = 5; i >= 0; i--) {
-            glow.fillStyle(0xc8a030, 0.022 - i * 0.002)
-                .fillEllipse(W / 2, cy, 500 + i * 60, 120 + i * 30);
+            glow.fillStyle(0xc87020, 0.018 - i * 0.001)
+                .fillEllipse(W / 2, cy, 620 + i * 60, 140 + i * 30);
         }
 
-        const fontSize = Math.min(96, Math.floor(W * 0.18));
+        const fontSize = Math.min(80, Math.floor(W * 0.14));
+        const subSize  = Math.max(16, Math.floor(fontSize * 0.28));
 
         // Drop shadow layer
-        this.add.text(W / 2 + 3, cy + 5, 'POLIS', {
+        this.add.text(W / 2 + 3, cy + 5, 'EPOCHS:', {
             fontFamily: 'Georgia, "Times New Roman", serif',
             fontSize: fontSize + 'px',
             color: '#000000',
-            alpha: 0.6,
-        }).setOrigin(0.5).setAlpha(0.5);
+        }).setOrigin(0.5).setAlpha(0.45);
 
-        // Main gold title
-        this.add.text(W / 2, cy, 'POLIS', {
+        // Main gold title — two lines to match the image typography
+        this.add.text(W / 2, cy - fontSize * 0.3, 'EPOCHS:', {
             fontFamily: 'Georgia, "Times New Roman", serif',
             fontSize: fontSize + 'px',
             color: '#d4aa40',
-            stroke: '#2a1800',
-            strokeThickness: 4,
-            shadow: { offsetX: 0, offsetY: 2, color: '#8a5800', blur: 12, fill: true },
+            stroke: '#1a0e00',
+            strokeThickness: 3,
+            shadow: { offsetX: 0, offsetY: 2, color: '#7a4400', blur: 14, fill: true },
+        }).setOrigin(0.5);
+
+        this.add.text(W / 2, cy + fontSize * 0.42, 'THE DAWN', {
+            fontFamily: 'Georgia, "Times New Roman", serif',
+            fontSize: fontSize + 'px',
+            color: '#d4aa40',
+            stroke: '#1a0e00',
+            strokeThickness: 3,
+            shadow: { offsetX: 0, offsetY: 2, color: '#7a4400', blur: 14, fill: true },
         }).setOrigin(0.5);
 
         // Thin horizontal rule under title
         const g = this.add.graphics();
-        const ry = cy + fontSize * 0.62;
-        const rw = Math.min(300, W * 0.5);
-        g.lineStyle(1, 0xc8a030, 0.5).lineBetween(W / 2 - rw / 2, ry, W / 2 + rw / 2, ry);
-        g.fillStyle(0xd4aa40, 0.7).fillCircle(W / 2, ry, 2.5);
-        g.fillStyle(0xc8a030, 0.4).fillCircle(W / 2 - rw / 2, ry, 1.5);
-        g.fillStyle(0xc8a030, 0.4).fillCircle(W / 2 + rw / 2, ry, 1.5);
+        const ry = cy + fontSize * 1.1;
+        const rw = Math.min(340, W * 0.52);
+        g.lineStyle(1, 0xc8a030, 0.45).lineBetween(W / 2 - rw / 2, ry, W / 2 + rw / 2, ry);
+        g.fillStyle(0xd4aa40, 0.6).fillCircle(W / 2, ry, 2.5);
+        g.fillStyle(0xc8a030, 0.35).fillCircle(W / 2 - rw / 2, ry, 1.5);
+        g.fillStyle(0xc8a030, 0.35).fillCircle(W / 2 + rw / 2, ry, 1.5);
     }
 
     _drawButtons(W, H, hasSave) {
         const cx  = W / 2;
         const gap = Math.min(52, H * 0.08);
-        const topY = H * 0.50;
+        const topY = H * 0.56;
 
         const buttons = [
             hasSave

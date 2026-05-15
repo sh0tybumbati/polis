@@ -271,17 +271,17 @@ export default class GameScene extends Phaser.Scene {
                 deer:  this.deer.map(d => this._serAnimal(d)),
                 sheep: this.sheep.map(s => this._serAnimal(s)),
             };
-            localStorage.setItem('polis_save', JSON.stringify(state));
+            localStorage.setItem('epochs_save', JSON.stringify(state));
             this.uiManager.showSaveFlash?.();
         } catch(e) { console.warn('[save] failed:', e); }
     }
 
     _loadGame() {
         try {
-            const raw = localStorage.getItem('polis_save');
+            const raw = localStorage.getItem('epochs_save');
             if (!raw) return false;
             const s = JSON.parse(raw);
-            if (s.v !== 6) { localStorage.removeItem('polis_save'); return false; }
+            if (s.v !== 6) { localStorage.removeItem('epochs_save'); return false; }
 
             const KEY_MIGRATION = {
                 wheat: 'Food.Grain.Wheat', flour: 'Food.Grain.Wheat.Flour', bread: 'Food.Grain.Wheat.Bread',
@@ -347,7 +347,7 @@ export default class GameScene extends Phaser.Scene {
         } catch(e) { console.warn('[load] failed:', e); return false; }
     }
 
-    clearSave() { localStorage.removeItem('polis_save'); }
+    clearSave() { localStorage.removeItem('epochs_save'); }
 
     showPhaseMessage(text, color) { this.uiManager.showPhaseMessage(text, color); }
 
