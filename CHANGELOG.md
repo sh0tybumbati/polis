@@ -2,7 +2,35 @@
 
 ## [Unreleased]
 
-### Added
+### Added (Survival Mode / Infinite World — session 2026-05-15)
+
+- **Infinite chunk-based map** — replaced the fixed 80×128 tile grid with a chunk-based system (`ChunkManager.js`). The world is now unbounded; 16×16 tile chunks are generated on demand. Save format bumped to v6 (old saves rejected).
+- **Random spawn** — each new game picks a random spawn position (`Phaser.Math.Between(200, 800)`) so no two games start in the same place.
+- **Noise-driven river** — a single river runs roughly east-west at `spawnTy - 55`, with organic drift (value-noise per column) and deterministic ford crossing points seeded from world coords.
+- **Sparse map data structures** — `visMap`, `roadMap`, `mapData`, `hEdges`, `vEdges` all converted from 2D arrays to `Map<string, value>` with `"tx,ty"` string keys. Removes all fixed-width assumptions and works with infinite coords.
+- **Discovery-driven chunk loading** — chunks are generated and rendered only when a unit's vision circle first reaches them (`MapManager.recomputeVis` → `ChunkManager.onChunkDiscovered`). Camera panning does not trigger generation. Adjacent chunks are pre-generated (data only, not rendered) for pathfinding lookahead.
+- **MenuScene visual redesign** — main menu now uses `background_splash.png` (Greek temple with golden sunrays) as a full-screen background with a WebGL blur (`preFX.addBlur`) overlay. Buttons are plain spaced serif text (no boxes) matching the reference design. Title is large gold Georgia serif.
+
+### Changed
+
+- **Survival mode** — enemy faction removed entirely. No enemy village, no combat waves, no conquest victory. The game is now an open-ended survival/city-builder. Enemy-conquest victory check removed from `WorldManager`.
+- **Tile keys** — all tile indexing changed from `ty * MAP_W + tx` integer to `"tx,ty"` string. Affects `UnitWorker`, `ZoneManager`, `ConstructManager`, `Pathfinder`, `MapManager`.
+- **Chunk graphics** — each chunk uses one `Phaser.Graphics` object rendered once on discovery; re-rendered only when a tile is modified (road, construction). Graphics unloaded when the chunk is >6 camera-chunks away from current view.
+- **Startup performance** — only the 3×3 chunks around spawn pre-generate synchronously at game start (9 chunks). Everything else streams in as units explore, capped at 3 new chunks per vis cycle.
+
+### Fixed
+
+- **Farming progress bar empty** — two compounding bugs: (1) `seekFarmerTask` re-ran every 1500ms even with an active task, resetting `workProgress` to 0; fixed by adding `!u.taskType` guard. (2) Deposit logic hijacked `plant_grow` / `harvest_grow` / `plant` tasks every frame because they weren't in `_noDeposit`; all three added.
+- **Progress bar tiny smidge** — grow task thresholds were `1000` and `2000` but `dt` is in seconds (not milliseconds); corrected to `1.0` and `2.0`.
+- **Progress bars missing on node tasks** — `_drawProgressBar` only checked `u.taskType`; now also checks `u.targetNode` for felling (inverse of `fellWork / maxFell`) and harvesting (forward progress).
+- **ZZZ label invisible inside tent** — unit is at interior coords when sleeping inside; ZZZ at `u.y - 14` was inside the tent graphic. Fixed: offset is `-(TILE * 1.5)` when `u.isInside`, else `-18`.
+- **Stock bar static** — `redrawNode` was only called on node depletion; now also called after every harvest tick so the bar drains live.
+- **Auto-triggering victory** — `!enemyTownhall` was always true with no enemies; removed the entire enemy-TH win condition.
+
+### Added (previous session — bug fixes)
+
+- **Three-meal food system** — food upkeep now fires 3× during each DAY phase (at 25%, 50%, 75% elapsed) consuming 1 food per unit per meal instead of 3 at dawn; starvation now deals 1 HP damage per missed meal rather than instant-killing the unit, giving players a brief window to recover
+- **Mill building** — auto-processes 2 wheat → 3 flour every 10s; stores wheat (cap 40) and flour (cap 30); provides an efficient grain processing chain
 - **Three-meal food system** — food upkeep now fires 3× during each DAY phase (at 25%, 50%, 75% elapsed) consuming 1 food per unit per meal instead of 3 at dawn; starvation now deals 1 HP damage per missed meal rather than instant-killing the unit, giving players a brief window to recover
 - **Mill building** — auto-processes 2 wheat → 3 flour every 10s; stores wheat (cap 40) and flour (cap 30); provides an efficient grain processing chain
 - **Bakery building** — auto-processes 2 flour → 3 food every 12s with a "🍞 bread" float text; makes wheat farming more food-efficient than raw grain deposit

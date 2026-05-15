@@ -58,12 +58,16 @@ export default class MapManager {
 
     recomputeVis() {
         const visMap = this.scene.visMap;
+        const cm = this.scene.chunkManager;
 
         // Dim previously bright tiles
         for (const key of this.scene._litTiles) {
             if ((visMap.get(key) ?? 0) === 2) visMap.set(key, 1);
         }
         this.scene._litTiles = [];
+
+        // Collect chunks newly reaching vis>=1 this cycle
+        const newlyDiscovered = new Set();
 
         const paintCircle = (cx, cy, r, state) => {
             const r2 = r * r;
@@ -73,7 +77,13 @@ export default class MapManager {
                     const nx = cx + dx, ny = cy + dy;
                     if (isNaN(nx) || isNaN(ny)) continue;
                     const nk = `${nx},${ny}`;
-                    if ((visMap.get(nk) ?? 0) < state) {
+                    const prev = visMap.get(nk) ?? 0;
+                    if (prev < state) {
+                        if (prev === 0 && cm) {
+                            // First time this tile is seen — note its chunk
+                            const chunkKey = `${Math.floor(nx / CHUNK_SIZE)},${Math.floor(ny / CHUNK_SIZE)}`;
+                            if (!cm.renderedChunks.has(chunkKey)) newlyDiscovered.add(chunkKey);
+                        }
                         visMap.set(nk, state);
                         if (state === 2) this.scene._litTiles.push(nk);
                     }
@@ -113,6 +123,16 @@ export default class MapManager {
             if (tx > eb.maxTx) eb.maxTx = tx;
             if (ty < eb.minTy) eb.minTy = ty;
             if (ty > eb.maxTy) eb.maxTy = ty;
+        }
+
+        // Trigger chunk generation + rendering for newly discovered chunks (throttled)
+        if (cm && newlyDiscovered.size > 0) {
+            let count = 0;
+            for (const ck of newlyDiscovered) {
+                const [cx, cy] = ck.split(',').map(Number);
+                cm.onChunkDiscovered(cx, cy);
+                if (++count >= 3) break; // max 3 new chunks per vis cycle
+            }
         }
     }
 

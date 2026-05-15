@@ -154,13 +154,13 @@ export default class GameScene extends Phaser.Scene {
             delete this._savedChunkMods;
         }
 
-        // Load chunks around spawn
-        // Center camera first so tick() knows what's in view
+        // Pre-generate the immediate 3×3 spawn chunks synchronously (fast),
+        // the rest streams in over the first few frames.
         this.cameras.main.centerOn(
             this.spawnTx * TILE + TILE / 2,
             MAP_OY + this.spawnTy * TILE + TILE / 2
         );
-        this.chunkManager.tick(this.cameras.main);
+        this.chunkManager.prewarmSpawn(this.spawnTx, this.spawnTy);
 
         this.constructManager.init();
         this.zoneManager.init();

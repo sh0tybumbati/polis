@@ -80,15 +80,16 @@
 
 ### Fog of War
 - [x] **No starting vision** — entire map begins black; player starts blind even in the heartland
-- [x] Each unit projects a vision radius updated every tick: workers 3 tiles (dim to 6), soldiers 5 tiles (dim to 10)
+- [x] Each unit projects a vision radius: workers 3 tiles clear (6 dim), soldiers 5 tiles (10 dim), scouts 8 tiles (16 dim)
 - [x] Three vision states per tile:
-  - **Black** (never seen) — terrain, units, constructs completely hidden
-  - **Dimmed** (seen but not currently lit) — terrain and *player* constructs visible; enemy units/constructs not updated
+  - **Black** (never seen) — terrain not rendered, units/constructs hidden
+  - **Dimmed** (seen but not currently lit) — terrain visible; enemy units/constructs not updated
   - **Lit** (currently in a unit's radius) — everything visible
-- [x] `visMap[y][x]` stores state (0/1/2); recomputed each frame from all living friendly units
-- [x] Fog rendered as a dark overlay (depth 8) on the world camera; minimap mirrors fog state
-- [x] Player constructs grant a large (radius 10) permanent lit circle while built
-- [x] Watch Tower (Milestone 3) adds a large static lit radius even with no units nearby
+- [x] `visMap: Map<"tx,ty", 0|1|2>` — sparse Map, recomputed every 500ms from all living friendly units + built constructs
+- [x] Fog rendered as per-tile black rects (depth 8) over the viewport; undiscovered chunks not rendered at all
+- [x] **Discovery-driven chunk render** — `recomputeVis` detects when a tile first reaches vis≥1 and calls `chunkManager.onChunkDiscovered`; terrain only appears after a unit sees it
+- [x] Player constructs grant a permanent lit circle (radius from `CONSTRUCTS[type].fogRadius`, default 3)
+- [ ] Watch Tower static lit radius (planned Milestone 3)
 
 ### Enemy Village (Mirror Sim — groundwork only)
 - [x] Enemy polis pre-placed in Badlands during world gen (constructs exist, visible once fog cleared)
@@ -633,12 +634,18 @@ Goal: buildings emerge from walls + furniture + zones, not from prefab `house`/`
 
 ---
 
-## Milestone 11 — Procedural World
+## Milestone 11 — Procedural World ← DONE (core)
 
 ### Chunk-Based Generation
-- [ ] Replace fixed 80×128 map with chunk-based generation; world expands on exploration
-- [ ] Biome regions generated per chunk; tile distribution matches current band system
-- [ ] Minimap becomes a live region view that pans and scales with exploration
+- [x] Replace fixed 80×128 map with chunk-based generation; world expands on exploration
+- [x] Biome regions generated per chunk (heartland / scrubland / forest / badlands bands relative to spawn)
+- [x] Sparse Map data structures — `visMap`, `roadMap`, `mapData`, `hEdges`, `vEdges` all `Map<"tx,ty", value>`; no bounds, no fixed width
+- [x] `ChunkManager` — 16×16 tile chunks; value-noise river; deterministic seeded node spawning per chunk
+- [x] Discovery-driven loading — chunks generate + render only when unit vision first touches them; adjacent chunks pre-generated (data only) for pathfinding
+- [x] Chunk graphics unloaded when >6 chunks from camera; tile data retained in memory for pathfinding
+- [x] Random spawn position per new game; save version v6
+- [ ] Minimap live pan/scale with exploration (currently uses `_exploredBounds` auto-scale — acceptable)
+- [ ] River fords shown on minimap
 
 ---
 

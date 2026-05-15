@@ -20,7 +20,11 @@ export default class ChunkManager {
         this.fordSet = new Set();
         // Modified tiles for save/load (only overrides, keyed "tx,ty")
         this.modifiedChunks = new Map();
+        // Chunks that have had their graphics rendered (discovery-gated)
+        this.renderedChunks = new Set();
     }
+
+    get isLoading() { return false; }
 
     // ─── Biome formula (spawn-relative) ─────────────────────────────────────────
 
@@ -224,6 +228,46 @@ export default class ChunkManager {
         if (nodes.length > 0) this.scene.mapManager?.drawResourceNodes?.();
     }
 
+    // Called at game start: generate + render the 3×3 chunks around spawn so
+    // the player's starting units have ground under them immediately.
+    prewarmSpawn(spawnTx, spawnTy) {
+        const cx = Math.floor(spawnTx / CHUNK_SIZE);
+        const cy = Math.floor(spawnTy / CHUNK_SIZE);
+        for (let dy = -1; dy <= 1; dy++) {
+            for (let dx = -1; dx <= 1; dx++) {
+                const key = this._chunkKey(cx + dx, cy + dy);
+                if (!this.chunks.has(key)) this._generateChunk(cx + dx, cy + dy);
+                if (!this.renderedChunks.has(key)) {
+                    this.renderChunk(cx + dx, cy + dy);
+                    this.renderedChunks.add(key);
+                }
+            }
+        }
+    }
+
+    // Called by MapManager when a chunk is first discovered (any tile in it reaches vis>=1).
+    // Renders this chunk and pre-generates (but doesn't render) its 8 neighbours so
+    // pathfinding can traverse into them before units physically arrive.
+    onChunkDiscovered(cx, cy) {
+        const key = this._chunkKey(cx, cy);
+
+        // Generate + render this chunk if not already done
+        if (!this.chunks.has(key)) this._generateChunk(cx, cy);
+        if (!this.renderedChunks.has(key)) {
+            this.renderChunk(cx, cy);
+            this.renderedChunks.add(key);
+        }
+
+        // Pre-generate (data only) adjacent chunks for pathfinding
+        for (let dy = -1; dy <= 1; dy++) {
+            for (let dx = -1; dx <= 1; dx++) {
+                if (dx === 0 && dy === 0) continue;
+                const nk = this._chunkKey(cx + dx, cy + dy);
+                if (!this.chunks.has(nk)) this._generateChunk(cx + dx, cy + dy);
+            }
+        }
+    }
+
     // ─── Tile API ────────────────────────────────────────────────────────────────
 
     getTile(tx, ty) {
@@ -316,39 +360,13 @@ export default class ChunkManager {
 
     // ─── Tick (called every frame) ───────────────────────────────────────────────
 
+    // Chunk generation is now discovery-driven (via onChunkDiscovered).
+    // tick() only unloads graphics for chunks far from the camera to reclaim memory.
     tick(camera) {
         if (!camera) return;
         const view = camera.worldView;
 
-        // Tile bounds of viewport (with 2-chunk padding)
-        const padTiles = CHUNK_SIZE * 2;
-        const minTx = Math.floor((view.x - padTiles * TILE) / TILE);
-        const maxTx = Math.ceil((view.right + padTiles * TILE) / TILE);
-        const minTy = Math.floor((view.y - MAP_OY - padTiles * TILE) / TILE);
-        const maxTy = Math.ceil((view.bottom - MAP_OY + padTiles * TILE) / TILE);
-
-        // Chunk bounds (viewport + 2 chunk padding)
-        const minCx = Math.floor(minTx / CHUNK_SIZE);
-        const maxCx = Math.ceil(maxTx / CHUNK_SIZE);
-        const minCy = Math.floor(minTy / CHUNK_SIZE);
-        const maxCy = Math.ceil(maxTy / CHUNK_SIZE);
-
-        // Load/render missing chunks in viewport
-        for (let cy = minCy; cy <= maxCy; cy++) {
-            for (let cx = minCx; cx <= maxCx; cx++) {
-                const key = this._chunkKey(cx, cy);
-                if (!this.chunks.has(key)) {
-                    this._generateChunk(cx, cy);
-                }
-                const chunk = this.chunks.get(key);
-                if (!chunk.gfx) {
-                    this.renderChunk(cx, cy);
-                }
-            }
-        }
-
-        // Unload graphics for chunks > 4 chunks outside viewport
-        const unloadPad = CHUNK_SIZE * 4;
+        const unloadPad = CHUNK_SIZE * 6;
         const unloadMinCx = Math.floor((view.x - unloadPad * TILE) / (CHUNK_SIZE * TILE));
         const unloadMaxCx = Math.ceil((view.right + unloadPad * TILE) / (CHUNK_SIZE * TILE));
         const unloadMinCy = Math.floor((view.y - MAP_OY - unloadPad * TILE) / (CHUNK_SIZE * TILE));
@@ -357,10 +375,11 @@ export default class ChunkManager {
         for (const [key, chunk] of this.chunks) {
             if (!chunk.gfx) continue;
             const [cxStr, cyStr] = key.split(',');
-            const cx = parseInt(cxStr), cy = parseInt(cyStr);
+            const cx = +cxStr, cy = +cyStr;
             if (cx < unloadMinCx || cx > unloadMaxCx || cy < unloadMinCy || cy > unloadMaxCy) {
                 chunk.gfx.destroy();
                 chunk.gfx = null;
+                this.renderedChunks.delete(key);
             }
         }
     }
