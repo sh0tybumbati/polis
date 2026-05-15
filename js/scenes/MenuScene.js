@@ -68,10 +68,10 @@ export default class MenuScene extends Phaser.Scene {
         const belowHorizonCy = (fgHorizonY + H) / 2 - H * 0.07;
 
         // ── 2. Constellations — very faint, slowly rotating star chart ─────────
-        const starDiameter = Math.max(W, H) * 1.53;
+        const starDiameter = Math.max(W, H) * 1.168;
         this._stars = this.add.image(cx, belowHorizonCy, 'menu_stars')
             .setDisplaySize(starDiameter, starDiameter)
-            .setAlpha(0.052)
+            .setAlpha(0.5)
             .setBlendMode(Phaser.BlendModes.SCREEN);
 
         // ── 3. Sun rays — behind disc, spinning; MULTIPLY so white bg vanishes ─
