@@ -579,9 +579,9 @@ export default {
         const n     = this.scene.selectedNode;
         const label = n.type.replace(/_/g, ' ');
         this._infTxt(ox + pad, oy + pad, label, { fontSize: this._fs(12), color: '#c8a030' });
-        this._infTxt(ox + pad, oy + pad + 18, `Stock: ${n.stock}`, { fontSize: this._fs(11), color: '#9a9077' });
         const res = n.resource ?? n.type;
-        this._infTxt(ox + pad, oy + pad + 32, `Yields: ${res.split('.').pop()}`, { fontSize: this._fs(10), color: '#7a9060' });
+        this._infStatRow(ox + pad, ox + W - pad, oy + pad + 18, 'Stock',  n.stock,               '#9a9077', this._fs(11));
+        this._infStatRow(ox + pad, ox + W - pad, oy + pad + 32, 'Yields', res.split('.').pop(),   '#7a9060', this._fs(10));
         this._infBtn(ox + pad, oy + pad + 50, W - pad * 2 - 4, 30, 'Send workers', 0x2a4022, () => {
             if (this.scene.selIds.size > 0) this.scene.orderWorkersToNode(n);
         });
@@ -603,7 +603,7 @@ export default {
 
         let ry = oy + pad + 16;
         for (const [role, count] of Object.entries(census).sort((a, b) => b[1] - a[1]).slice(0, 7)) {
-            this._infTxt(ox + pad, ry, `${role}  ×${count}`, { fontSize: this._fs(10), color: '#9a9077' });
+            this._infStatRow(ox + pad, ox + W - pad, ry, role, `×${count}`, '#9a9077', this._fs(10));
             ry += 13;
         }
 

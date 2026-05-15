@@ -3,7 +3,7 @@ import {
     FM_TYPES, FM_LABELS, UNIT_NAMES, VET_LEVELS, SEASONS, SEASON_DAYS,
     CONSTRUCT_VOLUME, DAY_DURATION, NIGHT_DURATION,
 } from '../config/gameConstants.js';
-import { clockString, tabStrip } from '../ui/UIKit.js';
+import { clockString, tabStrip, panel, statRow } from '../ui/UIKit.js';
 import { CONSTRUCTS, computeBuildCost } from '../content/constructs/index.js';
 import UIPanel from './UIPanel.js';
 import { ITEMS } from '../content/items/index.js';
@@ -382,10 +382,19 @@ export default class UIManager {
     }
 
     _infCard(ox, oy, w, h) {
-        const g = this._inf(this.scene.add.graphics().setDepth(21));
-        g.fillStyle(0x1a1408, 0.85).fillRect(ox, oy, w, h);
-        g.lineStyle(1, 0x3a2e18, 0.6).strokeRect(ox, oy, w, h);
-        return g;
+        return panel(this.scene, ox, oy, w, h, {
+            color: 0x1a1408, alpha: 0.85, radius: 0,
+            borderColor: 0x3a2e18, borderAlpha: 0.6,
+            depth: 21, onAdd: o => this._inf(o),
+        });
+    }
+
+    _infStatRow(ox, rx, y, label, value, color = '#9a9077', fs = null) {
+        const fontSize = fs ?? this._fs(9);
+        return statRow(this.scene, ox, rx, y, label, String(value), {
+            labelColor: '#7a6850', valueColor: color, fontSize,
+            depth: 22, onAdd: o => this._inf(o),
+        });
     }
 
     _infTabBar(ox, oy, W, tabs, active, onSwitch) {

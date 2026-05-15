@@ -27,16 +27,18 @@ export const THEME = {
  * Returns the Graphics object.
  */
 export function panel(scene, x, y, w, h, {
-    alpha       = 0.92,
-    radius      = 6,
-    borderAlpha = THEME.borderAlpha,
-    color       = THEME.panel,
-    onAdd       = null,
+    alpha        = 0.92,
+    radius       = 6,
+    borderAlpha  = THEME.borderAlpha,
+    borderColor  = THEME.border,
+    color        = THEME.panel,
+    depth        = 0,
+    onAdd        = null,
 } = {}) {
-    const g = scene.add.graphics();
+    const g = scene.add.graphics().setDepth(depth);
     g.fillStyle(color, alpha).fillRoundedRect(x, y, w, h, radius);
     if (borderAlpha > 0)
-        g.lineStyle(1, THEME.border, borderAlpha).strokeRoundedRect(x, y, w, h, radius);
+        g.lineStyle(1, borderColor, borderAlpha).strokeRoundedRect(x, y, w, h, radius);
     onAdd?.(g);
     return g;
 }
