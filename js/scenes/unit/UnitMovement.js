@@ -1,5 +1,5 @@
 import {
-    TILE, MAP_OY, MAP_W, MAP_H,
+    TILE, MAP_OY,
     TILE_SPD, DESIRE_THRESHOLD, ROAD_DESIRE, ROAD_NONE,
 } from '../../config/gameConstants.js';
 import { CONSTRUCTS } from '../../content/constructs/index.js';
@@ -111,12 +111,14 @@ export default {
         u.y += Math.sin(a) * u.speed * spd * onionMult * dt;
 
         // Accumulate foot traffic; create desire path when threshold reached
-        if (!u.isEnemy && tileX >= 0 && tileX < MAP_W && tileY >= 0 && tileY < MAP_H) {
-            const tm = this.scene.trafficMap;
-            tm[tileY][tileX] = (tm[tileY][tileX] ?? 0) + 1;
-            if (tm[tileY][tileX] >= DESIRE_THRESHOLD &&
-                (this.scene.roadMap[tileY][tileX] ?? ROAD_NONE) === ROAD_NONE) {
-                this.scene.roadMap[tileY][tileX] = ROAD_DESIRE;
+        if (!u.isEnemy) {
+            const tKey = `${tileX},${tileY}`;
+            const tm = this.scene._trafficMap ?? (this.scene._trafficMap = new Map());
+            const count = (tm.get(tKey) ?? 0) + 1;
+            tm.set(tKey, count);
+            if (count >= DESIRE_THRESHOLD &&
+                (this.scene.roadMap.get(tKey) ?? ROAD_NONE) === ROAD_NONE) {
+                this.scene.roadMap.set(tKey, ROAD_DESIRE);
                 this.scene.mapManager.drawDesirePath(tileX, tileY);
             }
         }
@@ -153,7 +155,7 @@ export default {
     getEnemyVillageCenter() {
         const th = this.scene.constructs.find(b => b.faction === 'enemy' && b.type === 'townhall' && b.built);
         if (th) return { x: (th.tx + 1) * TILE, y: MAP_OY + (th.ty + 1) * TILE };
-        return { x: MAP_W / 2 * TILE, y: MAP_OY + 7 * TILE };
+        return { x: (this.scene.spawnTx ?? 0) * TILE, y: MAP_OY + 7 * TILE };
     },
 
     totalCarrying(u) {

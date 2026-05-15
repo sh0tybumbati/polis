@@ -1,4 +1,4 @@
-import { MAP_W, MAP_H, TILE, MAP_OY } from '../config/gameConstants.js';
+import { TILE, MAP_OY } from '../config/gameConstants.js';
 import { CROPS } from '../content/crops/index.js';
 
 const ZONE_STYLE = {
@@ -24,7 +24,7 @@ export default class ZoneManager {
         this._growTickAcc = 0;
     }
 
-    tileKey(tx, ty) { return ty * MAP_W + tx; }
+    tileKey(tx, ty) { return `${tx},${ty}`; }
 
     init() {
         this._gfx     = this.scene._w(this.scene.add.graphics().setDepth(2));
@@ -40,7 +40,6 @@ export default class ZoneManager {
     }
 
     paintWork(tx, ty) {
-        if (tx < 0 || tx >= MAP_W || ty < 0 || ty >= MAP_H) return;
         const k = this.tileKey(tx, ty);
         if (this._claimed(k) && !this.workTiles.has(k)) return;
         this.workTiles.add(k);
@@ -48,7 +47,6 @@ export default class ZoneManager {
     }
 
     paintStorage(tx, ty) {
-        if (tx < 0 || tx >= MAP_W || ty < 0 || ty >= MAP_H) return;
         const k = this.tileKey(tx, ty);
         if (this._claimed(k) && !this.storageTiles.has(k)) return;
         if (!this.storageTiles.has(k)) this.storageTiles.set(k, { accepts: [] });
@@ -56,7 +54,6 @@ export default class ZoneManager {
     }
 
     paintMarket(tx, ty) {
-        if (tx < 0 || tx >= MAP_W || ty < 0 || ty >= MAP_H) return;
         const k = this.tileKey(tx, ty);
         if (this._claimed(k) && !this.marketTiles.has(k)) return;
         this.marketTiles.add(k);
@@ -64,7 +61,6 @@ export default class ZoneManager {
     }
 
     paintPasture(tx, ty) {
-        if (tx < 0 || tx >= MAP_W || ty < 0 || ty >= MAP_H) return;
         const k = this.tileKey(tx, ty);
         if (this._claimed(k) && !this.pastureTiles.has(k)) return;
         this.pastureTiles.add(k);
@@ -72,7 +68,6 @@ export default class ZoneManager {
     }
 
     paintGrow(tx, ty, crop) {
-        if (tx < 0 || tx >= MAP_W || ty < 0 || ty >= MAP_H) return;
         const k = this.tileKey(tx, ty);
         if (this._claimed(k) && !this.growTiles.has(k)) return;
         if (!this.growTiles.has(k)) {
@@ -186,12 +181,12 @@ export default class ZoneManager {
         const has  = k => tileSet.has(k);
         this._gfx.fillStyle(style.fill, style.fillAlpha);
         for (const key of keys) {
-            const tx = key % MAP_W, ty = Math.floor(key / MAP_W);
+            const [tx, ty] = key.split(',').map(Number);
             this._gfx.fillRect(tx * TILE, MAP_OY + ty * TILE, TILE, TILE);
         }
         this._gfx.lineStyle(1, style.line, style.lineAlpha);
         for (const key of keys) {
-            const tx = key % MAP_W, ty = Math.floor(key / MAP_W);
+            const [tx, ty] = key.split(',').map(Number);
             const px = tx * TILE, py = MAP_OY + ty * TILE;
             if (!has(this.tileKey(tx,   ty-1))) this._gfx.lineBetween(px,        py,        px + TILE, py);
             if (!has(this.tileKey(tx,   ty+1))) this._gfx.lineBetween(px,        py + TILE, px + TILE, py + TILE);
@@ -203,14 +198,15 @@ export default class ZoneManager {
     _renderGrowLayer() {
         if (this.growTiles.size === 0) return;
         for (const [key, state] of this.growTiles) {
+            const [tx, ty] = key.split(',').map(Number);
             const def = state.crop ? CROPS[state.crop] : null;
             const col = def ? def.zoneColor : 0x336622;
             this._gfx.fillStyle(col, 0.16);
-            this._gfx.fillRect((key % MAP_W) * TILE, MAP_OY + Math.floor(key / MAP_W) * TILE, TILE, TILE);
+            this._gfx.fillRect(tx * TILE, MAP_OY + ty * TILE, TILE, TILE);
         }
         this._gfx.lineStyle(1, 0x558833, 0.55);
         for (const key of this.growTiles.keys()) {
-            const tx = key % MAP_W, ty = Math.floor(key / MAP_W);
+            const [tx, ty] = key.split(',').map(Number);
             const px = tx * TILE, py = MAP_OY + ty * TILE;
             if (!this.growTiles.has(this.tileKey(tx,   ty-1))) this._gfx.lineBetween(px,        py,        px + TILE, py);
             if (!this.growTiles.has(this.tileKey(tx,   ty+1))) this._gfx.lineBetween(px,        py + TILE, px + TILE, py + TILE);
@@ -224,8 +220,9 @@ export default class ZoneManager {
         for (const [key, state] of this.growTiles) {
             const def = CROPS[state.crop];
             if (!def) continue;
-            const bx = (key % MAP_W) * TILE;
-            const by = MAP_OY + Math.floor(key / MAP_W) * TILE;
+            const [tx, ty] = key.split(',').map(Number);
+            const bx = tx * TILE;
+            const by = MAP_OY + ty * TILE;
             for (let i = 0; i < state.slots.length; i++) {
                 const sv = state.slots[i];
                 const [fx, fy] = def.slotPositions[i];
@@ -258,7 +255,7 @@ export default class ZoneManager {
             const visited = new Set([k]), queue = [k], result = [];
             while (queue.length) {
                 const ck = queue.shift();
-                const ctx = ck % MAP_W, cty = Math.floor(ck / MAP_W);
+                const [ctx, cty] = ck.split(',').map(Number);
                 result.push({ tx: ctx, ty: cty });
                 for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1]]) {
                     const nk = this.tileKey(ctx + dx, cty + dy);
@@ -275,7 +272,7 @@ export default class ZoneManager {
         const visited = new Set([k]), queue = [k], result = [];
         while (queue.length) {
             const ck = queue.shift();
-            const ctx = ck % MAP_W, cty = Math.floor(ck / MAP_W);
+            const [ctx, cty] = ck.split(',').map(Number);
             result.push({ tx: ctx, ty: cty });
             for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1]]) {
                 const nk = this.tileKey(ctx + dx, cty + dy);
@@ -314,7 +311,7 @@ export default class ZoneManager {
             visited.add(key);
             while (queue.length) {
                 const k  = queue.shift();
-                const tx = k % MAP_W, ty = Math.floor(k / MAP_W);
+                const [tx, ty] = k.split(',').map(Number);
                 zone.push({ tx, ty });
                 for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1]]) {
                     const nk = this.tileKey(tx + dx, ty + dy);

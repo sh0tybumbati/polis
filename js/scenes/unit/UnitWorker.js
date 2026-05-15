@@ -1,5 +1,5 @@
 import {
-    TILE, MAP_W, MAP_OY,
+    TILE, MAP_OY,
     ARCHON_BUILD_ORDER, T_MOUNTAIN,
 } from '../../config/gameConstants.js';
 import { CONSTRUCTS } from '../../content/constructs/index.js';
@@ -515,15 +515,16 @@ export default {
             // Advance to next order if front is done
             while (queue.length > 0 && queue[0].done >= queue[0].qty) {
                 queue.shift();
+                const [_qtx, _qty] = u.taskZoneKey.split(',').map(Number);
                 this.scene.uiManager.showFloatText(
-                    (u.taskZoneKey % MAP_W) * TILE + TILE / 2,
-                    MAP_OY + Math.floor(u.taskZoneKey / MAP_W) * TILE - 14,
+                    _qtx * TILE + TILE / 2,
+                    MAP_OY + _qty * TILE - 14,
                     'Order done!', '#88ffaa');
             }
             if (queue.length === 0) { u.workshopPhase = 'idle'; return; }
         }
 
-        const tx = u.taskZoneKey % MAP_W, ty = Math.floor(u.taskZoneKey / MAP_W);
+        const [tx, ty] = u.taskZoneKey.split(',').map(Number);
         const cx = tx * TILE + TILE / 2, cy = MAP_OY + ty * TILE + TILE / 2;
 
         if (u.workshopPhase === 'procure' || u.workshopPhase === 'idle') {
@@ -609,7 +610,7 @@ export default {
         // ── Market Stall path ──────────────────────────────────────────────────
         if (u.taskZoneKey != null) {
             const key = u.taskZoneKey;
-            const tx = key % MAP_W, ty = Math.floor(key / MAP_W);
+            const [tx, ty] = key.split(',').map(Number);
             const cx = tx * TILE + TILE / 2, cy = MAP_OY + ty * TILE + TILE / 2;
             if (this.moveToward(u, cx, cy, 28, dt)) return;
             u.isInside = true;
@@ -716,7 +717,7 @@ export default {
         const zm = this.scene.zoneManager;
         const state = zm?.growTiles.get(u.taskZoneKey);
         if (!state || !state.slots.some(s => s >= 1)) { u.taskType = null; return; }
-        const tx = u.taskZoneKey % MAP_W, ty = Math.floor(u.taskZoneKey / MAP_W);
+        const [tx, ty] = u.taskZoneKey.split(',').map(Number);
         const cx = tx * TILE + TILE / 2, cy = MAP_OY + ty * TILE + TILE / 2;
         if (this.moveToward(u, cx, cy, 28, dt)) return;
 
@@ -745,7 +746,7 @@ export default {
         const zm = this.scene.zoneManager;
         const state = zm?.growTiles.get(u.taskZoneKey);
         if (!state || !state.slots.some(s => s < 0)) { u.taskType = null; return; }
-        const tx = u.taskZoneKey % MAP_W, ty = Math.floor(u.taskZoneKey / MAP_W);
+        const [tx, ty] = u.taskZoneKey.split(',').map(Number);
         const cx = tx * TILE + TILE / 2, cy = MAP_OY + ty * TILE + TILE / 2;
         if (this.moveToward(u, cx, cy, 28, dt)) return;
 
@@ -1086,7 +1087,7 @@ export default {
             // First pass: tiles with a built storage appliance that accepts carried resources
             for (const [key, cfg] of zm.storageTiles) {
                 if (!tileAccepts(cfg)) continue;
-                const tx = key % MAP_W, ty = Math.floor(key / MAP_W);
+                const [tx, ty] = key.split(',').map(Number);
                 const item = fm?.getAt(tx, ty);
                 if (!item?.built || !STORAGE_APPL.has(item.type)) continue;
                 const d = Phaser.Math.Distance.Between(u.x, u.y, (tx + 0.5) * TILE, MAP_OY + (ty + 0.5) * TILE);
@@ -1096,7 +1097,7 @@ export default {
             if (bestKey === null) {
                 for (const [key, cfg] of zm.storageTiles) {
                     if (!tileAccepts(cfg)) continue;
-                    const tx = key % MAP_W, ty = Math.floor(key / MAP_W);
+                    const [tx, ty] = key.split(',').map(Number);
                     const d = Phaser.Math.Distance.Between(u.x, u.y, tx * TILE + TILE / 2, MAP_OY + ty * TILE + TILE / 2);
                     if (d < bestDist) { bestDist = d; bestKey = key; }
                 }
@@ -1187,7 +1188,7 @@ export default {
         const zm = this.scene.zoneManager;
         const cfg = zm?.storageTiles.get(u.taskZoneKey);
         if (!cfg) { u.taskType = null; return; }
-        const tx = u.taskZoneKey % MAP_W, ty = Math.floor(u.taskZoneKey / MAP_W);
+        const [tx, ty] = u.taskZoneKey.split(',').map(Number);
         const cx = tx * TILE + TILE / 2, cy = MAP_OY + ty * TILE + TILE / 2;
         if (this.moveToward(u, cx, cy, 30, dt)) return;
 
@@ -1249,7 +1250,7 @@ export default {
             const nearest = (keys) => {
                 let bestKey = null, bestDist = Infinity;
                 for (const key of keys) {
-                    const tx = key % MAP_W, ty = Math.floor(key / MAP_W);
+                    const [tx, ty] = key.split(',').map(Number);
                     const d = Phaser.Math.Distance.Between(u.x, u.y, tx * TILE + TILE / 2, MAP_OY + ty * TILE + TILE / 2);
                     if (d < bestDist) { bestDist = d; bestKey = key; }
                 }
@@ -1265,12 +1266,12 @@ export default {
         if (zm && zm.growTiles.size > 0) {
             let bestKey = null, bestDist = Infinity;
             for (const key of zm.growTiles.keys()) {
-                const ktx = key % MAP_W, kty = Math.floor(key / MAP_W);
+                const [ktx, kty] = key.split(',').map(Number);
                 const d = Phaser.Math.Distance.Between(u.x, u.y, ktx * TILE + TILE / 2, MAP_OY + kty * TILE + TILE / 2);
                 if (d < bestDist) { bestDist = d; bestKey = key; }
             }
             if (bestKey !== null) {
-                const ktx = bestKey % MAP_W, kty = Math.floor(bestKey / MAP_W);
+                const [ktx, kty] = bestKey.split(',').map(Number);
                 u.moveTo = {
                     x: (ktx + 0.5) * TILE + Phaser.Math.Between(-TILE, TILE),
                     y: MAP_OY + (kty + 0.5) * TILE + Phaser.Math.Between(-TILE / 2, TILE / 2),
@@ -1294,7 +1295,7 @@ export default {
                     const item = fm.getAt(tx, ty);
                     if (!item?.built) continue;
                     if (CONSTRUCTS[item.type]?.job !== u.role) continue;
-                    const key = fm.tileKey(tx, ty);
+                    const key = `${tx},${ty}`;
                     if (this.scene.units.some(w => w.id !== u.id && w.taskType === 'zone_workshop' && w.taskZoneKey === key)) continue;
                     u.taskType      = 'zone_workshop';
                     u.taskZoneKey   = key;
@@ -1648,8 +1649,7 @@ export default {
             for (let dy = -15; dy <= 15; dy++) {
                 for (let dx = -15; dx <= 15; dx++) {
                     const tx = utx + dx, ty = uty + dy;
-                    if (tx < 0 || tx >= 80 || ty < 0 || ty >= 128) continue;
-                    if (this.scene.terrainData[ty][tx] === T_MOUNTAIN) {
+                    if (this.scene.chunkManager?.getTile(tx, ty) === T_MOUNTAIN) {
                         const px = tx * 32 + 16, py = 52 + ty * 32 + 16;
                         const d = Phaser.Math.Distance.Between(u.x, u.y, px, py);
                         if (d < maxDist && d < bd) {

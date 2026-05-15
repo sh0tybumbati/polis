@@ -1,5 +1,5 @@
 import {
-    MAP_W, MAP_H, TILE, MAP_OY,
+    TILE, MAP_OY,
     FM_TYPES, FM_LABELS, UNIT_NAMES, VET_LEVELS, SEASONS, SEASON_DAYS,
     CONSTRUCT_VOLUME,
 } from '../config/gameConstants.js';
@@ -206,7 +206,15 @@ export default class UIManager {
         mmZone.on('pointerdown', ptr => {
             const fx = (ptr.x - this.scene._mmX) / this.scene._mmW;
             const fy = (ptr.y - this.scene._mmY) / this.scene._mmH;
-            this.scene.cameras.main.pan(fx * MAP_W * TILE, MAP_OY + fy * MAP_H * TILE, 300, 'Sine.easeOut');
+            // Pan to minimap click — map click fraction to explored world coords
+            const eb = this.scene._exploredBounds;
+            const spawnTx = this.scene.spawnTx ?? 0, spawnTy = this.scene.spawnTy ?? 0;
+            const showRange = (eb && eb.minTx !== Infinity)
+                ? Math.max(40, Math.max(eb.maxTx - eb.minTx, eb.maxTy - eb.minTy) / 2 + 10)
+                : 80;
+            const worldTx = spawnTx - showRange + fx * showRange * 2;
+            const worldTy = spawnTy - showRange + fy * showRange * 2;
+            this.scene.cameras.main.pan(worldTx * TILE, MAP_OY + worldTy * TILE, 300, 'Sine.easeOut');
         });
     }
 

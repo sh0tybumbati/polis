@@ -1,5 +1,5 @@
 import {
-    TILE, MAP_OY, MAP_W, MAP_H, MAP_BOTTOM,
+    TILE, MAP_OY,
     TILE_SPD, T_GRASS, T_ROCK, HIGH_GROUND_BONUS,
     VET_LEVELS,
     pickName,
@@ -570,8 +570,8 @@ export default class UnitManager {
 
             if (n.type === 'mountain') {
                 if (n.stock <= 0) {
-                    this.scene.terrainData[n.ty][n.tx] = T_ROCK;
-                    this.scene.mapManager.drawMap(); // redraw terrain
+                    this.scene.chunkManager?.setTile(n.tx, n.ty, T_ROCK);
+                    // chunk will auto-redraw via setTile
                 }
             } else if (n.stock <= 0) {
                 n.felled = false;

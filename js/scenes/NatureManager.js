@@ -1,7 +1,12 @@
 import {
-    TILE, MAP_OY, MAP_W, MAP_H, MAP_BOTTOM,
+    TILE, MAP_OY,
     T_GRASS, T_SAND, T_FOREST
 } from '../config/gameConstants.js';
+
+// Animals roam freely — use large world bounds (1024 tiles = 32768px)
+const NATURE_WORLD_W = 1024;
+const NATURE_WORLD_H = 1024;
+const NATURE_BOTTOM  = MAP_OY + NATURE_WORLD_H * TILE;
 import { ANIMALS } from '../content/animals/index.js';
 
 export default class NatureManager {
@@ -84,8 +89,8 @@ export default class NatureManager {
                 if (!d.moveTo || d.wanderTimer <= 0) {
                     const angle = Math.random() * Math.PI * 2;
                     const dist = Phaser.Math.Between(TILE * 2, TILE * 6);
-                    d.moveTo = { x: Phaser.Math.Clamp(d.x + Math.cos(angle) * dist, TILE, MAP_W * TILE - TILE),
-                                 y: Phaser.Math.Clamp(d.y + Math.sin(angle) * dist, MAP_OY + TILE, MAP_BOTTOM - TILE) };
+                    d.moveTo = { x: Phaser.Math.Clamp(d.x + Math.cos(angle) * dist, TILE, NATURE_WORLD_W * TILE - TILE),
+                                 y: Phaser.Math.Clamp(d.y + Math.sin(angle) * dist, MAP_OY + TILE, NATURE_BOTTOM - TILE) };
                     d.wanderTimer = Phaser.Math.Between(3000, 6000);
                 }
                 if (d.moveTo) {
@@ -98,8 +103,8 @@ export default class NatureManager {
                     }
                 }
             }
-            d.x = Phaser.Math.Clamp(d.x, TILE, MAP_W * TILE - TILE);
-            d.y = Phaser.Math.Clamp(d.y, MAP_OY + TILE, MAP_BOTTOM - TILE);
+            d.x = Phaser.Math.Clamp(d.x, TILE, NATURE_WORLD_W * TILE - TILE);
+            d.y = Phaser.Math.Clamp(d.y, MAP_OY + TILE, NATURE_BOTTOM - TILE);
             d.gfx.setPosition(d.x, d.y);
         }
     }
@@ -177,8 +182,8 @@ export default class NatureManager {
                 if (!s.moveTo || s.wanderTimer <= 0) {
                     const angle = Math.random() * Math.PI * 2;
                     const dist = Phaser.Math.Between(TILE * 1, TILE * 3);
-                    s.moveTo = { x: Phaser.Math.Clamp(s.x + Math.cos(angle) * dist, TILE, MAP_W * TILE - TILE),
-                                 y: Phaser.Math.Clamp(s.y + Math.sin(angle) * dist, MAP_OY + TILE, MAP_BOTTOM - TILE) };
+                    s.moveTo = { x: Phaser.Math.Clamp(s.x + Math.cos(angle) * dist, TILE, NATURE_WORLD_W * TILE - TILE),
+                                 y: Phaser.Math.Clamp(s.y + Math.sin(angle) * dist, MAP_OY + TILE, NATURE_BOTTOM - TILE) };
                     s.wanderTimer = Phaser.Math.Between(4000, 8000);
                 }
                 if (s.moveTo) {
@@ -192,8 +197,8 @@ export default class NatureManager {
                 }
             }
             
-            s.x = Phaser.Math.Clamp(s.x, TILE, MAP_W * TILE - TILE);
-            s.y = Phaser.Math.Clamp(s.y, MAP_OY + TILE, MAP_BOTTOM - TILE);
+            s.x = Phaser.Math.Clamp(s.x, TILE, NATURE_WORLD_W * TILE - TILE);
+            s.y = Phaser.Math.Clamp(s.y, MAP_OY + TILE, NATURE_BOTTOM - TILE);
             s.gfx.setPosition(s.x, s.y);
         }
     }
@@ -214,20 +219,20 @@ export default class NatureManager {
     spawnDeerAtEdge() {
         const side = Math.floor(Math.random() * 4);
         let x, y;
-        if (side === 0) { x = Phaser.Math.Between(TILE, MAP_W*TILE-TILE); y = MAP_OY + TILE; }
-        else if (side === 1) { x = Phaser.Math.Between(TILE, MAP_W*TILE-TILE); y = MAP_BOTTOM - TILE; }
-        else if (side === 2) { x = TILE; y = Phaser.Math.Between(MAP_OY + TILE, MAP_BOTTOM - TILE); }
-        else { x = MAP_W*TILE - TILE; y = Phaser.Math.Between(MAP_OY + TILE, MAP_BOTTOM - TILE); }
+        if (side === 0) { x = Phaser.Math.Between(TILE, NATURE_WORLD_W*TILE-TILE); y = MAP_OY + TILE; }
+        else if (side === 1) { x = Phaser.Math.Between(TILE, NATURE_WORLD_W*TILE-TILE); y = NATURE_BOTTOM - TILE; }
+        else if (side === 2) { x = TILE; y = Phaser.Math.Between(MAP_OY + TILE, NATURE_BOTTOM - TILE); }
+        else { x = NATURE_WORLD_W*TILE - TILE; y = Phaser.Math.Between(MAP_OY + TILE, NATURE_BOTTOM - TILE); }
         this.spawnDeer(x, y);
     }
 
     spawnSheepAtEdge() {
         const side = Math.floor(Math.random() * 4);
         let x, y;
-        if (side === 0) { x = Phaser.Math.Between(TILE, MAP_W*TILE-TILE); y = MAP_OY + TILE; }
-        else if (side === 1) { x = Phaser.Math.Between(TILE, MAP_W*TILE-TILE); y = MAP_BOTTOM - TILE; }
-        else if (side === 2) { x = TILE; y = Phaser.Math.Between(MAP_OY + TILE, MAP_BOTTOM - TILE); }
-        else { x = MAP_W*TILE - TILE; y = Phaser.Math.Between(MAP_OY + TILE, MAP_BOTTOM - TILE); }
+        if (side === 0) { x = Phaser.Math.Between(TILE, NATURE_WORLD_W*TILE-TILE); y = MAP_OY + TILE; }
+        else if (side === 1) { x = Phaser.Math.Between(TILE, NATURE_WORLD_W*TILE-TILE); y = NATURE_BOTTOM - TILE; }
+        else if (side === 2) { x = TILE; y = Phaser.Math.Between(MAP_OY + TILE, NATURE_BOTTOM - TILE); }
+        else { x = NATURE_WORLD_W*TILE - TILE; y = Phaser.Math.Between(MAP_OY + TILE, NATURE_BOTTOM - TILE); }
         this.spawnSheep(x, y);
     }
 

@@ -217,6 +217,7 @@ export default {
             sheep: this.scene.sheep ?? [],
             domains: this.scene.domains ?? [],
             getDomainAt: (tx, ty) => this.scene.constructManager.getDomainAt(tx, ty),
+            growZones: this.scene.zoneManager?.growTiles.size ?? 0,
         };
         const cands = [];
         for (const job of Object.values(JOBS)) {

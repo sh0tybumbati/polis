@@ -1,4 +1,4 @@
-import { TILE, MAP_OY, MAP_W } from '../../config/gameConstants.js';
+import { TILE, MAP_OY } from '../../config/gameConstants.js';
 import { MathUtils } from '../../utils/MathUtils.js';
 
 export default {
@@ -35,8 +35,8 @@ export default {
 
         if (u.isRouting) {
             const home = this.scene.constructs.find(b => b.id === u.homeConstructId);
-            const hx = home ? (home.tx + home.width / 2) * TILE : MAP_W / 2 * TILE;
-            const hy = home ? MAP_OY + (home.ty + home.height / 2) * TILE : this.scene.MAP_BOTTOM - TILE * 4;
+            const hx = home ? (home.tx + home.width / 2) * TILE : (this.scene.spawnTx ?? 0) * TILE;
+            const hy = home ? MAP_OY + (home.ty + home.height / 2) * TILE : MAP_OY + (this.scene.spawnTy ?? 0) * TILE + TILE * 4;
             const dh = Phaser.Math.Distance.Between(u.x, u.y, hx, hy);
             if (dh > 8) {
                 const a = Math.atan2(hy - u.y, hx - u.x);
@@ -85,7 +85,7 @@ export default {
         if (nd <= u.range + 4) {
             if (time - u.lastAtk > 1000) {
                 const nTx = Math.floor(near.x/TILE), nTy = Math.floor((near.y-MAP_OY)/TILE);
-                const cover = MathUtils.coverMod(this.scene.terrainData[nTy]?.[nTx] ?? 0);
+                const cover = MathUtils.coverMod(this.scene.chunkManager?.getTile(nTx, nTy) ?? 0);
                 const highGround = u.taskType === 'garrison' ? 1.5 : 1.0;
                 const dmg = Math.max(1, Math.round(u.atk * flankMod * MathUtils.counterMod(u.type, near.type) * cover * highGround));
                 near.hp -= dmg; u.lastAtk = time;

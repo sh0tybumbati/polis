@@ -119,12 +119,9 @@ export const ARCHON_BUILD_ORDER = [
 export const TILE      = 32;
 export const MAP_OY    = 52;   // topbar height; map starts here
 
-// World (fixed large grid — camera scrolls over it)
-export const WORLD_W   = 80;
-export const WORLD_H   = 128;
-export const MAP_W     = WORLD_W;       // alias used throughout
-export const MAP_H     = WORLD_H;
-export const MAP_BOTTOM = MAP_OY + MAP_H * TILE;   // world pixel height
+// Chunk-based infinite map
+export const CHUNK_SIZE = 16;
+export const WORLD_SEED_DEFAULT = 0;
 
 // Screen / viewport — canvas size, used for UI layout
 export const SCREEN_W = 1024;

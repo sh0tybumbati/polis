@@ -1,5 +1,5 @@
 import {
-    TAP_DIST, MAP_OY, MAP_W, MAP_BOTTOM, TILE
+    TAP_DIST, MAP_OY, TILE
 } from '../config/gameConstants.js';
 import { CONSTRUCTS } from '../content/constructs/index.js';
 import { CROPS } from '../content/crops/index.js';
@@ -341,7 +341,7 @@ export default class InputManager {
 
         s.input.keyboard?.on('keydown-ESC', () => { s.constructType = null; s.roadMode = false; s.wallMode = false; s.constructMode = false; s.placementType = null; s.relocateMode = false; s.relocateSrc = null; s.selectedConstruct = null; s.zoneMode = null; s._zoneDragStart = null; s.selectedZoneTile = null; s.selectedZoneTiles = null; s.selectedZoneType = null; s.selectedZoneCrop = null; s.zoneManager?.clearSelection(); s.deselect(); s.selectedConstruct = null; s.hoverGfx.clear(); s.updateUI(); });
         s.input.keyboard?.on('keydown-A', () => s.units.filter(u => !u.isEnemy).forEach(u => s.selectUnit(u.id, true)));
-        s.input.keyboard?.on('keydown-F', () => { const sel = s.units.filter(u => u.selected && !u.isEnemy); if (sel.length) s.moveSelectedTo((MAP_W / 2) * TILE, MAP_OY + (MAP_H - 10) * TILE); });
+        s.input.keyboard?.on('keydown-F', () => { const sel = s.units.filter(u => u.selected && !u.isEnemy); if (sel.length) s.moveSelectedTo((s.spawnTx ?? 0) * TILE, MAP_OY + (s.spawnTy ?? 0) * TILE); });
         s.input.keyboard?.on('keydown-BACKTICK', () => s.scene.launch('SpriteEditorScene'));
     }
 

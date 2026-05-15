@@ -1,5 +1,5 @@
 import {
-    TILE, MAP_OY, MAP_W, MAP_H, ROOM_DEFS, ROOM_MAX_SLOTS, CONSTRUCT_VOLUME
+    TILE, MAP_OY, ROOM_DEFS, ROOM_MAX_SLOTS, CONSTRUCT_VOLUME
 } from '../config/gameConstants.js';
 import { CONSTRUCTS, computeBuildCost } from '../content/constructs/index.js';
 
@@ -8,11 +8,11 @@ export default class ConstructManager {
         this.scene = scene;
         this.constructs = []; // List of all construct instances
         
-        // Spatial grids for fast lookup
-        // hEdges[y][x]: horizontal edge above tile row y; (MAP_H+1) rows × MAP_W cols
-        this.hEdges = Array.from({ length: MAP_H + 1 }, () => new Array(MAP_W).fill(null));
-        // vEdges[y][x]: vertical edge left of tile col x; MAP_H rows × (MAP_W+1) cols
-        this.vEdges = Array.from({ length: MAP_H }, () => new Array(MAP_W + 1).fill(null));
+        // Spatial grids for fast lookup — keyed by "row,col" strings
+        // hEdges: horizontal edge above tile row y (key `${row},${col}`)
+        this.hEdges = new Map();
+        // vEdges: vertical edge left of tile col x (key `${row},${col}`)
+        this.vEdges = new Map();
         
         this.constructGfx = null;
         this.edgeGfx = null;
@@ -27,11 +27,11 @@ export default class ConstructManager {
     // ─── Placement Logic ────────────────────────────────────────────────────────
 
     isFree(tx, ty, width, height, type = null) {
+        const cm = this.scene.chunkManager;
         for (let y = ty; y < ty + height; y++) {
             for (let x = tx; x < tx + width; x++) {
-                if (x < 0 || x >= MAP_W || y < 0 || y >= MAP_H) return false;
-                if (this.scene.mapData[y][x] !== 0) return false;
-                if (this.scene.terrainData[y][x] === 4) return false; // T_WATER
+                if (this.scene.mapData.get(`${x},${y}`) ?? 0) return false;
+                if (cm && cm.getTile(x, y) === 4) return false; // T_WATER
             }
         }
         // Home construct domain collision logic
@@ -50,8 +50,8 @@ export default class ConstructManager {
     occupy(tx, ty, width, height, val) {
         for (let y = ty; y < ty + height; y++) {
             for (let x = tx; x < tx + width; x++) {
-                if (this.scene.mapData[y] && this.scene.mapData[y][x] !== undefined)
-                    this.scene.mapData[y][x] = val;
+                if (val === 0) this.scene.mapData.delete(`${x},${y}`);
+                else           this.scene.mapData.set(`${x},${y}`, val);
             }
         }
     }
@@ -277,11 +277,9 @@ export default class ConstructManager {
         };
 
         if (isH) {
-            if (row < 0 || row > MAP_H || col < 0 || col >= MAP_W) return null;
-            this.hEdges[row][col] = c;
+            this.hEdges.set(`${row},${col}`, c);
         } else {
-            if (row < 0 || row >= MAP_H || col < 0 || col > MAP_W) return null;
-            this.vEdges[row][col] = c;
+            this.vEdges.set(`${row},${col}`, c);
         }
 
         this.constructs.push(c);
@@ -292,8 +290,8 @@ export default class ConstructManager {
     removeConstruct(c) {
         if (!c) return;
         if (c.placement === 'edge') {
-            if (c.isH) this.hEdges[c.row][c.col] = null;
-            else       this.vEdges[c.row][c.col] = null;
+            if (c.isH) this.hEdges.delete(`${c.row},${c.col}`);
+            else       this.vEdges.delete(`${c.row},${c.col}`);
         } else {
             this.occupy(c.tx, c.ty, c.width, c.height, 0);
         }
@@ -317,7 +315,7 @@ export default class ConstructManager {
     }
 
     getEdge(isH, row, col) {
-        return isH ? (this.hEdges[row]?.[col] ?? null) : (this.vEdges[row]?.[col] ?? null);
+        return isH ? (this.hEdges.get(`${row},${col}`) ?? null) : (this.vEdges.get(`${row},${col}`) ?? null);
     }
 
     // Aliases for InputManager wall drag mode
@@ -334,8 +332,8 @@ export default class ConstructManager {
     removeEdge(isH, row, col) {
         const c = this.getEdge(isH, row, col);
         if (!c) return;
-        if (isH) this.hEdges[c.row][c.col] = null;
-        else      this.vEdges[c.row][c.col] = null;
+        if (isH) this.hEdges.delete(`${c.row},${c.col}`);
+        else     this.vEdges.delete(`${c.row},${c.col}`);
         this.constructs = this.constructs.filter(cc => cc.id !== c.id);
         this.renderAll();
     }
@@ -357,7 +355,7 @@ export default class ConstructManager {
         const def = CONSTRUCTS[type];
         if (!def) return null;
         const th = this.constructs.find(b => b.type === 'townhall' && !b.faction);
-        const center = th ? { tx: th.tx, ty: th.ty } : { tx: Math.floor(MAP_W/2), ty: Math.floor(MAP_H/2) };
+        const center = th ? { tx: th.tx, ty: th.ty } : { tx: this.scene.spawnTx ?? 0, ty: this.scene.spawnTy ?? 0 };
         
         for (let r = 2; r < 25; r++) {
             for (let dy = -r; dy <= r; dy++) {
@@ -376,7 +374,6 @@ export default class ConstructManager {
     nearestEdge(wx, wy) {
         const tx = Math.floor(wx / TILE);
         const ty = Math.floor((wy - MAP_OY) / TILE);
-        if (tx < 0 || tx >= MAP_W || ty < 0 || ty >= MAP_H) return null;
 
         const ox = wx - tx * TILE;
         const oy = (wy - MAP_OY) - ty * TILE;
@@ -563,7 +560,7 @@ export default class ConstructManager {
     }
 
     _getRegionAt(tx, ty, maxTiles, blocksFn) {
-        const key = (x, y) => y * MAP_W + x;
+        const key = (x, y) => `${x},${y}`;
         const visited = new Set([key(tx, ty)]);
         const queue   = [[tx, ty]];
 
@@ -576,7 +573,6 @@ export default class ConstructManager {
                 [+1,  0, false, cy,     cx + 1],
             ]) {
                 const nx = cx + dx, ny = cy + dy;
-                if (nx < 0 || nx >= MAP_W || ny < 0 || ny >= MAP_H) return null;
                 if (blocksFn(isH, row, col)) continue;
                 const nk = key(nx, ny);
                 if (visited.has(nk)) continue;
@@ -585,7 +581,7 @@ export default class ConstructManager {
                 queue.push([nx, ny]);
             }
         }
-        return [...visited].map(k => ({ tx: k % MAP_W, ty: Math.floor(k / MAP_W) }));
+        return [...visited].map(k => { const [x, y] = k.split(',').map(Number); return { tx: x, ty: y }; });
     }
 
     classifyRoom(tiles) {
@@ -604,41 +600,27 @@ export default class ConstructManager {
     // ─── Save / Load ────────────────────────────────────────────────────────────
 
     save() {
-        const tileData = this.constructs.filter(c => c.placement !== 'edge').map(c => {
-            const { gfx, barGfx, labelObj, ...d } = c;
-            return d;
-        });
-        const hData = [], vData = [];
-        for (let y = 0; y <= MAP_H; y++)
-            for (let x = 0; x < MAP_W; x++)
-                if (this.hEdges[y][x]) hData.push({ y, x, c: this.hEdges[y][x] });
-        for (let y = 0; y < MAP_H; y++)
-            for (let x = 0; x <= MAP_W; x++)
-                if (this.vEdges[y][x]) vData.push({ y, x, c: this.vEdges[y][x] });
-        
-        return { tileData, hData, vData };
+        return this.constructs.map(c => this._serConstruct(c));
     }
 
-    load(data) {
-        if (!data) return;
-        this.constructs = [];
-        // Tile based
-        for (const d of data.tileData ?? []) {
-            this.constructs.push(d);
+    _saveEdges() {
+        const hData = [], vData = [];
+        for (const [k, c] of this.hEdges) {
+            const [y, x] = k.split(',').map(Number);
+            hData.push({ y, x, c });
         }
-        // Edges
-        for (const { y, x, c } of data.hData ?? []) {
-            if (this.hEdges[y]) {
-                this.hEdges[y][x] = c;
-                this.constructs.push(c);
-            }
+        for (const [k, c] of this.vEdges) {
+            const [y, x] = k.split(',').map(Number);
+            vData.push({ y, x, c });
         }
-        for (const { y, x, c } of data.vData ?? []) {
-            if (this.vEdges[y]) {
-                this.vEdges[y][x] = c;
-                this.constructs.push(c);
-            }
-        }
+        return { hData, vData };
+    }
+
+    _loadEdges(data) {
+        this.hEdges = new Map();
+        this.vEdges = new Map();
+        for (const { y, x, c } of data?.hData ?? []) this.hEdges.set(`${y},${x}`, c);
+        for (const { y, x, c } of data?.vData ?? []) this.vEdges.set(`${y},${x}`, c);
     }
 
     tick(delta) {
@@ -853,6 +835,8 @@ export default class ConstructManager {
     load(data) {
         if (!data) return;
         this.constructs.length = 0; // clear current without reassigning reference
+        this.hEdges = new Map();
+        this.vEdges = new Map();
 
         const list = [];
         const process = (src) => {
@@ -868,12 +852,12 @@ export default class ConstructManager {
         if (Array.isArray(data)) list.push(...data);
 
         for (const d of list) {
-            const c = { 
-                inbox: {}, ...d, 
-                gfx: null, barGfx: null, labelObj: null 
+            const c = {
+                inbox: {}, ...d,
+                gfx: null, barGfx: null, labelObj: null
             };
             this.constructs.push(c);
-            
+
             // Re-occupy mapData if it's a construct
             if (c.placement !== 'edge') {
                 const isWallType = ['wall', 'palisade', 'gate', 'watchtower'].includes(c.type);
@@ -882,19 +866,14 @@ export default class ConstructManager {
 
             // Rebuild edge references
             if (c.placement === 'edge') {
-                if (c.isH) {
-                    if (!this.hEdges[c.row]) this.hEdges[c.row] = [];
-                    this.hEdges[c.row][c.col] = c;
-                } else {
-                    if (!this.vEdges[c.row]) this.vEdges[c.row] = [];
-                    this.vEdges[c.row][c.col] = c;
-                }
+                if (c.isH) this.hEdges.set(`${c.row},${c.col}`, c);
+                else       this.vEdges.set(`${c.row},${c.col}`, c);
             }
         }
-        
+
         // Sync with scene reference if it was replaced (though we shouldn't replace it)
         this.scene.constructs = this.constructs;
-        
+
         this.renderAll();
         this.updateStorageCap();
     }

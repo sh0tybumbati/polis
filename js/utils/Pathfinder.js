@@ -10,17 +10,13 @@ export class Pathfinder {
      * Returns an array of {tx, ty} or null if no path found.
      */
     findPath(startTx, startTy, endTx, endTy) {
-        const MAP_W = this.scene.mapData[0].length;
-        const MAP_H = this.scene.mapData.length;
-
-        if (endTx < 0 || endTx >= MAP_W || endTy < 0 || endTy >= MAP_H) return null;
         if (this.scene.mapManager.isTileBlocked(endTx * TILE + TILE/2, MAP_OY + endTy * TILE + TILE/2)) {
-             const adj = this._getAdjacent(endTx, endTy, MAP_W, MAP_H).find(t => !this._isBlocked(t.x, t.y));
+             const adj = this._getAdjacent(endTx, endTy).find(t => !this._isBlocked(t.x, t.y));
              if (adj) { endTx = adj.x; endTy = adj.y; }
              else return null;
         }
 
-        const key = (x, y) => y * MAP_W + x;
+        const key = (x, y) => `${x},${y}`;
         const closedSet = new Set();
         // openMap gives O(1) lookup instead of O(n) find()
         const openMap  = new Map();
@@ -52,7 +48,7 @@ export class Pathfinder {
             if (closedSet.has(ck)) continue;
             closedSet.add(ck);
 
-            for (const neighbor of this._getAdjacent(current.x, current.y, MAP_W, MAP_H)) {
+            for (const neighbor of this._getAdjacent(current.x, current.y)) {
                 const nk = key(neighbor.x, neighbor.y);
                 if (closedSet.has(nk) || this._isBlocked(neighbor.x, neighbor.y)) continue;
 
@@ -83,13 +79,13 @@ export class Pathfinder {
         return Math.abs(x1 - x2) + Math.abs(y1 - y2);
     }
 
-    _getAdjacent(x, y, w, h) {
-        const res = [];
-        if (x > 0) res.push({ x: x - 1, y: y });
-        if (x < w - 1) res.push({ x: x + 1, y: y });
-        if (y > 0) res.push({ x: x, y: y - 1 });
-        if (y < h - 1) res.push({ x: x, y: y + 1 });
-        return res;
+    _getAdjacent(x, y) {
+        return [
+            { x: x - 1, y: y },
+            { x: x + 1, y: y },
+            { x: x, y: y - 1 },
+            { x: x, y: y + 1 },
+        ];
     }
 
     _reconstructPath(node) {

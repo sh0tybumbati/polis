@@ -1,5 +1,5 @@
 import {
-    DAY_DURATION, NIGHT_DURATION, TILE, MAP_OY, MAP_W, MAP_H, VET_LEVELS, pickVetName,
+    DAY_DURATION, NIGHT_DURATION, TILE, MAP_OY, VET_LEVELS, pickVetName,
     APPLIANCE_DEF,
 } from '../config/gameConstants.js';
 import { CONSTRUCTS } from '../content/constructs/index.js';
@@ -557,7 +557,7 @@ export default class WorldManager {
                 for (let dx = -r; dx <= r; dx++) {
                     if (Math.abs(dx) !== r && Math.abs(dy) !== r) continue;
                     const tx = cx + dx - 1, ty = cy + dy - 1;
-                    if (tx < 1 || ty < 1 || tx + 2 >= MAP_W || ty + 2 >= MAP_H) continue;
+                    if (tx < 1 || ty < 1) continue;
                     if (bm.isFree(tx, ty, 2)) return { tx, ty };
                 }
             }

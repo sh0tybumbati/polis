@@ -16,7 +16,7 @@ export default {
         if (near && nd <= u.range + 4) {
             if (time - u.lastAtk > 1000) {
                 const nTx = Math.floor(near.x/TILE), nTy = Math.floor((near.y-MAP_OY)/TILE);
-                const cover = MathUtils.coverMod(this.scene.terrainData[nTy]?.[nTx] ?? 0);
+                const cover = MathUtils.coverMod(this.scene.chunkManager?.getTile(nTx, nTy) ?? 0);
                 const dmg = Math.max(1, Math.round(u.atk * MathUtils.counterMod(u.type, near.type) * cover));
                 near.hp -= dmg; u.lastAtk = time;
                 this.scene.uiManager.showFloatText(near.x, near.y - 14, `-${dmg}`, '#ff6666');

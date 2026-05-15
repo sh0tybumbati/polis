@@ -325,18 +325,20 @@ export default class EconomyManager {
     }
 
     paintRoad(tx, ty) {
-        if (this.scene.roadMap[ty]?.[tx] === 2) return;
-        if ((this.scene.terrainData[ty]?.[tx] ?? 0) === 4) return;
-        const isOccupied = (this.scene.mapData[ty]?.[tx] ?? 0) >= 99;
+        const rkey = `${tx},${ty}`;
+        if (this.scene.roadMap.get(rkey) === 2) return;
+        const terr = this.scene.chunkManager ? this.scene.chunkManager.getTile(tx, ty) : 0;
+        if (terr === 4) return;  // T_WATER
+        const isOccupied = (this.scene.mapData.get(rkey) ?? 0) >= 99;
         if (isOccupied) return;
 
-        const isDesire = this.scene.roadMap[ty]?.[tx] === 1;
+        const isDesire = this.scene.roadMap.get(rkey) === 1;
         if (!isDesire) {
             if (!this.afford({ 'Materials.Stone.Limestone': 1 })) return;
             this.spend({ 'Materials.Stone.Limestone': 1 });
         }
 
-        this.scene.roadMap[ty][tx] = 2;
+        this.scene.roadMap.set(rkey, 2);
         this.scene._roadsDirty = true;
         this.scene.updateUI();
     }
