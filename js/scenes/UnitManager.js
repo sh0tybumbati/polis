@@ -542,6 +542,7 @@ export default class UnitManager {
             if (pick === 0) { u.targetNode = null; return; }
 
             n.stock -= pick; u.carrying[res] += pick;
+            this.scene.mapManager.redrawNode(n);
 
             // Track daily production for resource nodes
             n.dailyProduction = n.dailyProduction ?? {};

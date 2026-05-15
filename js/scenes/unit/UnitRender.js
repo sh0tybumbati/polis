@@ -11,6 +11,7 @@ export default {
             if ((this.scene.visMap[ty]?.[tx] ?? 0) < 2) {
                 u.gfx.setVisible(false);
                 if (u.nameLabel) u.nameLabel.setVisible(false);
+                if (u._zzzLabel) u._zzzLabel.setVisible(false);
                 return true;
             }
         }
@@ -23,6 +24,7 @@ export default {
             u.y < wv.top  - M || u.y > wv.bottom  + M) {
             u.gfx.setVisible(false);
             if (u.nameLabel) u.nameLabel.setVisible(false);
+            if (u._zzzLabel) u._zzzLabel.setVisible(false);
             return true;
         }
 
@@ -71,20 +73,22 @@ export default {
         u.gfx.fillStyle(0x000000, 0.18)
              .fillEllipse(0, 9 * scale, 22 * scale, 7 * scale);
 
-        // Sleeping ZZZ label — create/destroy on transition, bob each frame
+        // Sleeping ZZZ label — floats above tent roof when inside, above head otherwise
         if (u.isSleeping && u.hp > 0) {
             if (!u._zzzLabel) {
-                u._zzzLabel = this.scene._w(this.scene.add.text(u.x, u.y - 14, 'z z z', {
-                    fontFamily: 'monospace', fontSize: '8px',
-                    color: u._passedOut ? '#ff8866' : '#aabbff',
-                    stroke: '#000000', strokeThickness: 1,
-                }).setOrigin(0.5, 1).setDepth(7));
-                u._zzzPhase = Math.random() * Math.PI * 2; // stagger units
+                u._zzzLabel = this.scene._w(this.scene.add.text(0, 0, 'Zzz', {
+                    fontFamily: 'Georgia, serif', fontSize: '11px',
+                    color: u._passedOut ? '#ff8866' : '#aaccff',
+                    stroke: '#000000', strokeThickness: 2,
+                }).setOrigin(0.5, 1).setDepth(8));
+                u._zzzPhase = Math.random() * Math.PI * 2;
             }
             u._zzzPhase = (u._zzzPhase ?? 0) + 0.04;
             const bob = Math.sin(u._zzzPhase) * 3;
-            u._zzzLabel.setPosition(u.x, u.y - 14 + bob)
-                       .setAlpha(0.55 + Math.sin(u._zzzPhase * 0.7) * 0.35)
+            // When inside tent, push ZZZ above tent roof (extra TILE offset)
+            const yOff = u.isInside ? -(TILE * 1.5) : -18;
+            u._zzzLabel.setPosition(u.x + 6, u.y + yOff + bob)
+                       .setAlpha(0.7 + Math.sin(u._zzzPhase * 0.7) * 0.25)
                        .setVisible(true);
         } else if (u._zzzLabel) {
             u._zzzLabel.destroy(); u._zzzLabel = null;
@@ -107,28 +111,55 @@ export default {
         UNITS[u.type]?.draw(u.gfx, u, { totalCarrying: u => this.totalCarrying(u), lod, ageScale: scale });
 
         // Task progress bar — shown above unit when actively working
-        const TASK_MAX = {
-            plant_grow: 1.0, harvest_grow: 2.0, plant: 6.0,
-            build: 25, repair: 25, deconstruct: 25,
-            workshop: null, zone_workshop: null,
-        };
-        const hasMax = Object.prototype.hasOwnProperty.call(TASK_MAX, u.taskType);
-        if (hasMax && (u.workProgress ?? 0) > 0 && u.hp > 0) {
-            const maxVal = TASK_MAX[u.taskType];
-            const fraction = maxVal !== null
-                ? Math.min(1, u.workProgress / maxVal)
-                : null;
-            const bw = 20 * scale, bh = 2.5 * scale;
-            const bx = -bw / 2, by = -16 * scale;
-            u.gfx.fillStyle(0x000000, 0.45).fillRect(bx - 0.5, by - 0.5, bw + 1, bh + 1);
-            u.gfx.fillStyle(0x334455, 0.7).fillRect(bx, by, bw, bh);
-            if (fraction !== null) {
-                u.gfx.fillStyle(0x55ddaa, 1.0).fillRect(bx, by, bw * fraction, bh);
+        this._drawProgressBar(u, scale);
+    },
+
+    _drawProgressBar(u, scale) {
+        if (u.hp <= 0 || u.isSleeping) return;
+
+        let fraction = null;
+        let show = false;
+
+        // Node gathering: felling or harvesting
+        const n = u.targetNode;
+        if (n && (u.workProgress ?? 0) > 0) {
+            const isTree = n.type === 'small_tree' || n.type === 'large_tree';
+            if (isTree && !n.felled && n.fellWork !== undefined) {
+                const max = n.type === 'large_tree' ? 5.0 : 5.0;
+                fraction = Math.min(1, 1 - n.fellWork / max);
             } else {
-                // Indeterminate — animated stripe
-                const phase = (Date.now() % 1200) / 1200;
-                u.gfx.fillStyle(0x55ddaa, 0.8).fillRect(bx + bw * phase - 4, by, 6, bh);
+                const threshold = isTree ? 2.0 : (n.type === 'berry_bush' ? 1.0 : 3.0);
+                fraction = Math.min(1, u.workProgress / threshold);
             }
+            show = true;
+        }
+
+        // Task-based progress
+        if (!show) {
+            const TASK_MAX = {
+                plant_grow: 1.0, harvest_grow: 2.0, plant: 6.0,
+                build: 25, repair: 25, deconstruct: 25,
+            };
+            if (Object.prototype.hasOwnProperty.call(TASK_MAX, u.taskType) && (u.workProgress ?? 0) > 0) {
+                fraction = Math.min(1, u.workProgress / TASK_MAX[u.taskType]);
+                show = true;
+            } else if ((u.taskType === 'workshop' || u.taskType === 'zone_workshop') && (u.workProgress ?? 0) > 0) {
+                fraction = null; // indeterminate stripe
+                show = true;
+            }
+        }
+
+        if (!show) return;
+
+        const bw = 20 * scale, bh = 2.5 * scale;
+        const bx = -bw / 2, by = -16 * scale;
+        u.gfx.fillStyle(0x000000, 0.45).fillRect(bx - 0.5, by - 0.5, bw + 1, bh + 1);
+        u.gfx.fillStyle(0x334455, 0.7).fillRect(bx, by, bw, bh);
+        if (fraction !== null) {
+            u.gfx.fillStyle(0x55ddaa, 1.0).fillRect(bx, by, bw * fraction, bh);
+        } else {
+            const phase = (Date.now() % 1200) / 1200;
+            u.gfx.fillStyle(0x55ddaa, 0.8).fillRect(bx + bw * phase - 4, by, 6, bh);
         }
     },
 };
