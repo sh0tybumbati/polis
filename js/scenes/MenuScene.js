@@ -6,10 +6,11 @@ export default class MenuScene extends Phaser.Scene {
     }
 
     preload() {
-        this.load.image('menu_sky',    'assets/images/menu/sky.png');
-        this.load.image('menu_stars',  'assets/images/menu/constellations.png');
-        this.load.image('menu_sun',    'assets/images/menu/sun.png');
-        this.load.image('menu_fg',     'assets/images/menu/foreground.png');
+        this.load.image('menu_sky',     'assets/images/menu/sky.png');
+        this.load.image('menu_stars',   'assets/images/menu/constellations.png');
+        this.load.image('menu_sunrays', 'assets/images/menu/sunrays.png');
+        this.load.image('menu_sun',     'assets/images/menu/sun.png');
+        this.load.image('menu_fg',      'assets/images/menu/foreground.png');
     }
 
     create() {
@@ -31,12 +32,10 @@ export default class MenuScene extends Phaser.Scene {
 
     update(time, delta) {
         const dt = delta / 1000;
-        // Sky drifts slowly upward (tilePositionY increase = image moves up)
-        if (this._sky) this._sky.tilePositionY += 18 * dt;
-        // Constellations rotate very slowly
-        if (this._stars) this._stars.angle += 1.2 * dt;
-        // Sun rays spin slowly
-        if (this._sun) this._sun.angle += 3.5 * dt;
+        if (this._sky)     this._sky.tilePositionY += 18 * dt;
+        if (this._stars)   this._stars.angle   += 1.2 * dt;
+        if (this._sunrays) this._sunrays.angle  += 3.5 * dt;
+        // sun disc is stationary — no update needed
     }
 
     _startNew() {
@@ -71,17 +70,24 @@ export default class MenuScene extends Phaser.Scene {
         const starDiameter = Math.max(W, H) * 1.15;
         this._stars = this.add.image(cx, belowHorizonCy, 'menu_stars')
             .setDisplaySize(starDiameter, starDiameter)
-            .setAlpha(0.09)
+            .setAlpha(0.055)
             .setBlendMode(Phaser.BlendModes.MULTIPLY);
 
-        // ── 3. Sun — centred on same point, rays spin ──────────────────────────
-        const sunSize = Math.min(W, H) * 0.52;
-        this._sun = this.add.image(cx, belowHorizonCy, 'menu_sun')
-            .setDisplaySize(sunSize, sunSize);
+        // ── 3. Sun rays — behind disc, spinning; MULTIPLY so white bg vanishes ─
+        const raysSize = Math.min(W, H) * 0.68;
+        this._sunrays = this.add.image(cx, belowHorizonCy, 'menu_sunrays')
+            .setDisplaySize(raysSize, raysSize)
+            .setBlendMode(Phaser.BlendModes.MULTIPLY);
 
-        // ── 4. Foreground — transparent PNG composited over everything ──────────
+        // ── 4. Sun disc — stationary, centred on same point ────────────────────
+        const sunSize = Math.min(W, H) * 0.28;
+        this._sun = this.add.image(cx, belowHorizonCy, 'menu_sun')
+            .setDisplaySize(sunSize, sunSize)
+            .setBlendMode(Phaser.BlendModes.MULTIPLY);
+
+        // ── 5. Foreground — zoom in slightly (×1.12) then anchor to bottom ─────
         this.add.image(cx, H, 'menu_fg')
-            .setScale(fgScale)
+            .setScale(fgScale * 1.12)
             .setOrigin(0.5, 1);
     }
 
