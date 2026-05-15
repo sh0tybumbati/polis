@@ -76,16 +76,15 @@ export default class MenuScene extends Phaser.Scene {
             .setBlendMode(Phaser.BlendModes.MULTIPLY);
 
         // ── 3. Sun rays — behind disc, spinning; MULTIPLY so white bg vanishes ─
-        const raysSize = Math.min(W, H) * 0.68;
+        const raysSize = Math.min(W, H) * 1.4;
         this._sunrays = this.add.image(cx, belowHorizonCy, 'menu_sunrays')
             .setDisplaySize(raysSize, raysSize)
             .setBlendMode(Phaser.BlendModes.MULTIPLY);
 
-        // ── 4. Sun disc — stationary, centred on same point ────────────────────
-        const sunSize = Math.min(W, H) * 0.28;
+        // ── 4. Sun disc — stationary, fully opaque ─────────────────────────────
+        const sunSize = Math.min(W, H) * 0.55;
         this._sun = this.add.image(cx, belowHorizonCy, 'menu_sun')
-            .setDisplaySize(sunSize, sunSize)
-            .setBlendMode(Phaser.BlendModes.MULTIPLY);
+            .setDisplaySize(sunSize, sunSize);
 
         // ── 5. Foreground — zoom in slightly (×1.12) then anchor to bottom ─────
         this.add.image(cx, H, 'menu_fg')
