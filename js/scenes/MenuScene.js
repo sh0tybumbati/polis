@@ -9,7 +9,6 @@ export default class MenuScene extends Phaser.Scene {
         this.load.image('menu_sky',     'assets/images/menu/sky.png');
         this.load.image('menu_stars',   'assets/images/menu/constellations.png');
         this.load.image('menu_sunrays', 'assets/images/menu/sunrays.png');
-        this.load.image('menu_sun',     'assets/images/menu/sun.png');
         this.load.image('menu_fg',      'assets/images/menu/foreground.png');
     }
 
@@ -20,7 +19,6 @@ export default class MenuScene extends Phaser.Scene {
         this._buildLayers(W, H);
         this._drawTitle(W, H);
         this._drawButtons(W, H, hasSave);
-        this._drawFooter(W, H);
 
         this.input.keyboard?.on('keydown-N', () => this._startNew());
         this.input.keyboard?.on('keydown-SPACE', () => hasSave ? this._continue() : this._startNew());
@@ -32,9 +30,10 @@ export default class MenuScene extends Phaser.Scene {
 
     update(time, delta) {
         const dt = delta / 1000;
-        if (this._sky)     this._sky.tilePositionY += 18 * dt;
-        if (this._stars)   this._stars.angle   += 1.2 * dt;
-        if (this._sunrays) this._sunrays.angle  += 3.5 * dt;
+        // Sky drifts sideways (dawn wind feel) rather than upward
+        if (this._sky)     this._sky.tilePositionX += 8 * dt;
+        if (this._stars)   this._stars.angle        += 1.2 * dt;
+        if (this._sunrays) this._sunrays.angle       += 3.5 * dt;
     }
 
     _startNew() {
@@ -49,39 +48,37 @@ export default class MenuScene extends Phaser.Scene {
     _buildLayers(W, H) {
         const cx = W / 2;
 
-        // ── 1. Sky — tileSprite loops seamlessly as it scrolls upward ──────────
+        // ── 1. Sky — tileSprite drifts sideways ───────────────────────────────
         const skyTex = this.textures.get('menu_sky').getSourceImage();
         const skyScale = Math.max(W / skyTex.width, H / skyTex.height);
         this._sky = this.add.tileSprite(cx, H / 2, W, H, 'menu_sky')
             .setTileScale(skyScale, skyScale);
-        // Centre the red/blue split (~47% from left in texture) at screen centre
+        // Centre the red/blue split (~47% from left) at screen centre
         this._sky.tilePositionX = skyTex.width * 0.47 - (W / 2) / skyScale;
 
-        // Compute foreground horizon Y on screen so sun/stars track it
+        // Compute foreground horizon for sun/star positioning
         const fgTex = this.textures.get('menu_fg').getSourceImage();
         const fgScale = W / fgTex.width;
         const fgRenderedH = fgTex.height * fgScale;
         const fgTopY = H - fgRenderedH;
-        // Horizon sits at ~44% from top of the fg image (where sky meets terrain)
         const fgHorizonY = fgTopY + 0.44 * fgRenderedH;
-        // Target: halfway between the horizon and the bottom, shifted up a bit
         const belowHorizonCy = (fgHorizonY + H) / 2 - H * 0.07;
 
-        // ── 2. Constellations — very faint, slowly rotating star chart ─────────
+        // ── 2. Constellations — faint rotating star chart ─────────────────────
         const starDiameter = Math.max(W, H) * 1.618;
         this._stars = this.add.image(cx, belowHorizonCy, 'menu_stars')
             .setDisplaySize(starDiameter, starDiameter)
-            .setAlpha(0.05)
+            .setAlpha(0.08)
             .setBlendMode(Phaser.BlendModes.SCREEN);
 
-        // ── 3. Sun rays — behind disc, spinning; MULTIPLY so white bg vanishes ─
-        const raysCy  = belowHorizonCy + H * 0.04;
+        // ── 3. Sun rays — spinning, radial fade at edges ──────────────────────
+        const raysCy   = belowHorizonCy + H * 0.04;
         const raysSize = Math.max(W, H) * 1.47;
-        this._sunrays = this.add.image(cx, raysCy, 'menu_sunrays')
+        this._sunrays  = this.add.image(cx, raysCy, 'menu_sunrays')
             .setDisplaySize(raysSize, raysSize)
             .setBlendMode(Phaser.BlendModes.SOFT_LIGHT);
 
-        // Radial alpha mask — canvas gradient: opaque centre → transparent edge
+        // Radial alpha mask — opaque centre, transparent edges
         const mRes = 512;
         const mCanvas = document.createElement('canvas');
         mCanvas.width = mRes; mCanvas.height = mRes;
@@ -97,7 +94,7 @@ export default class MenuScene extends Phaser.Scene {
         maskObj.setDisplaySize(raysSize, raysSize);
         this._sunrays.setMask(new Phaser.Display.Masks.BitmapMask(this, maskObj));
 
-        // ── 5. Foreground — zoom in slightly (×1.12) then anchor to bottom ─────
+        // ── 4. Foreground — anchored to bottom, zoomed in slightly ────────────
         this.add.image(cx, H, 'menu_fg')
             .setScale(fgScale * 1.12)
             .setOrigin(0.5, 1);
@@ -105,7 +102,6 @@ export default class MenuScene extends Phaser.Scene {
 
     _drawTitle(W, H) {
         const cx = W / 2;
-        // Title sits in the open sky zone, above the buildings
         const cy = H * 0.28;
         const fontSize = Math.min(72, Math.floor(W * 0.13));
 
@@ -127,7 +123,7 @@ export default class MenuScene extends Phaser.Scene {
             shadow: { offsetX: 0, offsetY: 3, color: '#6a3800', blur: 16, fill: true },
         }).setOrigin(0.5);
 
-        // Thin rule between title and buttons
+        // Thin rule
         const g = this.add.graphics();
         const ry = cy + fontSize * 1.05;
         const rw = Math.min(300, W * 0.45);
@@ -136,23 +132,31 @@ export default class MenuScene extends Phaser.Scene {
     }
 
     _drawButtons(W, H, hasSave) {
-        const cx  = W / 2;
-        const gap = Math.min(48, H * 0.075);
+        const cx   = W / 2;
+        const gap  = Math.min(48, H * 0.075);
         const topY = H * 0.63;
 
+        // Hide LOAD GAME entirely when no save exists
         const buttons = [
-            hasSave
-                ? { label: 'LOAD GAME', cb: () => this._continue(), active: true  }
-                : { label: 'LOAD GAME', cb: null,                    active: false },
-            { label: 'START GAME',      cb: () => this._startNew(),  active: true  },
-            { label: 'SETTINGS',        cb: null,                    active: false },
-            { label: 'CREDITS',         cb: null,                    active: false },
+            ...(hasSave ? [{ label: 'LOAD GAME', cb: () => this._continue() }] : []),
+            { label: 'START GAME', cb: () => this._startNew() },
+            { label: 'SETTINGS',   cb: null },
+            { label: 'CREDITS',    cb: null },
         ];
+
+        // Dark backing strip for readability over bright sun glow
+        const backH = gap * (buttons.length - 0.2);
+        const backW = 220;
+        const backY = topY + backH / 2 - gap * 0.4;
+        this.add.graphics()
+            .fillStyle(0x000000, 0.32)
+            .fillRoundedRect(cx - backW / 2, backY - gap * 0.6, backW, backH, 8);
 
         buttons.forEach((btn, i) => this._makeTextButton(cx, topY + i * gap, btn));
     }
 
-    _makeTextButton(cx, cy, { label, cb, active }) {
+    _makeTextButton(cx, cy, { label, cb }) {
+        const active  = !!cb;
         const color   = active ? '#e8d898' : '#5a4a30';
         const hovered = '#ffffff';
 
@@ -161,9 +165,10 @@ export default class MenuScene extends Phaser.Scene {
             fontSize:   '22px',
             color,
             letterSpacing: 4,
+            shadow: { offsetX: 0, offsetY: 1, color: '#000000', blur: 6, fill: true },
         }).setOrigin(0.5);
 
-        if (!active || !cb) return;
+        if (!active) return;
 
         const ug = this.add.graphics().setAlpha(0);
         const uw = txt.width + 12;
@@ -174,6 +179,4 @@ export default class MenuScene extends Phaser.Scene {
         zone.on('pointerout',   () => { txt.setColor(color);   ug.setAlpha(0); });
         zone.on('pointerdown',  cb);
     }
-
-    _drawFooter(W, H) { }
 }
