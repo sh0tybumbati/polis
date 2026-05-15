@@ -57,7 +57,7 @@ export default class MapManager {
         // 1×TILE white square — used as the fog tile sprite for both blitters
         if (!this.scene.textures.exists('fog_px')) {
             const g = this.scene.make.graphics({ add: false });
-            g.fillStyle(0xffffff, 1).fillRect(0, 0, TILE, TILE);
+            g.fillStyle(0x000000, 1).fillRect(0, 0, TILE, TILE);
             g.generateTexture('fog_px', TILE, TILE);
             g.destroy();
         }
@@ -66,7 +66,7 @@ export default class MapManager {
         //   black = undiscovered (vis 0),  dim = explored-not-lit (vis 1)
         const mkBlitter = (alpha) => this.scene._w(
             this.scene.add.blitter(0, MAP_OY, 'fog_px')
-                .setDepth(8).setTint(0x000000).setAlpha(alpha)
+                .setDepth(8).setAlpha(alpha)
         );
         this._fogBlack = mkBlitter(0.97);
         this._fogDim   = mkBlitter(0.52);
