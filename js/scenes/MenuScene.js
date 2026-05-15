@@ -35,7 +35,6 @@ export default class MenuScene extends Phaser.Scene {
         if (this._sky)     this._sky.tilePositionY += 18 * dt;
         if (this._stars)   this._stars.angle   += 1.2 * dt;
         if (this._sunrays) this._sunrays.angle  += 3.5 * dt;
-        // sun disc is stationary — no update needed
     }
 
     _startNew() {
@@ -76,15 +75,27 @@ export default class MenuScene extends Phaser.Scene {
             .setBlendMode(Phaser.BlendModes.MULTIPLY);
 
         // ── 3. Sun rays — behind disc, spinning; MULTIPLY so white bg vanishes ─
+        const raysCy  = belowHorizonCy + H * 0.04;
         const raysSize = Math.max(W, H) * 1.47;
-        this._sunrays = this.add.image(cx, belowHorizonCy, 'menu_sunrays')
+        this._sunrays = this.add.image(cx, raysCy, 'menu_sunrays')
             .setDisplaySize(raysSize, raysSize)
             .setBlendMode(Phaser.BlendModes.SOFT_LIGHT);
 
-        // ── 4. Sun disc — lowered slightly, fully opaque ───────────────────────
-        const sunSize = Math.min(W, H) * 1.1;
-        this._sun = this.add.image(cx, belowHorizonCy + H * 0.06, 'menu_sun')
-            .setDisplaySize(sunSize, sunSize);
+        // Radial alpha mask — canvas gradient: opaque centre → transparent edge
+        const mRes = 512;
+        const mCanvas = document.createElement('canvas');
+        mCanvas.width = mRes; mCanvas.height = mRes;
+        const mCtx = mCanvas.getContext('2d');
+        const grad = mCtx.createRadialGradient(mRes/2, mRes/2, 0, mRes/2, mRes/2, mRes/2);
+        grad.addColorStop(0,    'rgba(255,255,255,1)');
+        grad.addColorStop(0.45, 'rgba(255,255,255,1)');
+        grad.addColorStop(1,    'rgba(255,255,255,0)');
+        mCtx.fillStyle = grad;
+        mCtx.fillRect(0, 0, mRes, mRes);
+        this.textures.addCanvas('rays_mask', mCanvas);
+        const maskObj = this.make.image({ x: cx, y: raysCy, key: 'rays_mask', add: false });
+        maskObj.setDisplaySize(raysSize, raysSize);
+        this._sunrays.setMask(new Phaser.Display.Masks.BitmapMask(this, maskObj));
 
         // ── 5. Foreground — zoom in slightly (×1.12) then anchor to bottom ─────
         this.add.image(cx, H, 'menu_fg')
