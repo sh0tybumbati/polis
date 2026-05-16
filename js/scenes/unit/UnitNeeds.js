@@ -129,21 +129,24 @@ export default {
             n.social = Math.max(0, n.social - dt * 0.0012);
         }
 
-        // Joy: decays while working, recovers slightly when social need is met
+        // Joy: decays while working (industrious trait slows drain)
         const isWorking = u.taskType && u.taskType !== 'eat' && !u.isSleeping;
+        const joyDrain = (u.traits ?? []).includes('industrious') ? 0.00075 : 0.0015;
         if (isWorking) {
-            n.joy = Math.max(0, n.joy - dt * 0.0015);
+            n.joy = Math.max(0, n.joy - dt * joyDrain);
         } else {
             n.joy = Math.min(1.0, n.joy + dt * 0.003);
         }
 
-        // Mood: weighted needs + relations bonus − grief penalty
+        // Mood: weighted needs + relations bonus − grief penalty ± trait modifiers
         const relVals = Object.values(u.relations ?? {});
         const relBonus = relVals.length
             ? relVals.reduce((a, b) => a + b, 0) / relVals.length * 0.05 : 0;
         const griefPenalty = (u._grief ?? 0) * 0.28;
+        const traitMoodMod = (u.traits ?? []).includes('melancholic') ? -0.04 : 0;
         u.mood = Math.max(0, Math.min(1,
-            n.food * 0.35 + n.rest * 0.28 + n.social * 0.20 + n.joy * 0.12 + relBonus - griefPenalty));
+            n.food * 0.35 + n.rest * 0.28 + n.social * 0.20 + n.joy * 0.12
+            + relBonus - griefPenalty + traitMoodMod));
 
         // Starvation: food=0 drains HP; warn every 8s
         if (n.food <= 0 && !u.isSleeping) {
@@ -157,10 +160,13 @@ export default {
             u._starvTimer = 0;
         }
 
-        // Mood collapse: refuse non-essential work below 0.25, recover above 0.35
+        // Mood collapse: thresholds shifted by trait (resilient=harder to collapse, grumpy=easier)
+        const traits = u.traits ?? [];
+        const collapseAt = traits.includes('resilient') ? 0.18 : traits.includes('grumpy') ? 0.30 : 0.25;
+        const recoverAt  = traits.includes('resilient') ? 0.28 : traits.includes('grumpy') ? 0.42 : 0.35;
         const prevCollapsed = u._moodCollapsed;
-        if ((u.mood ?? 1) < 0.25) u._moodCollapsed = true;
-        else if ((u.mood ?? 1) > 0.35) u._moodCollapsed = false;
+        if ((u.mood ?? 1) < collapseAt) u._moodCollapsed = true;
+        else if ((u.mood ?? 1) > recoverAt) u._moodCollapsed = false;
         if (u._moodCollapsed && !prevCollapsed) {
             this.scene.uiManager?.showFloatText?.(u.x, u.y - 24, `${u.name} is miserable`, '#ff6666');
         }
@@ -298,22 +304,26 @@ export default {
             if (Math.abs(u.relations[id]) < 0.005) delete u.relations[id];
         }
 
+        const uTraits = u.traits ?? [];
+        const relMult  = uTraits.includes('sociable') ? 1.5 : uTraits.includes('grumpy') ? 0.55 : 1.0;
+        const warmMult = uTraits.includes('warm') ? 1.6 : 1.0;
+
         for (const w of this.scene.units) {
             if (w === u || w.isEnemy || w.hp <= 0 || w.type !== 'worker') continue;
             const dist = Phaser.Math.Distance.Between(u.x, u.y, w.x, w.y);
             let nudge = 0;
 
-            if (dist < 80)                                      nudge += 0.008; // proximity
-            if (u.homeConstructId && u.homeConstructId === w.homeConstructId) nudge += 0.005; // housemate
-            if (u.spouseId === w.id)                            nudge += 0.010; // spouse
-            if (u.fatherId === w.id || u.motherId === w.id)     nudge += 0.006; // parent
-            if (w.fatherId === u.id || w.motherId === u.id)     nudge += 0.006; // child
+            if (dist < 80)                                                      nudge += 0.008;
+            if (u.homeConstructId && u.homeConstructId === w.homeConstructId)   nudge += 0.005;
+            if (u.spouseId === w.id)                            nudge += 0.010 * warmMult; // spouse
+            if (u.fatherId === w.id || u.motherId === w.id)     nudge += 0.006 * warmMult; // parent
+            if (w.fatherId === u.id || w.motherId === u.id)     nudge += 0.006 * warmMult; // child
 
-            // Miserable units are unpleasant to be around
             if ((w.mood ?? 1) < 0.25) nudge -= 0.012;
 
             if (nudge === 0) continue;
-            u.relations[w.id] = Math.max(-1, Math.min(1, (u.relations[w.id] ?? 0) + nudge));
+            u.relations[w.id] = Math.max(-1, Math.min(1,
+                (u.relations[w.id] ?? 0) + nudge * (nudge > 0 ? relMult : 1.0)));
         }
     },
 };

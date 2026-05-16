@@ -31,6 +31,30 @@ export function pickFamilyName(civ) {
   return list[Math.floor(Math.random() * list.length)];
 }
 
+// ─── Personality traits ───────────────────────────────────────────────────────
+export const TRAITS = {
+    grumpy:      { label: 'Grumpy',      col: '#cc8866', desc: 'Relations form slowly; mood collapses easier' },
+    sociable:    { label: 'Sociable',    col: '#88ccaa', desc: 'Relations form fast; social need decays slower' },
+    industrious: { label: 'Industrious', col: '#aacc88', desc: 'Work drains joy less' },
+    melancholic: { label: 'Melancholic', col: '#8899bb', desc: 'Grief lingers; mood runs low' },
+    resilient:   { label: 'Resilient',   col: '#ccaa44', desc: 'Grief fades fast; hard to collapse' },
+    warm:        { label: 'Warm',        col: '#cc99aa', desc: 'Family bonds are stronger' },
+};
+const _TRAIT_KEYS = Object.keys(TRAITS);
+export function pickTraits() {
+    const count = Math.random() < 0.25 ? 2 : Math.random() < 0.55 ? 1 : 0;
+    return [..._TRAIT_KEYS].sort(() => Math.random() - 0.5).slice(0, count);
+}
+export function blendTraits(fTraits = [], mTraits = []) {
+    const pool = [...new Set([...fTraits, ...mTraits])];
+    const result = pool.filter(() => Math.random() < 0.4);
+    if (Math.random() < 0.10) {
+        const novel = _TRAIT_KEYS.filter(k => !result.includes(k));
+        if (novel.length) result.push(novel[Math.floor(Math.random() * novel.length)]);
+    }
+    return result.slice(0, 2);
+}
+
 // ─── Genetic helpers (M4) ────────────────────────────────────────────────────
 
 const _SKIN = [0xc8a878, 0xb8945e, 0xa87848, 0xd4b888, 0x9a6840, 0xc09060];

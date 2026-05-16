@@ -8,6 +8,7 @@ import {
     randomAttributes, blendAttributes, randomPhenotype, blendPhenotype,
     randomPassions, blendPassions,
     emptySkills,
+    pickTraits, blendTraits,
 } from '../config/gameConstants.js';
 import { CONSTRUCTS } from '../content/constructs/index.js';
 import { NODES } from '../content/nodes/index.js';
@@ -131,7 +132,7 @@ export default class UnitManager {
             taskStack: [],
             // Genealogy
             fatherId: null, motherId: null, spouseId: null, familyName: null,
-            relations: {},
+            relations: {}, traits: [],
             attributes, phenotype, passions,
             skills: emptySkills(),
             workProgress: 0,
@@ -140,7 +141,10 @@ export default class UnitManager {
             _visible: true,
             _alpha: 1.0,
         };
-        if (isWorker) this.assignVocation(unit);
+        if (isWorker) {
+            unit.traits = pickTraits();
+            this.assignVocation(unit);
+        }
         this.redrawUnit(unit);
         this.scene.units.push(unit);
         return unit;
@@ -157,6 +161,7 @@ export default class UnitManager {
         child.fatherId   = father.id;
         child.motherId   = mother.id;
         child.familyName = father.familyName ?? mother.familyName ?? null;
+        child.traits     = blendTraits(father.traits ?? [], mother.traits ?? []);
         child.age       = 0;
         child.homeConstructId = home.id;
         child.attributes = blendAttributes(father.attributes ?? randomAttributes(), mother.attributes ?? randomAttributes());
@@ -350,8 +355,10 @@ export default class UnitManager {
     // Age → uniform scale applied to the sprite. All unit types use a single
     // adult-sized shape; the engine shrinks it for children and youth.
     static ageScale(age) {
-        if (age === 0) return 0.48;
-        if (age === 1) return 0.72;
+        if (age === 0)  return 0.48;
+        if (age === 1)  return 0.72;
+        if (age >= 12)  return 0.88;
+        if (age >= 10)  return 0.95;
         return 1.0;
     }
 

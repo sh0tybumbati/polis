@@ -1,4 +1,4 @@
-import { VET_LEVELS, CONSTRUCT_VOLUME, UNIT_NAMES } from '../../config/gameConstants.js';
+import { VET_LEVELS, CONSTRUCT_VOLUME, UNIT_NAMES, TRAITS } from '../../config/gameConstants.js';
 import { ITEMS } from '../../content/items/index.js';
 import { WORKSHOP_JOBS } from '../../content/jobs/index.js';
 import { CONSTRUCTS, computeBuildCost } from '../../content/constructs/index.js';
@@ -512,7 +512,9 @@ export default {
         ry += 13;
 
         if (u.type === 'worker') {
-            const role = u.age < 2 ? 'Child' : u.role ? u.role[0].toUpperCase() + u.role.slice(1) : 'Idle';
+            const ageTag = u.age < 2 ? 'Child' : u.age >= 10 ? '(Elder)' : '';
+            const roleStr = u.age < 2 ? '' : u.role ? u.role[0].toUpperCase() + u.role.slice(1) : 'Idle';
+            const role = [roleStr, ageTag].filter(Boolean).join(' ');
             const intentLabel = { eat: '🍱 eating', sleep: '💤 resting', socialize: '💬 social', leisure: '☀ leisure' };
             const intentStr = intentLabel[u.currentIntent] ?? '';
             this._infTxt(ox + pad, ry, `${role}  ${intentStr}`, { fontSize: this._fs(9), color: '#aaaacc' });
@@ -537,6 +539,16 @@ export default {
             const interested = Object.entries(u.passions ?? {}).filter(([, v]) => v === 'interested').map(([k]) => k);
             if (burning)          { this._infTxt(ox + pad, ry, `♥ ${burning[0]}`, { fontSize: this._fs(9), color: '#c8603a' }); ry += 12; }
             if (interested.length){ this._infTxt(ox + pad, ry, `~ ${interested.map(s => s.slice(0, 5)).join(', ')}`, { fontSize: this._fs(9), color: '#7a7060' }); ry += 12; }
+            if ((u.traits ?? []).length) {
+                let tx = ox + pad;
+                for (const t of u.traits) {
+                    const def = TRAITS[t];
+                    if (!def) continue;
+                    this._infTxt(tx, ry, `[${def.label}]`, { fontSize: this._fs(8), color: def.col });
+                    tx += def.label.length * 5 + 12;
+                }
+                ry += 12;
+            }
 
             const trained = Object.entries(u.skills ?? {}).filter(([, v]) => v.level > 1);
             if (trained.length) {

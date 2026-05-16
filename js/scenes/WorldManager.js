@@ -358,6 +358,7 @@ export default class WorldManager {
 
     ageUpUnits() {
         this.setGates(true); // reopen at dawn
+        const _PHYS = ['str', 'dex', 'agi', 'con'];
         for (const u of this.scene.units) {
             u.isRouting = false;
             if (u.isEnemy) { u.aiMode = 'patrol'; u._assaultTowerId = null; }
@@ -366,6 +367,34 @@ export default class WorldManager {
             if (!u.isEnemy) {
                 if (u.age === 1) this.scene.uiManager.showFloatText(u.x, u.y - 18, '→ youth', '#ffeeaa');
                 if (u.age === 2) this.scene.uiManager.showFloatText(u.x, u.y - 18, '→ adult', '#ffdd44');
+
+                // Elder onset: first physical decline + wisdom bonus
+                if (u.age === 10 && u.attributes) {
+                    for (const s of _PHYS) u.attributes[s] = Math.max(1, u.attributes[s] - 1);
+                    u.attributes.int = Math.min(10, u.attributes.int + 1);
+                    u.maxHp  = Math.max(5, 10 + u.attributes.con);
+                    u.hp     = Math.min(u.hp, u.maxHp);
+                    u.speed  = UNITS.worker.speed * (1 + (u.attributes.agi - 5) * 0.04);
+                    this.scene.unitManager.redrawUnit(u);
+                    this.scene.uiManager.showFloatText(u.x, u.y - 20, `${u.name} grows old`, '#aa9977');
+                }
+
+                // Ongoing decline: -1 to a random physical stat each year past 10
+                if (u.age > 10 && u.attributes) {
+                    const s = _PHYS[Math.floor(Math.random() * _PHYS.length)];
+                    u.attributes[s] = Math.max(1, u.attributes[s] - 1);
+                    if (s === 'con') { u.maxHp = Math.max(5, 10 + u.attributes.con); u.hp = Math.min(u.hp, u.maxHp); }
+                    if (s === 'agi') u.speed = UNITS.worker.speed * (1 + (u.attributes.agi - 5) * 0.04);
+                }
+
+                // Elder death chance — rises steeply each year past 10
+                if (u.age >= 10) {
+                    const chance = 0.04 + (u.age - 10) * 0.03;
+                    if (Math.random() < chance) {
+                        u.hp = 0;
+                        this.scene.uiManager.showFloatText(u.x, u.y - 22, `${u.name} passes away`, '#9988aa');
+                    }
+                }
             }
         }
         this._tickGestation();
@@ -392,7 +421,7 @@ export default class WorldManager {
     checkReproduction() {
         const units = this.scene.units;
         for (const u of units) {
-            if (u.type !== 'worker' || u.age < 2 || u.gender !== 'female') continue;
+            if (u.type !== 'worker' || u.age < 2 || u.age >= 9 || u.gender !== 'female') continue;
             if (!u.spouseId) continue;
             if ((u._gestationDays ?? 0) > 0) continue;
             const spouse = units.find(s => s.id === u.spouseId);
@@ -410,8 +439,12 @@ export default class WorldManager {
     _decayGrief() {
         for (const u of this.scene.units) {
             if (!(u._grief > 0)) continue;
-            u._grief = Math.max(0, u._grief - 0.11); // fades over ~9 nights
-            if (u._grief === 0) u._widowed = false;  // fully healed
+            const traits = u.traits ?? [];
+            const rate = traits.includes('resilient') ? 0.165
+                       : traits.includes('melancholic') ? 0.072
+                       : 0.11;
+            u._grief = Math.max(0, u._grief - rate);
+            if (u._grief === 0) u._widowed = false;
         }
     }
 
