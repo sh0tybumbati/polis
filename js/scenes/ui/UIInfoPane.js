@@ -1,4 +1,4 @@
-import { VET_LEVELS, CONSTRUCT_VOLUME, UNIT_NAMES, TRAITS } from '../../config/gameConstants.js';
+import { VET_LEVELS, CONSTRUCT_VOLUME, UNIT_NAMES, TRAITS, TILE, MAP_OY } from '../../config/gameConstants.js';
 import { ITEMS } from '../../content/items/index.js';
 import { WORKSHOP_JOBS } from '../../content/jobs/index.js';
 import { CONSTRUCTS, computeBuildCost } from '../../content/constructs/index.js';
@@ -6,8 +6,8 @@ import { CONSTRUCTS, computeBuildCost } from '../../content/constructs/index.js'
 export default {
     _renderInfoPane() {
         this._clearInfo();
-        const { INFO_W, PANEL_H, KEY_H, panelY } = this.L;
-        const W = INFO_W - 2, H = PANEL_H - KEY_H;
+        const { INFO_W, PANEL_H, KEY_H, QB_H, panelY } = this.L;
+        const W = INFO_W - 2, H = PANEL_H - KEY_H - (QB_H ?? 0);
         const ox = 0, oy = panelY + KEY_H;
         const pad = 8;
         const sel = this.scene.units.filter(u => u.selected && !u.isEnemy);
@@ -485,17 +485,19 @@ export default {
         const u   = sel[0];
         const nm  = UNIT_NAMES[u.type] ?? u.type;
         const vet = u.vetLevel >= 1 ? VET_LEVELS[u.vetLevel - 1].label + ' ' : '';
-        const tabs = u.type === 'worker' ? ['Stats', 'Needs', 'Inv'] : ['Stats'];
+        const workers = sel.filter(w => w.type === 'worker' && w.age >= 2);
+        const isAdultWorker = u.type === 'worker' && u.age >= 2;
+        const tabs = isAdultWorker
+            ? ['Stats', 'Needs', 'Inv', 'Jobs', 'Orders']
+            : ['Stats'];
         if (!tabs.includes(this._unitTab)) this._unitTab = 'Stats';
-        this._infTabBar(ox, oy, W, tabs, this._unitTab, t => { this._unitTab = t; this.updateUI(); });
+        this._infTabBar(ox, oy, W + 2, tabs, this._unitTab, t => { this._unitTab = t; this.updateUI(); });
 
         const TH = this.scene.uiManager?.L?.TAB_H ?? 34;
         const cy = oy + TH, ch = H - TH;
         this._infCard(ox + 2, cy, W - 4, ch - 2);
-        // Full name as the hero text
         const fullName = [u.name, u.familyName].filter(Boolean).join(' ');
         this._infTxt(ox + pad, cy + 5, fullName, { fontSize: this._fs(13), color: '#e8d080' });
-        // Role / type as secondary line
         const ageTag = u.age < 2 ? (u.age === 0 ? 'Infant' : 'Youth')
                      : u.age >= 10 ? `${vet}${nm} · Elder` : `${vet}${nm}`;
         const roleSecondary = u.type === 'worker' && u.age >= 2
@@ -504,9 +506,12 @@ export default {
         this._infTxt(ox + pad, cy + 20, roleSecondary, { fontSize: this._fs(9), color: '#9a8860' });
 
         const contentY = cy + 34;
-        if (this._unitTab === 'Stats')     this._renderUnitStats(u, ox, contentY, W, ch - 32, pad);
-        else if (this._unitTab === 'Needs') this._renderUnitNeeds(u, ox, contentY, W, ch - 32, pad);
-        else                               this._renderUnitInventory(u, ox, contentY, W, ch - 32, pad);
+        const contentH = ch - 34;
+        if (this._unitTab === 'Stats')       this._renderUnitStats(u, ox, contentY, W, contentH, pad);
+        else if (this._unitTab === 'Needs')  this._renderUnitNeeds(u, ox, contentY, W, contentH, pad);
+        else if (this._unitTab === 'Inv')    this._renderUnitInventory(u, ox, contentY, W, contentH, pad);
+        else if (this._unitTab === 'Jobs')   this._renderInlineJobs(workers, ox, contentY, W, contentH, pad);
+        else if (this._unitTab === 'Orders') this._renderInlineOrders(workers, ox, contentY, W, contentH, pad);
     },
 
     _renderUnitStats(u, ox, oy, W, H, pad) {
@@ -742,6 +747,65 @@ export default {
                 ry += 13;
             }
         }
+    },
+
+    _renderInlineJobs(workers, ox, oy, W, H, pad) {
+        const s = this.scene;
+        const ROLES = [
+            { role: 'farmer',     label: '🌾 Farm',   color: 0x336622 },
+            { role: 'forager',    label: '🍄 Forage', color: 0x2a4a22 },
+            { role: 'woodcutter', label: '🪵 Lumber', color: 0x5a3a18 },
+            { role: 'miner',      label: '⛏ Mine',   color: 0x444444 },
+            { role: 'builder',    label: '🔨 Build',  color: 0x554422 },
+            { role: 'shepherd',   label: '🐑 Herd',   color: 0x445533 },
+            { role: 'hunter',     label: '🏹 Hunt',   color: 0x553322 },
+        ];
+        const cols = 2;
+        const btnW = Math.floor((W - pad * 2 - 4 - (cols - 1) * 4) / cols);
+        const btnH = 32;
+        let ry = oy + 4;
+        ROLES.forEach((r, i) => {
+            const col = i % cols;
+            const bx  = ox + pad + col * (btnW + 4);
+            const active = workers.length > 0 && workers.every(u => u.role === r.role);
+            this._infBtn(bx, ry, btnW, btnH, r.label,
+                active ? r.color + 0x111111 : r.color,
+                () => {
+                    workers.forEach(u => { u.role = r.role; u.taskType = null; u.targetNode = null; u.moveTo = null; });
+                    s.deselect?.();
+                    this.updateUI();
+                });
+            if (col === cols - 1) ry += btnH + 4;
+        });
+        if (workers.some(u => u.role) && ry < oy + H - btnH) {
+            ry += 4;
+            this._infBtn(ox + pad, ry, W - pad * 2 - 4, 26, 'Clear Role', 0x2a1a10, () => {
+                workers.forEach(u => { u.role = null; u.taskType = null; });
+                this.updateUI();
+            });
+        }
+    },
+
+    _renderInlineOrders(workers, ox, oy, W, H, pad) {
+        const s = this.scene;
+        let ry = oy + 4;
+        const btnH = 30;
+        this._infBtn(ox + pad, ry, W - pad * 2 - 4, btnH, '🏠 Recall Home', 0x223344, () => {
+            workers.forEach(u => {
+                const home = s.constructs.find(b => b.id === u.homeConstructId);
+                if (home) u.moveTo = { x: (home.tx + home.width / 2) * TILE, y: MAP_OY + (home.ty + home.height / 2) * TILE };
+                u.taskType = null; u.targetNode = null;
+            });
+            s.deselect?.();
+            this.updateUI();
+        });
+        ry += btnH + 6;
+        this._infBtn(ox + pad, ry, W - pad * 2 - 4, btnH, '⚔ Guard Nearest Tower', 0x223a44, () => {
+            const towers = s.constructs.filter(b => b.built && !b.faction && b.type === 'watchtower');
+            if (towers.length > 0) s.orderWorkersToConstruct(towers[0]);
+            s.deselect?.();
+            this.updateUI();
+        });
     },
 
     _renderZoneInfo(ox, oy, W, H, pad) {

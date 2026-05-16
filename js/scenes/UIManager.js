@@ -39,15 +39,17 @@ export default class UIManager {
 
     _computeLayout() {
         const W = this.scene.SW, H = this.scene.SH;
-        const PANEL_H = Math.min(440, Math.max(320, Math.floor(H * 0.42)));
         const TOP_H   = MAP_OY;
-        const KEY_H   = 10;
-        const TAB_H   = 34;   // bigger tap targets
+        const QB_H    = 52;
+        const SHEET_H = Math.min(Math.floor(H * 0.54), 460);
+        const PANEL_H = SHEET_H + QB_H;
+        const KEY_H   = 8;
+        const TAB_H   = 36;
         const panelY  = H - PANEL_H;
-        const MM_W    = 0;    // minimap removed from split — use main view panning
-        const INFO_W  = Math.floor(W * 0.42);
-        const ACT_W   = W - INFO_W;
-        return { W, H, PANEL_H, TOP_H, KEY_H, TAB_H, panelY, INFO_W, MM_W, ACT_W };
+        const MM_W    = 0;
+        const INFO_W  = W;
+        const ACT_W   = W;
+        return { W, H, PANEL_H, TOP_H, QB_H, SHEET_H, KEY_H, TAB_H, panelY, INFO_W, MM_W, ACT_W };
     }
 
     // ─── Create ───────────────────────────────────────────────────────────────
@@ -59,6 +61,7 @@ export default class UIManager {
         this._buildTopBar();
         this._buildBottomPanel();
         this._buildMinimapZone();
+        this._buildQuickbar();
 
         // Persistent containers for dynamically rebuilt zones
         this._infoRoot  = this._ui(this.scene.add.container(0, 0).setDepth(21));
@@ -149,19 +152,69 @@ export default class UIManager {
     // ─── Bottom panel chrome ─────────────────────────────────────────────────
 
     _buildBottomPanel() {
-        const { W, H, PANEL_H, panelY, KEY_H, INFO_W, MM_W } = this.L;
+        const { W, PANEL_H, panelY, KEY_H } = this.L;
 
-        // Background
         this._ui(this.scene.add.rectangle(W / 2, panelY + PANEL_H / 2, W, PANEL_H, 0x130e06, 0.97).setDepth(20));
 
         const g = this._ui(this.scene.add.graphics().setDepth(20));
-
-        // Greek-key-inspired top border
         this._drawKeyBorder(g, 0, panelY, W, KEY_H);
+    }
 
-        // Single divider between info pane and actions zone
-        g.lineStyle(1, 0x5a3f0e, 0.7)
-            .lineBetween(INFO_W, panelY + KEY_H + 2, INFO_W, H - 2);
+    _buildQuickbar() {
+        const { W, H, QB_H } = this.L;
+        const qy = H - QB_H;
+
+        this._ui(this.scene.add.rectangle(W / 2, qy + QB_H / 2, W, QB_H, 0x0c0904, 0.98).setDepth(27));
+        const g = this._ui(this.scene.add.graphics().setDepth(27));
+        g.lineStyle(1, 0x5a4010, 0.7).lineBetween(0, qy, W, qy);
+
+        const bCount = 3, bPad = 4;
+        const bW = Math.floor((W - bPad * (bCount + 1)) / bCount);
+        const bH = QB_H - bPad * 2;
+
+        const mkQB = (i, label, color, cb) => {
+            const bx = bPad + i * (bW + bPad), by = qy + bPad;
+            const gbg = this._ui(this.scene.add.graphics().setDepth(28));
+            gbg.fillStyle(color, 0.9).fillRect(bx, by, bW, bH);
+            gbg.lineStyle(1, 0x7a5a20, 0.5).strokeRect(bx, by, bW, bH);
+            const hov = this._ui(this.scene.add.graphics().setDepth(29).setAlpha(0));
+            hov.fillStyle(0xffffff, 0.12).fillRect(bx, by, bW, bH);
+            this._ui(this.scene.add.text(bx + bW / 2, by + bH / 2, label, {
+                fontFamily: 'monospace', fontSize: this._fs(10), color: '#d4c8a8',
+            }).setOrigin(0.5).setDepth(29));
+            const z = this._ui(this.scene.add.zone(bx + bW / 2, by + bH / 2, bW, bH)
+                .setInteractive({ cursor: 'pointer' }).setDepth(30));
+            z.on('pointerover', () => hov.setAlpha(1));
+            z.on('pointerout',  () => hov.setAlpha(0));
+            z.on('pointerdown', cb);
+        };
+
+        mkQB(0, '🔨 Build', 0x1e1a0e, () => {
+            this.scene.selectedConstruct = null;
+            this.scene.selectedNode = null;
+            this.scene.selectedZoneTile = null;
+            this.scene.selectedZoneTiles = null;
+            this.scene.deselect?.();
+            this.updateUI();
+        });
+        mkQB(1, '👥 People', 0x101828, () => {
+            this.showCensusPanel?.();
+        });
+        mkQB(2, '✕ Close', 0x281010, () => {
+            this.scene.constructType = null;
+            this.scene.roadMode = false;
+            this.scene.wallMode = false;
+            this.scene.wallRectMode = false;
+            this.scene.zoneMode = null;
+            this.scene.constructMode = false;
+            this.scene.materialPickMode = null;
+            this.scene.selectedConstruct = null;
+            this.scene.selectedNode = null;
+            this.scene.selectedZoneTile = null;
+            this.scene.selectedZoneTiles = null;
+            this.scene.deselect?.();
+            this.updateUI();
+        });
     }
 
     _drawKeyBorder(g, x, y, w, h) {
@@ -225,9 +278,25 @@ export default class UIManager {
         if (!this.L) return;
         this.scene.economyManager.syncResources();
         this._updateResources();
-        this._renderInfoPane();
-        this._renderActionsZone();
+        this._renderSheet();
         this._updateCursor();
+    }
+
+    _renderSheet() {
+        const sel = this.scene.units.filter(u => u.selected && !u.isEnemy);
+        const hasSelection = sel.length > 0 ||
+            !!this.scene.selectedConstruct ||
+            !!this.scene.selectedNode ||
+            !!this.scene.selectedZoneTile;
+
+        if (hasSelection) {
+            this._clearTabs();
+            if (this._actionPanel) { this._actionPanel.destroy(); this._actionPanel = null; }
+            this._renderInfoPane();
+        } else {
+            this._clearInfo();
+            this._renderActionsZone();
+        }
     }
 
     updateEnemyCount() {

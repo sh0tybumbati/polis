@@ -9,10 +9,10 @@ export default {
         this._clearTabs();
         if (this._actionPanel) { this._actionPanel.destroy(); this._actionPanel = null; }
 
-        const { PANEL_H, KEY_H, TAB_H, panelY, INFO_W, MM_W, ACT_W } = this.L;
-        const zx = INFO_W + MM_W;
+        const { PANEL_H, KEY_H, QB_H, TAB_H, panelY, ACT_W } = this.L;
+        const zx = 0;
         let zy = panelY + KEY_H;
-        let fullH = PANEL_H - KEY_H;
+        let fullH = PANEL_H - KEY_H - (QB_H ?? 0);
 
         // Mode indicator — always visible when a mode is active
         const modeH = this._renderModeBar(zx, zy, ACT_W);
