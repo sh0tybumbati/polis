@@ -200,6 +200,13 @@ export default {
                         else if (u.role in WORKSHOP_JOBS) this.seekWorkshopTask(u);
                         else if (JOBS[u.role]?.nodeTypes) this.seekNodeTask(u, JOBS[u.role].nodeTypes);
                     }
+                    // Mood collapse: miserable units refuse productive work, seek relief
+                    if (!u.taskType && !u.targetNode && u._moodCollapsed) {
+                        const n = u.needs ?? {};
+                        if ((n.joy ?? 1) <= (n.rest ?? 1)) { u.taskType = 'stroll'; u.workProgress = 0; u._strollPoints = null; }
+                        else { u.taskType = 'rest_break'; u.workProgress = 0; }
+                    }
+
                     // No task found — satisfy pressing needs before generic gather
                     if (!u.taskType && !u.targetNode) {
                         const n = u.needs ?? {};

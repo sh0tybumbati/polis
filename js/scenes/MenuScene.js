@@ -32,7 +32,7 @@ export default class MenuScene extends Phaser.Scene {
     update(time, delta) {
         const dt = delta / 1000;
         if (this._sky)     this._sky.tilePositionY += 8 * dt;
-        if (this._stars)   this._stars.angle        += 1.2 * dt;
+        if (this._stars)   this._stars.angle        -= 1.2 * dt;
         if (this._sunrays) this._sunrays.angle       += 3.5 * dt;
     }
 

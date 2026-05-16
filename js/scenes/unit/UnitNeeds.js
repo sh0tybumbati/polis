@@ -132,6 +132,26 @@ export default {
 
         // Mood: weighted average of needs
         u.mood = n.food * 0.35 + n.rest * 0.30 + n.social * 0.20 + n.joy * 0.15;
+
+        // Starvation: food=0 drains HP; warn every 8s
+        if (n.food <= 0 && !u.isSleeping) {
+            u.hp = Math.max(0, u.hp - dt * 0.5);
+            u._starvTimer = (u._starvTimer ?? 0) + dt;
+            if (u._starvTimer >= 8) {
+                u._starvTimer = 0;
+                this.scene.uiManager?.showFloatText?.(u.x, u.y - 20, 'starving!', '#ff4444');
+            }
+        } else {
+            u._starvTimer = 0;
+        }
+
+        // Mood collapse: refuse non-essential work below 0.25, recover above 0.35
+        const prevCollapsed = u._moodCollapsed;
+        if ((u.mood ?? 1) < 0.25) u._moodCollapsed = true;
+        else if ((u.mood ?? 1) > 0.35) u._moodCollapsed = false;
+        if (u._moodCollapsed && !prevCollapsed) {
+            this.scene.uiManager?.showFloatText?.(u.x, u.y - 24, `${u.name} is miserable`, '#ff6666');
+        }
     },
 
     _collectWage(u) {

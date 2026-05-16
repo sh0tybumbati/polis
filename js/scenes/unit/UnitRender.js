@@ -11,6 +11,7 @@ export default {
                 u._visible = false;
                 if (u.nameLabel) u.nameLabel.setVisible(false);
                 if (u._zzzLabel) u._zzzLabel.setVisible(false);
+                if (u._needLabel) u._needLabel.setVisible(false);
                 return true;
             }
         }
@@ -23,6 +24,7 @@ export default {
             u._visible = false;
             if (u.nameLabel) u.nameLabel.setVisible(false);
             if (u._zzzLabel) u._zzzLabel.setVisible(false);
+            if (u._needLabel) u._needLabel.setVisible(false);
             return true;
         }
 
@@ -71,6 +73,25 @@ export default {
                        .setVisible(true);
         } else if (u._zzzLabel) {
             u._zzzLabel.destroy(); u._zzzLabel = null;
+        }
+
+        // Need indicator — highest-priority critical need when awake
+        const needIcon = !u.isSleeping && u.hp > 0 && !u.isEnemy ? this._getNeedIcon(u) : null;
+        if (needIcon) {
+            if (!u._needLabel || u._needLabel.text !== needIcon) {
+                if (u._needLabel) { u._needLabel.destroy(); u._needLabel = null; }
+                u._needLabel = this.scene._w(this.scene.add.text(0, 0, needIcon, {
+                    fontSize: '13px', stroke: '#000000', strokeThickness: 2,
+                }).setOrigin(0.5, 1).setDepth(8));
+                u._needPhase = Math.random() * Math.PI * 2;
+            }
+            u._needPhase = (u._needPhase ?? 0) + 0.05;
+            const bob = Math.sin(u._needPhase) * 2;
+            u._needLabel.setPosition(ox - 6, oy - 20 + bob)
+                        .setAlpha((0.85 + Math.sin(u._needPhase * 0.6) * 0.1) * alpha)
+                        .setVisible(true);
+        } else if (u._needLabel) {
+            u._needLabel.destroy(); u._needLabel = null;
         }
 
         // Name label for young units
@@ -128,6 +149,17 @@ export default {
     // Kept for compatibility — individual redraws now route through _redrawAllUnits.
     // Called at spawn and on forced state changes before the next full-batch pass.
     redrawUnit(u) { /* no-op; rendering happens in _redrawAllUnits each frame */ },
+
+    _getNeedIcon(u) {
+        const n = u.needs;
+        if (!n) return null;
+        if ((n.food ?? 1) < 0.12) return '🍖';
+        if ((n.rest ?? 1) < 0.12) return '😴';
+        if ((n.social ?? 1) < 0.10) return '💬';
+        if ((n.joy ?? 1) < 0.10) return '😞';
+        if ((u.mood ?? 1) < 0.25) return '💢';
+        return null;
+    },
 
     _drawProgressBar(gfx, u, scale, ox, oy, alpha = 1) {
         if (u.hp <= 0 || u.isSleeping) return;
