@@ -130,7 +130,7 @@ export default class UnitManager {
             fetchConstructId: null, _prevRole: null,
             taskStack: [],
             // Genealogy
-            fatherId: null, motherId: null, spouseId: null,
+            fatherId: null, motherId: null, spouseId: null, familyName: null,
             attributes, phenotype, passions,
             skills: emptySkills(),
             workProgress: 0,
@@ -153,8 +153,9 @@ export default class UnitManager {
         const cy = MAP_OY + (home.ty + home.height / 2) * TILE;
 
         const child = this.spawnUnit('worker', cx, cy, false);
-        child.fatherId  = father.id;
-        child.motherId  = mother.id;
+        child.fatherId   = father.id;
+        child.motherId   = mother.id;
+        child.familyName = father.familyName ?? mother.familyName ?? null;
         child.age       = 0;
         child.homeConstructId = home.id;
         child.attributes = blendAttributes(father.attributes ?? randomAttributes(), mother.attributes ?? randomAttributes());
@@ -167,7 +168,8 @@ export default class UnitManager {
 
         this._applyRareTraits(child);
         this.redrawUnit(child);  // re-draw with age:0 size after overriding attributes
-        this.scene.uiManager.showFloatText(cx, cy - 16, `${child.name} born!`, '#ffeeaa');
+        const bornName = [child.name, child.familyName].filter(Boolean).join(' ');
+        this.scene.uiManager.showFloatText(cx, cy - 16, `${bornName} born!`, '#ffeeaa');
         return child;
     }
 

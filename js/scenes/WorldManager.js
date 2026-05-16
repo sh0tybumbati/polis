@@ -1,6 +1,6 @@
 import {
     DAY_DURATION, NIGHT_DURATION, TILE, MAP_OY, VET_LEVELS, pickVetName,
-    APPLIANCE_DEF, SEASON_DAYS,
+    APPLIANCE_DEF, SEASON_DAYS, pickFamilyName,
 } from '../config/gameConstants.js';
 import { CONSTRUCTS } from '../content/constructs/index.js';
 import { UNITS } from '../content/units/index.js';
@@ -368,10 +368,41 @@ export default class WorldManager {
                 if (u.age === 2) this.scene.uiManager.showFloatText(u.x, u.y - 18, '→ adult', '#ffdd44');
             }
         }
+        this._tickGestation();
+        this.checkReproduction();
         this.checkApplianceDesires();
         this.autoRepairHomes();
         this.applyEquipmentUpgrades();
         this.applyTithe();
+    }
+
+    _tickGestation() {
+        for (const u of this.scene.units) {
+            if (!u._gestationDays || u._gestationDays <= 0) continue;
+            u._gestationDays--;
+            if (u._gestationDays === 0) {
+                const father = this.scene.units.find(s => s.id === u.spouseId);
+                if (father) this.scene.unitManager.spawnChild(father, u);
+            }
+        }
+    }
+
+    checkReproduction() {
+        const units = this.scene.units;
+        for (const u of units) {
+            if (u.type !== 'worker' || u.age < 2 || u.gender !== 'female') continue;
+            if (!u.spouseId) continue;
+            if ((u._gestationDays ?? 0) > 0) continue;
+            const spouse = units.find(s => s.id === u.spouseId);
+            if (!spouse || spouse.age < 2 || spouse.type !== 'worker') continue;
+            if (!u.homeConstructId || u.homeConstructId !== spouse.homeConstructId) continue;
+            if ((u.mood ?? 1) < 0.25 || (u.needs?.food ?? 1) < 0.1) continue;
+            if ((spouse.mood ?? 1) < 0.25 || (spouse.needs?.food ?? 1) < 0.1) continue;
+            if (Math.random() < 0.22) {
+                u._gestationDays = 3;
+                this.scene.uiManager?.showFloatText?.(u.x, u.y - 20, `${u.name} is expecting`, '#ffddff');
+            }
+        }
     }
 
     checkApplianceDesires() {
@@ -546,11 +577,13 @@ export default class WorldManager {
         male.gender   = 'male';   male.age = 2; male.homeConstructId = camp.id; male.role = 'farmer';
         female.gender = 'female'; female.age = 2; female.homeConstructId = camp.id;
         male.spouseId = female.id; female.spouseId = male.id;
+        const mFamilyName = pickFamilyName(this.scene.civ ?? 'greece');
+        male.familyName = mFamilyName; female.familyName = mFamilyName;
         this.scene.unitManager.redrawUnit(male);
         this.scene.unitManager.redrawUnit(female);
 
         this.scene.uiManager.showFloatText(hx, hy - 28,
-            `✦ ${male.name} & ${female.name} arrive`, '#88eeff');
+            `✦ ${male.name} ${mFamilyName} & ${female.name} arrive`, '#88eeff');
     }
 
     _findCampSite(near) {

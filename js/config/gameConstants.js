@@ -18,6 +18,19 @@ export function pickName(gender) {
   return list[Math.floor(Math.random() * list.length)];
 }
 
+export const GREEK_FAMILY_NAMES = [
+  'Kallias','Themis','Drakos','Nikias','Solon',
+  'Philon','Agias','Kratinos','Lykon','Mnesiphilos',
+];
+export const SUMER_FAMILY_NAMES = [
+  'Ur-Namma','Ereshti','Kibri','Adad','Nabu-Zer',
+  'Enlil-Bani','Rimush','Lugal-Zage','Sin-Muballit','Warad',
+];
+export function pickFamilyName(civ) {
+  const list = civ === 'sumer' ? SUMER_FAMILY_NAMES : GREEK_FAMILY_NAMES;
+  return list[Math.floor(Math.random() * list.length)];
+}
+
 // ─── Genetic helpers (M4) ────────────────────────────────────────────────────
 
 const _SKIN = [0xc8a878, 0xb8945e, 0xa87848, 0xd4b888, 0x9a6840, 0xc09060];

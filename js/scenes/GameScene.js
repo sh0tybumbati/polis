@@ -1,7 +1,7 @@
 import { SCENE_KEYS } from '../config/sceneKeys.js';
 import {
     TILE, MAP_OY,
-    DAY_DURATION
+    DAY_DURATION, pickFamilyName
 } from '../config/gameConstants.js';
 import { CONSTRUCTS } from '../content/constructs/index.js';
 
@@ -434,6 +434,9 @@ export default class GameScene extends Phaser.Scene {
         consort.role       = 'farmer';
         consort.homeConstructId = camp.id;
         founder.spouseId   = consort.id;
+        const founderFamily = pickFamilyName(this.civ);
+        founder.familyName = founderFamily;
+        consort.familyName = founderFamily;
         if (consort.attributes) {
             for (const k of Object.keys(consort.attributes))
                 consort.attributes[k] = Math.min(10, consort.attributes[k] + 1);

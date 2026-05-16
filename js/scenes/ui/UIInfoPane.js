@@ -325,9 +325,10 @@ export default {
         const allRes   = this.scene.units.filter(u => u.homeConstructId === b.id && !u.isEnemy && u.hp > 0);
         const adults   = allRes.filter(u => u.age >= 2);
         const patriarch = adults.find(u => u.isArchon) ?? adults.find(u => u.gender === 'male') ?? adults[0];
+        const hFamilyName = patriarch?.familyName ? `the ${patriarch.familyName}` : null;
         const familyName = b.type === 'townhall'
             ? (patriarch ? `Archon: ${patriarch.name}` : 'Town Hall')
-            : (patriarch ? `${patriarch.name}'s Estate` : `House #${b.id}`);
+            : (hFamilyName ? `Oikos ${hFamilyName}` : patriarch ? `${patriarch.name}'s House` : `House #${b.id}`);
         const cap = CONSTRUCTS[b.type]?.isHomeType
             ? this.scene.constructManager.getHouseCapacity(b)
             : (CONSTRUCTS[b.type]?.capacity ?? '?');
@@ -491,7 +492,8 @@ export default {
         const cy = oy + 22, ch = H - 22;
         this._infCard(ox + 2, cy, W - 4, ch - 2);
         this._infTxt(ox + pad, cy + 4, `${vet}${nm}`, { fontSize: this._fs(12), color: '#c8a030' });
-        this._infTxt(ox + pad, cy + 17, u.name ?? '', { fontSize: this._fs(10), color: '#7a7060' });
+        const fullName = [u.name, u.familyName].filter(Boolean).join(' ');
+        this._infTxt(ox + pad, cy + 17, fullName, { fontSize: this._fs(10), color: '#7a7060' });
 
         const contentY = cy + 30;
         if (this._unitTab === 'Stats')     this._renderUnitStats(u, ox, contentY, W, ch - 32, pad);
@@ -616,7 +618,8 @@ export default {
 
         if (spouse) {
             const sIcon = spouse.gender === 'female' ? '♀' : '♂';
-            this._infTxt(ox + pad, ry, `${sIcon} ${spouse.name?.slice(0, 12) ?? '?'}`,
+            const sName = [spouse.name, spouse.familyName].filter(Boolean).join(' ').slice(0, 16);
+            this._infTxt(ox + pad, ry, `${sIcon} ${sName}`,
                 { fontSize: this._fs(9), color: '#c8a870' });
             ry += 12;
         }
