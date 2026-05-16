@@ -1336,7 +1336,12 @@ export default {
             const hasProcessor = this.scene.units.some(w => w.id !== u.id && w.role === u.role && w.workshopSubrole === 'process' && w.taskConstructId === b.id);
             return !hasProcurer || !hasProcessor;
         });
-        if (!construct) return;
+        if (!construct) {
+            // If no built construct — check for unbuilt ghost (builder will handle it)
+            const unbuilt = this.scene.constructs.find(b => b.type === def.construct && !b.built && !b.faction);
+            if (!unbuilt) this._autoPlaceWorkshop(u, def);
+            return;
+        }
 
         const hasProcurer = this.scene.units.some(w => w.id !== u.id && w.role === u.role && w.workshopSubrole === 'procure' && w.taskConstructId === construct.id);
         u.workshopSubrole = hasProcurer ? 'process' : 'procure';
@@ -1358,6 +1363,30 @@ export default {
             u.taskType = 'workshop'; u.taskConstructId = construct.id;
             u.workshopPhase = 'process';
             u.isInside = !(CONSTRUCTS[construct.type]?.outdoor ?? false);
+        }
+    },
+
+    _autoPlaceWorkshop(u, def) {
+        const type = def.construct;
+        if (!type || !CONSTRUCTS[type]) return;
+        const cDef = CONSTRUCTS[type];
+        if (cDef.placement === 'edge') return; // edge-placed constructs need manual placement
+        const cm = this.scene.constructManager;
+        const baseTx = Math.floor(u.x / TILE);
+        const baseTy = Math.floor((u.y - MAP_OY) / TILE);
+        for (let r = 2; r <= 14; r++) {
+            for (let dx = -r; dx <= r; dx++) {
+                for (let dy = -r; dy <= r; dy++) {
+                    if (Math.abs(dx) !== r && Math.abs(dy) !== r) continue;
+                    const tx = baseTx + dx, ty = baseTy + dy;
+                    if (tx < 1 || ty < 1) continue;
+                    if (cm.isFree(tx, ty, cDef.width ?? 1, cDef.height ?? 1, type)) {
+                        cm.placeConstruct(type, tx, ty);
+                        u.role = 'builder';
+                        return;
+                    }
+                }
+            }
         }
     },
 
@@ -1456,6 +1485,10 @@ export default {
 
         // === PROCESSOR: stay at bench, consume inbox → output ===
         if (u.workshopSubrole === 'process') {
+            // Queue mode: idle if queue is empty
+            const bQueue = b.productionQueue;
+            if (Array.isArray(bQueue) && bQueue.filter(o => (o.done ?? 0) < o.qty).length === 0) return;
+
             const cx = (b.tx + b.width / 2) * TILE;
             const cy = MAP_OY + (b.ty + b.width / 2) * TILE;
             if (this.moveToward(u, cx, cy, 10, dt)) return;
@@ -1534,12 +1567,23 @@ export default {
     },
 
     _doProcessTick(u, b, def, dt) {
+        // Queue mode: stop if queue is empty or all orders done
+        const queue = b.productionQueue;
+        if (Array.isArray(queue)) {
+            while (queue.length > 0 && (queue[0].done ?? 0) >= queue[0].qty) {
+                queue.shift();
+                this.scene.uiManager.showFloatText(u.x, u.y - 20, 'Order done!', '#88ffaa');
+            }
+            if (queue.length === 0) { u.workshopPhase = 'goFetch'; return; }
+        }
+
         const attrMult = this.getAttrMult(u, ['dex', 'int']);
         const workSpeed = (1.0 + (u.skills[def.skill]?.level ?? 1) * 0.2) * attrMult * this.getRestMult(u);
         u.workProgress = (u.workProgress ?? 0) + dt * workSpeed;
         if (u.workProgress >= 3.0) {
             u.workProgress = 0;
             b.inbox[def.input] -= 1;
+            if (Array.isArray(queue) && queue.length > 0) queue[0].done = (queue[0].done ?? 0) + 1;
 
             b.dailyProduction = b.dailyProduction ?? {};
             b.dailyProduction[def.output] = (b.dailyProduction[def.output] ?? 0) + 1;

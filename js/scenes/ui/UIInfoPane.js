@@ -42,7 +42,10 @@ export default {
         }
 
         const TH   = 22;
-        const tabs = b.built ? ['Info', 'Workers', 'Inv'] : ['Info'];
+        const workshopDef = Object.values(WORKSHOP_JOBS).find(j => j.construct === b.type);
+        const tabs = b.built
+            ? (workshopDef ? ['Info', 'Queue', 'Workers', 'Inv'] : ['Info', 'Workers', 'Inv'])
+            : ['Info'];
         if (!tabs.includes(this._constructTab)) this._constructTab = 'Info';
         this._infTabBar(ox, oy, W, tabs, this._constructTab,
             t => { this._constructTab = t; this.updateUI(); });
@@ -81,9 +84,10 @@ export default {
             return;
         }
 
-        if (this._constructTab === 'Info')    this._renderConstructDetailInfo(b, def, ox, cy + 18, W, ch - 18, pad);
+        if (this._constructTab === 'Info')       this._renderConstructDetailInfo(b, def, ox, cy + 18, W, ch - 18, pad);
+        else if (this._constructTab === 'Queue')  this._renderConstructQueue(b, workshopDef, ox, cy + 18, W, ch - 18, pad);
         else if (this._constructTab === 'Workers') this._renderConstructWorkers(b, def, ox, cy + 18, W, ch - 18, pad);
-        else                                 this._renderConstructInventory(b, ox, cy + 18, W, ch - 18, pad);
+        else                                      this._renderConstructInventory(b, ox, cy + 18, W, ch - 18, pad);
     },
 
     _renderConstructDetailInfo(b, def, ox, oy, W, H, pad) {
@@ -170,6 +174,61 @@ export default {
                     () => { b.hiring = !b.hiring; this.updateUI(); });
             }
         }
+    },
+
+    _renderConstructQueue(b, jDef, ox, oy, W, H, pad) {
+        const isQueue = Array.isArray(b.productionQueue);
+        let ry = oy;
+
+        // Mode toggle
+        const btnW = (W - pad * 2 - 6) / 2;
+        this._infBtn(ox + pad, ry, btnW, 22, 'Auto',
+            isQueue ? 0x1a1810 : 0x2a4020,
+            () => { b.productionQueue = null; this.updateUI(); });
+        this._infBtn(ox + pad + btnW + 4, ry, btnW, 22, 'Queue',
+            isQueue ? 0x2a4020 : 0x1a1810,
+            () => { if (!isQueue) b.productionQueue = []; this.updateUI(); });
+        ry += 28;
+
+        const inLabel  = jDef.input.split('.').pop();
+        const outLabel = jDef.output.split('.').pop();
+        this._infTxt(ox + pad, ry, `${inLabel} → ${outLabel}`, { fontSize: this._fs(9), color: '#776655' });
+        ry += 14;
+
+        if (!isQueue) {
+            this._infTxt(ox + pad, ry, 'Auto: workers produce continuously', { fontSize: this._fs(8), color: '#554433', wordWrap: { width: W - pad * 2 } });
+            return;
+        }
+
+        // Queue list
+        const queue = b.productionQueue;
+        if (queue.length === 0) {
+            this._infTxt(ox + pad, ry, '— queue empty —', { fontSize: this._fs(9), color: '#443322' });
+            ry += 14;
+        } else {
+            for (let i = 0; i < queue.length; i++) {
+                const order = queue[i];
+                const pct = order.qty > 0 ? Math.round((order.done ?? 0) / order.qty * 100) : 0;
+                const label = `${i === 0 ? '▶ ' : '  '}${order.qty}× ${outLabel}  (${order.done ?? 0}/${order.qty})`;
+                this._infTxt(ox + pad, ry, label, { fontSize: this._fs(9), color: i === 0 ? '#c8a030' : '#776655' });
+                const rmBtn = this._infBtn(ox + W - pad - 22, ry - 1, 22, 14, '✕', 0x3a1010, () => {
+                    queue.splice(i, 1); this.updateUI();
+                });
+                ry += 15;
+            }
+        }
+
+        // Add order controls
+        if (!b._queueQty) b._queueQty = 5;
+        const qw = (W - pad * 2 - 4) / 3;
+        this._infBtn(ox + pad,            ry, qw, 22, '−', 0x221810, () => { b._queueQty = Math.max(1, (b._queueQty ?? 5) - 1); this.updateUI(); });
+        this._infTxt(ox + pad + qw + 2,   ry + 6, String(b._queueQty ?? 5), { fontSize: this._fs(11), color: '#c8a030' }).setOrigin(0.5, 0);
+        this._infBtn(ox + pad + qw * 2 + 4, ry, qw, 22, '+', 0x221810, () => { b._queueQty = Math.min(50, (b._queueQty ?? 5) + 1); this.updateUI(); });
+        ry += 26;
+        this._infBtn(ox + pad, ry, W - pad * 2 - 4, 22, `+ Add ${b._queueQty ?? 5}× ${outLabel}`, 0x1a2a10, () => {
+            queue.push({ qty: b._queueQty ?? 5, done: 0 });
+            this.updateUI();
+        });
     },
 
     _renderConstructWorkers(b, def, ox, oy, W, H, pad) {
