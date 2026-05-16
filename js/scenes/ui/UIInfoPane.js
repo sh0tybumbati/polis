@@ -1,4 +1,5 @@
 import { VET_LEVELS, CONSTRUCT_VOLUME, UNIT_NAMES, TRAITS, TILE, MAP_OY } from '../../config/gameConstants.js';
+import { CROPS } from '../../content/crops/index.js';
 import { ITEMS } from '../../content/items/index.js';
 import { WORKSHOP_JOBS } from '../../content/jobs/index.js';
 import { CONSTRUCTS, computeBuildCost } from '../../content/constructs/index.js';
@@ -452,9 +453,6 @@ export default {
                 this._infTxt(ox + pad, ry, `Rooms: ${roomStr}  (${6 - rooms.length} free)`,
                     { fontSize: this._fs(9), color: '#8a7860' });
                 ry += 13;
-            } else {
-                this._infTxt(ox + pad, ry, 'Rooms: legacy layout', { fontSize: this._fs(9), color: '#6a5840' });
-                ry += 13;
             }
         }
 
@@ -593,13 +591,13 @@ export default {
         let ry = oy;
         for (const r of rows) {
             const col = r.val > 0.5 ? r.hi : r.val > 0.25 ? 0xddaa22 : r.lo;
-            this._infTxt(ox + pad, ry + 2, r.label, { fontSize: this._fs(10), color: '#9a8870' });
-            this._infBar(ox + pad + labelW, ry + 1, bw, 9, r.val, col);
-            ry += 16;
+            this._infTxt(ox + pad, ry + 2, r.label, { fontSize: this._fs(9), color: '#c8b080' });
+            this._infBar(ox + pad + labelW, ry + 1, bw, 11, r.val, col);
+            ry += 18;
         }
         const moodCol = mood > 0.7 ? 0x88ddaa : mood > 0.4 ? 0xddcc44 : 0xcc4433;
-        this._infTxt(ox + pad, ry + 2, 'Mood', { fontSize: this._fs(10), color: '#b09870' });
-        this._infBar(ox + pad + labelW, ry + 1, bw, 9, mood, moodCol);
+        this._infTxt(ox + pad, ry + 2, 'Mood', { fontSize: this._fs(9), color: '#c8b080' });
+        this._infBar(ox + pad + labelW, ry + 1, bw, 11, mood, moodCol);
         if (u.isSleeping) this._infTxt(ox + W - pad - 4, ry + 1, '💤',
             { fontSize: this._fs(9), color: '#88aacc' }).setOrigin(1, 0);
         if ((u._grief ?? 0) > 0) this._infTxt(ox + W - pad - 4, ry + 1, `🕯 ${Math.round(u._grief * 100)}%`,
@@ -876,8 +874,40 @@ export default {
             const depositing = s.units.filter(u =>
                 u.taskType === 'deposit_zone' && zoneKeys.has(u.taskZoneKey ?? -1)
             ).length;
-            this._infTxt(ox + pad, ry, `Depositing: ${depositing}`, { fontSize: this._fs(10), color: depositing ? '#ffcc66' : '#5a5040' });
+            this._infTxt(ox + pad, ry, `Depositing: ${depositing}`, { fontSize: this._fs(9), color: depositing ? '#ffcc66' : '#5a5040' });
             ry += 14;
+
+            // Category accept filter toggles
+            const CATS = [
+                { id: 'Food.',            label: 'Food',  color: 0x336622 },
+                { id: 'Materials.Wood.',  label: 'Wood',  color: 0x6a3a14 },
+                { id: 'Materials.Stone.', label: 'Stone', color: 0x445566 },
+                { id: 'Materials.Metal.', label: 'Metal', color: 0x334466 },
+                { id: 'Textile.',         label: 'Cloth', color: 0x5a3a5a },
+                { id: 'Equipment.',       label: 'Equip', color: 0x4a3a22 },
+            ];
+            const cfg     = zm.storageTiles?.get(zm.tileKey(tx, ty));
+            const accepts = cfg?.accepts ?? [];
+            const allOn   = accepts.length === 0;
+            const catBW   = Math.floor((W - pad * 2 - CATS.length + 1) / CATS.length);
+            CATS.forEach((cat, i) => {
+                const on = allOn || accepts.includes(cat.id);
+                this._infBtn(ox + pad + i * (catBW + 1), ry, catBW, 26, cat.label,
+                    on ? cat.color : 0x181210,
+                    () => {
+                        let next;
+                        if (allOn) next = CATS.map(c => c.id).filter(id => id !== cat.id);
+                        else if (accepts.includes(cat.id)) next = accepts.filter(id => id !== cat.id);
+                        else next = [...accepts, cat.id];
+                        if (next.length === CATS.length) next = [];
+                        zm.setStorageAccepts?.(tx, ty, next);
+                        this.updateUI();
+                    });
+            });
+            ry += 30;
+            this._infTxt(ox + pad, ry, allOn ? 'Accepts: all' : `Accepts: ${accepts.map(a => a.split('.')[1] ?? a).join(', ')}`,
+                { fontSize: this._fs(8), color: '#7a6a50' });
+            ry += 13;
         }
 
         if (isGrow) {
@@ -887,11 +917,31 @@ export default {
                 zoneKeys.has(u.taskZoneKey ?? -1)
             ).length;
             const readyCount = zoneTiles.filter(t => zm.growTiles.get(zm.tileKey(t.tx, t.ty))?.slots.some(v => v >= 1)).length;
-            this._infTxt(ox + pad, ry, `Farmers: ${farming}`, { fontSize: this._fs(10), color: farming ? '#88cc88' : '#5a5040' });
-            ry += 13;
-            if (readyCount > 0)
-                this._infTxt(ox + pad, ry, `Ready to harvest: ${readyCount} tiles`, { fontSize: this._fs(9), color: '#ffdd44' });
-            ry += 13;
+            this._infTxt(ox + pad, ry, `Farmers: ${farming}${readyCount > 0 ? `  ·  ${readyCount} ready` : ''}`,
+                { fontSize: this._fs(9), color: farming ? '#88cc88' : '#5a5040' });
+            ry += 16;
+
+            // Crop picker grid (3 per row)
+            const cropBW = Math.floor((W - pad * 2 - 8) / 3);
+            let ci = 0;
+            for (const [key, crop] of Object.entries(CROPS)) {
+                const bx = ox + pad + ci * (cropBW + 4);
+                const active = key === cropKey;
+                this._infBtn(bx, ry, cropBW, 28, crop.label,
+                    active ? crop.zoneColor : Math.max(0, (crop.zoneColor & 0xfefefe) >> 1),
+                    () => {
+                        zm.setGrowZoneCrop?.(tx, ty, key);
+                        s.selectedZoneCrop = key;
+                        const { tiles: t2, cropKey: c2 } = zm.getConnectedTiles(tx, ty);
+                        zm.setSelection?.(t2, 0x88ee55);
+                        s.selectedZoneTiles = t2;
+                        s.selectedZoneCrop = c2;
+                        this.updateUI();
+                    });
+                ci++;
+                if (ci >= 3) { ci = 0; ry += 32; }
+            }
+            if (ci > 0) ry += 32;
         }
 
         if (isMarket) {
@@ -905,8 +955,8 @@ export default {
         // Determine expand mode string
         const expandMode = isGrow ? `grow:${cropKey}` : zoneType;
 
-        // Buttons
-        const btnY = oy + H - 84;
+        // Buttons — anchored below content with a small gap
+        const btnY = Math.max(ry + 4, oy + H - 78);
         this._infBtn(ox + pad, btnY, W - pad * 2, 22, '+ Expand Zone', 0x224433, () => {
             s.zoneMode      = expandMode;
             s.constructType      = null; s.roadMode  = false;

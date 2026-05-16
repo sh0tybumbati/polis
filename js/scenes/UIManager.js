@@ -41,7 +41,7 @@ export default class UIManager {
         const W = this.scene.SW, H = this.scene.SH;
         const TOP_H   = MAP_OY;
         const QB_H    = 52;
-        const SHEET_H = Math.min(Math.floor(H * 0.54), 460);
+        const SHEET_H = Math.min(Math.floor(H * 0.40), 340);
         const PANEL_H = SHEET_H + QB_H;
         const KEY_H   = 8;
         const TAB_H   = 36;
