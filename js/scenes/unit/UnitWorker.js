@@ -1370,24 +1370,31 @@ export default {
         const type = def.construct;
         if (!type || !CONSTRUCTS[type]) return;
         const cDef = CONSTRUCTS[type];
-        if (cDef.placement === 'edge') return; // edge-placed constructs need manual placement
+        if (cDef.placement === 'edge') return;
         const cm = this.scene.constructManager;
         const baseTx = Math.floor(u.x / TILE);
         const baseTy = Math.floor((u.y - MAP_OY) / TILE);
-        for (let r = 2; r <= 14; r++) {
+
+        // Only place inside an enclosed room — scan nearby tiles for one
+        for (let r = 1; r <= 20; r++) {
             for (let dx = -r; dx <= r; dx++) {
                 for (let dy = -r; dy <= r; dy++) {
                     if (Math.abs(dx) !== r && Math.abs(dy) !== r) continue;
                     const tx = baseTx + dx, ty = baseTy + dy;
                     if (tx < 1 || ty < 1) continue;
-                    if (cm.isFree(tx, ty, cDef.width ?? 1, cDef.height ?? 1, type)) {
-                        cm.placeConstruct(type, tx, ty);
-                        u.role = 'builder';
-                        return;
-                    }
+                    if (!cm.isFree(tx, ty, cDef.width ?? 1, cDef.height ?? 1, type)) continue;
+                    // Check this tile is inside an enclosed room (bounded flood-fill < maxTiles)
+                    const room = cm.getRoomAt(tx, ty, 60);
+                    if (!room || room.length < 2 || room.length > 60) continue;
+                    cm.placeConstruct(type, tx, ty);
+                    u.role = 'builder';
+                    this.scene.uiManager?.showFloatText?.(tx * TILE, MAP_OY + ty * TILE - 14,
+                        `${def.construct} placed`, '#aaddff');
+                    return;
                 }
             }
         }
+        // No enclosed room found — idle until player builds one
     },
 
     // Returns true if construct b is inside the same oikos domain as unit u's home

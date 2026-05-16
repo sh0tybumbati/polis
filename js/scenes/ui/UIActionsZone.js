@@ -63,6 +63,7 @@ export default {
 
     _getModeLabel() {
         const s = this.scene;
+        if (s.wallRectMode) return '⬜ Room · drag corner to corner · ESC to cancel';
         if (s.wallMode) {
             const def = CONSTRUCTS[s.wallType ?? 'wall_edge'];
             return `⚒ ${def?.label ?? 'Wall'} · drag edges · ESC to cancel`;
@@ -86,6 +87,7 @@ export default {
 
     _modeBarStyle() {
         const s = this.scene;
+        if (s.wallRectMode)                       return { col: 0x7799bb, bg: 0x121c28 };
         if (s.wallMode)                           return { col: 0x9999cc, bg: 0x1a1a2a };
         if (s.zoneMode === 'grow')                return { col: 0x66aa44, bg: 0x0e1e0e };
         if (s.zoneMode === 'work')                return { col: 0x4488ff, bg: 0x0e1428 };
@@ -664,6 +666,21 @@ export default {
             });
         }
 
+        // Rect wall — drag corner-to-corner to outline a room
+        items.push({
+            label: 'Room', sublabel: 'drag rect',
+            color: this.scene.wallRectMode ? 0x556688 : 0x223344,
+            active: !!this.scene.wallRectMode,
+            callback: () => {
+                this.scene.wallRectMode = !this.scene.wallRectMode;
+                this.scene.wallMode = false;
+                this.scene.constructType = null;
+                this.scene.roadMode = false;
+                this.scene.hoverGfx?.clear();
+                this.updateUI();
+            },
+        });
+
         items.push({
             label: 'Road', sublabel: '1s',
             color: this.scene.roadMode ? 0x4a5a28 : 0x2a2010,
@@ -672,6 +689,7 @@ export default {
                 this.scene.roadMode = !this.scene.roadMode;
                 this.scene.constructType = null;
                 this.scene.wallMode = false;
+                this.scene.wallRectMode = false;
                 this.scene.hoverGfx?.clear();
                 this.updateUI();
             },

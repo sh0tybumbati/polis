@@ -34,6 +34,10 @@ export default class InputManager {
                     const edge = s.constructManager.nearestEdge(ptr.worldX, ptr.worldY);
                     s._wallDragErasing = edge ? !!s.constructManager.getWall(edge.isH, edge.row, edge.col) : false;
                 }
+                if (s.wallRectMode) {
+                    const t = s.tileAt(ptr.worldX, ptr.worldY);
+                    s._wallRectStart = t ? { tx: t.tx, ty: t.ty } : null;
+                }
                 if (s.zoneMode) {
                     s._zoneDragTiles.clear();
                     const t = s.tileAt(ptr.worldX, ptr.worldY);
@@ -97,6 +101,13 @@ export default class InputManager {
                     }
                 } else {
                     this._drawWallGhost(ptr);
+                }
+            } else if (s.wallRectMode && !isUI) {
+                const t = s.tileAt(ptr.worldX, ptr.worldY);
+                if (ptr.isDown && s._wallRectStart && t) {
+                    this._drawWallRectGhost(s._wallRectStart, t);
+                } else if (!ptr.isDown && t) {
+                    this._drawWallRectGhost({ tx: t.tx, ty: t.ty }, { tx: t.tx, ty: t.ty });
                 }
             } else if (s.zoneMode && !isUI) {
                 if (ptr.isDown && s._zoneDragStart) {
@@ -232,6 +243,13 @@ export default class InputManager {
                 }
                 return;
             }
+            if (s.wallRectMode) {
+                const t = s.tileAt(wx, wy);
+                if (t && s._wallRectStart) this._commitWallRect(s._wallRectStart, t);
+                s._wallRectStart = null;
+                s.hoverGfx?.clear();
+                return;
+            }
             if (s.wallMode) {
                 // Drag already painted; single tap on a fresh edge also paints
                 if (s._wallDragEdges.size === 0) {
@@ -339,7 +357,7 @@ export default class InputManager {
             cam.setZoom(Phaser.Math.Clamp(cam.zoom * (dy > 0 ? 0.9 : 1.1), 0.3, 3));
         });
 
-        s.input.keyboard?.on('keydown-ESC', () => { s.constructType = null; s.roadMode = false; s.wallMode = false; s.constructMode = false; s.placementType = null; s.relocateMode = false; s.relocateSrc = null; s.selectedConstruct = null; s.zoneMode = null; s._zoneDragStart = null; s.selectedZoneTile = null; s.selectedZoneTiles = null; s.selectedZoneType = null; s.selectedZoneCrop = null; s.zoneManager?.clearSelection(); s.deselect(); s.selectedConstruct = null; s.hoverGfx.clear(); s.updateUI(); });
+        s.input.keyboard?.on('keydown-ESC', () => { s.constructType = null; s.roadMode = false; s.wallMode = false; s.wallRectMode = false; s._wallRectStart = null; s.constructMode = false; s.placementType = null; s.relocateMode = false; s.relocateSrc = null; s.selectedConstruct = null; s.zoneMode = null; s._zoneDragStart = null; s.selectedZoneTile = null; s.selectedZoneTiles = null; s.selectedZoneType = null; s.selectedZoneCrop = null; s.zoneManager?.clearSelection(); s.deselect(); s.selectedConstruct = null; s.hoverGfx.clear(); s.updateUI(); });
         s.input.keyboard?.on('keydown-A', () => s.units.filter(u => !u.isEnemy).forEach(u => s.selectUnit(u.id, true)));
         s.input.keyboard?.on('keydown-F', () => { const sel = s.units.filter(u => u.selected && !u.isEnemy); if (sel.length) s.moveSelectedTo((s.spawnTx ?? 0) * TILE, MAP_OY + (s.spawnTy ?? 0) * TILE); });
         s.input.keyboard?.on('keydown-BACKTICK', () => s.scene.launch('SpriteEditorScene'));
@@ -377,6 +395,50 @@ export default class InputManager {
         if (isH) s.hoverGfx.fillRect(px, py - W / 2, TILE, W);
         else     s.hoverGfx.fillRect(px - W / 2, py, W, TILE);
     }
+
+    _drawWallRectGhost(start, end) {
+        const s = this.scene;
+        const x1 = Math.min(start.tx, end.tx), x2 = Math.max(start.tx, end.tx);
+        const y1 = Math.min(start.ty, end.ty), y2 = Math.max(start.ty, end.ty);
+        const wallType = s.wallType ?? 'wall_edge';
+        const wallMat  = s.constructMaterials?.[wallType] ?? CONSTRUCTS[wallType]?.allowedMaterials?.[0] ?? 'Materials.Stone.Limestone';
+        const col = s.constructManager.getMaterialColor(wallMat);
+        const W = 6;
+        s.hoverGfx.clear().fillStyle(col, 0.6);
+        // Top & bottom horizontal edges
+        for (let tx = x1; tx <= x2; tx++) {
+            s.hoverGfx.fillRect(tx * TILE, MAP_OY + y1 * TILE - W / 2, TILE, W);
+            s.hoverGfx.fillRect(tx * TILE, MAP_OY + (y2 + 1) * TILE - W / 2, TILE, W);
+        }
+        // Left & right vertical edges
+        for (let ty = y1; ty <= y2; ty++) {
+            s.hoverGfx.fillRect(x1 * TILE - W / 2, MAP_OY + ty * TILE, W, TILE);
+            s.hoverGfx.fillRect((x2 + 1) * TILE - W / 2, MAP_OY + ty * TILE, W, TILE);
+        }
+        // Size label
+        const w = x2 - x1 + 1, h = y2 - y1 + 1;
+        const cx = (x1 + x2 + 1) / 2 * TILE, cy = MAP_OY + (y1 + y2 + 1) / 2 * TILE;
+        s.hoverGfx.fillStyle(0x000000, 0.55).fillRect(cx - 20, cy - 8, 40, 16);
+        // (text drawn as world text would need separate object — skip for now, size is visible from grid)
+    },
+
+    _commitWallRect(start, end) {
+        const s = this.scene;
+        const cm = s.constructManager;
+        const x1 = Math.min(start.tx, end.tx), x2 = Math.max(start.tx, end.tx);
+        const y1 = Math.min(start.ty, end.ty), y2 = Math.max(start.ty, end.ty);
+        // Top & bottom horizontal walls
+        for (let tx = x1; tx <= x2; tx++) {
+            cm.placeWall(true, y1, tx);
+            cm.placeWall(true, y2 + 1, tx);
+        }
+        // Left & right vertical walls
+        for (let ty = y1; ty <= y2; ty++) {
+            cm.placeWall(false, ty, x1);
+            cm.placeWall(false, ty, x2 + 1);
+        }
+        cm.renderWalls();
+    },
 
     _applyZonePaint(tx, ty) {
         const s = this.scene;
