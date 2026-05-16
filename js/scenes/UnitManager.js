@@ -552,6 +552,12 @@ export default class UnitManager {
             if (pick === 0) { u.targetNode = null; return; }
 
             n.stock -= pick; u.carrying[res] += pick;
+
+            // Greece civ bonus: olive groves yield 40% extra
+            if (this.scene.civ === 'greece' && (n.type === 'olive_grove' || n.type === 'wild_garden') && res === 'Food.Produce.Olive') {
+                u.carrying[res] += Math.max(1, Math.floor(pick * 0.4));
+            }
+
             this.scene.mapManager.redrawNode(n);
 
             // Track daily production for resource nodes

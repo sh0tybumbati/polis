@@ -21,7 +21,8 @@ export default class GameScene extends Phaser.Scene {
         super({ key: SCENE_KEYS.GAME });
     }
 
-    init() {
+    init(data) {
+        this.civ = data?.civ ?? 'greece';
         // Core State
         this.mapData    = new Map();   // occupancy: "tx,ty" → value (0/98/99)
         this.roadMap    = new Map();   // road layer: "tx,ty" → ROAD_* constant
@@ -440,7 +441,28 @@ export default class GameScene extends Phaser.Scene {
         this.redrawUnit(consort);
         this.showFloatText(sx + 12, sy - 20, `${consort.name}, Consort`, '#ffeecc');
 
+        this._applyCivBonus(camp, mx, by);
         this.updateUI();
+    }
+
+    _applyCivBonus(camp, mx, by) {
+        if (this.civ === 'greece') {
+            camp.inventory['Food.Produce.Olive'] = (camp.inventory['Food.Produce.Olive'] ?? 0) + 6;
+            camp.inventory['Food.Produce.Berry'] = (camp.inventory['Food.Produce.Berry'] ?? 0) + 4;
+            // Place a built agora nearby
+            const agora = this.placeBuiltConstruct('agora', mx + 4, by - 2);
+            if (agora) agora.isPublic = true;
+            this.showFloatText((mx + 6) * TILE, MAP_OY + by * TILE, 'Hellas: Agora raised', '#9ecfff');
+        } else if (this.civ === 'sumer') {
+            camp.inventory['Food.Grain.Wheat'] = (camp.inventory['Food.Grain.Wheat'] ?? 0) + 12;
+            camp.inventory['Materials.Wood.Pine.Sticks'] = (camp.inventory['Materials.Wood.Pine.Sticks'] ?? 0) + 8;
+            // Place a grain silo nearby
+            const silo = this.placeBuiltConstruct('grainsilo', mx + 4, by);
+            if (silo) silo.isPublic = true;
+            this.showFloatText((mx + 6) * TILE, MAP_OY + by * TILE, 'Sumer: Grain silo raised', '#ffd080');
+        }
+        this.constructManager.updateStorageCap();
+        this.economyManager.syncResources();
     }
 
     update(time, delta) {

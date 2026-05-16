@@ -38,7 +38,7 @@ export default class MenuScene extends Phaser.Scene {
 
     _startNew() {
         localStorage.removeItem('epochs_save');
-        this.scene.start(SCENE_KEYS.GAME);
+        this.scene.launch(SCENE_KEYS.CIV_SELECT);
     }
 
     _continue() {

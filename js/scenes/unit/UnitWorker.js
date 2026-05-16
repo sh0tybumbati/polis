@@ -817,9 +817,11 @@ export default {
             if (pick === 0) { u.taskType = null; return; }
 
             b.stock -= pick;
-            u.carrying['Food.Grain.Wheat'] += pick;
+            // Sumer civ bonus: 25% extra grain on harvest
+            const wheatPick = this.scene.civ === 'sumer' ? pick + Math.max(1, Math.floor(pick * 0.25)) : pick;
+            u.carrying['Food.Grain.Wheat'] += wheatPick;
             b.dailyProduction = b.dailyProduction ?? {};
-            b.dailyProduction['Food.Grain.Wheat'] = (b.dailyProduction['Food.Grain.Wheat'] ?? 0) + pick;
+            b.dailyProduction['Food.Grain.Wheat'] = (b.dailyProduction['Food.Grain.Wheat'] ?? 0) + wheatPick;
             this._gainSkillXp(u, 'farming');
             // Redraw full construct graphic when a crop row boundary is crossed
             const rows = b.maxStock > 0 ? Math.round(b.stock / b.maxStock * 5) : 0;
@@ -965,7 +967,9 @@ export default {
         if (this.moveToward(u, cx, cy, 18, dt)) return;
 
         if (!u.needs) u.needs = { food: 0.8, rest: 1, social: 0.8, joy: 0.8 };
-        u.needs.joy    = Math.min(1.0, (u.needs.joy    ?? 0.5) + dt * 0.018);
+        // Greece civ bonus: 40% faster joy recovery from leisure
+        const joyRate = this.scene.civ === 'greece' ? 0.0252 : 0.018;
+        u.needs.joy    = Math.min(1.0, (u.needs.joy    ?? 0.5) + dt * joyRate);
         u.needs.social = Math.min(1.0, (u.needs.social ?? 0.5) + dt * 0.010);
         u.workProgress = (u.workProgress ?? 0) + dt;
 

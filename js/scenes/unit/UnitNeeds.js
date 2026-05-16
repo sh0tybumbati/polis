@@ -84,7 +84,9 @@ export default {
 
         // Food decays while awake; restored by eating
         // Rate: empties in ~3 full day/night cycles (9 min real time)
-        if (!u.isSleeping) n.food = Math.max(0, n.food - dt * 0.0019);
+        // Sumer civ bonus: 20% slower food decay
+        const foodDecay = this.scene.civ === 'sumer' ? 0.00152 : 0.0019;
+        if (!u.isSleeping) n.food = Math.max(0, n.food - dt * foodDecay);
 
         // Rest: decays while awake, recovers while sleeping
         // Passed-out sleep recovers at 35% rate and applies a joy penalty on wake

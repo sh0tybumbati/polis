@@ -4,6 +4,7 @@ import { SCENE_KEYS } from './config/sceneKeys.js';
 // Import scene classes
 import BootScene        from './scenes/BootScene.js';
 import MenuScene        from './scenes/MenuScene.js';
+import CivSelectScene   from './scenes/CivSelectScene.js';
 import GameScene        from './scenes/GameScene.js';
 import EndScene         from './scenes/EndScene.js';
 import SpriteEditorScene from './scenes/SpriteEditorScene.js';
@@ -18,6 +19,7 @@ const game = new Phaser.Game({
   scene: [ // Register scenes using imported classes
     BootScene,
     MenuScene,
+    CivSelectScene,
     GameScene,
     EndScene,
     SpriteEditorScene,
