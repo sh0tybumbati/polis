@@ -367,18 +367,30 @@ export default {
 
         let ry = oy;
         const drawMember = (u, indent) => {
-            if (ry > oy + H - 20) return;
+            if (ry > oy + H - 22) return;
             const gIcon = u.gender === 'female' ? '♀' : '♂';
             const gCol  = u.gender === 'female' ? '#cc88aa' : '#88aacc';
             const isHeir = u === heir;
-            const nameStr = (u.name ?? '?').slice(0, 8) + (isHeir ? '★' : '');
+            const nameStr = (u.name ?? '?').slice(0, 10) + (isHeir ? '★' : '');
+            const moodPct = Math.round((u.mood ?? 1) * 100);
+            const moodCol = moodPct > 70 ? '#88cc88' : moodPct > 40 ? '#ddcc44' : '#cc5544';
             this._infTxt(ox + pad + indent, ry, gIcon, { fontSize: this._fs(9), color: gCol });
-            this._infTxt(ox + pad + indent + 9, ry, nameStr,
-                { fontSize: this._fs(9), color: isHeir ? '#ffdd88' : '#c4b88a' });
-            this._infPhenotype(ox + W - pad - 30, ry, u.phenotype);
-            this._infTxt(ox + pad + indent + 9, ry + 9, this._attrLine(u.attributes),
-                { fontSize: this._fs(9), color: '#7a6850' });
-            ry += 20;
+            this._infTxt(ox + pad + indent + 10, ry, nameStr,
+                { fontSize: this._fs(10), color: isHeir ? '#ffdd88' : '#d4c89a' });
+            this._infTxt(ox + W - pad - 2, ry, `${moodPct}%`,
+                { fontSize: this._fs(9), color: moodCol }).setOrigin(1, 0);
+            this._infPhenotype(ox + W - pad - 34, ry, u.phenotype);
+            ry += 13;
+            const roleStr = u.role ? u.role[0].toUpperCase() + u.role.slice(1) : 'Idle';
+            const attrStr = this._attrLine(u.attributes);
+            this._infTxt(ox + pad + indent + 10, ry, `${roleStr}  ${attrStr}`,
+                { fontSize: this._fs(8), color: '#7a6850' });
+            if ((u.traits ?? []).length) {
+                const traitStr = u.traits.map(t => TRAITS[t]?.label ?? t).slice(0, 2).join(' · ');
+                this._infTxt(ox + W - pad - 2, ry, traitStr,
+                    { fontSize: this._fs(8), color: '#8878a0' }).setOrigin(1, 0);
+            }
+            ry += 14;
         };
 
         for (const pair of coupleRows) {
@@ -580,7 +592,7 @@ export default {
     _renderUnitNeeds(u, ox, oy, W, H, pad) {
         const needs = u.needs ?? { food: 1, rest: 1, social: 1, joy: 1 };
         const mood  = u.mood  ?? 1;
-        const labelW = 40;
+        const labelW = 52;
         const bw     = W - pad * 2 - labelW - 4;
         const rows   = [
             { label: 'Food',   val: needs.food,   hi: 0x66bb44, lo: 0xcc3311 },
@@ -588,16 +600,16 @@ export default {
             { label: 'Social', val: needs.social, hi: 0xaa66cc, lo: 0x664488 },
             { label: 'Joy',    val: needs.joy,    hi: 0xddaa22, lo: 0x886611 },
         ];
-        let ry = oy;
+        let ry = oy + 2;
         for (const r of rows) {
             const col = r.val > 0.5 ? r.hi : r.val > 0.25 ? 0xddaa22 : r.lo;
-            this._infTxt(ox + pad, ry + 2, r.label, { fontSize: this._fs(9), color: '#c8b080' });
-            this._infBar(ox + pad + labelW, ry + 1, bw, 11, r.val, col);
-            ry += 18;
+            this._infTxt(ox + pad, ry + 2, r.label, { fontSize: this._fs(9), color: '#e8d4a0', stroke: '#000000', strokeThickness: 1 });
+            this._infBar(ox + pad + labelW, ry + 1, bw, 13, r.val, col);
+            ry += 20;
         }
         const moodCol = mood > 0.7 ? 0x88ddaa : mood > 0.4 ? 0xddcc44 : 0xcc4433;
-        this._infTxt(ox + pad, ry + 2, 'Mood', { fontSize: this._fs(9), color: '#c8b080' });
-        this._infBar(ox + pad + labelW, ry + 1, bw, 11, mood, moodCol);
+        this._infTxt(ox + pad, ry + 2, 'Mood', { fontSize: this._fs(9), color: '#e8d4a0', stroke: '#000000', strokeThickness: 1 });
+        this._infBar(ox + pad + labelW, ry + 1, bw, 13, mood, moodCol);
         if (u.isSleeping) this._infTxt(ox + W - pad - 4, ry + 1, '💤',
             { fontSize: this._fs(9), color: '#88aacc' }).setOrigin(1, 0);
         if ((u._grief ?? 0) > 0) this._infTxt(ox + W - pad - 4, ry + 1, `🕯 ${Math.round(u._grief * 100)}%`,
@@ -758,13 +770,14 @@ export default {
             { role: 'shepherd',   label: '🐑 Herd',   color: 0x445533 },
             { role: 'hunter',     label: '🏹 Hunt',   color: 0x553322 },
         ];
-        const cols = 2;
-        const btnW = Math.floor((W - pad * 2 - 4 - (cols - 1) * 4) / cols);
-        const btnH = 32;
+        const cols = 3;
+        const gap  = 3;
+        const btnW = Math.floor((W - pad * 2 - gap * (cols - 1)) / cols);
+        const btnH = 30;
         let ry = oy + 4;
         ROLES.forEach((r, i) => {
             const col = i % cols;
-            const bx  = ox + pad + col * (btnW + 4);
+            const bx  = ox + pad + col * (btnW + gap);
             const active = workers.length > 0 && workers.every(u => u.role === r.role);
             this._infBtn(bx, ry, btnW, btnH, r.label,
                 active ? r.color + 0x111111 : r.color,
@@ -773,10 +786,11 @@ export default {
                     s.deselect?.();
                     this.updateUI();
                 });
-            if (col === cols - 1) ry += btnH + 4;
+            if (col === cols - 1) ry += btnH + gap;
         });
-        if (workers.some(u => u.role) && ry < oy + H - btnH) {
-            ry += 4;
+        // partial last row — advance ry if needed
+        if (ROLES.length % cols !== 0) ry += btnH + gap;
+        if (workers.some(u => u.role) && ry < oy + H - 28) {
             this._infBtn(ox + pad, ry, W - pad * 2 - 4, 26, 'Clear Role', 0x2a1a10, () => {
                 workers.forEach(u => { u.role = null; u.taskType = null; });
                 this.updateUI();
