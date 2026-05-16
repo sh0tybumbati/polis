@@ -153,6 +153,7 @@ export default {
     _getNeedIcon(u) {
         const n = u.needs;
         if (!n) return null;
+        if ((u._grief ?? 0) > 0.4) return '🕯';
         if ((n.food ?? 1) < 0.12) return '🍖';
         if ((n.rest ?? 1) < 0.12) return '😴';
         if ((n.social ?? 1) < 0.10) return '💬';

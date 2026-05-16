@@ -390,7 +390,27 @@ export default class UnitManager {
             if (!u.isEnemy && u.type === 'worker') {
                 if (u.spouseId) {
                     const spouse = this.scene.units.find(s => s.id === u.spouseId);
-                    if (spouse) spouse.spouseId = null;
+                    if (spouse) {
+                        spouse.spouseId = null;
+                        spouse._widowed = true;
+                        const title = spouse.gender === 'female' ? 'widow' : 'widower';
+                        this.scene.uiManager?.showFloatText?.(spouse.x, spouse.y - 24,
+                            `${spouse.name} is a ${title}`, '#bbaacc');
+                    }
+                }
+                // Propagate grief to all units who knew the deceased
+                const deadName = u.name ?? 'them';
+                for (const w of this.scene.units) {
+                    if (w === u || w.isEnemy || w.hp <= 0) continue;
+                    const rel = w.relations?.[u.id] ?? 0;
+                    if (rel <= 0.08) continue;
+                    const strength = Math.min(1, rel * 0.9);
+                    w._grief = Math.min(1, (w._grief ?? 0) + strength);
+                    if (strength > 0.3) {
+                        this.scene.uiManager?.showFloatText?.(w.x, w.y - 20,
+                            `mourning ${deadName}`, '#9988aa');
+                    }
+                    delete (w.relations ?? {})[u.id];
                 }
                 this.handleSuccession(u);
             }

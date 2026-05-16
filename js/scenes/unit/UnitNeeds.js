@@ -137,12 +137,13 @@ export default {
             n.joy = Math.min(1.0, n.joy + dt * 0.003);
         }
 
-        // Mood: weighted needs + small relations modifier
+        // Mood: weighted needs + relations bonus − grief penalty
         const relVals = Object.values(u.relations ?? {});
         const relBonus = relVals.length
             ? relVals.reduce((a, b) => a + b, 0) / relVals.length * 0.05 : 0;
+        const griefPenalty = (u._grief ?? 0) * 0.28;
         u.mood = Math.max(0, Math.min(1,
-            n.food * 0.35 + n.rest * 0.28 + n.social * 0.20 + n.joy * 0.12 + relBonus));
+            n.food * 0.35 + n.rest * 0.28 + n.social * 0.20 + n.joy * 0.12 + relBonus - griefPenalty));
 
         // Starvation: food=0 drains HP; warn every 8s
         if (n.food <= 0 && !u.isSleeping) {

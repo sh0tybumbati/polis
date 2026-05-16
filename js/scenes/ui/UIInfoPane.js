@@ -576,7 +576,14 @@ export default {
         this._infBar(ox + pad + 36, ry, bw, 6, mood, moodCol);
         if (u.isSleeping) this._infTxt(ox + W - pad - 4, ry + 1, '💤',
             { fontSize: this._fs(9), color: '#88aacc' }).setOrigin(1, 0);
+        if ((u._grief ?? 0) > 0) this._infTxt(ox + W - pad - 4, ry + 1, `🕯 ${Math.round(u._grief * 100)}%`,
+            { fontSize: this._fs(9), color: '#9988aa' }).setOrigin(1, 0);
         ry += 16;
+        if (u._widowed) {
+            this._infTxt(ox + pad, ry, u.gender === 'female' ? '🖤 Widow' : '🖤 Widower',
+                { fontSize: this._fs(9), color: '#886699' });
+            ry += 12;
+        }
 
         const curW = this.scene.unitManager.getUnitCarryWeight(u);
         const maxW = this.scene.unitManager.getUnitMaxWeight(u);

@@ -370,6 +370,8 @@ export default class WorldManager {
         }
         this._tickGestation();
         this.checkReproduction();
+        this._decayGrief();
+        this.checkMarriage();
         this.checkApplianceDesires();
         this.autoRepairHomes();
         this.applyEquipmentUpgrades();
@@ -402,6 +404,51 @@ export default class WorldManager {
                 u._gestationDays = 3;
                 this.scene.uiManager?.showFloatText?.(u.x, u.y - 20, `${u.name} is expecting`, '#ffddff');
             }
+        }
+    }
+
+    _decayGrief() {
+        for (const u of this.scene.units) {
+            if (!(u._grief > 0)) continue;
+            u._grief = Math.max(0, u._grief - 0.11); // fades over ~9 nights
+            if (u._grief === 0) u._widowed = false;  // fully healed
+        }
+    }
+
+    checkMarriage() {
+        const units = this.scene.units;
+        const eligible = units.filter(u =>
+            u.type === 'worker' && u.age >= 2 && !u.spouseId && !u.isEnemy && u.hp > 0 && !(u._grief > 0.4));
+
+        const males   = eligible.filter(u => u.gender === 'male');
+        const females = eligible.filter(u => u.gender === 'female');
+        const usedMaleIds = new Set();
+
+        for (const f of females) {
+            let bestMale = null, bestScore = 0.55;
+            for (const m of males) {
+                if (usedMaleIds.has(m.id)) continue;
+                const score = f.relations?.[m.id] ?? 0;
+                if (score > bestScore) { bestScore = score; bestMale = m; }
+            }
+            if (!bestMale) continue;
+
+            f.spouseId = bestMale.id;
+            bestMale.spouseId = f.id;
+            usedMaleIds.add(bestMale.id);
+
+            // Boost and cross-seed relation
+            f.relations[bestMale.id] = Math.min(1, bestScore + 0.1);
+            bestMale.relations = bestMale.relations ?? {};
+            bestMale.relations[f.id] = Math.min(1, (bestMale.relations[f.id] ?? bestScore) + 0.1);
+
+            // Female takes male's family name if she has none
+            if (!f.familyName && bestMale.familyName) f.familyName = bestMale.familyName;
+
+            const midX = (f.x + bestMale.x) / 2;
+            const midY = Math.min(f.y, bestMale.y) - 20;
+            this.scene.uiManager?.showFloatText?.(midX, midY,
+                `♥ ${f.name} & ${bestMale.name} wed`, '#ffaabb');
         }
     }
 
