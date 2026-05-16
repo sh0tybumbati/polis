@@ -14,6 +14,7 @@ export default {
         if (u.age < 2) { this.tickChild(u, dt); return; }
 
         this._tickNeeds(u, dt);
+        this._tickRelations(u, dt);
 
         // Wage collection: once per night phase (economic mechanic, keep phase-gated)
         if (this.scene.phase === 'NIGHT' && !u._wageCollected && u.taskType !== 'garrison') {

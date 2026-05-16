@@ -437,6 +437,8 @@ export default class GameScene extends Phaser.Scene {
         const founderFamily = pickFamilyName(this.civ);
         founder.familyName = founderFamily;
         consort.familyName = founderFamily;
+        founder.relations = { [consort.id]: 0.6 };
+        consort.relations = { [founder.id]: 0.6 };
         if (consort.attributes) {
             for (const k of Object.keys(consort.attributes))
                 consort.attributes[k] = Math.min(10, consort.attributes[k] + 1);

@@ -579,6 +579,7 @@ export default class WorldManager {
         male.spouseId = female.id; female.spouseId = male.id;
         const mFamilyName = pickFamilyName(this.scene.civ ?? 'greece');
         male.familyName = mFamilyName; female.familyName = mFamilyName;
+        male.relations = { [female.id]: 0.6 }; female.relations = { [male.id]: 0.6 };
         this.scene.unitManager.redrawUnit(male);
         this.scene.unitManager.redrawUnit(female);
 

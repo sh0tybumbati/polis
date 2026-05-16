@@ -114,12 +114,17 @@ export default {
             n.rest = Math.max(0, n.rest - dt * 0.0028);
         }
 
-        // Social: decays slowly; partially recovered by proximity to other villagers
-        const nearby = this.scene.units.filter(w =>
+        // Social: recovery weighted by relationship quality with nearby units
+        const nearbyUnits = this.scene.units.filter(w =>
             w !== u && !w.isEnemy && w.hp > 0 &&
-            Phaser.Math.Distance.Between(u.x, u.y, w.x, w.y) < 64).length;
-        if (nearby > 0) {
-            n.social = Math.min(1.0, n.social + dt * 0.004 * Math.min(nearby, 3));
+            Phaser.Math.Distance.Between(u.x, u.y, w.x, w.y) < 64);
+        if (nearbyUnits.length > 0) {
+            let rate = 0;
+            for (const w of nearbyUnits) {
+                const rel = u.relations?.[w.id] ?? 0;
+                rate += 0.004 + rel * 0.003; // liked: ~0.007, neutral: 0.004, disliked: ~0.001
+            }
+            n.social = Math.min(1.0, n.social + dt * Math.min(rate, 0.014));
         } else {
             n.social = Math.max(0, n.social - dt * 0.0012);
         }
@@ -132,8 +137,12 @@ export default {
             n.joy = Math.min(1.0, n.joy + dt * 0.003);
         }
 
-        // Mood: weighted average of needs
-        u.mood = n.food * 0.35 + n.rest * 0.30 + n.social * 0.20 + n.joy * 0.15;
+        // Mood: weighted needs + small relations modifier
+        const relVals = Object.values(u.relations ?? {});
+        const relBonus = relVals.length
+            ? relVals.reduce((a, b) => a + b, 0) / relVals.length * 0.05 : 0;
+        u.mood = Math.max(0, Math.min(1,
+            n.food * 0.35 + n.rest * 0.28 + n.social * 0.20 + n.joy * 0.12 + relBonus));
 
         // Starvation: food=0 drains HP; warn every 8s
         if (n.food <= 0 && !u.isSleeping) {
@@ -274,5 +283,36 @@ export default {
             if (score > bestScore) { bestScore = score; best = jobId; }
         }
         u.vocation = best;
+    },
+
+    _tickRelations(u, dt) {
+        if (!u.relations) u.relations = {};
+        u._relTimer = (u._relTimer ?? 0) + dt;
+        if (u._relTimer < 4000) return; // update every 4 real seconds
+        u._relTimer = 0;
+
+        // All relations drift slowly toward neutral (memory fades without contact)
+        for (const id of Object.keys(u.relations)) {
+            u.relations[id] *= 0.996;
+            if (Math.abs(u.relations[id]) < 0.005) delete u.relations[id];
+        }
+
+        for (const w of this.scene.units) {
+            if (w === u || w.isEnemy || w.hp <= 0 || w.type !== 'worker') continue;
+            const dist = Phaser.Math.Distance.Between(u.x, u.y, w.x, w.y);
+            let nudge = 0;
+
+            if (dist < 80)                                      nudge += 0.008; // proximity
+            if (u.homeConstructId && u.homeConstructId === w.homeConstructId) nudge += 0.005; // housemate
+            if (u.spouseId === w.id)                            nudge += 0.010; // spouse
+            if (u.fatherId === w.id || u.motherId === w.id)     nudge += 0.006; // parent
+            if (w.fatherId === u.id || w.motherId === u.id)     nudge += 0.006; // child
+
+            // Miserable units are unpleasant to be around
+            if ((w.mood ?? 1) < 0.25) nudge -= 0.012;
+
+            if (nudge === 0) continue;
+            u.relations[w.id] = Math.max(-1, Math.min(1, (u.relations[w.id] ?? 0) + nudge));
+        }
     },
 };

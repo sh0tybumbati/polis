@@ -611,6 +611,25 @@ export default {
         div.lineStyle(1, 0x3a3020, 0.4).lineBetween(ox + pad, ry, ox + W - pad, ry);
         ry += 6;
 
+        // Relations
+        const relEntries = Object.entries(u.relations ?? {})
+            .map(([id, score]) => ({ u: this.scene.units.find(w => w.id === +id), score }))
+            .filter(r => r.u && Math.abs(r.score) > 0.05)
+            .sort((a, b) => b.score - a.score);
+        if (relEntries.length) {
+            const relDiv = this._inf(this.scene.add.graphics().setDepth(22));
+            relDiv.lineStyle(1, 0x3a3020, 0.4).lineBetween(ox + pad, ry, ox + W - pad, ry);
+            ry += 5;
+            for (const r of relEntries.slice(0, 4)) {
+                const bar = r.score > 0 ? '▌'.repeat(Math.round(r.score * 4)) : '▌'.repeat(Math.round(-r.score * 4));
+                const col = r.score > 0.3 ? '#88cc88' : r.score < -0.3 ? '#cc6666' : '#aaa880';
+                const rName = [r.u.name, r.u.familyName].filter(Boolean).join(' ').slice(0, 13);
+                this._infTxt(ox + pad, ry, `${rName} ${bar}`, { fontSize: this._fs(9), color: col });
+                ry += 12;
+            }
+            ry += 2;
+        }
+
         const fa         = u.fatherId ? this.scene.units.find(p => p.id === u.fatherId) : null;
         const mo         = u.motherId ? this.scene.units.find(p => p.id === u.motherId) : null;
         const spouse     = u.spouseId ? this.scene.units.find(p => p.id === u.spouseId) : null;

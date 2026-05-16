@@ -131,6 +131,7 @@ export default class UnitManager {
             taskStack: [],
             // Genealogy
             fatherId: null, motherId: null, spouseId: null, familyName: null,
+            relations: {},
             attributes, phenotype, passions,
             skills: emptySkills(),
             workProgress: 0,
@@ -167,6 +168,23 @@ export default class UnitManager {
         child.carryMax = 3 + Math.round(child.attributes.str / 2);
 
         this._applyRareTraits(child);
+
+        // Seed family relations
+        child.relations = { [father.id]: 0.5, [mother.id]: 0.5 };
+        father.relations = father.relations ?? {};
+        father.relations[child.id] = 0.5;
+        mother.relations = mother.relations ?? {};
+        mother.relations[child.id] = 0.5;
+        // Siblings: seed mild positive relation with existing children in the same home
+        for (const sib of this.scene.units) {
+            if (sib === child || sib.type !== 'worker') continue;
+            if (sib.fatherId === father.id || sib.motherId === mother.id) {
+                child.relations[sib.id] = 0.3;
+                sib.relations = sib.relations ?? {};
+                sib.relations[child.id] = 0.3;
+            }
+        }
+
         this.redrawUnit(child);  // re-draw with age:0 size after overriding attributes
         const bornName = [child.name, child.familyName].filter(Boolean).join(' ');
         this.scene.uiManager.showFloatText(cx, cy - 16, `${bornName} born!`, '#ffeeaa');
