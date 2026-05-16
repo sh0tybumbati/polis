@@ -420,7 +420,7 @@ export default class InputManager {
         const cx = (x1 + x2 + 1) / 2 * TILE, cy = MAP_OY + (y1 + y2 + 1) / 2 * TILE;
         s.hoverGfx.fillStyle(0x000000, 0.55).fillRect(cx - 20, cy - 8, 40, 16);
         // (text drawn as world text would need separate object — skip for now, size is visible from grid)
-    },
+    }
 
     _commitWallRect(start, end) {
         const s = this.scene;
@@ -438,7 +438,7 @@ export default class InputManager {
             cm.placeWall(false, ty, x2 + 1);
         }
         cm.renderWalls();
-    },
+    }
 
     _applyZonePaint(tx, ty) {
         const s = this.scene;
