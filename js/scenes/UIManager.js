@@ -39,14 +39,14 @@ export default class UIManager {
 
     _computeLayout() {
         const W = this.scene.SW, H = this.scene.SH;
-        const PANEL_H = Math.min(340, Math.max(240, Math.floor(H * 0.30)));
-        const TOP_H   = MAP_OY;   // must match MAP_OY so camera bounds align
-        const KEY_H   = 10;   // decorative border strip
-        const TAB_H   = 26;   // category tab row inside actions zone
+        const PANEL_H = Math.min(440, Math.max(320, Math.floor(H * 0.42)));
+        const TOP_H   = MAP_OY;
+        const KEY_H   = 10;
+        const TAB_H   = 34;   // bigger tap targets
         const panelY  = H - PANEL_H;
-        const INFO_W  = Math.floor(W * 0.30);
-        const MM_W    = Math.floor(W * 0.28);
-        const ACT_W   = W - INFO_W - MM_W;
+        const MM_W    = 0;    // minimap removed from split — use main view panning
+        const INFO_W  = Math.floor(W * 0.42);
+        const ACT_W   = W - INFO_W;
         return { W, H, PANEL_H, TOP_H, KEY_H, TAB_H, panelY, INFO_W, MM_W, ACT_W };
     }
 
@@ -159,10 +159,9 @@ export default class UIManager {
         // Greek-key-inspired top border
         this._drawKeyBorder(g, 0, panelY, W, KEY_H);
 
-        // Zone dividers
+        // Single divider between info pane and actions zone
         g.lineStyle(1, 0x5a3f0e, 0.7)
-            .lineBetween(INFO_W,          panelY + KEY_H + 2, INFO_W,          H - 2)
-            .lineBetween(INFO_W + MM_W,   panelY + KEY_H + 2, INFO_W + MM_W,   H - 2);
+            .lineBetween(INFO_W, panelY + KEY_H + 2, INFO_W, H - 2);
     }
 
     _drawKeyBorder(g, x, y, w, h) {
@@ -186,6 +185,7 @@ export default class UIManager {
 
     _buildMinimapZone() {
         const { H, PANEL_H, panelY, KEY_H, INFO_W, MM_W } = this.L;
+        if (MM_W === 0) return; // minimap disabled — panel space reclaimed for actions
         const pad  = 6;
         const mmX  = INFO_W + pad;
         const mmY  = panelY + KEY_H + pad;
@@ -401,19 +401,19 @@ export default class UIManager {
     }
 
     _infTabBar(ox, oy, W, tabs, active, onSwitch) {
-        const TH = 22;
+        const TH = this.L?.TAB_H ?? 34;
         tabStrip(this.scene, ox, oy, W, TH, tabs, active, (t) => onSwitch(t), {
-            depth: 23, activeBg: 0x2a2010, inactiveBg: 0x130e06,
-            activeColor: '#c8a030', inactiveColor: '#6a5830',
+            depth: 23, activeBg: 0x2e2212, inactiveBg: 0x181008,
+            activeColor: '#e8d080', inactiveColor: '#7a6840',
             onAdd: (o) => this._inf(o),
         });
     }
 
     _actTabBar(ox, oy, W, tabs, active, onSwitch) {
-        const TH = 22;
+        const TH = this.L?.TAB_H ?? 34;
         tabStrip(this.scene, ox, oy, W, TH, tabs, active, (t) => onSwitch(t), {
-            depth: 23, activeBg: 0x2a2010, inactiveBg: 0x130e06,
-            activeColor: '#c8a030', inactiveColor: '#6a5830',
+            depth: 23, activeBg: 0x2e2212, inactiveBg: 0x181008,
+            activeColor: '#e8d080', inactiveColor: '#7a6840',
             onAdd: (o) => this._tab(o),
         });
         return TH;
@@ -444,7 +444,7 @@ export default class UIManager {
     }
 
     // Font scale based on screen width — keeps text readable on small mobile screens
-    _fontScale() { return Math.min(1.5, Math.max(1.0, this.L.W / 420)); }
+    _fontScale() { return Math.min(2.0, Math.max(1.3, this.L.W / 360)); }
     _fs(n)       { return `${Math.max(12, Math.round(n * this._fontScale()))}px`; }
 
     // ─── Actions Zone helpers ────────────────────────────────────────────────

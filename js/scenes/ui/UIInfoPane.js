@@ -41,7 +41,7 @@ export default {
             if (house) { this._renderOikosInfo(house, ox, oy, W, H, pad); return; }
         }
 
-        const TH   = 22;
+        const TH   = this.scene.uiManager?.L?.TAB_H ?? 34;
         const workshopDef = Object.values(WORKSHOP_JOBS).find(j => j.construct === b.type);
         const tabs = b.built
             ? (workshopDef ? ['Info', 'Queue', 'Workers', 'Inv'] : ['Info', 'Workers', 'Inv'])
@@ -313,7 +313,7 @@ export default {
     },
 
     _renderOikosInfo(b, ox, oy, W, H, pad) {
-        const TH = 22;
+        const TH = this.scene.uiManager?.L?.TAB_H ?? 34;
         if (!['Family', 'House'].includes(this._oikosTab)) this._oikosTab = 'Family';
         this._infTabBar(ox, oy, W, ['Family', 'House'], this._oikosTab,
             t => { this._oikosTab = t; this.updateUI(); });
@@ -489,13 +489,21 @@ export default {
         if (!tabs.includes(this._unitTab)) this._unitTab = 'Stats';
         this._infTabBar(ox, oy, W, tabs, this._unitTab, t => { this._unitTab = t; this.updateUI(); });
 
-        const cy = oy + 22, ch = H - 22;
+        const TH = this.scene.uiManager?.L?.TAB_H ?? 34;
+        const cy = oy + TH, ch = H - TH;
         this._infCard(ox + 2, cy, W - 4, ch - 2);
-        this._infTxt(ox + pad, cy + 4, `${vet}${nm}`, { fontSize: this._fs(12), color: '#c8a030' });
+        // Full name as the hero text
         const fullName = [u.name, u.familyName].filter(Boolean).join(' ');
-        this._infTxt(ox + pad, cy + 17, fullName, { fontSize: this._fs(10), color: '#7a7060' });
+        this._infTxt(ox + pad, cy + 5, fullName, { fontSize: this._fs(13), color: '#e8d080' });
+        // Role / type as secondary line
+        const ageTag = u.age < 2 ? (u.age === 0 ? 'Infant' : 'Youth')
+                     : u.age >= 10 ? `${vet}${nm} · Elder` : `${vet}${nm}`;
+        const roleSecondary = u.type === 'worker' && u.age >= 2
+            ? (u.role ? u.role[0].toUpperCase() + u.role.slice(1) : 'Idle') + `  ·  ${ageTag}`
+            : ageTag;
+        this._infTxt(ox + pad, cy + 20, roleSecondary, { fontSize: this._fs(9), color: '#9a8860' });
 
-        const contentY = cy + 30;
+        const contentY = cy + 34;
         if (this._unitTab === 'Stats')     this._renderUnitStats(u, ox, contentY, W, ch - 32, pad);
         else if (this._unitTab === 'Needs') this._renderUnitNeeds(u, ox, contentY, W, ch - 32, pad);
         else                               this._renderUnitInventory(u, ox, contentY, W, ch - 32, pad);
@@ -569,8 +577,9 @@ export default {
     _renderUnitNeeds(u, ox, oy, W, H, pad) {
         const needs = u.needs ?? { food: 1, rest: 1, social: 1, joy: 1 };
         const mood  = u.mood  ?? 1;
-        const bw    = W - pad * 2 - 36;
-        const rows  = [
+        const labelW = 40;
+        const bw     = W - pad * 2 - labelW - 4;
+        const rows   = [
             { label: 'Food',   val: needs.food,   hi: 0x66bb44, lo: 0xcc3311 },
             { label: 'Rest',   val: needs.rest,   hi: 0x4488cc, lo: 0xcc6622 },
             { label: 'Social', val: needs.social, hi: 0xaa66cc, lo: 0x664488 },
@@ -579,13 +588,13 @@ export default {
         let ry = oy;
         for (const r of rows) {
             const col = r.val > 0.5 ? r.hi : r.val > 0.25 ? 0xddaa22 : r.lo;
-            this._infTxt(ox + pad, ry + 1, r.label, { fontSize: this._fs(9), color: '#7a7060' });
-            this._infBar(ox + pad + 36, ry, bw, 6, r.val, col);
-            ry += 13;
+            this._infTxt(ox + pad, ry + 2, r.label, { fontSize: this._fs(10), color: '#9a8870' });
+            this._infBar(ox + pad + labelW, ry + 1, bw, 9, r.val, col);
+            ry += 16;
         }
         const moodCol = mood > 0.7 ? 0x88ddaa : mood > 0.4 ? 0xddcc44 : 0xcc4433;
-        this._infTxt(ox + pad, ry + 1, 'Mood', { fontSize: this._fs(9), color: '#9a8860' });
-        this._infBar(ox + pad + 36, ry, bw, 6, mood, moodCol);
+        this._infTxt(ox + pad, ry + 2, 'Mood', { fontSize: this._fs(10), color: '#b09870' });
+        this._infBar(ox + pad + labelW, ry + 1, bw, 9, mood, moodCol);
         if (u.isSleeping) this._infTxt(ox + W - pad - 4, ry + 1, '💤',
             { fontSize: this._fs(9), color: '#88aacc' }).setOrigin(1, 0);
         if ((u._grief ?? 0) > 0) this._infTxt(ox + W - pad - 4, ry + 1, `🕯 ${Math.round(u._grief * 100)}%`,
