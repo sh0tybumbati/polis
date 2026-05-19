@@ -276,7 +276,6 @@ export default class UIManager {
 
     updateUI() {
         if (!this.L) return;
-        this.scene.economyManager.syncResources();
         this._updateResources();
         this._renderSheet();
         this._updateCursor();
@@ -433,7 +432,7 @@ export default class UIManager {
         return g;
     }
 
-    _infBtn(x, y, w, h, label, color, cb) {
+    _infBtn(x, y, w, h, label, color, cb, txtColor) {
         const g = this._inf(this.scene.add.graphics().setDepth(22));
         g.fillStyle(color, 0.88).fillRect(x, y, w, h);
         g.lineStyle(1, 0xc8a030, 0.45).strokeRect(x, y, w, h);
@@ -442,7 +441,7 @@ export default class UIManager {
         hov.fillStyle(0xffffff, 0.12).fillRect(x, y, w, h);
 
         const t = this._infTxt(x + w / 2, y + h / 2, label,
-            { fontSize: this._fs(11), color: '#d4c8a8', align: 'center',
+            { fontSize: this._fs(11), color: txtColor ?? '#d4c8a8', align: 'center',
               wordWrap: { width: w - 4 } }).setOrigin(0.5);
 
         const z = this._inf(this.scene.add.zone(x + w / 2, y + h / 2, w, h)

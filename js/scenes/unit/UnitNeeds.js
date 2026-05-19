@@ -1,5 +1,6 @@
 import { TILE, MAP_OY, DAY_DURATION } from '../../config/gameConstants.js';
 import { JOBS, WORKSHOP_JOBS } from '../../content/jobs/index.js';
+import GameLogger from '../../GameLogger.js';
 
 // JOB_AFFINITIES and related helpers are defined in UnitManager.js (module scope)
 // and don't need to be imported here since assignVocation/pickRole live there.
@@ -79,6 +80,9 @@ export default {
     },
 
     _tickNeeds(u, dt) {
+        u._needsAcc = (u._needsAcc ?? 0) + dt;
+        if (u._needsAcc < 0.25) return;
+        dt = u._needsAcc; u._needsAcc = 0;
         if (!u.needs) u.needs = { food: 1.0, rest: 1.0, social: 0.8, joy: 0.8 };
         const n = u.needs;
 
@@ -115,16 +119,16 @@ export default {
         }
 
         // Social: recovery weighted by relationship quality with nearby units
-        const nearbyUnits = this.scene.units.filter(w =>
-            w !== u && !w.isEnemy && w.hp > 0 &&
-            Phaser.Math.Distance.Between(u.x, u.y, w.x, w.y) < 64);
-        if (nearbyUnits.length > 0) {
-            let rate = 0;
-            for (const w of nearbyUnits) {
-                const rel = u.relations?.[w.id] ?? 0;
-                rate += 0.004 + rel * 0.003; // liked: ~0.007, neutral: 0.004, disliked: ~0.001
+        let _socialRate = 0, _nearCount = 0;
+        for (const w of this.scene.units) {
+            if (w === u || w.isEnemy || w.hp <= 0) continue;
+            if (Phaser.Math.Distance.Between(u.x, u.y, w.x, w.y) < 64) {
+                _socialRate += 0.004 + (u.relations?.[w.id] ?? 0) * 0.003;
+                _nearCount++;
             }
-            n.social = Math.min(1.0, n.social + dt * Math.min(rate, 0.014));
+        }
+        if (_nearCount > 0) {
+            n.social = Math.min(1.0, n.social + dt * Math.min(_socialRate, 0.014));
         } else {
             n.social = Math.max(0, n.social - dt * 0.0012);
         }
@@ -155,6 +159,7 @@ export default {
             if (u._starvTimer >= 8) {
                 u._starvTimer = 0;
                 this.scene.uiManager?.showFloatText?.(u.x, u.y - 20, 'starving!', '#ff4444');
+                GameLogger.log('starve', { u: u.name, hp: +u.hp.toFixed(1), role: u.role ?? 'none', task: u.taskType ?? 'none' });
             }
         } else {
             u._starvTimer = 0;
@@ -174,7 +179,8 @@ export default {
 
     _collectWage(u) {
         const workplace = u.taskConstructId
-            ? this.scene.constructs.find(b => b.id === u.taskConstructId && b.built) : null;
+            ? this.scene.constructManager?.getById(u.taskConstructId) : null;
+        if (workplace && !workplace.built) return;
         const isProductionRole = u.role in WORKSHOP_JOBS;
         const isNodeWorker = u.role === 'woodcutter' || u.role === 'miner' || u.role === 'forager';
 
@@ -228,7 +234,7 @@ export default {
             return;
         }
 
-        const home = this.scene.constructs.find(b => b.id === u.homeConstructId);
+        const home = this.scene.constructManager?.getById(u.homeConstructId);
         if (!home) return;
         const hx = (home.tx + (home.width ?? 1) / 2) * TILE, hy = MAP_OY + (home.ty + (home.height ?? 1) / 2) * TILE;
         const radius = u.age === 0 ? TILE : TILE * 3;
@@ -241,9 +247,10 @@ export default {
 
     pickRole(u, time) {
         u.lastSeek = time;
+        const priors = u.taskPriorities ?? {}; // 0=disabled, 1-4=priority (1=most urgent)
         const workers = this.scene.units.filter(w => w.type==='worker' && !w.isEnemy && w.hp>0);
         const ctx = {
-            cnt: r => workers.filter(w => w.role===r).length,
+            cnt: r => { let n = 0; for (const w of workers) if (w.role === r) n++; return n; },
             need: res => {
                 const cap = this.scene.storageMax[res] || 0;
                 if (cap <= 0) return 0;
@@ -260,6 +267,8 @@ export default {
         const cands = [];
         for (const job of Object.values(JOBS)) {
             if (!job.score) continue;
+            const tp = priors[job.id] ?? 3; // unset = normal priority
+            if (tp === 0) continue;          // player disabled this job
             let s = job.score(u, ctx);
             if (s <= 0) continue;
             s += this._attrBonus(u, job.id);
@@ -269,17 +278,20 @@ export default {
                 else if ((this._vocationFallbacks(u.vocation) ?? []).includes(job.id)) s += 25;
             }
             if (u.role === job.id) s += 35; // role stability — reduce thrashing
+            s += (5 - tp) * 1000; // priority 1 → +4000 … priority 4 → +1000
             cands.push({ role: job.id, score: s });
         }
         cands.sort((a, b) => b.score - a.score);
         if (cands.length > 0) {
+            if (u.role !== cands[0].role)
+                GameLogger.log('role', { u: u.name, role: cands[0].role, prev: u.role ?? 'none', score: Math.round(cands[0].score) });
             u.role = cands[0].role;
         } else {
-            // Guaranteed fallback so units never stay permanently idle
+            // Fallback: only use if player hasn't disabled these
             const hasUnbuilt = this.scene.constructs.some(b => !b.built && !b.faction);
             const hasNodes   = this.scene.resNodes?.some(n => n.stock > 0);
-            if (hasUnbuilt && u.age >= 2) u.role = 'builder';
-            else if (hasNodes) u.role = 'forager';
+            if (hasUnbuilt && u.age >= 2 && (priors['builder'] ?? 3) > 0) u.role = 'builder';
+            else if (hasNodes && (priors['forager'] ?? 3) > 0) u.role = 'forager';
         }
     },
 
@@ -295,7 +307,7 @@ export default {
     _tickRelations(u, dt) {
         if (!u.relations) u.relations = {};
         u._relTimer = (u._relTimer ?? 0) + dt;
-        if (u._relTimer < 4000) return; // update every 4 real seconds
+        if (u._relTimer < 4.0) return; // update every 4 real seconds
         u._relTimer = 0;
 
         // All relations drift slowly toward neutral (memory fades without contact)

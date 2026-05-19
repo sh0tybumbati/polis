@@ -17,6 +17,17 @@ export default class ConstructManager {
         this.constructGfx = null;
         this.edgeGfx = null;
         this.rooms = [];
+        this._byId = new Map();
+        this._preCivicAge = true; // cached: true until a townhall is built
+        this._garlicGardens = [];
+    }
+
+    _updatePreCivicCache() {
+        this._preCivicAge = !this.constructs.some(b => b.type === 'townhall' && b.built && !b.faction);
+    }
+
+    _updateGarlicCache() {
+        this._garlicGardens = this.constructs.filter(b => b.type === 'garden' && b.built && b.cropType === 'garlic');
     }
 
     init() {
@@ -121,6 +132,7 @@ export default class ConstructManager {
         if (Object.keys(cost).length) c.resNeeded = { ...cost };
 
         this.constructs.push(c);
+        this._byId.set(c.id, c);
 
         if (CONSTRUCTS[type]?.isHomeType) {
             this.assignDomain(c);
@@ -203,6 +215,8 @@ export default class ConstructManager {
         this.scene.uiManager?.showToast?.(`⚒ ${label} complete`, '#a8dda8');
 
         if (b.placement === 'edge') this._checkRoomsFormedAtEdge(b);
+        if (b.type === 'townhall') this._updatePreCivicCache();
+        if (b.type === 'garden') this._updateGarlicCache();
     }
 
     _checkRoomsFormedAtEdge(edge) {
@@ -309,6 +323,7 @@ export default class ConstructManager {
         }
 
         this.constructs.push(c);
+        this._byId.set(c.id, c);
         this.renderAll();
         return c;
     }
@@ -321,7 +336,10 @@ export default class ConstructManager {
         } else {
             this.occupy(c.tx, c.ty, c.width, c.height, 0);
         }
+        this._byId.delete(c.id);
         this.constructs = this.constructs.filter(cc => cc.id !== c.id);
+        if (c.type === 'townhall') this._updatePreCivicCache();
+        if (c.type === 'garden') this._updateGarlicCache();
         this.renderAll();
         this.updateStorageCap();
     }
@@ -337,7 +355,7 @@ export default class ConstructManager {
     }
 
     getById(id) {
-        return this.constructs.find(c => c.id === id);
+        return this._byId.get(id) ?? null;
     }
 
     getEdge(isH, row, col) {
@@ -360,6 +378,7 @@ export default class ConstructManager {
         if (!c) return;
         if (isH) this.hEdges.delete(`${c.row},${c.col}`);
         else     this.vEdges.delete(`${c.row},${c.col}`);
+        this._byId.delete(c.id);
         this.constructs = this.constructs.filter(cc => cc.id !== c.id);
         this.renderAll();
     }
@@ -652,26 +671,33 @@ export default class ConstructManager {
     tick(delta) {
         for (const c of this.constructs) {
             const def = CONSTRUCTS[c.type];
-            if (def?.tick) def.tick(c, delta, this.scene.economyManager.buildCtx(c));
+            if (def?.tick) {
+                if (!c._ctx) c._ctx = this.scene.economyManager.buildCtx(c);
+                def.tick(c, delta, c._ctx);
+            }
         }
         this.tickFarmRegrowth(delta);
-        this.tickHouseProduction(delta);
-        this.tickHouseBirths(delta);
         this._refreshGarrisonBars(delta);
         this.tickGarrisonHeal(delta);
         this.tickUnitTraining(delta);
+
+        // These only need to run every 2s — they're O(houses × units)
+        this._houseTickAcc = (this._houseTickAcc ?? 0) + delta;
+        if (this._houseTickAcc >= 2000) {
+            const scaled = this._houseTickAcc; // pass accumulated delta so timers still advance correctly
+            this._houseTickAcc = 0;
+            this.tickHouseProduction(scaled);
+            this.tickHouseBirths(scaled);
+        }
     }
 
     tickGarrisonHeal(delta) {
-        // Heal units inside constructs at a slow rate
         for (const b of this.constructs) {
             if (!b.built || !b.garrison?.length) continue;
-            const healAmt = delta * 0.0002; // 1 HP per 5s
+            const healAmt = delta * 0.0002;
             for (const uid of b.garrison) {
-                const u = this.scene.units.find(uu => uu.id === uid);
-                if (u && u.hp < u.maxHp) {
-                    u.hp = Math.min(u.maxHp, u.hp + healAmt);
-                }
+                const u = this.scene.unitManager?._byUnitId?.get(uid);
+                if (u && u.hp < u.maxHp) u.hp = Math.min(u.maxHp, u.hp + healAmt);
             }
         }
     }
@@ -863,6 +889,7 @@ export default class ConstructManager {
         this.constructs.length = 0; // clear current without reassigning reference
         this.hEdges = new Map();
         this.vEdges = new Map();
+        this._byId = new Map();
 
         const list = [];
         const process = (src) => {
@@ -883,6 +910,7 @@ export default class ConstructManager {
                 gfx: null, barGfx: null, labelObj: null
             };
             this.constructs.push(c);
+            this._byId.set(c.id, c);
 
             // Re-occupy mapData if it's a construct
             if (c.placement !== 'edge') {
@@ -900,6 +928,8 @@ export default class ConstructManager {
         // Sync with scene reference if it was replaced (though we shouldn't replace it)
         this.scene.constructs = this.constructs;
 
+        this._updatePreCivicCache();
+        this._updateGarlicCache();
         this.renderAll();
         this.updateStorageCap();
     }

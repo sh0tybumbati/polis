@@ -55,7 +55,7 @@ export default class EconomyManager {
         let keep = qty;
         if (keep >= 2) {
             const worker = this.scene.units.find(u =>
-                !u.isEnemy && u.hp > 0 && u.taskConstructId === b.id && u.workshopPhase === 'process');
+                !u.isEnemy && u.hp > 0 && u.taskConstructId === b.id && u.workshopPhase === 'process');  // TODO: unit map lookup
             if (worker) {
                 b.wagePending = b.wagePending ?? {};
                 b.wagePending[worker.id] = b.wagePending[worker.id] ?? {};
@@ -83,6 +83,7 @@ export default class EconomyManager {
                 // 1 unit First Fruits + Percentage Tithe
                 const tithe = 1 + Math.floor(qty * rate / 100);
                 b.tithePending[key] = (b.tithePending[key] ?? 0) + tithe;
+                this.scene._hasTithePending = true;
             }
             // Reset daily production for the next day
             b.dailyProduction = {};
@@ -116,12 +117,18 @@ export default class EconomyManager {
                 if (qty > 0) totals[res] = (totals[res] ?? 0) + qty;
             }
         }
+        for (const [, cfg] of this.scene.zoneManager?.storageTiles ?? []) {
+            for (const [res, qty] of Object.entries(cfg.inventory ?? {})) {
+                if (qty > 0) totals[res] = (totals[res] ?? 0) + qty;
+            }
+        }
         for (const key of Object.keys(this.scene.resources)) {
             this.scene.resources[key] = totals[key] ?? 0;
         }
         for (const [key, val] of Object.entries(totals)) {
             this.scene.resources[key] = val;
         }
+        if (this.scene.zoneManager) this.scene.zoneManager._stockDirty = true;
     }
 
     // Take 'amount' of 'res' from player-accessible inventories, nearest first.
@@ -132,10 +139,13 @@ export default class EconomyManager {
             if (remaining <= 0) break;
             const avail = b.inventory?.[res] ?? 0;
             const take = Math.min(remaining, avail);
-            if (take > 0) {
-                b.inventory[res] -= take;
-                remaining -= take;
-            }
+            if (take > 0) { b.inventory[res] -= take; remaining -= take; }
+        }
+        for (const [, cfg] of this.scene.zoneManager?.storageTiles ?? []) {
+            if (remaining <= 0) break;
+            const avail = cfg.inventory?.[res] ?? 0;
+            const take = Math.min(remaining, avail);
+            if (take > 0) { cfg.inventory[res] -= take; remaining -= take; }
         }
         const taken = amount - remaining;
         if (taken > 0) this.syncResources();
@@ -271,12 +281,13 @@ export default class EconomyManager {
             }
         }
         const totalAdded = amount - remaining;
-        if (totalAdded > 0) { this.syncResources(); this.scene.updateUI(); }
+        if (totalAdded > 0) { this.syncResources(); }
         return totalAdded;
     }
 
     tick(delta) {
-        this.syncResources();
+        this._syncAcc = (this._syncAcc ?? 0) + delta;
+        if (this._syncAcc >= 500) { this._syncAcc = 0; this.syncResources(); }
         this.scene.constructManager.tick(delta);
         this.tickResourceNodes(delta);
     }

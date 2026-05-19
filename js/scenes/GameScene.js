@@ -15,6 +15,7 @@ import NatureManager from './NatureManager.js';
 import WorldManager from './WorldManager.js';
 import ConstructManager from './ConstructManager.js';
 import ZoneManager from './ZoneManager.js';
+import GameLogger from '../GameLogger.js';
 
 export default class GameScene extends Phaser.Scene {
     constructor() {
@@ -236,7 +237,7 @@ export default class GameScene extends Phaser.Scene {
     getId() { return this.nextId++; }
 
     // --- Delegation Methods ---
-    updateUI() { this.uiManager.updateUI(); }
+    updateUI() { this._uiDirty = true; }
     // ─── Persistence ─────────────────────────────────────────────────────────
 
     _serUnit(u) {
@@ -473,14 +474,27 @@ export default class GameScene extends Phaser.Scene {
     update(time, delta) {
         if (this.isPaused) return;
         const dt = (delta / 1000) * this.tickSpeed;
+        const f0 = performance.now();
+        const fr = this._frame = ((this._frame ?? -1) + 1) % 60;
 
-        this.chunkManager?.tick(this.cameras.main);
-        this.uiManager.tickClock();
-        this.worldManager.tick(delta);
-        this.unitManager.tick(time, dt);
-        this.economyManager.tick(delta * this.tickSpeed);
-        this.natureManager.tick(delta * this.tickSpeed, dt);
-        this.zoneManager?.tickGrow(delta * this.tickSpeed);
+        let t0;
+        t0 = performance.now(); this.chunkManager?.tick(this.cameras.main); GameLogger.sys('chunk', performance.now() - t0);
+        t0 = performance.now(); this.uiManager.tickClock();                  GameLogger.sys('ui',    performance.now() - t0);
+        t0 = performance.now(); this.worldManager.tick(delta);               GameLogger.sys('world', performance.now() - t0);
+        t0 = performance.now(); this.unitManager.tick(time, dt, fr);         GameLogger.sys('units', performance.now() - t0);
+
+        // Staggered managers — accumulate delta, each fires on its own frame offset
+        this._econAcc   = (this._econAcc   ?? 0) + delta * this.tickSpeed;
+        this._natureAcc = (this._natureAcc ?? 0) + delta * this.tickSpeed;
+        this._zoneAcc   = (this._zoneAcc   ?? 0) + delta * this.tickSpeed;
+        if (fr % 2 === 0) { t0 = performance.now(); this.economyManager.tick(this._econAcc);                                        GameLogger.sys('econ',   performance.now() - t0); this._econAcc   = 0; }
+        if (fr % 3 === 1) { t0 = performance.now(); this.natureManager.tick(this._natureAcc, this._natureAcc / 1000); GameLogger.sys('nature', performance.now() - t0); this._natureAcc = 0; }
+        if (fr % 4 === 2) { t0 = performance.now(); this.zoneManager?.tickGrow(this._zoneAcc);                                      GameLogger.sys('zones',  performance.now() - t0); this._zoneAcc   = 0; }
+
+        this.zoneManager?.tickStockpile();
+        if (this._uiDirty) { this._uiDirty = false; this.uiManager.updateUI(); }
+
+        GameLogger.frame(delta, performance.now() - f0);
 
         // Fog drawn every frame — cheap with Blitter (just bob position assignments)
         this.mapManager.drawFog();

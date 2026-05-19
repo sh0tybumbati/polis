@@ -1,6 +1,45 @@
 import { TILE, MAP_OY } from '../config/gameConstants.js';
 import { CROPS } from '../content/crops/index.js';
 
+// Color per item key — used for stockpile map icons
+const ITEM_COL = {
+    'Food.Grain.Wheat':              0xe8d060,
+    'Food.Grain.Wheat.Flour':        0xf0e8b0,
+    'Food.Grain.Wheat.Bread':        0xd4944a,
+    'Food.Produce.Berry':            0xcc2244,
+    'Food.Produce.Olive':            0x8a7a2a,
+    'Food.Produce.Olive.Oil':        0xddcc44,
+    'Food.Meat.Venison':             0xaa4422,
+    'Food.Meat.Venison.Cuts':        0xbb5533,
+    'Food.Meat.Venison.Sausages':    0x994422,
+    'Food.Drink.Beer':               0xddaa22,
+    'Materials.Wood.Pine':           0x8b5e3c,
+    'Materials.Wood.Pine.Sticks':    0xaa7744,
+    'Materials.Wood.Pine.Planks':    0xcc9966,
+    'Materials.Stone.Limestone':     0x9a9090,
+    'Materials.Stone.Limestone.Stones': 0xb0a8a0,
+    'Materials.Stone.Limestone.Blocks': 0xc0b8b0,
+    'Materials.Metal.Copper.Ore':    0xcc7744,
+    'Materials.Metal.Copper':        0xdd8833,
+    'Materials.Metal.Bronze':        0xcc9933,
+    'Textile.Fiber.Wool':            0xf0eeee,
+    'Textile.Hide.Deer':             0xaa8844,
+    'Textile.Leather':               0x996633,
+    'Equipment.LeatherKit':          0x997744,
+    'Equipment.BronzeKit':           0xbbaa44,
+};
+
+function _itemColor(key) {
+    if (ITEM_COL[key]) return ITEM_COL[key];
+    if (key.startsWith('Food.'))              return 0x88cc44;
+    if (key.startsWith('Materials.Wood.'))    return 0x8b5e3c;
+    if (key.startsWith('Materials.Stone.'))   return 0x9a9090;
+    if (key.startsWith('Materials.Metal.'))   return 0x8899bb;
+    if (key.startsWith('Textile.'))           return 0xaa88cc;
+    if (key.startsWith('Equipment.'))         return 0xddaa33;
+    return 0x888888;
+}
+
 const ZONE_STYLE = {
     work:    { fill: 0x4488ff, fillAlpha: 0.14, line: 0x4488ff, lineAlpha: 0.55 },
     storage: { fill: 0xffaa22, fillAlpha: 0.14, line: 0xffaa22, lineAlpha: 0.55 },
@@ -19,17 +58,19 @@ export default class ZoneManager {
         this.growTiles    = new Map();    // tileKey → { crop, slots: number[] }
         this.marketTiles  = new Set();    // tileKey
         this.pastureTiles = new Set();    // tileKey
-        this._gfx         = null;
-        this._growGfx     = null;
-        this._growTickAcc = 0;
+        this._gfx          = null;
+        this._growGfx      = null;
+        this._stockGfx     = null;
+        this._growTickAcc  = 0;
     }
 
     tileKey(tx, ty) { return `${tx},${ty}`; }
 
     init() {
-        this._gfx     = this.scene._w(this.scene.add.graphics().setDepth(2));
-        this._growGfx = this.scene._w(this.scene.add.graphics().setDepth(2));
-        this._selGfx  = this.scene._w(this.scene.add.graphics().setDepth(4));
+        this._gfx      = this.scene._w(this.scene.add.graphics().setDepth(2));
+        this._growGfx  = this.scene._w(this.scene.add.graphics().setDepth(2));
+        this._stockGfx = this.scene._w(this.scene.add.graphics().setDepth(3));
+        this._selGfx   = this.scene._w(this.scene.add.graphics().setDepth(4));
     }
 
     // ─── Painting ────────────────────────────────────────────────────────────────
@@ -172,6 +213,53 @@ export default class ZoneManager {
         this._renderLayer(this.pastureTiles, ZONE_STYLE.pasture);
         this._renderGrowLayer();
         this._renderGrowSlots();
+        this._renderStockpiles();
+    }
+
+    tickStockpile() {
+        if (this._stockDirty) { this._stockDirty = false; this._renderStockpiles(); }
+    }
+
+    _renderStockpiles() {
+        if (!this._stockGfx) return;
+        this._stockGfx.clear();
+        if (this.storageTiles.size === 0) return;
+
+        const ICO = 7;   // icon square size px
+        const GAP = 2;   // gap between icons
+        // 2×2 grid centered in tile: total span = 2*ICO + GAP
+        const SPAN = ICO * 2 + GAP;
+        const OX = Math.floor((TILE - SPAN) / 2);
+        const OY = Math.floor((TILE - SPAN) / 2);
+
+        for (const [key, cfg] of this.storageTiles) {
+            const inv = cfg.inventory ?? {};
+            const items = Object.entries(inv)
+                .filter(([, v]) => v > 0)
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 4);
+            if (items.length === 0) continue;
+
+            const [tx, ty] = key.split(',').map(Number);
+            const bx = tx * TILE + OX;
+            const by = MAP_OY + ty * TILE + OY;
+
+            items.forEach(([itemKey], i) => {
+                const col = _itemColor(itemKey);
+                const ix = bx + (i % 2) * (ICO + GAP);
+                const iy = by + Math.floor(i / 2) * (ICO + GAP);
+                // Drop shadow
+                this._stockGfx.fillStyle(0x000000, 0.35);
+                this._stockGfx.fillRect(ix + 1, iy + 1, ICO, ICO);
+                // Item block
+                this._stockGfx.fillStyle(col, 0.92);
+                this._stockGfx.fillRect(ix, iy, ICO, ICO);
+                // Highlight on top-left edge for depth
+                this._stockGfx.fillStyle(0xffffff, 0.28);
+                this._stockGfx.fillRect(ix, iy, ICO - 1, 2);
+                this._stockGfx.fillRect(ix, iy, 2, ICO - 1);
+            });
+        }
     }
 
     _renderLayer(tileSet, style) {
@@ -328,7 +416,7 @@ export default class ZoneManager {
     save() {
         return {
             work:    [...this.workTiles],
-            storage: [...this.storageTiles].map(([k, v]) => ({ k, accepts: v.accepts ?? [] })),
+            storage: [...this.storageTiles].map(([k, v]) => ({ k, accepts: v.accepts ?? [], inventory: v.inventory ?? {} })),
             market:  [...this.marketTiles],
             grow:    [...this.growTiles].map(([k, v]) => ({ k, crop: v.crop, slots: [...v.slots] })),
         };
@@ -344,7 +432,7 @@ export default class ZoneManager {
         if (storageRaw.length > 0 && typeof storageRaw[0] === 'number') {
             this.storageTiles = new Map(storageRaw.map(k => [k, { accepts: [] }]));
         } else {
-            this.storageTiles = new Map(storageRaw.map(({ k, accepts }) => [k, { accepts: accepts ?? [] }]));
+            this.storageTiles = new Map(storageRaw.map(({ k, accepts, inventory }) => [k, { accepts: accepts ?? [], inventory: inventory ?? {} }]));
         }
     }
 }

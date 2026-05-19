@@ -91,10 +91,58 @@ const app    = express();
 const server = http.createServer(app);
 const gameServer = new Server({ server });
 
+// ─── Game event log ───────────────────────────────────────────────────────────
+
+const LOG_RING = [];
+const LOG_MAX  = 2000;
+
+app.use(express.json({ limit: '1mb' }));
+
+app.post('/gamelog', (req, res) => {
+    const events = req.body;
+    if (!Array.isArray(events)) return res.status(400).json({ err: 'expected array' });
+    const recv = Date.now();
+    for (const e of events) e.recv = recv;
+    LOG_RING.push(...events);
+    if (LOG_RING.length > LOG_MAX) LOG_RING.splice(0, LOG_RING.length - LOG_MAX);
+    res.json({ ok: true, stored: events.length, total: LOG_RING.length });
+});
+
+app.get('/gamelog', (req, res) => {
+    const since = parseFloat(req.query.since ?? 0);
+    const limit = Math.min(parseInt(req.query.limit ?? 200), 2000);
+    const type  = req.query.type;
+    let out = since > 0 ? LOG_RING.filter(e => e.t > since) : [...LOG_RING];
+    if (type) out = out.filter(e => e.e === type);
+    res.json(out.slice(-limit));
+});
+
+app.get('/gamelog/summary', (_req, res) => {
+    const counts = {};
+    const spikes = [];
+    for (const e of LOG_RING) {
+        counts[e.e] = (counts[e.e] ?? 0) + 1;
+        if (e.e === 'spike') spikes.push(e);
+    }
+    res.json({
+        total:       LOG_RING.length,
+        counts,
+        recentSpikes: spikes.slice(-10),
+        oldest:      LOG_RING[0]?.t ?? null,
+        newest:      LOG_RING.at(-1)?.t ?? null,
+    });
+});
+
 gameServer.define('polis', PolisRoom);
 
 // Serve static client files (optional, for single-server deploys)
-app.use(express.static('../'));
+app.use(express.static('../', {
+    setHeaders(res, filePath) {
+        if (filePath.endsWith('.js')) {
+            res.setHeader('Cache-Control', 'no-store');
+        }
+    }
+}));
 
 const PORT = process.env.PORT || 8080;
 gameServer.listen(PORT).then(() => {

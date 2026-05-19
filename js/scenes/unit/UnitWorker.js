@@ -8,6 +8,20 @@ import { ANIMALS } from '../../content/animals/index.js';
 import { ITEMS } from '../../content/items/index.js';
 import { JOBS, WORKSHOP_JOBS } from '../../content/jobs/index.js';
 import { CROPS } from '../../content/crops/index.js';
+import GameLogger from '../../GameLogger.js';
+
+// Module-level constants to avoid per-frame allocations
+const _NO_DEPOSIT = new Set(['build', 'zone_workshop', 'workshop', 'eat', 'collect_tithe', 'leisure', 'merchant', 'plant_grow', 'harvest_grow', 'plant']);
+const _PRIVATE_ROLES = new Set(Object.values(JOBS).filter(j => j.private).map(j => j.id));
+const _FOOD_PRIORITY = ['Food.Grain.Wheat.Bread', 'Food.Meat.Venison.Sausages', 'Food.Grain.Wheat.Flour', 'Food.Produce.Olive', 'Food.Grain.Wheat', 'Food.Meat.Venison', 'Food.Produce.Berry'];
+const _NUTRITION_MAP = Object.fromEntries(Object.values(ITEMS).filter(d => d.nutrition != null).map(d => [d.key, d.nutrition]));
+const _FOOD_CONSTRUCT_TYPES = new Set(['oven', 'butchersblock', 'grainsilo', 'house', 'camp', 'townhall']);
+const _STICKY_ROLES = new Set(['hunter', 'shepherd', 'farmer']);
+const _STORAGE_APPL = new Set(['grainsilo', 'storageshelf']);
+const _PUBLIC_STORAGE = new Set(['grainsilo', 'storageshelf', 'townhall', 'chest']);
+const _DEPOSIT_ROUTES  = Object.fromEntries(Object.values(JOBS).filter(j => j.depositTypes?.length > 0).map(j => [j.id, j.depositTypes]));
+const _FETCH_SOURCES   = Object.fromEntries(Object.values(JOBS).filter(j => j.fetchSources).map(j => [j.id, j.fetchSources]));
+const _SELF_SUPPLY     = Object.fromEntries(Object.values(JOBS).filter(j => j.selfSupply).map(j => [j.id, j.selfSupply]));
 
 export default {
     tickWorker(u, time, dt) {
@@ -63,8 +77,8 @@ export default {
                     }
                 }
             } else if (u.homeConstructId) {
-                const home = this.scene.constructs.find(b => b.id === u.homeConstructId && b.built);
-                if (home) {
+                const home = this.scene.constructManager?.getById(u.homeConstructId);
+                if (home?.built) {
                     // Prefer a built bed in the home's domain over the home center
                     const dom = u.homeConstructId
                         ? this.scene.domains?.find(d => d.houseConstructId === u.homeConstructId) : null;
@@ -134,14 +148,12 @@ export default {
         }
 
         // Collect tithes when idle
-        if (!u.taskType && !u.targetNode &&
-            this.scene.constructs.some(b => b.built && Object.values(b.tithePending ?? {}).some(v => v > 0))) {
+        if (!u.taskType && !u.targetNode && this.scene._hasTithePending) {
             u.taskType = 'collect_tithe';
         }
 
         // Deposit takes priority
-        const _noDeposit = new Set(['build', 'zone_workshop', 'workshop', 'eat', 'collect_tithe', 'leisure', 'merchant', 'plant_grow', 'harvest_grow', 'plant']);
-        if (this.totalCarrying(u) > 0 && !u.targetNode && !_noDeposit.has(u.taskType)) {
+        if (this.totalCarrying(u) > 0 && !u.targetNode && !_NO_DEPOSIT.has(u.taskType)) {
             if (u.taskType !== 'deposit' && u.taskType !== 'deposit_zone') this.seekDeposit(u);
             if (u.taskType === 'deposit')      { this.handleDepositTask(u, dt);     return; }
             if (u.taskType === 'deposit_zone') { this.handleDepositZoneTask(u, dt); return; }
@@ -171,8 +183,8 @@ export default {
                         u.moveTo = { x: (campItem.tx + hw / 2) * TILE, y: MAP_OY + (campItem.ty + hh) * TILE - 8 };
                     }
                 } else if (u.homeConstructId) {
-                    const home = this.scene.constructs.find(b => b.id === u.homeConstructId && b.built);
-                    if (home) {
+                    const home = this.scene.constructManager?.getById(u.homeConstructId);
+                    if (home?.built) {
                         u.moveTo = { x: (home.tx + home.width / 2) * TILE, y: MAP_OY + (home.ty + home.height / 2) * TILE };
                     }
                 }
@@ -223,6 +235,8 @@ export default {
                         // Absolute last resort: gather any nearby resource node
                         if (!u.taskType && !u.targetNode) {
                             this.seekNodeTask(u, ['berry_bush', 'wild_garden', 'olive_grove', 'small_tree', 'large_tree', 'small_boulder', 'large_boulder']);
+                            if (!u.taskType && !u.targetNode)
+                                GameLogger.log('idle', { u: u.name, role: u.role ?? 'none', food: +(u.needs?.food ?? 1).toFixed(2) });
                         }
                     }
                 }
@@ -231,9 +245,8 @@ export default {
 
         // Design fix: if unit has a role but no task/node for 12s, re-evaluate
         // Prevents permanent lock when e.g. all farms are fallow and no nodes in range
-        const stickyRoles = new Set(['hunter', 'shepherd', 'farmer']); // player-directed, don't auto-reassign
-        if (u._prevRole) stickyRoles.add(u.role); // self-supplying — keep temporary role until deposit done
-        if (!stickyRoles.has(u.role) && !u.taskType && !u.targetNode) {
+        // u._prevRole = self-supplying role, keep until deposit done
+        if (!_STICKY_ROLES.has(u.role) && !u._prevRole && !u.taskType && !u.targetNode) {
             u._roleIdleTimer = (u._roleIdleTimer ?? 0) + dt;
             if (u._roleIdleTimer > 15) { u._roleIdleTimer = 0; u.role = null; }
         } else {
@@ -437,16 +450,16 @@ export default {
     },
 
     handleGarrisonTask(u, dt) {
-        const b = this.scene.constructs.find(b => b.id === u.taskConstructId && b.built);
-        if (!b) { u.taskType = null; return; }
+        const b = this.scene.constructManager?.getById(u.taskConstructId);
+        if (!b?.built) { u.taskType = null; return; }
         // Walk into the tower and stay
         const cx = (b.tx + 0.5) * TILE, cy = MAP_OY + (b.ty + 0.5) * TILE;
         this.moveToward(u, cx, cy, 6, dt);
     },
 
     handleRepairTask(u, dt) {
-        const b = this.scene.constructs.find(b => b.id === u.taskConstructId && b.built);
-        if (!b || b.hp >= b.maxHp) { u.taskType = null; return; }
+        const b = this.scene.constructManager?.getById(u.taskConstructId);
+        if (!b?.built || b.hp >= b.maxHp) { u.taskType = null; return; }
         const cx = (b.tx + b.width / 2) * TILE, cy = MAP_OY + (b.ty + b.width / 2) * TILE;
         if (this.moveToward(u, cx, cy, 28, dt)) return;
         u.workProgress = (u.workProgress ?? 0) + dt;
@@ -465,7 +478,7 @@ export default {
     },
 
     handleBuildTask(u, dt) {
-        const b = this.scene.constructs.find(b => b.id === u.taskConstructId);
+        const b = this.scene.constructManager?.getById(u.taskConstructId);
         if (!b || b.built) { u.taskType = null; return; }
 
         // Ensure resources are gathered for construction
@@ -573,8 +586,8 @@ export default {
     },
 
     handleDeconstructTask(u, dt) {
-        const b = this.scene.constructs.find(b => b.id === u.taskConstructId && b.built && b.deconstructing);
-        if (!b) { u.taskType = null; return; }
+        const b = this.scene.constructManager?.getById(u.taskConstructId);
+        if (!b?.built || !b.deconstructing) { u.taskType = null; return; }
 
         const cx = (b.tx + b.width / 2) * TILE, cy = MAP_OY + (b.ty + b.width / 2) * TILE;
         if (this.moveToward(u, cx, cy, 28, dt)) return;
@@ -676,8 +689,8 @@ export default {
         }
 
         // ── Legacy agora path ─────────────────────────────────────────────────
-        const agora = this.scene.constructs.find(b => b.id === u.taskConstructId && b.built);
-        if (!agora) { u.taskType = null; u.merchantPhase = null; return; }
+        const agora = this.scene.constructManager?.getById(u.taskConstructId);
+        if (!agora?.built) { u.taskType = null; u.merchantPhase = null; return; }
 
         const cx = (agora.tx + agora.width / 2) * TILE;
         const cy = MAP_OY + (agora.ty + agora.height / 2) * TILE;
@@ -782,8 +795,8 @@ export default {
     },
 
     handleHarvestFarmTask(u, dt) {
-        const b = this.scene.constructs.find(b => b.id === u.taskConstructId && b.built && (b.type === 'farm' || b.type === 'garden'));
-        if (!b) { u.taskType = null; return; }
+        const b = this.scene.constructManager?.getById(u.taskConstructId);
+        if (!b?.built || (b.type !== 'farm' && b.type !== 'garden')) { u.taskType = null; return; }
 
         // Garden: scoop inventory into carrying, then deposit home
         if (b.type === 'garden') {
@@ -837,8 +850,8 @@ export default {
     },
 
     handlePlantTask(u, dt) {
-        const b = this.scene.constructs.find(b => b.id === u.taskConstructId && b.built && b.type === 'farm');
-        if (!b || !b.needsPlanting) { u.taskType = null; return; }
+        const b = this.scene.constructManager?.getById(u.taskConstructId);
+        if (!b?.built || b.type !== 'farm' || !b.needsPlanting) { u.taskType = null; return; }
         const cx = (b.tx + b.width / 2) * TILE, cy = MAP_OY + (b.ty + b.width / 2) * TILE;
         if (this.moveToward(u, cx, cy, 28, dt)) return;
 
@@ -860,8 +873,8 @@ export default {
             u.targetConstructId = b.id;
         }
 
-        const b = this.scene.constructs.find(b => b.id === u.targetConstructId && b.built);
-        if (!b) { u.targetConstructId = null; u.taskType = null; return; }
+        const b = this.scene.constructManager?.getById(u.targetConstructId);
+        if (!b?.built) { u.targetConstructId = null; u.taskType = null; return; }
 
         const door = this._constructDoor(b);
         if (this.moveToward(u, door.x, door.y, 30, dt)) return;
@@ -880,8 +893,12 @@ export default {
         if (collected) {
             u.targetConstructId = null;
             u.taskType = 'deposit_tithe';
+            // Clear flag if no more pending tithes anywhere
+            if (!this.scene.constructs.some(b => b.built && Object.values(b.tithePending ?? {}).some(v => v > 0)))
+                this.scene._hasTithePending = false;
         } else {
             u.targetConstructId = null; u.taskType = null;
+            this.scene._hasTithePending = false;
         }
     },
 
@@ -907,15 +924,8 @@ export default {
         u.taskType = null;
     },
 
-    // Converted from getter: returns the Set of public storage construct types
-    _publicStorage() {
-        return new Set(['grainsilo', 'storageshelf', 'townhall', 'chest']);
-    },
-
-    // Converted from getter: returns deposit route map from job definitions
-    _depositRoutes() {
-        return Object.fromEntries(Object.values(JOBS).filter(j => j.depositTypes?.length > 0).map(j => [j.id, j.depositTypes]));
-    },
+    _publicStorage() { return _PUBLIC_STORAGE; },
+    _depositRoutes()  { return _DEPOSIT_ROUTES; },
 
     // Find nearest built construct of one of the given types
     _nearestOfTypes(x, y, types) {
@@ -1074,10 +1084,9 @@ export default {
         if (!hasCarry) return;
 
         // Private roles → home oikos
-        const privateRoles = new Set(Object.values(JOBS).filter(j => j.private).map(j => j.id));
-        if (privateRoles.has(u.role) && u.homeConstructId) {
-            const home = this.scene.constructs.find(b => b.id === u.homeConstructId && b.built && CONSTRUCTS[b.type]?.isHomeType);
-            if (home) {
+        if (_PRIVATE_ROLES.has(u.role) && u.homeConstructId) {
+            const home = this.scene.constructManager?.getById(u.homeConstructId);
+            if (home?.built && CONSTRUCTS[home.type]?.isHomeType) {
                 u.taskType = 'deposit'; u.taskConstructId = home.id; u._depositPrivate = true;
                 return;
             }
@@ -1085,11 +1094,13 @@ export default {
 
         // Farmers at private farms deposit to their home oikos, not the commons
         if (u.role === 'farmer') {
-            const workplace = this.scene.constructs.find(b => b.id === u.taskConstructId && b.built);
-            const isPublicFarm = !workplace || workplace.isPublic;
+            const workplace = this.scene.constructManager?.getById(u.taskConstructId);
+            const isPublicFarm = !workplace?.built || workplace.isPublic;
             if (!isPublicFarm && u.homeConstructId) {
-                const home = this.scene.constructs.find(b => b.id === u.homeConstructId && b.built && CONSTRUCTS[b.type]?.isHomeType);
-                if (home) { u.taskType = 'deposit'; u.taskConstructId = home.id; u._depositPrivate = true; return; }
+                const home = this.scene.constructManager?.getById(u.homeConstructId);
+                if (home?.built && CONSTRUCTS[home.type]?.isHomeType) {
+                    u.taskType = 'deposit'; u.taskConstructId = home.id; u._depositPrivate = true; return;
+                }
             }
         }
 
@@ -1103,14 +1114,13 @@ export default {
                 if (!cfg?.accepts?.length) return true;
                 return carryKeys.some(r => cfg.accepts.some(cat => r.startsWith(cat)));
             };
-            const STORAGE_APPL = new Set(['grainsilo', 'storageshelf']);
             let bestKey = null, bestDist = Infinity;
             // First pass: tiles with a built storage appliance that accepts carried resources
             for (const [key, cfg] of zm.storageTiles) {
                 if (!tileAccepts(cfg)) continue;
                 const [tx, ty] = key.split(',').map(Number);
                 const item = fm?.getAt(tx, ty);
-                if (!item?.built || !STORAGE_APPL.has(item.type)) continue;
+                if (!item?.built || !_STORAGE_APPL.has(item.type)) continue;
                 const d = Phaser.Math.Distance.Between(u.x, u.y, (tx + 0.5) * TILE, MAP_OY + (ty + 0.5) * TILE);
                 if (d < bestDist) { bestDist = d; bestKey = key; }
             }
@@ -1129,12 +1139,9 @@ export default {
         // Role-based routing: prefer private construct in home domain, fall back to nearest public
         const routeTypes = this._depositRoutes()[u.role];
         if (routeTypes) {
-            const homeDomain = u.homeConstructId
-                ? this.scene.constructManager.getDomainAt(
-                    ...(this.scene.constructs.find(b => b.id === u.homeConstructId)
-                        ? [this.scene.constructs.find(b => b.id === u.homeConstructId).tx,
-                           this.scene.constructs.find(b => b.id === u.homeConstructId).ty]
-                        : [0, 0]))
+            const _homeC = u.homeConstructId ? this.scene.constructManager?.getById(u.homeConstructId) : null;
+            const homeDomain = _homeC
+                ? this.scene.constructManager.getDomainAt(_homeC.tx, _homeC.ty)
                 : null;
 
             // First try: private construct in worker's home domain
@@ -1158,14 +1165,14 @@ export default {
 
         // Last resort: bring it home; private only if the home construct is itself private
         if (u.homeConstructId) {
-            const home = this.scene.constructs.find(b => b.id === u.homeConstructId && b.built);
-            if (home) { u.taskType = 'deposit'; u.taskConstructId = home.id; u._depositPrivate = !home.isPublic; }
+            const home = this.scene.constructManager?.getById(u.homeConstructId);
+            if (home?.built) { u.taskType = 'deposit'; u.taskConstructId = home.id; u._depositPrivate = !home.isPublic; }
         }
     },
 
     handleDepositTask(u, dt) {
-        const b = this.scene.constructs.find(b => b.id === u.taskConstructId && b.built && !b.faction);
-        if (!b) { u.taskType = null; u._depositPrivate = false; return; }
+        const b = this.scene.constructManager?.getById(u.taskConstructId);
+        if (!b?.built || b.faction) { u.taskType = null; u._depositPrivate = false; return; }
         const cx = (b.tx + b.width / 2) * TILE, cy = MAP_OY + (b.ty + b.width / 2) * TILE;
         if (this.moveToward(u, cx, cy, 30, dt)) return;
         u.isInside = !(CONSTRUCTS[b.type]?.outdoor ?? false);
@@ -1214,14 +1221,18 @@ export default {
         if (this.moveToward(u, cx, cy, 30, dt)) return;
 
         const accepts = cfg.accepts ?? [];
+        cfg.inventory = cfg.inventory ?? {};
+        let deposited = false;
         for (const [res, amt] of Object.entries(u.carrying)) {
             if ((amt ?? 0) <= 0) continue;
             if (accepts.length && !accepts.some(cat => res.startsWith(cat))) continue;
-            this.scene.economyManager.addResource(res, amt);
+            cfg.inventory[res] = (cfg.inventory[res] ?? 0) + amt;
             u.carrying[res] = 0;
             this.scene.uiManager.showFloatText(cx, cy - 14, `+${amt} ${res.split('.').pop()}`, '#88ff88');
+            GameLogger.log('deposit', { u: u.name, res: res.split('.').pop(), qty: amt, tile: u.taskZoneKey });
+            deposited = true;
         }
-        this.scene.economyManager.syncResources();
+        if (deposited) this.scene.economyManager.syncResources();
         u.taskType = null;
         u.isInside = false;
     },
@@ -1259,7 +1270,7 @@ export default {
 
     seekFarmerTask(u) {
         const home = u.homeConstructId
-            ? this.scene.constructs.find(b => b.id === u.homeConstructId)
+            ? this.scene.constructManager?.getById(u.homeConstructId)
             : null;
         const homeDomain = home?.domainId
             ? this.scene.domains.find(d => d.id === home.domainId)
@@ -1283,24 +1294,7 @@ export default {
             if (plantKey !== null) { u.taskType = 'plant_grow';   u.taskZoneKey = plantKey; u.workProgress = 0; return; }
         }
 
-        // Crops are growing — wait near the field rather than wandering off
-        if (zm && zm.growTiles.size > 0) {
-            let bestKey = null, bestDist = Infinity;
-            for (const key of zm.growTiles.keys()) {
-                const [ktx, kty] = key.split(',').map(Number);
-                const d = Phaser.Math.Distance.Between(u.x, u.y, ktx * TILE + TILE / 2, MAP_OY + kty * TILE + TILE / 2);
-                if (d < bestDist) { bestDist = d; bestKey = key; }
-            }
-            if (bestKey !== null) {
-                const [ktx, kty] = bestKey.split(',').map(Number);
-                u.moveTo = {
-                    x: (ktx + 0.5) * TILE + Phaser.Math.Between(-TILE, TILE),
-                    y: MAP_OY + (kty + 0.5) * TILE + Phaser.Math.Between(-TILE / 2, TILE / 2),
-                };
-                return;
-            }
-        }
-        // No grow zones at all — forage nearby nodes
+        // Crops growing but nothing to do — forage food nodes rather than standing idle
         this.seekNodeTask(u, ['berry_bush', 'wild_garden', 'olive_grove']);
     },
 
@@ -1407,9 +1401,8 @@ export default {
         return b.domainId === home.domainId;
     },
 
-    // Pre-civic age: no townhall yet → ownership/domain distinctions don't apply
     _isPreCivicAge() {
-        return !this.scene.constructs.some(b => b.type === 'townhall' && b.built && !b.faction);
+        return this.scene.constructManager?._preCivicAge ?? true;
     },
 
     // Returns true if unit u is allowed to work in construct b
@@ -1436,14 +1429,14 @@ export default {
 
     handleWorkshopTask(u, dt) {
         const def = WORKSHOP_JOBS[u.role];
-        const b   = this.scene.constructs.find(b => b.id === u.taskConstructId && b.built);
-        if (!b || !def) { u.taskType = null; u.workshopPhase = null; u.isInside = false; return; }
+        const b   = this.scene.constructManager?.getById(u.taskConstructId);
+        if (!b?.built || !def) { u.taskType = null; u.workshopPhase = null; u.isInside = false; return; }
 
         // === PROCURER: goFetch → goWork → loop back to goFetch ===
         if (u.workshopSubrole === 'procure') {
             if (u.workshopPhase === 'goFetch' || !u.workshopPhase) {
-                const src = this.scene.constructs.find(s => s.id === u.fetchConstructId && s.built);
-                if (!src) {
+                const src = this.scene.constructManager?.getById(u.fetchConstructId);
+                if (!src?.built) {
                     const sourceTypes = this._fetchSources()[u.role] ?? [];
                     const newSrc = this._findSourceConstructNear(u.x, u.y, def.input, sourceTypes, u);
                     if (!newSrc) { u.taskType = null; u.workshopPhase = null; return; }
@@ -1514,8 +1507,8 @@ export default {
 
         // === FALLBACK (old saves, no subrole): original full-cycle logic ===
         if (u.workshopPhase === 'goFetch') {
-            const src = this.scene.constructs.find(s => s.id === u.fetchConstructId && s.built);
-            if (!src) {
+            const src = this.scene.constructManager?.getById(u.fetchConstructId);
+            if (!src?.built) {
                 const sourceTypes = this._fetchSources()[u.role] ?? [];
                 const newSrc = this._findSourceConstructNear(u.x, u.y, def.input, sourceTypes, u);
                 if (!newSrc) { u.taskType = null; u.workshopPhase = null; return; }
@@ -1609,18 +1602,15 @@ export default {
     },
 
     handleEatTask(u, dt) {
-        const FOOD_PRIORITY = ['Food.Grain.Wheat.Bread', 'Food.Meat.Venison.Sausages', 'Food.Grain.Wheat.Flour', 'Food.Produce.Olive', 'Food.Grain.Wheat', 'Food.Meat.Venison', 'Food.Produce.Berry'];
-        const NUTRITION_MAP = Object.fromEntries(Object.values(ITEMS).filter(d => d.nutrition != null).map(d => [d.key, d.nutrition]));
-
         // Eat from own carrying inventory first (no travel needed)
-        if (FOOD_PRIORITY.some(k => (u.carrying[k] ?? 0) > 0)) {
+        if (_FOOD_PRIORITY.some(k => (u.carrying[k] ?? 0) > 0)) {
             if (!u.needs) u.needs = { food: 0, rest: 1, social: 0.8, joy: 0.8 };
             while ((u.needs.food ?? 0) < 0.95) {
                 let found = false;
-                for (const food of FOOD_PRIORITY) {
+                for (const food of _FOOD_PRIORITY) {
                     if ((u.carrying[food] ?? 0) >= 1) {
                         u.carrying[food]--;
-                        const nut = NUTRITION_MAP[food] ?? 0.2;
+                        const nut = _NUTRITION_MAP[food] ?? 0.2;
                         u.needs.food = Math.min(1.0, (u.needs.food ?? 0) + nut);
                         u.dailyNutrition = Math.min(1.0, (u.dailyNutrition ?? 0) + nut);
                         found = true; break;
@@ -1634,14 +1624,13 @@ export default {
         }
 
         // Try to eat from the nearest food construct's inventory
-        const FOOD_CONSTRUCT_TYPES = new Set(['oven', 'butchersblock', 'grainsilo', 'house', 'camp', 'townhall']);
         let foodConstruct = null, bd = Infinity;
         for (const b of this.scene.constructs) {
-            if (!b.built || b.faction || !FOOD_CONSTRUCT_TYPES.has(b.type)) continue;
+            if (!b.built || b.faction || !_FOOD_CONSTRUCT_TYPES.has(b.type)) continue;
             // Houses and camps: only eat from own home, or if the construct is public
             const isHome = b.id === u.homeConstructId;
             const inv = (CONSTRUCTS[b.type]?.isHomeType) && !isHome && !b.isPublic ? null : b.inventory;
-            if (!inv || !FOOD_PRIORITY.some(k => (inv[k] ?? 0) > 0)) continue;
+            if (!inv || !_FOOD_PRIORITY.some(k => (inv[k] ?? 0) > 0)) continue;
             const bx = (b.tx + b.width / 2) * TILE, by = MAP_OY + (b.ty + b.width / 2) * TILE;
             const d = Phaser.Math.Distance.Between(u.x, u.y, bx, by);
             if (d < bd) { bd = d; foodConstruct = b; }
@@ -1656,13 +1645,13 @@ export default {
             let ate = false;
             while ((u.needs.food ?? 0) < 0.95) {
                 let found = false;
-                for (const food of FOOD_PRIORITY) {
+                for (const food of _FOOD_PRIORITY) {
                     if ((foodConstruct.inventory?.[food] ?? 0) >= 1) {
                         foodConstruct.inventory[food]--;
                         if (foodConstruct.isPublic) {
                             this.scene.economyManager.syncResources();
                         }
-                        const nut = NUTRITION_MAP[food];
+                        const nut = _NUTRITION_MAP[food];
                         u.needs.food = Math.min(1.0, (u.needs.food ?? 0) + nut);
                         u.dailyNutrition = Math.min(1.0, (u.dailyNutrition ?? 0) + nut);
                         ate = true; found = true;
@@ -1678,10 +1667,10 @@ export default {
             let ate = false;
             while ((u.needs.food ?? 0) < 0.95) {
                 let found = false;
-                for (const food of FOOD_PRIORITY) {
+                for (const food of _FOOD_PRIORITY) {
                     if ((this.scene.resources[food] ?? 0) >= 1) {
                         this.scene.economyManager.takeFromCommons(food, 1);
-                        const nut = NUTRITION_MAP[food];
+                        const nut = _NUTRITION_MAP[food];
                         u.needs.food = Math.min(1.0, (u.needs.food ?? 0) + nut);
                         u.dailyNutrition = Math.min(1.0, (u.dailyNutrition ?? 0) + nut);
                         ate = true; found = true;
@@ -1694,6 +1683,8 @@ export default {
                 this.scene.uiManager.showFloatText(u.x, u.y - 14, '🍱 full', '#ffee88');
             } else {
                 this.scene.uiManager.showFloatText(u.x, u.y - 14, 'hungry!', '#ff6644');
+                // No stored food anywhere — go forage immediately rather than starving idle
+                this.seekNodeTask(u, ['berry_bush', 'wild_garden', 'olive_grove']);
             }
         }
 
@@ -1717,19 +1708,30 @@ export default {
             if (d < maxDist && d < bd) { bd = d; best = n; }
         }
         if (filterType && filterType.includes('mountain')) {
+            // Cache nearest mountain per unit; refresh only when unit moves >2 tiles or cache expires (10s)
             const utx = Math.floor(u.x / 32), uty = Math.floor((u.y - 52) / 32);
-            for (let dy = -15; dy <= 15; dy++) {
-                for (let dx = -15; dx <= 15; dx++) {
-                    const tx = utx + dx, ty = uty + dy;
-                    if (this.scene.chunkManager?.getTile(tx, ty) === T_MOUNTAIN) {
-                        const px = tx * 32 + 16, py = 52 + ty * 32 + 16;
-                        const d = Phaser.Math.Distance.Between(u.x, u.y, px, py);
-                        if (d < maxDist && d < bd) {
-                            bd = d;
-                            best = { isTile: true, type: 'mountain', tx, ty, x: px, y: py, stock: 10 };
+            const cacheKey = `${utx},${uty}`;
+            const now = this.scene.time.now;
+            if (!u._mtCache || u._mtCacheKey !== cacheKey || now - u._mtCacheTime > 10000) {
+                u._mtCacheKey = cacheKey;
+                u._mtCacheTime = now;
+                u._mtCache = null;
+                let mbest = null, mbd = Infinity;
+                for (let dy = -15; dy <= 15; dy++) {
+                    for (let dx = -15; dx <= 15; dx++) {
+                        const tx = utx + dx, ty = uty + dy;
+                        if (this.scene.chunkManager?.getTile(tx, ty) === T_MOUNTAIN) {
+                            const px = tx * 32 + 16, py = 52 + ty * 32 + 16;
+                            const d = Phaser.Math.Distance.Between(u.x, u.y, px, py);
+                            if (d < mbd) { mbd = d; mbest = { isTile: true, type: 'mountain', tx, ty, x: px, y: py, stock: 10 }; }
                         }
                     }
                 }
+                u._mtCache = mbest;
+            }
+            if (u._mtCache) {
+                const d = Phaser.Math.Distance.Between(u.x, u.y, u._mtCache.x, u._mtCache.y);
+                if (d < maxDist && d < bd) { bd = d; best = u._mtCache; }
             }
         }
         return best;
@@ -1864,11 +1866,6 @@ export default {
         }
     },
 
-    _fetchSources() {
-        return Object.fromEntries(Object.values(JOBS).filter(j => j.fetchSources).map(j => [j.id, j.fetchSources]));
-    },
-
-    _selfSupply() {
-        return Object.fromEntries(Object.values(JOBS).filter(j => j.selfSupply).map(j => [j.id, j.selfSupply]));
-    },
+    _fetchSources() { return _FETCH_SOURCES; },
+    _selfSupply()   { return _SELF_SUPPLY; },
 };

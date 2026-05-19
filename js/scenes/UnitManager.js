@@ -18,6 +18,7 @@ import { JOBS, WORKSHOP_JOBS } from '../content/jobs/index.js';
 import { UNITS } from '../content/units/index.js';
 import { MathUtils } from '../utils/MathUtils.js';
 import { Pathfinder } from '../utils/Pathfinder.js';
+import GameLogger from '../GameLogger.js';
 
 import unitRenderMethods    from './unit/UnitRender.js';
 import unitCombatMethods    from './unit/UnitCombat.js';
@@ -90,11 +91,10 @@ export default class UnitManager {
     constructor(scene) {
         this.scene = scene;
         this.pathfinder = new Pathfinder(scene);
-        // Idle-worker pulse ring layer (depth 4) and selection layer (depth 5).
         this.idleGfx  = scene.add.graphics().setDepth(4);
         this.selGfx   = scene.add.graphics().setDepth(5);
-        // Single shared Graphics for all unit bodies — 1 draw call regardless of unit count.
         scene.unitsGfx = scene._w(scene.add.graphics().setDepth(6));
+        this._byUnitId = new Map(); // unit.id → unit for O(1) lookup
     }
 
     spawnTrainedUnit(construct, type) {
@@ -147,11 +147,12 @@ export default class UnitManager {
         }
         this.redrawUnit(unit);
         this.scene.units.push(unit);
+        this._byUnitId.set(unit.id, unit);
         return unit;
     }
 
     spawnChild(father, mother) {
-        const home = this.scene.constructs.find(b => b.id === (father.homeConstructId ?? mother.homeConstructId));
+        const home = this.scene.constructManager?.getById(father.homeConstructId ?? mother.homeConstructId);
         if (!home) return null;
 
         const cx = (home.tx + home.width / 2) * TILE;
@@ -305,7 +306,7 @@ export default class UnitManager {
     }
 
     _archonSuccession(deceased, alive) {
-        const archonHome = this.scene.constructs.find(b => b.id === deceased.homeConstructId && b.built);
+        const archonHome = (() => { const c = this.scene.constructManager?.getById(deceased.homeConstructId); return c?.built ? c : null; })();
 
         // Priority: 1) eldest adult child, 2) housemates, 3) any adult
         const children   = alive.filter(u => u.fatherId === deceased.id || u.motherId === deceased.id);
@@ -362,28 +363,43 @@ export default class UnitManager {
         return 1.0;
     }
 
-    tick(time, dt) {
-        for (const u of this.scene.units) {
+    tick(time, dt, frame = 0) {
+        const units = this.scene.units;
+        const STRIDE = 3; // each unit ticks every 3rd frame, accumulates dt in between
+
+        for (let i = 0; i < units.length; i++) {
+            const u = units[i];
             if (u.hp <= 0) continue;
 
+            // Rendering state always current
+            const inTower = u.taskType === 'garrison' || u.aiMode === 'tower_assault';
+            u._alpha = inTower ? 0.55 : u.isInside ? 0.15 : 1.0;
+            this._isUnitCulled(u);
+
+            // Accumulate dt; only run full tick on this unit's assigned frame slot
+            u._dtAcc = (u._dtAcc ?? 0) + dt;
+            if (frame % STRIDE !== i % STRIDE) continue;
+
+            const unitDt = u._dtAcc;
+            u._dtAcc = 0;
+
             if (!u.isEnemy && u.hp < u.maxHp) {
-                const nearGarlic = this.scene.constructs.some(b => b.type === 'garden' && b.built && b.cropType === 'garlic'
-                    && Phaser.Math.Distance.Between(u.x, u.y, (b.tx+b.width/2)*TILE, MAP_OY+(b.ty+b.width/2)*TILE) < 5 * TILE);
+                const nearGarlic = (this.scene.constructManager?._garlicGardens ?? []).some(b =>
+                    Phaser.Math.Distance.Between(u.x, u.y, (b.tx+b.width/2)*TILE, MAP_OY+(b.ty+b.width/2)*TILE) < 5 * TILE);
                 if (nearGarlic) {
-                    u._regenAcc = (u._regenAcc || 0) + dt;
+                    u._regenAcc = (u._regenAcc || 0) + unitDt;
                     if (u._regenAcc >= 2.0) { u.hp = Math.min(u.maxHp, u.hp + 1); u._regenAcc = 0; }
                 }
             }
 
+            const _ut0 = performance.now();
             if (u.isEnemy) {
-                if (!this.scene.enemiesDisabled) this.tickEnemy(u, time, dt);
+                if (!this.scene.enemiesDisabled) this.tickEnemy(u, time, unitDt);
             } else {
-                this.tickPlayer(u, time, dt);
+                this.tickPlayer(u, time, unitDt);
             }
-            const inTower = u.taskType === 'garrison' || u.aiMode === 'tower_assault';
-            u._alpha = inTower ? 0.55 : u.isInside ? 0.15 : 1.0;
-
-            this._isUnitCulled(u);
+            const _utMs = performance.now() - _ut0;
+            if (_utMs > 20) GameLogger.log('slow_unit', { u: u.name ?? u.type, ms: Math.round(_utMs), task: u.taskType ?? 'none', role: u.role ?? 'none' });
         }
 
         // Kick off fade-out for newly-dead units (deferred removal after tween).
@@ -394,6 +410,7 @@ export default class UnitManager {
             if (u.nameLabel) { u.nameLabel.destroy(); u.nameLabel = null; }
             if (u._zzzLabel) { u._zzzLabel.destroy(); u._zzzLabel = null; }
             if (u.isScout) this.waveIntelFlash();
+            GameLogger.log('death', { u: u.name ?? '?', enemy: !!u.isEnemy, cause: (u.needs?.food ?? 1) <= 0 ? 'starvation' : 'combat', hp: +u.hp.toFixed(1) });
             if (!u.isEnemy && u.type === 'worker') {
                 if (u.spouseId) {
                     const spouse = this.scene.units.find(s => s.id === u.spouseId);
@@ -432,7 +449,7 @@ export default class UnitManager {
             }
             this.scene.tweens.add({
                 targets: u, _alpha: 0, duration: 280,
-                onComplete: () => { this.scene.units = this.scene.units.filter(x => x !== u); },
+                onComplete: () => { this._byUnitId.delete(u.id); this.scene.units = this.scene.units.filter(x => x !== u); },
             });
         }
 
