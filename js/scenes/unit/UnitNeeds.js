@@ -173,7 +173,11 @@ export default {
         if ((u.mood ?? 1) < collapseAt) u._moodCollapsed = true;
         else if ((u.mood ?? 1) > recoverAt) u._moodCollapsed = false;
         if (u._moodCollapsed && !prevCollapsed) {
-            this.scene.uiManager?.showFloatText?.(u.x, u.y - 24, `${u.name} is miserable`, '#ff6666');
+            this.scene.uiManager?.showFloatText?.(u.x, u.y - 24, `💔 ${u.name} breaks down!`, '#ff6666');
+            u._mentalBreakPending = true;
+        }
+        if (!u._moodCollapsed && prevCollapsed) {
+            u._mentalBreakPending = false;
         }
     },
 

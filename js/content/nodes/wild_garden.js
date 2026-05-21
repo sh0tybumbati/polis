@@ -1,8 +1,8 @@
 export default {
     id: 'wild_garden',
     resource: 'Food.Produce.Olive',
-    stock: 10,
-    respawnDays: 4,
+    stock: 40,
+    respawnDays: 2,
     role: 'forager',
 
     draw(gfx, _n, alpha) {

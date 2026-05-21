@@ -1,8 +1,8 @@
 export default {
     id: 'small_boulder',
     resource: 'Materials.Stone.Limestone',
-    stock: 12,
-    respawnDays: 12,
+    stock: 40,
+    respawnDays: 6,
     role: 'miner',
 
     draw(gfx, _n, alpha) {

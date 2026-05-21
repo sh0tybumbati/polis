@@ -1,8 +1,8 @@
 export default {
     id: 'berry_bush',
     resource: 'Food.Produce.Berry',
-    stock: 24,
-    respawnDays: 3,
+    stock: 80,
+    respawnDays: 1,
     role: 'forager',
 
     draw(gfx, n, alpha) {

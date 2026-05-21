@@ -1,8 +1,8 @@
 export default {
     id: 'large_tree',
     resource: 'Materials.Wood.Pine',
-    stock: 18,
-    respawnDays: 0,
+    stock: 50,
+    respawnDays: 5,
     role: 'woodcutter',
 
     draw(gfx, n, alpha) {

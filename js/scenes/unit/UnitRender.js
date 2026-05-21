@@ -12,6 +12,7 @@ export default {
                 if (u.nameLabel) u.nameLabel.setVisible(false);
                 if (u._zzzLabel) u._zzzLabel.setVisible(false);
                 if (u._needLabel) u._needLabel.setVisible(false);
+                if (u._mbLabel) u._mbLabel.setVisible(false);
                 return true;
             }
         }
@@ -25,6 +26,7 @@ export default {
             if (u.nameLabel) u.nameLabel.setVisible(false);
             if (u._zzzLabel) u._zzzLabel.setVisible(false);
             if (u._needLabel) u._needLabel.setVisible(false);
+            if (u._mbLabel) u._mbLabel.setVisible(false);
             return true;
         }
 
@@ -92,6 +94,24 @@ export default {
                         .setVisible(true);
         } else if (u._needLabel) {
             u._needLabel.destroy(); u._needLabel = null;
+        }
+
+        // Mental break indicator — persistent 💔 while unit is in a mental break
+        const showMbLabel = u.taskType === 'mental_break' && !u.isSleeping && u.hp > 0 && !u.isEnemy;
+        if (showMbLabel) {
+            if (!u._mbLabel) {
+                u._mbLabel = this.scene._w(this.scene.add.text(0, 0, '💔', {
+                    fontSize: '13px', stroke: '#000000', strokeThickness: 2,
+                }).setOrigin(0.5, 1).setDepth(8));
+                u._mbPhase = Math.random() * Math.PI * 2;
+            }
+            u._mbPhase = (u._mbPhase ?? 0) + 0.05;
+            const mbBob = Math.sin(u._mbPhase) * 2;
+            u._mbLabel.setPosition(ox + 6, oy - 20 + mbBob)
+                      .setAlpha((0.85 + Math.sin(u._mbPhase * 0.6) * 0.1) * alpha)
+                      .setVisible(true);
+        } else if (u._mbLabel) {
+            u._mbLabel.destroy(); u._mbLabel = null;
         }
 
         // Name label for young units

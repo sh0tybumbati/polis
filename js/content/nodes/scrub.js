@@ -1,8 +1,8 @@
 export default {
     id: 'scrub',
     resource: 'Textile.Fiber.Wool',
-    stock: 4,
-    respawnDays: 4,
+    stock: 16,
+    respawnDays: 2,
     large: true,
     role: 'shepherd',
 

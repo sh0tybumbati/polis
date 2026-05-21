@@ -539,7 +539,7 @@ export default {
             const roleStr = u.age < 2 ? '' : u.role ? u.role[0].toUpperCase() + u.role.slice(1) : 'Idle';
             const role = [roleStr, ageTag].filter(Boolean).join(' ');
             const intentLabel = { eat: '🍱 eating', sleep: '💤 resting', socialize: '💬 social', leisure: '☀ leisure' };
-            const intentStr = intentLabel[u.currentIntent] ?? '';
+            const intentStr = u.taskType === 'mental_break' ? '💔 breaking down' : (intentLabel[u.currentIntent] ?? '');
             this._infTxt(ox + pad, ry, `${role}  ${intentStr}`, { fontSize: this._fs(9), color: '#aaaacc' });
             ry += 12;
             this._infTxt(ox + pad, ry, `Calling: ${u.vocation ?? '—'}`, { fontSize: this._fs(9), color: '#7a7060' });
@@ -603,12 +603,12 @@ export default {
         let ry = oy + 2;
         for (const r of rows) {
             const col = r.val > 0.5 ? r.hi : r.val > 0.25 ? 0xddaa22 : r.lo;
-            this._infTxt(ox + pad, ry + 2, r.label, { fontSize: this._fs(9), color: '#e8d4a0', stroke: '#000000', strokeThickness: 1 });
+            this._infTxt(ox + pad, ry + 2, r.label, { fontSize: this._fs(11), color: '#f0e0b0', stroke: '#000000', strokeThickness: 2 });
             this._infBar(ox + pad + labelW, ry + 1, bw, 13, r.val, col);
             ry += 20;
         }
         const moodCol = mood > 0.7 ? 0x88ddaa : mood > 0.4 ? 0xddcc44 : 0xcc4433;
-        this._infTxt(ox + pad, ry + 2, 'Mood', { fontSize: this._fs(9), color: '#e8d4a0', stroke: '#000000', strokeThickness: 1 });
+        this._infTxt(ox + pad, ry + 2, 'Mood', { fontSize: this._fs(11), color: '#f0e0b0', stroke: '#000000', strokeThickness: 2 });
         this._infBar(ox + pad + labelW, ry + 1, bw, 13, mood, moodCol);
         if (u.isSleeping) this._infTxt(ox + W - pad - 4, ry + 1, '💤',
             { fontSize: this._fs(9), color: '#88aacc' }).setOrigin(1, 0);
@@ -788,7 +788,6 @@ export default {
                 });
             if (col === cols - 1) ry += btnH + gap;
         });
-        // partial last row — advance ry if needed
         if (ROLES.length % cols !== 0) ry += btnH + gap;
         if (workers.some(u => u.role) && ry < oy + H - 28) {
             this._infBtn(ox + pad, ry, W - pad * 2 - 4, 26, 'Clear Role', 0x2a1a10, () => {
@@ -922,6 +921,28 @@ export default {
             this._infTxt(ox + pad, ry, allOn ? 'Accepts: all' : `Accepts: ${accepts.map(a => a.split('.')[1] ?? a).join(', ')}`,
                 { fontSize: this._fs(8), color: '#7a6a50' });
             ry += 13;
+
+            // Aggregate inventory across all tiles in this zone
+            const zoneInv = {};
+            for (const t of zoneTiles) {
+                const tileCfg = zm.storageTiles.get(zm.tileKey(t.tx, t.ty));
+                for (const [res, qty] of Object.entries(tileCfg?.inventory ?? {})) {
+                    if (qty > 0) zoneInv[res] = (zoneInv[res] ?? 0) + qty;
+                }
+            }
+            const invEntries = Object.entries(zoneInv).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]);
+            if (invEntries.length === 0) {
+                this._infTxt(ox + pad, ry, 'Empty', { fontSize: this._fs(9), color: '#4a4030' });
+                ry += 13;
+            } else {
+                for (const [res, qty] of invEntries) {
+                    if (ry > oy + H - 80) break;
+                    const label = res.split('.').pop();
+                    this._infTxt(ox + pad + 4, ry, `${qty}`, { fontSize: this._fs(10), color: '#ddcc88' });
+                    this._infTxt(ox + pad + 28, ry, label, { fontSize: this._fs(9), color: '#9a8a6a' });
+                    ry += 13;
+                }
+            }
         }
 
         if (isGrow) {

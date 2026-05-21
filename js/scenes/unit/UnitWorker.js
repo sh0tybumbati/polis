@@ -11,7 +11,7 @@ import { CROPS } from '../../content/crops/index.js';
 import GameLogger from '../../GameLogger.js';
 
 // Module-level constants to avoid per-frame allocations
-const _NO_DEPOSIT = new Set(['build', 'zone_workshop', 'workshop', 'eat', 'collect_tithe', 'leisure', 'merchant', 'plant_grow', 'harvest_grow', 'plant']);
+const _NO_DEPOSIT = new Set(['build', 'zone_workshop', 'workshop', 'eat', 'collect_tithe', 'leisure', 'merchant', 'plant_grow', 'harvest_grow', 'plant', 'mental_break']);
 const _PRIVATE_ROLES = new Set(Object.values(JOBS).filter(j => j.private).map(j => j.id));
 const _FOOD_PRIORITY = ['Food.Grain.Wheat.Bread', 'Food.Meat.Venison.Sausages', 'Food.Grain.Wheat.Flour', 'Food.Produce.Olive', 'Food.Grain.Wheat', 'Food.Meat.Venison', 'Food.Produce.Berry'];
 const _NUTRITION_MAP = Object.fromEntries(Object.values(ITEMS).filter(d => d.nutrition != null).map(d => [d.key, d.nutrition]));
@@ -29,6 +29,14 @@ export default {
 
         this._tickNeeds(u, dt);
         this._tickRelations(u, dt);
+
+        if (u._mentalBreakPending && u.taskType && u.taskType !== 'garrison' && u.taskType !== 'eat') {
+            u._mentalBreakPending = false;
+            u.taskType = 'mental_break';
+            u.taskConstructId = null; u.targetNode = null; u.workProgress = 0;
+            u.workshopPhase = null; u.fetchConstructId = null;
+            u._mbTimer = 0;
+        }
 
         // Wage collection: once per night phase (economic mechanic, keep phase-gated)
         if (this.scene.phase === 'NIGHT' && !u._wageCollected && u.taskType !== 'garrison') {
@@ -268,6 +276,7 @@ export default {
         else if (u.taskType === 'chat') this.handleChatTask(u, dt);
         else if (u.taskType === 'rest_break') this.handleRestBreakTask(u, dt);
         else if (u.taskType === 'stroll') this.handleStrollTask(u, dt);
+        else if (u.taskType === 'mental_break') this.handleMentalBreakTask(u, dt);
         else if (u.taskType === 'build') this.handleBuildTask(u, dt);
         else if (u.taskType === 'zone_workshop')   this.handleZoneWorkshopTask(u, dt);
         else if (u.taskType === 'deconstruct') this.handleDeconstructTask(u, dt);
@@ -1079,6 +1088,24 @@ export default {
         }
     },
 
+    handleMentalBreakTask(u, dt) {
+        if (!u._moodCollapsed) { u.taskType = null; u._mbTimer = 0; return; }
+        u._mbTimer = (u._mbTimer ?? 0) + dt;
+        if (!u._mbPoints || u._mbTimer > (u._mbNextPoint ?? 0)) {
+            const range = 80;
+            u._mbPoints = {
+                x: Phaser.Math.Clamp(u.x + Phaser.Math.Between(-range, range), TILE, 1024 * TILE - TILE),
+                y: Phaser.Math.Clamp(u.y + Phaser.Math.Between(-range, range), MAP_OY + TILE, MAP_OY + 1024 * TILE - TILE),
+            };
+            u._mbNextPoint = u._mbTimer + Phaser.Math.Between(5, 12);
+        }
+        if (u._mbPoints) {
+            const d = Phaser.Math.Distance.Between(u.x, u.y, u._mbPoints.x, u._mbPoints.y);
+            if (d > 6) this.moveToward(u, u._mbPoints.x, u._mbPoints.y, u.speed * 0.7, dt);
+            else u._mbPoints = null;
+        }
+    },
+
     seekDeposit(u) {
         const hasCarry = Object.keys(u.carrying).some(r => (u.carrying[r] || 0) > 0);
         if (!hasCarry) return;
@@ -1434,6 +1461,12 @@ export default {
 
         // === PROCURER: goFetch → goWork → loop back to goFetch ===
         if (u.workshopSubrole === 'procure') {
+            // Queue mode: idle if queue is exhausted (mirrors processor check below)
+            const bQueueP = b.productionQueue;
+            if (Array.isArray(bQueueP) && bQueueP.filter(o => (o.done ?? 0) < o.qty).length === 0) {
+                u.workshopPhase = 'idle';
+                return;
+            }
             if (u.workshopPhase === 'goFetch' || !u.workshopPhase) {
                 const src = this.scene.constructManager?.getById(u.fetchConstructId);
                 if (!src?.built) {
