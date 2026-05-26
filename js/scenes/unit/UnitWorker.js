@@ -89,7 +89,7 @@ export default {
                 if (home?.built) {
                     // Prefer a built bed in the home's domain over the home center
                     const dom = u.homeConstructId
-                        ? this.scene.domains?.find(d => d.houseConstructId === u.homeConstructId) : null;
+                        ? this.scene.estateBounds?.find(d => d.houseConstructId === u.homeConstructId) : null;
                     const bed = dom
                         ? this.scene.constructs.find(b => b.built && b.type === 'bed' && b.domainId === dom.id
                             && !this.scene.units.some(w => w !== u && w.isSleeping && w._sleepConstructId === b.id))
@@ -1168,7 +1168,7 @@ export default {
         if (routeTypes) {
             const _homeC = u.homeConstructId ? this.scene.constructManager?.getById(u.homeConstructId) : null;
             const homeDomain = _homeC
-                ? this.scene.constructManager.getDomainAt(_homeC.tx, _homeC.ty)
+                ? this.scene.constructManager.getEstateAt(_homeC.tx, _homeC.ty)
                 : null;
 
             // First try: private construct in worker's home domain
@@ -1176,7 +1176,7 @@ export default {
                 ? this.scene.constructs.find(b =>
                     b.built && !b.faction && !b.isPublic &&
                     routeTypes.includes(b.type) &&
-                    this.scene.constructManager.getDomainAt(b.tx, b.ty)?.id === homeDomain.id)
+                    this.scene.constructManager.getEstateAt(b.tx, b.ty)?.id === homeDomain.id)
                 : null;
 
             if (privateDest) {
@@ -1300,7 +1300,7 @@ export default {
             ? this.scene.constructManager?.getById(u.homeConstructId)
             : null;
         const homeDomain = home?.domainId
-            ? this.scene.domains.find(d => d.id === home.domainId)
+            ? this.scene.estateBounds.find(d => d.id === home.domainId)
             : null;
 
         // ── Grow zones (tile-based crops) ─────────────────────────────────────

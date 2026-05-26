@@ -429,6 +429,12 @@ export default class WorldManager {
             if (!u.homeConstructId || u.homeConstructId !== spouse.homeConstructId) continue;
             if ((u.mood ?? 1) < 0.25 || (u.needs?.food ?? 1) < 0.1) continue;
             if ((spouse.mood ?? 1) < 0.25 || (spouse.needs?.food ?? 1) < 0.1) continue;
+            const home = this.scene.constructManager?.getById(u.homeConstructId);
+            if (home) {
+                const cap = this.scene.constructManager.getHouseCapacity(home);
+                const residents = units.filter(v => v.homeConstructId === home.id && !v.isEnemy && v.hp > 0);
+                if (residents.length >= cap) continue;
+            }
             if (Math.random() < 0.22) {
                 u._gestationDays = 3;
                 this.scene.uiManager?.showFloatText?.(u.x, u.y - 20, `${u.name} is expecting`, '#ffddff');

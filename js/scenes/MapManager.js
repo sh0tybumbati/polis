@@ -25,7 +25,7 @@ export default class MapManager {
         if (!g) return;
         g.clear();
         const PALETTE = [0xd4a855, 0x55a8d4, 0xa855d4, 0x55d488, 0xd45588, 0x88d455, 0x5588d4, 0xd48855];
-        this.scene.domains.forEach((dom, i) => {
+        this.scene.estateBounds.forEach((dom, i) => {
             const col = PALETTE[i % PALETTE.length];
             const x1 = dom.x1 * TILE;
             const y1 = MAP_OY + dom.y1 * TILE;

@@ -37,7 +37,7 @@ export default {
 
         // Non-house constructs within an oikos domain → show family panel
         if (b.built && b.domainId) {
-            const dom   = this.scene.domains.find(d => d.id === b.domainId);
+            const dom   = this.scene.estateBounds.find(d => d.id === b.domainId);
             const house = dom ? this.scene.constructs.find(h => h.id === dom.houseConstructId && h.built) : null;
             if (house) { this._renderOikosInfo(house, ox, oy, W, H, pad); return; }
         }

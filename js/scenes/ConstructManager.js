@@ -53,7 +53,7 @@ export default class ConstructManager {
             const pad = 3;
             for (let y = ty - pad; y <= ty + height - 1 + pad; y++) {
                 for (let x = tx - pad; x <= tx + width - 1 + pad; x++) {
-                    if (this.getDomainAt(x, y)) return false;
+                    if (this.getEstateAt(x, y)) return false;
                 }
             }
         }
@@ -91,7 +91,6 @@ export default class ConstructManager {
             maxStock: def.stockMax || 0,
             replantTimer: 0,
             trainQueue: [],
-            spawnTimer: 0,
             respawnQueue: [],
             resNeeded: {},
             drawnStock: -1,
@@ -135,10 +134,10 @@ export default class ConstructManager {
         this._byId.set(c.id, c);
 
         if (CONSTRUCTS[type]?.isHomeType) {
-            this.assignDomain(c);
+            this.registerEstateBounds(c);
             c.isPublic = false;
         } else {
-            const dom = this.getDomainAt(tx, ty);
+            const dom = this.getEstateAt(tx, ty);
             if (dom) {
                 c.domainId = dom.id;
                 c.isPublic = false;
@@ -181,10 +180,10 @@ export default class ConstructManager {
         this.constructs.push(c);
 
         if (CONSTRUCTS[type]?.isHomeType) {
-            this.assignDomain(c);
+            this.registerEstateBounds(c);
             c.isPublic = false;
         } else {
-            const dom = this.getDomainAt(tx, ty);
+            const dom = this.getEstateAt(tx, ty);
             if (dom) {
                 c.domainId = dom.id;
                 c.isPublic = false;
@@ -274,7 +273,7 @@ export default class ConstructManager {
         this.removeConstruct(construct);
 
         if (CONSTRUCTS[construct.type]?.isHomeType && construct.domainId) {
-            this.scene.domains = this.scene.domains.filter(d => d.id !== construct.domainId);
+            this.scene.estateBounds = this.scene.estateBounds.filter(d => d.id !== construct.domainId);
         }
         
         if (this.scene.selectedConstruct === construct) this.scene.selectedConstruct = null;
@@ -549,7 +548,7 @@ export default class ConstructManager {
 
     // ─── Domain & Storage Logic (from ConstructManager) ─────────────────────────
 
-    assignDomain(house) {
+    registerEstateBounds(house) {
         const pad = 3;
         const dom = {
             id: this.scene.getId(),
@@ -559,14 +558,14 @@ export default class ConstructManager {
             x2: house.tx + house.width - 1 + pad,
             y2: house.ty + house.height - 1 + pad,
         };
-        this.scene.domains.push(dom);
+        this.scene.estateBounds.push(dom);
         house.domainId = dom.id;
         this.scene.mapManager.redrawDomainBorders();
         return dom;
     }
 
-    getDomainAt(tx, ty) {
-        return this.scene.domains.find(d => tx >= d.x1 && tx <= d.x2 && ty >= d.y1 && ty <= d.y2);
+    getEstateAt(tx, ty) {
+        return this.scene.estateBounds.find(d => tx >= d.x1 && tx <= d.x2 && ty >= d.y1 && ty <= d.y2);
     }
 
     updateStorageCap() {
@@ -687,7 +686,6 @@ export default class ConstructManager {
             const scaled = this._houseTickAcc; // pass accumulated delta so timers still advance correctly
             this._houseTickAcc = 0;
             this.tickHouseProduction(scaled);
-            this.tickHouseBirths(scaled);
         }
     }
 
@@ -741,51 +739,6 @@ export default class ConstructManager {
                 }
             }
         }
-    }
-
-    tickHouseBirths(delta) {
-        const POP_BASELINE = 8;
-        const totalAdults = this.scene.units.filter(u =>
-            !u.isEnemy && u.type === 'worker' && u.age >= 2 && u.hp > 0).length;
-        const growthScale = Math.max(0.5, totalAdults / POP_BASELINE);
-        const effectiveSpawnMs = 200000 * growthScale;
-
-        for (const house of this.constructs) {
-            if (!house.built || house.faction || !CONSTRUCTS[house.type]?.isHomeType) continue;
-
-            const cap = this.getHouseCapacity(house);
-            const residents = this.scene.units.filter(u =>
-                u.homeConstructId === house.id && !u.isEnemy && u.hp > 0);
-            const adults = residents.filter(u => u.age >= 2);
-
-            this._tryMarriage(adults);
-
-            const father = adults.find(u =>
-                u.gender === 'male' && u.spouseId && adults.some(f => f.id === u.spouseId));
-            const mother = father ? adults.find(u => u.id === father.spouseId) : null;
-
-            if (!father || !mother || residents.length >= cap) {
-                house.spawnTimer = 0;
-                continue;
-            }
-
-            house.spawnTimer = (house.spawnTimer ?? 0) + delta;
-            if (house.spawnTimer >= effectiveSpawnMs) {
-                house.spawnTimer = 0;
-                this.scene.unitManager.spawnChild(father, mother);
-            }
-        }
-    }
-
-    _tryMarriage(adults) {
-        const single = adults.filter(u => !u.spouseId);
-        const male   = single.find(u => u.gender === 'male');
-        const female = single.find(u => u.gender === 'female');
-        if (!male || !female) return;
-        male.spouseId   = female.id;
-        female.spouseId = male.id;
-        this.scene.uiManager.showFloatText(
-            male.x, male.y - 20, '💍 wed', '#ffeeaa');
     }
 
     tickHouseProduction(delta) {

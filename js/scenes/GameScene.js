@@ -75,7 +75,7 @@ export default class GameScene extends Phaser.Scene {
         this._litTiles   = [];
         this._minimapTimer = 0;
         this._exploredBounds = null;
-        this.domains     = [];
+        this.estateBounds = [];
         this.borderGfx   = null;
         this.fordSet     = new Set();   // string keys "tx,ty" — also in chunkManager.fordSet
         this.deer        = [];
@@ -265,7 +265,7 @@ export default class GameScene extends Phaser.Scene {
                 chunkMods: this.chunkManager?.saveModified() ?? {},
                 fordSet: [...(this.chunkManager?.fordSet ?? this.fordSet)],
                 roadMap: Object.fromEntries(this.roadMap),
-                domains: this.domains,
+                estateBounds: this.estateBounds,
                 constructs: this.constructManager.save(),
                 zones:      this.zoneManager.save(),
                 units:     this.units.map(u => this._serUnit(u)),
@@ -322,7 +322,7 @@ export default class GameScene extends Phaser.Scene {
             // Restore roadMap
             this.roadMap = new Map(Object.entries(s.roadMap ?? {}));
 
-            this.domains = s.domains ?? [];
+            this.estateBounds = s.estateBounds ?? s.domains ?? [];
             this.constructManager.load({ constructs: s.constructs, walls: s.walls, furniture: s.furniture });
             this.zoneManager.load(s.zones ?? null);
 

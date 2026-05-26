@@ -264,8 +264,8 @@ export default {
             units: workers,
             resources: this.scene.resources,
             sheep: this.scene.sheep ?? [],
-            domains: this.scene.domains ?? [],
-            getDomainAt: (tx, ty) => this.scene.constructManager.getDomainAt(tx, ty),
+            domains: this.scene.estateBounds ?? [],
+            getEstateAt: (tx, ty) => this.scene.constructManager.getEstateAt(tx, ty),
             growZones: this.scene.zoneManager?.growTiles.size ?? 0,
         };
         const cands = [];
