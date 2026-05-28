@@ -13,7 +13,7 @@ import GameLogger from '../../GameLogger.js';
 // Module-level constants to avoid per-frame allocations
 const _NO_DEPOSIT = new Set(['build', 'zone_workshop', 'workshop', 'eat', 'collect_tithe', 'leisure', 'merchant', 'plant_grow', 'harvest_grow', 'plant', 'mental_break']);
 const _PRIVATE_ROLES = new Set(Object.values(JOBS).filter(j => j.private).map(j => j.id));
-const _FOOD_PRIORITY = ['Food.Grain.Wheat.Bread', 'Food.Meat.Venison.Sausages', 'Food.Grain.Wheat.Flour', 'Food.Produce.Olive', 'Food.Grain.Wheat', 'Food.Meat.Venison', 'Food.Produce.Berry'];
+const _FOOD_PRIORITY = ['Food.Grain.Wheat.Bread', 'Food.Meat.Venison.Sausages', 'Food.Grain.Wheat.Flour', 'Food.Produce.Olive', 'Food.Grain.Wheat', 'Food.Meat.Venison', 'Food.Produce.Berry', 'Food.Produce.WildGrapes', 'Food.Fish.Fresh'];
 const _NUTRITION_MAP = Object.fromEntries(Object.values(ITEMS).filter(d => d.nutrition != null).map(d => [d.key, d.nutrition]));
 const _FOOD_CONSTRUCT_TYPES = new Set(['oven', 'butchersblock', 'grainsilo', 'house', 'camp', 'townhall']);
 const _STICKY_ROLES = new Set(['hunter', 'shepherd', 'farmer']);
@@ -70,7 +70,7 @@ export default {
                         if (u.taskType === 'deposit')      { this.handleDepositTask(u, dt);     return; }
                         if (u.taskType === 'deposit_zone') { this.handleDepositZoneTask(u, dt); return; }
                         u.targetNode = null; u.moveTo = null;
-                        this.moveToward(u, doorX, doorY, u.speed, dt);
+                        this.moveToward(u, doorX, doorY, 12, dt);
                         u.isInside = false;
                         return;
                     } else {
@@ -102,7 +102,7 @@ export default {
                         }
                         if (u.taskType === 'deposit') { this.handleDepositTask(u, dt); return; }
                         u.targetNode = null; u.moveTo = null;
-                        this.moveToward(u, targetX, targetY, u.speed, dt);
+                        this.moveToward(u, targetX, targetY, 8, dt);
                         u.isInside = false;
                         return;
                     } else {
@@ -240,9 +240,11 @@ export default {
                             if (fallback?.intent === 'socialize') this._handleSocializeIntent(u);
                             else if (fallback?.intent === 'leisure') this.seekLeisureTask(u);
                         }
-                        // Absolute last resort: gather any nearby resource node
+                        // Haul loose ground items before falling back to foraging
+                        if (!u.taskType && !u.targetNode) this.seekGroundItem(u);
+                        // Absolute last resort: gather any nearby resource node (no slate required)
                         if (!u.taskType && !u.targetNode) {
-                            this.seekNodeTask(u, ['berry_bush', 'wild_garden', 'olive_grove', 'small_tree', 'large_tree', 'small_boulder', 'large_boulder']);
+                            this.seekNodeTask(u, ['berry_bush', 'wild_garden', 'olive_grove', 'grape_vine', 'wild_wheat', 'fishing_spot', 'small_tree', 'large_tree', 'small_boulder', 'large_boulder'], false);
                             if (!u.taskType && !u.targetNode)
                                 GameLogger.log('idle', { u: u.name, role: u.role ?? 'none', food: +(u.needs?.food ?? 1).toFixed(2) });
                         }
@@ -271,7 +273,8 @@ export default {
             if (!u.taskType && time - u.lastSeek > 3000) { u.lastSeek = time; this.seekMerchantTask(u); }
         }
 
-        if (u.taskType === 'eat') this.handleEatTask(u, dt);
+        if (u.taskType === 'haul') this.handleHaulTask(u, dt);
+        else if (u.taskType === 'eat') this.handleEatTask(u, dt);
         else if (u.taskType === 'leisure') this.handleLeisureTask(u, dt);
         else if (u.taskType === 'chat') this.handleChatTask(u, dt);
         else if (u.taskType === 'rest_break') this.handleRestBreakTask(u, dt);
@@ -1106,6 +1109,48 @@ export default {
         }
     },
 
+    seekGroundItem(u) {
+        const items = this.scene.groundItems;
+        if (!items?.length) return false;
+        let best = null, bd = Infinity;
+        for (const item of items) {
+            if (item.reserved) continue;
+            if (!this.canUnitCarryMore(u, item.resource, 1)) continue;
+            const d = Phaser.Math.Distance.Between(u.x, u.y, item.x, item.y);
+            if (d < 4000 && d < bd) { bd = d; best = item; }
+        }
+        if (!best) return false;
+        best.reserved = u.id;
+        u.taskType    = 'haul';
+        u.targetItemId = best.id;
+        return true;
+    },
+
+    handleHaulTask(u, dt) {
+        const item = this.scene.groundItems.find(i => i.id === u.targetItemId);
+        if (!item) { u.taskType = null; u.targetItemId = null; return; }
+
+        const dist = Phaser.Math.Distance.Between(u.x, u.y, item.x, item.y);
+        if (dist > 22) { u.moveTo = { x: item.x, y: item.y }; return; }
+
+        let pick = 0;
+        while (pick < item.qty && this.canUnitCarryMore(u, item.resource, pick + 1)) pick++;
+        if (pick > 0) {
+            u.carrying[item.resource] = (u.carrying[item.resource] ?? 0) + pick;
+            item.qty -= pick;
+        }
+
+        if (item.qty <= 0) {
+            this.scene.unitManager.removeGroundItem(item);
+        } else {
+            item.reserved = null;
+            this.scene.unitManager.drawGroundItem(item);
+        }
+
+        u.taskType = null;
+        u.targetItemId = null;
+    },
+
     seekDeposit(u) {
         const hasCarry = Object.keys(u.carrying).some(r => (u.carrying[r] || 0) > 0);
         if (!hasCarry) return;
@@ -1321,8 +1366,8 @@ export default {
             if (plantKey !== null) { u.taskType = 'plant_grow';   u.taskZoneKey = plantKey; u.workProgress = 0; return; }
         }
 
-        // Crops growing but nothing to do — forage food nodes rather than standing idle
-        this.seekNodeTask(u, ['berry_bush', 'wild_garden', 'olive_grove']);
+        // Crops growing but nothing to do — forage food nodes (no slate required)
+        this.seekNodeTask(u, ['berry_bush', 'wild_garden', 'olive_grove', 'grape_vine', 'wild_wheat', 'fishing_spot'], false);
     },
 
     seekWorkshopTask(u) {
@@ -1716,8 +1761,8 @@ export default {
                 this.scene.uiManager.showFloatText(u.x, u.y - 14, '🍱 full', '#ffee88');
             } else {
                 this.scene.uiManager.showFloatText(u.x, u.y - 14, 'hungry!', '#ff6644');
-                // No stored food anywhere — go forage immediately rather than starving idle
-                this.seekNodeTask(u, ['berry_bush', 'wild_garden', 'olive_grove']);
+                // No stored food anywhere — go forage immediately (no slate required)
+                this.seekNodeTask(u, ['berry_bush', 'wild_garden', 'olive_grove', 'grape_vine', 'wild_wheat', 'fishing_spot'], false);
             }
         }
 
@@ -1725,18 +1770,19 @@ export default {
         this.popTask(u);
     },
 
-    seekNodeTask(u, types) {
-        const near = this.findNearNode(u, 8000, types);
+    seekNodeTask(u, types, requireSlated = true) {
+        const near = this.findNearNode(u, 8000, types, requireSlated);
         if (near) {
             u.targetNode = near; u.moveTo = null;
         }
     },
 
-    findNearNode(u, maxDist, filterType) {
+    findNearNode(u, maxDist, filterType, requireSlated = false) {
         let best = null, bd = Infinity;
         for (const n of this.scene.resNodes) {
             if (n.stock <= 0) continue;
             if (filterType && !filterType.includes(n.type)) continue;
+            if (requireSlated && !n.slated) continue;
             const d = Phaser.Math.Distance.Between(u.x, u.y, n.x, n.y);
             if (d < maxDist && d < bd) { bd = d; best = n; }
         }

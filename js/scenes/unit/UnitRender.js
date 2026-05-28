@@ -1,5 +1,6 @@
 import { TILE, MAP_OY } from '../../config/gameConstants.js';
 import { UNITS } from '../../content/units/index.js';
+import { THEME } from '../../ui/UIKit.js';
 
 export default {
     _isUnitCulled(u) {
@@ -7,7 +8,7 @@ export default {
         if (u.isEnemy) {
             const tx = Math.floor(u.x / TILE);
             const ty = Math.floor((u.y - MAP_OY) / TILE);
-            if ((this.scene.visMap[ty]?.[tx] ?? 0) < 2) {
+            if ((this.scene.visMap.get(`${tx},${ty}`) ?? 0) < 2) {
                 u._visible = false;
                 if (u.nameLabel) u.nameLabel.setVisible(false);
                 if (u._zzzLabel) u._zzzLabel.setVisible(false);
@@ -58,7 +59,7 @@ export default {
            .fillEllipse(ox, oy + 9 * scale, 22 * scale, 7 * scale);
 
         // ZZZ label — still a separate Text object, just positioned here
-        if (u.isSleeping && u.hp > 0) {
+        if (u.isSleeping && u.hp > 0 && this.scene.showNeeds !== false) {
             if (!u._zzzLabel) {
                 u._zzzLabel = this.scene._w(this.scene.add.text(0, 0, 'Zzz', {
                     fontFamily: 'Georgia, serif', fontSize: '11px',
@@ -78,7 +79,7 @@ export default {
         }
 
         // Need indicator — highest-priority critical need when awake
-        const needIcon = !u.isSleeping && u.hp > 0 && !u.isEnemy ? this._getNeedIcon(u) : null;
+        const needIcon = !u.isSleeping && u.hp > 0 && !u.isEnemy && this.scene.showNeeds !== false ? this._getNeedIcon(u) : null;
         if (needIcon) {
             if (!u._needLabel || u._needLabel.text !== needIcon) {
                 if (u._needLabel) { u._needLabel.destroy(); u._needLabel = null; }
@@ -97,7 +98,7 @@ export default {
         }
 
         // Mental break indicator — persistent 💔 while unit is in a mental break
-        const showMbLabel = u.taskType === 'mental_break' && !u.isSleeping && u.hp > 0 && !u.isEnemy;
+        const showMbLabel = u.taskType === 'mental_break' && !u.isSleeping && u.hp > 0 && !u.isEnemy && this.scene.showNeeds !== false;
         if (showMbLabel) {
             if (!u._mbLabel) {
                 u._mbLabel = this.scene._w(this.scene.add.text(0, 0, '💔', {
@@ -119,7 +120,7 @@ export default {
         if (showLabel) {
             if (!u.nameLabel) {
                 u.nameLabel = this.scene._w(this.scene.add.text(ox, oy - 12, u.name, {
-                    fontSize: '7px', color: '#ffeecc', fontFamily: 'monospace',
+                    fontSize: '7px', color: '#ffeecc', fontFamily: THEME.fontMono,
                     stroke: '#000000', strokeThickness: 1,
                 }).setOrigin(0.5, 1).setDepth(7));
             }

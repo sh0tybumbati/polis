@@ -68,7 +68,8 @@ export default class GameScene extends Phaser.Scene {
         this.fmType    = 'phalanx';
         this.tradeOrders = [];
         this.tradeLog    = [];
-        this.floorPiles = [];
+        this.groundItems    = [];           // on-map resource piles waiting to be hauled
+        this.groundItemMap  = new Map();    // "tx,ty,sx,sy:resource" → item (fast merge lookup)
         this.selectedConstruct = null;
         // visMap is now a Map in MapManager (initFog)
         this.visMap      = new Map();
@@ -98,6 +99,11 @@ export default class GameScene extends Phaser.Scene {
         this.nextId    = 1;
         this.tickSpeed       = 1;
         this.isPaused        = false;
+        const _cfg = (() => { try { return JSON.parse(localStorage.getItem('epochs_settings') ?? '{}'); } catch { return {}; } })();
+        this.fogEnabled  = _cfg.fogEnabled  ?? true;
+        this.showNeeds   = _cfg.showNeeds   ?? true;
+        this.tickSpeed   = _cfg.gameSpeed   ?? 1;
+        this._autosaveOn = _cfg.autosave    ?? true;
         this.fmGfx = null; this.hoverGfx = null; this.dragGfx = null;
         this._fmDragging = false; this._fmDragStart = null;
         this.constructBtns = {}; this.fmBtns = {};
@@ -127,6 +133,7 @@ export default class GameScene extends Phaser.Scene {
         this.selectedZoneTiles = null;
         this.selectedZoneType  = null;
         this.selectedZoneCrop  = null;
+        this.selectedGroundTile = null;
     }
 
     _w(obj) { this.uiCam?.ignore(obj); return obj; }
@@ -162,6 +169,7 @@ export default class GameScene extends Phaser.Scene {
             this.spawnTx * TILE + TILE / 2,
             MAP_OY + this.spawnTy * TILE + TILE / 2
         );
+        this.cameras.main.setZoom(0.75);
         this.chunkManager.prewarmSpawn(this.spawnTx, this.spawnTy);
 
         this.constructManager.init();
@@ -170,6 +178,7 @@ export default class GameScene extends Phaser.Scene {
         this.borderGfx = this._w(this.add.graphics().setDepth(1));
         this.roadGfx = this._w(this.add.graphics().setDepth(1));
         this.mapManager.drawResourceNodes();
+        this.groundItems.forEach(item => this.unitManager.drawGroundItem(item));
         this.mapManager.initFog();
 
         if (loaded) {
@@ -201,8 +210,8 @@ export default class GameScene extends Phaser.Scene {
 
         // Night overlay
         this.nightOverlay = this.add.rectangle(
-            this.SW / 2, MAP_OY + (this.SH - MAP_OY) / 2,
-            this.SW, this.SH - MAP_OY,
+            this.SW / 2, this.SH / 2,
+            this.SW, this.SH,
             0x0a0a2a, 1
         ).setAlpha(loaded && this.phase === 'NIGHT' ? 0.6 : 0).setDepth(9);
         this.cameras.main.ignore(this.nightOverlay);
@@ -221,7 +230,9 @@ export default class GameScene extends Phaser.Scene {
         this.cameras.main.fadeIn(400, 0, 0, 0);
 
         // Auto-save every 60 s and on tab hide
-        this.time.addEvent({ delay: 60000, loop: true, callback: () => this._saveGame(), callbackScope: this });
+        if (this._autosaveOn !== false) {
+            this._autosaveEvent = this.time.addEvent({ delay: 60000, loop: true, callback: () => this._saveGame(), callbackScope: this });
+        }
         document.addEventListener('visibilitychange', this._onVisChange = () => {
             if (document.hidden) this._saveGame();
         });
@@ -241,10 +252,11 @@ export default class GameScene extends Phaser.Scene {
     // ─── Persistence ─────────────────────────────────────────────────────────
 
     _serUnit(u) {
-        const { gfx, nameLabel, ...d } = u;
+        const { gfx, nameLabel, _zzzLabel, _needLabel, _mbLabel, ...d } = u;
         return { ...d, moveTo: null, targetNode: null, targetDeer: null, targetSheep: null,
                  taskType: null, workProgress: 0, workshopPhase: null, isInside: false,
-                 fetchConstructId: null, _wageCollected: false, _prevRole: null };
+                 fetchConstructId: null, _wageCollected: false, _prevRole: null,
+                 _zzzLabel: null, _needLabel: null, _mbLabel: null };
     }
     _serConstruct(b) { const { gfx, barGfx, labelObj, ...d } = b; return d; }
     _serNode(n)     { const { gfx, labelObj, ...d } = n; return d; }
@@ -270,6 +282,7 @@ export default class GameScene extends Phaser.Scene {
                 zones:      this.zoneManager.save(),
                 units:     this.units.map(u => this._serUnit(u)),
                 resNodes:  this.resNodes.map(n => this._serNode(n)),
+                groundItems: this.groundItems.map(i => ({ id: i.id, resource: i.resource, qty: i.qty, x: i.x, y: i.y, subKey: i.subKey })),
                 deer:  this.deer.map(d => this._serAnimal(d)),
                 sheep: this.sheep.map(s => this._serAnimal(s)),
             };
@@ -326,14 +339,31 @@ export default class GameScene extends Phaser.Scene {
             this.constructManager.load({ constructs: s.constructs, walls: s.walls, furniture: s.furniture });
             this.zoneManager.load(s.zones ?? null);
 
-            this.resNodes  = (s.resNodes  ?? []).map(n => ({ ...n, gfx: null, labelObj: null }));
+            this.resNodes    = (s.resNodes  ?? []).map(n => ({ ...n, gfx: null, labelObj: null }));
+            this.groundItems   = [];
+            this.groundItemMap = new Map();
+            for (const d of s.groundItems ?? []) {
+                // Derive subKey from saved position if not stored (legacy saves)
+                let sk = d.subKey;
+                if (!sk) {
+                    const tx = Math.floor(d.x / TILE);
+                    const ty = Math.floor((d.y - MAP_OY) / TILE);
+                    const sx = Math.min(2, Math.max(0, Math.floor(((d.x - tx * TILE) * 3) / TILE)));
+                    const sy = Math.min(2, Math.max(0, Math.floor(((d.y - MAP_OY - ty * TILE) * 3) / TILE)));
+                    sk = `${tx},${ty},${sx},${sy}`;
+                }
+                const item = { ...d, subKey: sk, gfx: null, labelObj: null, reserved: null };
+                this.groundItems.push(item);
+                this.groundItemMap.set(`${sk}:${item.resource}`, item);
+            }
             this.units     = (s.units     ?? []).map(u => {
                 const carrying = migrateKeys(u.carrying);
                 for (const k of Object.keys(carrying)) {
                     if (!Number.isFinite(carrying[k])) carrying[k] = 0;
                 }
                 carrying['Food.Produce.Berry'] = carrying['Food.Produce.Berry'] ?? 0;
-                return { ...u, carrying, gfx: null, nameLabel: null };
+                return { ...u, carrying, gfx: null, nameLabel: null,
+                         _zzzLabel: null, _needLabel: null, _mbLabel: null };
             });
             this.deer      = (s.deer      ?? []).map(d => ({ ...d, gfx: null }));
             this.sheep     = (s.sheep     ?? []).map(ss => ({ ...ss, gfx: null, followUnit: null }));

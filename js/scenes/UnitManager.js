@@ -10,6 +10,7 @@ import {
     emptySkills,
     pickTraits, blendTraits,
 } from '../config/gameConstants.js';
+import { THEME } from '../ui/UIKit.js';
 import { CONSTRUCTS } from '../content/constructs/index.js';
 import { NODES } from '../content/nodes/index.js';
 import { ANIMALS } from '../content/animals/index.js';
@@ -123,7 +124,7 @@ export default class UnitManager {
             moveTo: null, lastAtk: 0, lastGather: 0,
             speed, atk: def.atk, range: def.range,
             wallSide: 0, homeConstructId: null, age: 2,
-            taskType: null, taskConstructId: null, targetNode: null,
+            taskType: null, taskConstructId: null, targetNode: null, targetItemId: null,
             carrying: { 'Food.Grain.Wheat': 0, 'Food.Grain.Wheat.Flour': 0, 'Food.Grain.Wheat.Bread': 0, 'Food.Meat.Venison': 0, 'Food.Meat.Venison.Sausages': 0, 'Food.Produce.Berry': 0, 'Food.Produce.Olive': 0, 'Materials.Stone.Limestone': 0, 'Materials.Wood.Pine': 0, 'Materials.Wood.Pine.Sticks': 0, 'Materials.Stone.Limestone.Stones': 0, 'Textile.Fiber.Wool': 0, 'Textile.Hide.Deer': 0, 'Materials.Metal.Copper.Ore': 0 }, carryMax,
             role: null, replantTimer: 0, trainTimer: 0, lastSeek: 0,
             roleMemory: {}, targetDeer: null, targetSheep: null,
@@ -609,19 +610,15 @@ export default class UnitManager {
             u.workProgress = 0;
             const res = n.type === 'mountain' ? (Math.random() < 0.1 ? 'Materials.Metal.Copper.Ore' : 'Materials.Stone.Limestone') : NODES[n.type]?.resource;
 
-            let pick = 0;
-            while (pick < n.stock && this.canUnitCarryMore(u, res, pick + 1)) {
-                pick++;
-            }
-            if (pick === 0) { u.targetNode = null; return; }
-
-            n.stock -= pick; u.carrying[res] += pick;
+            // Harvest a burst from the node and drop items on the ground
+            const pick = Math.min(n.stock, 3 + Math.floor(Math.random() * 4));
+            n.stock -= pick;
 
             // Greece civ bonus: olive groves yield 40% extra
-            if (this.scene.civ === 'greece' && (n.type === 'olive_grove' || n.type === 'wild_garden') && res === 'Food.Produce.Olive') {
-                u.carrying[res] += Math.max(1, Math.floor(pick * 0.4));
-            }
+            const civBonus = (this.scene.civ === 'greece' && (n.type === 'olive_grove' || n.type === 'wild_garden') && res === 'Food.Produce.Olive')
+                ? Math.max(1, Math.floor(pick * 0.4)) : 0;
 
+            this.spawnGroundItems(n, res, pick + civBonus);
             this.scene.mapManager.redrawNode(n);
 
             // Track daily production for resource nodes
@@ -639,13 +636,13 @@ export default class UnitManager {
             this._gainSkillXp(u, skillKey);
             this.scene.uiManager.showFloatText(u.x, u.y - 14, `+${pick}${res[0].toUpperCase()}`, '#ffffff');
 
-            // Debris byproducts: trees drop sticks, boulders drop stones
-            if (res === 'Materials.Wood.Pine' && this.scene.economyManager.hasStorageSpace('Materials.Wood.Pine.Sticks')) {
+            // Debris byproducts: trees drop sticks, boulders drop small stones — also on the ground
+            if (res === 'Materials.Wood.Pine') {
                 const debris = Math.floor(pick * (0.5 + Math.random() * 0.5));
-                if (debris > 0) this.scene.economyManager.addResource('Materials.Wood.Pine.Sticks', debris);
-            } else if (res === 'Materials.Stone.Limestone' && this.scene.economyManager.hasStorageSpace('Materials.Stone.Limestone.Stones')) {
+                if (debris > 0) this.spawnGroundItems(n, 'Materials.Wood.Pine.Sticks', debris);
+            } else if (res === 'Materials.Stone.Limestone') {
                 const debris = Math.floor(pick * (0.5 + Math.random() * 0.5));
-                if (debris > 0) this.scene.economyManager.addResource('Materials.Stone.Limestone.Stones', debris);
+                if (debris > 0) this.spawnGroundItems(n, 'Materials.Stone.Limestone.Stones', debris);
             }
 
             if (n.type === 'mountain') {
@@ -660,8 +657,124 @@ export default class UnitManager {
                 n.saplingTimer = 0;
                 this.scene.mapManager.drawResourceNodes();
             }
-            if (this.totalCarrying(u) >= u.carryMax || n.stock <= 0) u.targetNode = null;
+            if (n.stock <= 0) u.targetNode = null;
         }
+    }
+
+    // ── Ground Item System ────────────────────────────────────────────────────
+    // Each world tile (32px) is divided into a 3×3 grid of cubits.
+    // Cubit centers within the tile: [5, 16, 27]px — one item stack per cubit.
+    // Same resource at the same cubit always merges into a single pile.
+
+    spawnGroundItems(n, res, qty) {
+        const SUB = [5, 16, 27];
+        const items   = this.scene.groundItems;
+        const itemMap = this.scene.groundItemMap ??= new Map();
+
+        // Node's tile coords
+        const ntx = Math.floor(n.x / TILE);
+        const nty = Math.floor((n.y - MAP_OY) / TILE);
+
+        // Build sorted candidate cubits in the 3×3 tile area around the node
+        const candidates = [];
+        for (let dtx = -1; dtx <= 1; dtx++) {
+            for (let dty = -1; dty <= 1; dty++) {
+                const tx = ntx + dtx, ty = nty + dty;
+                for (let sx = 0; sx < 3; sx++) {
+                    for (let sy = 0; sy < 3; sy++) {
+                        const px = tx * TILE + SUB[sx];
+                        const py = MAP_OY + ty * TILE + SUB[sy];
+                        candidates.push({ tx, ty, sx, sy, px, py,
+                            d: Math.hypot(n.x - px, n.y - py) });
+                    }
+                }
+            }
+        }
+        candidates.sort((a, b) => a.d - b.d);
+
+        // Build fast occupied-cubit set
+        const occupied = new Set(items.map(i => i.subKey));
+
+        let remaining = qty;
+
+        // Pass 1: merge into existing same-resource pile
+        for (const c of candidates) {
+            if (remaining <= 0) break;
+            const sk = `${c.tx},${c.ty},${c.sx},${c.sy}`;
+            const mk = `${sk}:${res}`;
+            const existing = itemMap.get(mk);
+            if (existing) {
+                existing.qty += remaining;
+                remaining = 0;
+                this.drawGroundItem(existing);
+            }
+        }
+
+        // Pass 2: create a new pile at the nearest empty cubit
+        for (const c of candidates) {
+            if (remaining <= 0) break;
+            const sk = `${c.tx},${c.ty},${c.sx},${c.sy}`;
+            if (!occupied.has(sk)) {
+                const item = {
+                    id: this.scene.getId(), resource: res, qty: remaining,
+                    x: c.px, y: c.py, subKey: sk,
+                    gfx: null, labelObj: null, reserved: null,
+                };
+                this.drawGroundItem(item);
+                items.push(item);
+                itemMap.set(`${sk}:${res}`, item);
+                occupied.add(sk);
+                remaining = 0;
+            }
+        }
+
+        // Overflow: all 81 cubits occupied — merge into nearest same-resource or any pile
+        if (remaining > 0) {
+            for (const c of candidates) {
+                const mk = `${c.tx},${c.ty},${c.sx},${c.sy}:${res}`;
+                const existing = itemMap.get(mk) ?? items[0];
+                if (existing) {
+                    existing.qty += remaining;
+                    this.drawGroundItem(existing);
+                    break;
+                }
+            }
+        }
+    }
+
+    drawGroundItem(item) {
+        const GROUND_COLORS = {
+            'Materials.Wood.Pine.Sticks': 0xb8864e,
+            'Materials.Wood':    0x7a4a1e,
+            'Materials.Stone.Limestone.Stones': 0xbbbbcc,
+            'Materials.Stone':   0x8888aa,
+            'Materials.Metal':   0x557755,
+            'Materials.Textile': 0xe8d8a0,
+            'Food.Fish':         0x88ccee,
+            'Food.':             0x88cc44,
+            'Equipment.':        0xddaa44,
+            'Textile.':          0xd0b880,
+        };
+        const col = Object.entries(GROUND_COLORS)
+            .find(([k]) => item.resource.startsWith(k))?.[1] ?? 0xaaaaaa;
+
+        item.gfx?.destroy();
+        item.labelObj?.destroy();
+        item.gfx = this.scene._w(this.scene.add.graphics().setDepth(3.5));
+        item.gfx.fillStyle(col, 0.92).fillRoundedRect(item.x - 5, item.y - 5, 10, 10, 2);
+        item.gfx.lineStyle(1, 0x000000, 0.35).strokeRoundedRect(item.x - 5, item.y - 5, 10, 10, 2);
+        item.labelObj = this.scene._w(this.scene.add.text(item.x, item.y - 8, `${item.qty}`, {
+            fontSize: '8px', color: '#ffffff', fontFamily: THEME.fontMono,
+            stroke: '#000000', strokeThickness: 2, resolution: 2,
+        }).setOrigin(0.5).setDepth(3.6));
+    }
+
+    removeGroundItem(item) {
+        item.gfx?.destroy();
+        item.labelObj?.destroy();
+        const idx = this.scene.groundItems.indexOf(item);
+        if (idx !== -1) this.scene.groundItems.splice(idx, 1);
+        this.scene.groundItemMap?.delete(`${item.subKey}:${item.resource}`);
     }
 }
 

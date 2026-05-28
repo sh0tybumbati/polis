@@ -43,6 +43,11 @@ export default class InputManager {
                     const t = s.tileAt(ptr.worldX, ptr.worldY);
                     s._zoneDragStart = t ? { tx: t.tx, ty: t.ty } : null;
                 }
+                if (s.slateModeType) {
+                    const n = s.findNodeAt(ptr.worldX, ptr.worldY);
+                    s._slateDragErasing = n && s.slateNodeTypes?.includes(n.type) ? n.slated : false;
+                    s._slatedThisDrag = new Set();
+                }
             } else {
                 s._dragging = false; s._fmDragging = false; s._fmDragStart = null;
                 s.dragGfx.clear();
@@ -72,7 +77,13 @@ export default class InputManager {
             }
 
             s._pinch.active = false;
-            const isUI = ptr.y < MAP_OY || ptr.y > this.scene.SH - (this.scene.uiManager?.L?.PANEL_H ?? 190);
+            const _inMode = !!(s.zoneMode || s.roadMode || s.wallMode || s.wallRectMode || s.constructType || s.slateModeType || s.constructMode);
+            const _Lpm = s.uiManager?.L;
+            const _hasSel = !!(s.selIds?.size || s.selectedConstruct || s.selectedNode || s.selectedZoneTile || s.uiManager?._activePanel);
+            const _blockH = _inMode
+                ? (_Lpm?.TOOLBAR_H ?? 60)
+                : _hasSel ? (_Lpm?.INSP_MAX_H ?? 190) + (_Lpm?.TOOLBAR_H ?? 60) : (_Lpm?.PANEL_H ?? 190);
+            const isUI = ptr.y < MAP_OY || ptr.y > s.SH - _blockH;
 
             // Pan: middle-mouse only (desktop); two-finger pan handled in pinch block above
             if (ptr.isDown && ptr.middleButtonDown()) {
@@ -119,7 +130,20 @@ export default class InputManager {
             } else if (s.roadMode && ptr.isDown && !isUI) {
                 const t = s.tileAt(ptr.worldX, ptr.worldY);
                 if (t) s._paintRoad(t.tx, t.ty);
-            } else if (!s.constructType && !s.roadMode && !s.wallMode && ptr.isDown && !ptr.middleButtonDown() && !isUI) {
+            } else if (s.slateModeType && ptr.isDown && !isUI) {
+                // Drag over nodes to slate / unslate them in bulk
+                const n = s.findNodeAt(ptr.worldX, ptr.worldY);
+                if (n && s.slateNodeTypes?.includes(n.type)) {
+                    const nodeKey = `${Math.round(n.x)},${Math.round(n.y)}`;
+                    if (!s._slatedThisDrag.has(nodeKey)) {
+                        s._slatedThisDrag.add(nodeKey);
+                        n.slated    = !s._slateDragErasing;
+                        n.slateType = n.slated ? s.slateModeType : null;
+                        s.mapManager?.redrawNode(n);
+                        s.updateUI();
+                    }
+                }
+            } else if (!s.constructType && !s.roadMode && !s.wallMode && !s.slateModeType && ptr.isDown && !ptr.middleButtonDown() && !isUI) {
                 const d = Phaser.Math.Distance.Between(ptr.x, ptr.y, s._ptrDownX, s._ptrDownY);
                 if (d > TAP_DIST) {
                     if (s.selIds.size >= 1) {
@@ -176,17 +200,18 @@ export default class InputManager {
                 return;
             }
 
-            if (ptr.y < MAP_OY || ptr.y > this.scene.SH - (this.scene.uiManager?.L?.PANEL_H ?? 190)) return;
-            const wasTap = Phaser.Math.Distance.Between(ptr.x, ptr.y, s._ptrDownX, s._ptrDownY) < TAP_DIST;
-            if (!wasTap) return;
-            const wx = ptr.worldX, wy = ptr.worldY;
-            const hit = s.unitAt(wx, wy);
-            const construct = s.findConstructAt(wx, wy);
-            const node = s.findNodeAt(wx, wy);
-
-            const isTouch = s.sys.game.device.input.touch;
-
+            {
+                const L = s.uiManager?.L;
+                const hasSel = (s.selIds?.size ?? 0) > 0 || !!s.selectedConstruct || !!s.selectedNode || !!s.selectedZoneTile;
+                const inMode = !!(s.zoneMode || s.roadMode || s.wallMode || s.wallRectMode || s.constructType || s.slateModeType || s.constructMode);
+                const blockH = L
+                    ? (inMode ? L.TOOLBAR_H : (hasSel || s.uiManager?._activePanel) ? L.INSP_MAX_H + L.TOOLBAR_H : L.TOOLBAR_H)
+                    : 190;
+                if (ptr.y < MAP_OY || ptr.y > s.SH - blockH) return;
+            }
+            // Zone mode: commit the painted rect regardless of drag distance
             if (s.zoneMode) {
+                const wx = ptr.worldX, wy = ptr.worldY;
                 const t = s.tileAt(wx, wy);
                 const isGrow = s.zoneMode === 'grow';
                 const startTile = s._zoneDragStart;
@@ -196,7 +221,6 @@ export default class InputManager {
                     for (let ry = y1; ry <= y2; ry++)
                         for (let rx = x1; rx <= x2; rx++)
                             this._applyZonePaint(rx, ry);
-                    // After painting, exit paint mode and auto-select the zone to show its panel
                     const isStorage = s.zoneMode === 'storage';
                     if (isGrow || isStorage) {
                         s.zoneMode = null;
@@ -214,6 +238,29 @@ export default class InputManager {
                 s._zoneDragStart = null;
                 s.hoverGfx?.clear();
                 s.updateUI();
+                return;
+            }
+
+            const wasTap = Phaser.Math.Distance.Between(ptr.x, ptr.y, s._ptrDownX, s._ptrDownY) < TAP_DIST;
+            if (!wasTap) return;
+            const wx = ptr.worldX, wy = ptr.worldY;
+            const hit = s.unitAt(wx, wy);
+            const construct = s.findConstructAt(wx, wy);
+            const node = s.findNodeAt(wx, wy);
+
+            // Slate mode: tap on a node to toggle it (drag-to-slate is handled in pointermove)
+            if (s.slateModeType && node && s.slateNodeTypes?.includes(node.type)) {
+                node.slated    = !node.slated;
+                node.slateType = node.slated ? s.slateModeType : null;
+                s.mapManager?.redrawNode(node);
+                s.updateUI();
+                return;
+            }
+
+            const isTouch = s.sys.game.device.input.touch;
+
+            if (s.zoneMode) {
+                // (unreachable — handled above, kept as safety fallback)
                 return;
             }
             if (s.roadMode) { const t = s.tileAt(wx, wy); if (t) s._paintRoad(t.tx, t.ty); return; }
@@ -295,6 +342,7 @@ export default class InputManager {
             s.deselect();
             s.selectedConstruct = null;
             s.selectedNode = null;
+            s.selectedGroundTile = null;
             s.zoneManager?.clearSelection();
             s.selectedZoneTile  = null;
             s.selectedZoneTiles = null;
@@ -305,6 +353,14 @@ export default class InputManager {
             if (node) { s.selectedNode = node; s.updateUI(); return; }
             const furnHit = s.constructManager?.findConstructAt(wx, wy);
             if (furnHit) { s.selectedConstruct = furnHit; s.updateUI(); return; }
+
+            // Check for ground item piles near click
+            const nearItem = s.groundItems?.find(i => Math.abs(i.x - wx) < 10 && Math.abs(i.y - wy) < 10);
+            if (nearItem) {
+                const [gtx, gty] = nearItem.subKey.split(',').map(Number);
+                s.selectedGroundTile = { tx: gtx, ty: gty };
+                s.updateUI(); return;
+            }
 
             const tile = s.tileAt(wx, wy);
             if (tile && s.zoneManager) {
@@ -357,10 +413,47 @@ export default class InputManager {
             cam.setZoom(Phaser.Math.Clamp(cam.zoom * (dy > 0 ? 0.9 : 1.1), 0.3, 3));
         });
 
-        s.input.keyboard?.on('keydown-ESC', () => { s.constructType = null; s.roadMode = false; s.wallMode = false; s.wallRectMode = false; s._wallRectStart = null; s.constructMode = false; s.placementType = null; s.relocateMode = false; s.relocateSrc = null; s.selectedConstruct = null; s.zoneMode = null; s._zoneDragStart = null; s.selectedZoneTile = null; s.selectedZoneTiles = null; s.selectedZoneType = null; s.selectedZoneCrop = null; s.zoneManager?.clearSelection(); s.deselect(); s.selectedConstruct = null; s.hoverGfx.clear(); s.updateUI(); });
+        s.input.keyboard?.on('keydown-ESC', () => {
+            // If settings panel is open, close it and return to pause menu
+            if (s.uiManager?._settingsMenuOpen) { s.uiManager.hideSettingsPanel(); s.uiManager.showPauseMenu(); return; }
+            // If pause menu is open, close it and resume
+            if (s.uiManager?._pauseMenuOpen) { s.uiManager.hidePauseMenu(); return; }
+            // Check if anything is currently active/selected
+            const hasActive = s.constructType || s.roadMode || s.wallMode || s.wallRectMode ||
+                s.constructMode || s.placementType || s.relocateMode || s.zoneMode ||
+                s.selectedConstruct || s.selectedZoneTile || s.selectedZoneTiles ||
+                s.selectedGroundTile || s.units?.some(u => u.selected);
+            if (hasActive) {
+                s.constructType = null; s.roadMode = false; s.wallMode = false;
+                s.wallRectMode = false; s._wallRectStart = null; s.constructMode = false;
+                s.placementType = null; s.relocateMode = false; s.relocateSrc = null;
+                s.selectedConstruct = null; s.zoneMode = null; s._zoneDragStart = null;
+                s.selectedZoneTile = null; s.selectedZoneTiles = null;
+                s.selectedZoneType = null; s.selectedZoneCrop = null;
+                s.selectedGroundTile = null;
+                s.zoneManager?.clearSelection(); s.deselect(); s.selectedConstruct = null;
+                s.hoverGfx.clear(); s.updateUI();
+            } else {
+                // Nothing active — open pause menu
+                s.uiManager?.showPauseMenu();
+            }
+        });
         s.input.keyboard?.on('keydown-A', () => s.units.filter(u => !u.isEnemy).forEach(u => s.selectUnit(u.id, true)));
         s.input.keyboard?.on('keydown-F', () => { const sel = s.units.filter(u => u.selected && !u.isEnemy); if (sel.length) s.moveSelectedTo((s.spawnTx ?? 0) * TILE, MAP_OY + (s.spawnTy ?? 0) * TILE); });
         s.input.keyboard?.on('keydown-BACKTICK', () => s.scene.launch('SpriteEditorScene'));
+
+        // Arrow key camera pan — held keys give continuous smooth scroll
+        const cursors = s.input.keyboard?.createCursorKeys();
+        if (cursors) {
+            s.events.on('update', () => {
+                const cam = s.cameras.main;
+                const spd = 10 / cam.zoom;
+                if (cursors.left.isDown)  cam.scrollX -= spd;
+                if (cursors.right.isDown) cam.scrollX += spd;
+                if (cursors.up.isDown)    cam.scrollY -= spd;
+                if (cursors.down.isDown)  cam.scrollY += spd;
+            });
+        }
     }
 
     _drawFurnishGhost(ptr) {

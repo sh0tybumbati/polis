@@ -10,3 +10,4 @@ Thumbs.db
 .dolt/
 *.db
 .beads-credential-key
+.aider*

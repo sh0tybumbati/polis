@@ -1,7 +1,7 @@
 import { CONSTRUCT_VOLUME } from '../../config/gameConstants.js';
 import { CONSTRUCTS } from '../../content/constructs/index.js';
 import { ITEMS } from '../../content/items/index.js';
-import { floatText } from '../../ui/UIKit.js';
+import { floatText, THEME } from '../../ui/UIKit.js';
 
 export default {
     showInventoryModal(b) {
@@ -20,13 +20,13 @@ export default {
         const def = CONSTRUCTS[b.type];
         const titleTxt = this._ui(this.scene.add.text(mx + mw / 2, my + 15,
             `📦 ${def?.label ?? b.type}`, {
-                fontSize: '16px', color: '#ffdd88', fontFamily: 'monospace',
+                fontSize: '16px', color: '#ffdd88', fontFamily: THEME.fontMono,
             }).setOrigin(0.5, 0).setDepth(43));
         objs.push(titleTxt);
 
         const closeAll = () => { objs.forEach(o => o.destroy()); this._invModal = null; };
         const closeBtn = this._ui(this.scene.add.text(mx + mw - 14, my + 15, '✕', {
-            fontSize: '20px', color: '#ffdd88', fontFamily: 'monospace',
+            fontSize: '20px', color: '#ffdd88', fontFamily: THEME.fontMono,
         }).setOrigin(0.5).setDepth(43).setInteractive({ cursor: 'pointer' }));
         closeBtn.on('pointerover', () => closeBtn.setColor('#ffffff'));
         closeBtn.on('pointerout',  () => closeBtn.setColor('#ffdd88'));
@@ -49,7 +49,7 @@ export default {
             contentY += barH + 4;
             const volTxt = this._ui(this.scene.add.text(mx + mw / 2, contentY,
                 `${curVol.toFixed(0)} / ${maxVol} cubits`, {
-                    fontSize: '11px', color: '#7a9090', fontFamily: 'monospace',
+                    fontSize: '11px', color: '#7a9090', fontFamily: THEME.fontMono,
                 }).setOrigin(0.5, 0).setDepth(43));
             objs.push(volTxt);
             contentY += 16;
@@ -79,7 +79,7 @@ export default {
             if (!items.length) continue;
             hasAny = true;
             const catTxt = this._ui(this.scene.add.text(colLabel, contentY, cat.toUpperCase(), {
-                fontSize: '11px', color: '#c8a030', fontFamily: 'monospace',
+                fontSize: '11px', color: '#c8a030', fontFamily: THEME.fontMono,
             }).setDepth(43));
             objs.push(catTxt);
             contentY += 18;
@@ -87,16 +87,16 @@ export default {
             for (const { key, qty } of items) {
                 const label = ITEMS[key]?.label ?? key.split('.').pop();
                 const itemTxt = this._ui(this.scene.add.text(colLabel + 10, contentY, label, {
-                    fontSize: '13px', color: '#d4c8a8', fontFamily: 'monospace',
+                    fontSize: '13px', color: '#d4c8a8', fontFamily: THEME.fontMono,
                 }).setDepth(43));
                 const qtyTxt = this._ui(this.scene.add.text(colQty, contentY + 2, `×${qty}`, {
-                    fontSize: '14px', color: '#ffdd88', fontFamily: 'monospace',
+                    fontSize: '14px', color: '#ffdd88', fontFamily: THEME.fontMono,
                 }).setOrigin(1, 0).setDepth(43));
                 objs.push(itemTxt, qtyTxt);
                 contentY += lineH;
                 if (contentY > my + mh - 70) { objs.push(
                     this._ui(this.scene.add.text(colLabel, contentY, '…more', {
-                        fontSize: '11px', color: '#776655', fontFamily: 'monospace',
+                        fontSize: '11px', color: '#776655', fontFamily: THEME.fontMono,
                     }).setDepth(43))); break; }
             }
             contentY += 6;
@@ -104,7 +104,7 @@ export default {
 
         if (!hasAny) {
             objs.push(this._ui(this.scene.add.text(mx + mw / 2, contentY + 10, 'empty', {
-                fontSize: '14px', color: '#4a4030', fontFamily: 'monospace',
+                fontSize: '14px', color: '#4a4030', fontFamily: THEME.fontMono,
             }).setOrigin(0.5, 0).setDepth(43)));
             contentY += 30;
         }
@@ -118,13 +118,13 @@ export default {
             objs.push(sep2);
             contentY += 8;
             objs.push(this._ui(this.scene.add.text(colLabel, contentY, 'INBOX  (awaiting processing)', {
-                fontSize: '11px', color: '#887755', fontFamily: 'monospace',
+                fontSize: '11px', color: '#887755', fontFamily: THEME.fontMono,
             }).setDepth(43)));
             contentY += 18;
             for (const [key, qty] of inboxEntries) {
                 const label = ITEMS[key]?.label ?? key.split('.').pop();
                 objs.push(this._ui(this.scene.add.text(colLabel + 10, contentY,
-                    `${label}   ×${qty}`, { fontSize: '12px', color: '#aa9966', fontFamily: 'monospace' }).setDepth(43)));
+                    `${label}   ×${qty}`, { fontSize: '12px', color: '#aa9966', fontFamily: THEME.fontMono }).setDepth(43)));
                 contentY += lineH;
             }
         }
@@ -136,7 +136,7 @@ export default {
             contentY += 4;
             objs.push(this._ui(this.scene.add.text(colLabel, contentY,
                 `💰 ${wageTotal} units pending wages`, {
-                    fontSize: '11px', color: '#aac870', fontFamily: 'monospace',
+                    fontSize: '11px', color: '#aac870', fontFamily: THEME.fontMono,
                 }).setDepth(43)));
         }
 
@@ -157,11 +157,11 @@ export default {
         objs.push(bg, panel, border);
 
         objs.push(this._ui(this.scene.add.text(mx + mw/2, my + 14, '🏪 Agora — Trade Orders',
-            { fontSize: '15px', color: '#ffdd88', fontFamily: 'monospace' }).setOrigin(0.5, 0).setDepth(43)));
+            { fontSize: '15px', color: '#ffdd88', fontFamily: THEME.fontMono }).setOrigin(0.5, 0).setDepth(43)));
 
         const closeAll = () => { objs.forEach(o => o.destroy()); this._agoraModal = null; };
         const closeBtn = this._ui(this.scene.add.text(mx + mw - 14, my + 14, '✕',
-            { fontSize: '20px', color: '#ffdd88', fontFamily: 'monospace' }).setOrigin(0.5).setDepth(43).setInteractive({ cursor: 'pointer' }));
+            { fontSize: '20px', color: '#ffdd88', fontFamily: THEME.fontMono }).setOrigin(0.5).setDepth(43).setInteractive({ cursor: 'pointer' }));
         closeBtn.on('pointerover', () => closeBtn.setColor('#ffffff'));
         closeBtn.on('pointerout',  () => closeBtn.setColor('#ffdd88'));
         closeBtn.on('pointerdown', closeAll);
@@ -183,22 +183,22 @@ export default {
 
             // ── Standing Orders ────────────────────────────────────────────
             objs.push(this._ui(this.scene.add.text(mx + 14, cy, 'STANDING ORDERS', {
-                fontSize: '11px', color: '#c8a030', fontFamily: 'monospace',
+                fontSize: '11px', color: '#c8a030', fontFamily: THEME.fontMono,
             }).setDepth(43)));
             cy += 16;
 
             if (b.tradeOrders.length === 0) {
                 objs.push(this._ui(this.scene.add.text(mx + 14, cy, '(none — add one below)',
-                    { fontSize: '11px', color: '#6a5840', fontFamily: 'monospace' }).setDepth(43)));
+                    { fontSize: '11px', color: '#6a5840', fontFamily: THEME.fontMono }).setDepth(43)));
                 cy += 16;
             } else {
                 for (let i = 0; i < b.tradeOrders.length; i++) {
                     const order = b.tradeOrders[i];
                     objs.push(this._ui(this.scene.add.text(mx + 14, cy,
                         `${order.qty}× ${order.giveLabel} → ${order.receiveQty}× ${order.wantLabel}`,
-                        { fontSize: '12px', color: '#d4c8a8', fontFamily: 'monospace' }).setDepth(43)));
+                        { fontSize: '12px', color: '#d4c8a8', fontFamily: THEME.fontMono }).setDepth(43)));
                     const delBtn = this._ui(this.scene.add.text(mx + mw - 16, cy, '✕',
-                        { fontSize: '13px', color: '#cc4444', fontFamily: 'monospace' }).setOrigin(1, 0).setDepth(43).setInteractive({ cursor: 'pointer' }));
+                        { fontSize: '13px', color: '#cc4444', fontFamily: THEME.fontMono }).setOrigin(1, 0).setDepth(43).setInteractive({ cursor: 'pointer' }));
                     delBtn.on('pointerover', () => delBtn.setColor('#ff6666'));
                     delBtn.on('pointerout',  () => delBtn.setColor('#cc4444'));
                     delBtn.on('pointerdown', () => {
@@ -217,7 +217,7 @@ export default {
             objs.push(sepG);
             cy += 8;
             objs.push(this._ui(this.scene.add.text(mx + 14, cy, 'ADD ORDER  (give → want)',
-                { fontSize: '11px', color: '#c8a030', fontFamily: 'monospace' }).setDepth(43)));
+                { fontSize: '11px', color: '#c8a030', fontFamily: THEME.fontMono }).setDepth(43)));
             cy += 16;
 
             // Item picker state
@@ -226,7 +226,7 @@ export default {
 
             const em = this.scene.economyManager;
             const makeArrow = (x, y, dir, cb) => {
-                const btn = this._ui(this.scene.add.text(x, y, dir, { fontSize: '16px', color: '#c8a030', fontFamily: 'monospace' }).setOrigin(0.5).setDepth(43).setInteractive({ cursor: 'pointer' }));
+                const btn = this._ui(this.scene.add.text(x, y, dir, { fontSize: '16px', color: '#c8a030', fontFamily: THEME.fontMono }).setOrigin(0.5).setDepth(43).setInteractive({ cursor: 'pointer' }));
                 btn.on('pointerover', () => btn.setColor('#ffdd66'));
                 btn.on('pointerout',  () => btn.setColor('#c8a030'));
                 btn.on('pointerdown', cb);
@@ -237,14 +237,14 @@ export default {
             const giveItem = TRADEABLE[pick.giveIdx % TRADEABLE.length];
             const giveVal  = em.getItemValue(giveItem.key);
             makeArrow(mx + 16, cy + 8, '◀', () => { pick.giveIdx = (pick.giveIdx - 1 + TRADEABLE.length) % TRADEABLE.length; rebuild(); });
-            objs.push(this._ui(this.scene.add.text(mx + 30, cy, `GIVE: ${giveItem.label}`, { fontSize: '12px', color: '#ffdd88', fontFamily: 'monospace' }).setDepth(43)));
-            objs.push(this._ui(this.scene.add.text(mx + 30, cy + 13, `${this.scene.resources[giveItem.key] ?? 0} in commons  (${giveVal.toFixed(1)} ob)`, { fontSize: '10px', color: '#7a9070', fontFamily: 'monospace' }).setDepth(43)));
+            objs.push(this._ui(this.scene.add.text(mx + 30, cy, `GIVE: ${giveItem.label}`, { fontSize: '12px', color: '#ffdd88', fontFamily: THEME.fontMono }).setDepth(43)));
+            objs.push(this._ui(this.scene.add.text(mx + 30, cy + 13, `${this.scene.resources[giveItem.key] ?? 0} in commons  (${giveVal.toFixed(1)} ob)`, { fontSize: '10px', color: '#7a9070', fontFamily: THEME.fontMono }).setDepth(43)));
             makeArrow(mx + mw/2 - 14, cy + 8, '▶', () => { pick.giveIdx = (pick.giveIdx + 1) % TRADEABLE.length; rebuild(); });
             cy += 30;
 
             // Qty picker
             makeArrow(mx + 16, cy + 6, '◀', () => { pick.qty = Math.max(1, pick.qty - 1); rebuild(); });
-            objs.push(this._ui(this.scene.add.text(mx + 30, cy, `QTY: ${pick.qty}`, { fontSize: '12px', color: '#d4c8a8', fontFamily: 'monospace' }).setDepth(43)));
+            objs.push(this._ui(this.scene.add.text(mx + 30, cy, `QTY: ${pick.qty}`, { fontSize: '12px', color: '#d4c8a8', fontFamily: THEME.fontMono }).setDepth(43)));
             makeArrow(mx + mw/2 - 14, cy + 6, '▶', () => { pick.qty = Math.min(50, pick.qty + 1); rebuild(); });
             cy += 22;
 
@@ -253,8 +253,8 @@ export default {
             const wantVal  = em.getItemValue(wantItem.key);
             const receiveQty = Math.max(1, Math.round((pick.qty * giveVal * 0.80) / wantVal));
             makeArrow(mx + 16, cy + 8, '◀', () => { pick.wantIdx = (pick.wantIdx - 1 + TRADEABLE.length) % TRADEABLE.length; rebuild(); });
-            objs.push(this._ui(this.scene.add.text(mx + 30, cy, `WANT: ${wantItem.label}`, { fontSize: '12px', color: '#aaddff', fontFamily: 'monospace' }).setDepth(43)));
-            objs.push(this._ui(this.scene.add.text(mx + 30, cy + 13, `expect ~${receiveQty}×  (${wantVal.toFixed(1)} ob ea)`, { fontSize: '10px', color: '#7090aa', fontFamily: 'monospace' }).setDepth(43)));
+            objs.push(this._ui(this.scene.add.text(mx + 30, cy, `WANT: ${wantItem.label}`, { fontSize: '12px', color: '#aaddff', fontFamily: THEME.fontMono }).setDepth(43)));
+            objs.push(this._ui(this.scene.add.text(mx + 30, cy + 13, `expect ~${receiveQty}×  (${wantVal.toFixed(1)} ob ea)`, { fontSize: '10px', color: '#7090aa', fontFamily: THEME.fontMono }).setDepth(43)));
             makeArrow(mx + mw/2 - 14, cy + 8, '▶', () => { pick.wantIdx = (pick.wantIdx + 1) % TRADEABLE.length; rebuild(); });
             cy += 32;
 
@@ -263,7 +263,7 @@ export default {
             const addBtn = this._ui(this.scene.add.rectangle(mx + mw/2 - 40, cy + 14, mw/2 - 20, 28, addBtnCol, 0.9).setDepth(43));
             const addTxt = this._ui(this.scene.add.text(mx + mw/2 - 40, cy + 14,
                 canAdd ? '+ Add Order' : '(same item!)',
-                { fontSize: '13px', color: canAdd ? '#88ffaa' : '#665544', fontFamily: 'monospace' }).setOrigin(0.5).setDepth(44));
+                { fontSize: '13px', color: canAdd ? '#88ffaa' : '#665544', fontFamily: THEME.fontMono }).setOrigin(0.5).setDepth(44));
             objs.push(addBtn, addTxt);
             if (canAdd) {
                 addBtn.setInteractive({ cursor: 'pointer' });
@@ -288,12 +288,12 @@ export default {
                 objs.push(sepG2);
                 cy += 8;
                 objs.push(this._ui(this.scene.add.text(mx + 14, cy, 'RECENT TRADES',
-                    { fontSize: '11px', color: '#887755', fontFamily: 'monospace' }).setDepth(43)));
+                    { fontSize: '11px', color: '#887755', fontFamily: THEME.fontMono }).setDepth(43)));
                 cy += 15;
                 for (const t of b.tradeLog.slice(0, 4)) {
                     objs.push(this._ui(this.scene.add.text(mx + 14, cy,
                         `Day ${t.day}: ${t.gave.qty}× ${ITEMS[t.gave.key]?.label ?? t.gave.key} → ${t.got.qty}× ${ITEMS[t.got.key]?.label ?? t.got.key}`,
-                        { fontSize: '11px', color: '#7a9060', fontFamily: 'monospace' }).setDepth(43)));
+                        { fontSize: '11px', color: '#7a9060', fontFamily: THEME.fontMono }).setDepth(43)));
                     cy += 14;
                 }
             }
@@ -328,10 +328,10 @@ export default {
 
         objs.push(this._ui(this.scene.add.text(mx + mw/2, my + 12,
             agoraExists ? '🛒 Merchants at the Agora!' : '🛒 Merchants arrive!',
-            { fontSize: '15px', color: '#ffdd88', fontFamily: 'monospace' }).setOrigin(0.5, 0).setDepth(40)));
+            { fontSize: '15px', color: '#ffdd88', fontFamily: THEME.fontMono }).setOrigin(0.5, 0).setDepth(40)));
 
         const closeBtn = this._ui(this.scene.add.text(mx + mw - 12, my + 14, '✕',
-            { fontSize: '18px', color: '#ffdd88', fontFamily: 'monospace' }).setOrigin(0.5).setDepth(40).setInteractive({ cursor: 'pointer' }));
+            { fontSize: '18px', color: '#ffdd88', fontFamily: THEME.fontMono }).setOrigin(0.5).setDepth(40).setInteractive({ cursor: 'pointer' }));
         closeBtn.on('pointerover', () => closeBtn.setColor('#ffffff'));
         closeBtn.on('pointerout',  () => closeBtn.setColor('#ffdd88'));
         closeBtn.on('pointerdown', closeAll);
@@ -343,7 +343,7 @@ export default {
         if (autoExecuted.length) {
             objs.push(this._ui(this.scene.add.text(mx + 12, contentY,
                 `✅ Standing orders filled: ${autoExecuted.join('; ')}`,
-                { fontSize: '10px', color: '#88ee88', fontFamily: 'monospace', wordWrap: { width: mw - 24 } }
+                { fontSize: '10px', color: '#88ee88', fontFamily: THEME.fontMono, wordWrap: { width: mw - 24 } }
             ).setDepth(40)));
             contentY += 26;
             const sep = this._ui(this.scene.add.graphics().setDepth(39));
@@ -355,7 +355,7 @@ export default {
         if (offers.length === 0) {
             objs.push(this._ui(this.scene.add.text(mx + mw/2, contentY + 10,
                 'No trades available right now.',
-                { fontSize: '12px', color: '#887755', fontFamily: 'monospace' }).setOrigin(0.5, 0).setDepth(40)));
+                { fontSize: '12px', color: '#887755', fontFamily: THEME.fontMono }).setOrigin(0.5, 0).setDepth(40)));
             contentY += 40;
         }
 
@@ -366,7 +366,7 @@ export default {
             objs.push(rowBg);
 
             objs.push(this._ui(this.scene.add.text(mx + 14, contentY + 6, offer.label,
-                { fontSize: '13px', color: canAfford ? '#e0d088' : '#887755', fontFamily: 'monospace' }
+                { fontSize: '13px', color: canAfford ? '#e0d088' : '#887755', fontFamily: THEME.fontMono }
             ).setDepth(40)));
 
             if (offer.valueGiven > 0) {
@@ -374,14 +374,14 @@ export default {
                 const fairCol = fairness >= 0.85 ? '#88cc88' : fairness >= 0.65 ? '#cccc66' : '#cc8866';
                 objs.push(this._ui(this.scene.add.text(mx + 14, contentY + 22,
                     `value: ${offer.valueGiven} → ${offer.valueReceived} obols (${Math.round(fairness * 100)}%)`,
-                    { fontSize: '10px', color: fairCol, fontFamily: 'monospace' }
+                    { fontSize: '10px', color: fairCol, fontFamily: THEME.fontMono }
                 ).setDepth(40)));
             }
 
             const btnCol = canAfford ? 0x336622 : 0x2a1c10;
             const btnBg = this._ui(this.scene.add.rectangle(mx + mw - 52, contentY + rowH/2, 76, 28, btnCol, 1).setDepth(40));
             const btnTxt = this._ui(this.scene.add.text(mx + mw - 52, contentY + rowH/2, canAfford ? 'Accept' : "Can't",
-                { fontSize: '12px', color: canAfford ? '#aaffaa' : '#665544', fontFamily: 'monospace' }).setOrigin(0.5).setDepth(41));
+                { fontSize: '12px', color: canAfford ? '#aaffaa' : '#665544', fontFamily: THEME.fontMono }).setOrigin(0.5).setDepth(41));
             objs.push(btnBg, btnTxt);
 
             if (canAfford) {
@@ -406,7 +406,7 @@ export default {
         // Dismiss button
         const dismissBg = this._ui(this.scene.add.rectangle(mx + mw/2, contentY + 14, 120, 26, 0x332211, 1).setDepth(40).setInteractive({ cursor: 'pointer' }));
         const dismissTxt = this._ui(this.scene.add.text(mx + mw/2, contentY + 14, 'Send Away',
-            { fontSize: '12px', color: '#aa8866', fontFamily: 'monospace' }).setOrigin(0.5).setDepth(41));
+            { fontSize: '12px', color: '#aa8866', fontFamily: THEME.fontMono }).setOrigin(0.5).setDepth(41));
         objs.push(dismissBg, dismissTxt);
         dismissBg.on('pointerover', () => { dismissBg.setFillStyle(0x554433); dismissTxt.setColor('#ccaa88'); });
         dismissBg.on('pointerout',  () => { dismissBg.setFillStyle(0x332211); dismissTxt.setColor('#aa8866'); });
@@ -415,7 +415,7 @@ export default {
         let secsLeft = 20;
         const countTxt = this._ui(this.scene.add.text(mx + mw / 2, contentY + 36,
             'merchants leave in 20s',
-            { fontSize: '9px', color: '#4a3820', fontFamily: 'monospace' }).setOrigin(0.5, 0).setDepth(41));
+            { fontSize: '9px', color: '#4a3820', fontFamily: THEME.fontMono }).setOrigin(0.5, 0).setDepth(41));
         objs.push(countTxt);
 
         timerRef.tick = this.scene.time.addEvent({
@@ -455,14 +455,14 @@ export default {
             this.scene.isPaused = false;
         };
 
-        const closeBtn = this._ui(this.scene.add.text(mx + mw - 15, my + 15, '✕', { fontSize: '18px', color: '#ffdd88', fontFamily: 'monospace' }).setOrigin(0.5).setDepth(43).setInteractive({ cursor: 'pointer' }));
+        const closeBtn = this._ui(this.scene.add.text(mx + mw - 15, my + 15, '✕', { fontSize: '18px', color: '#ffdd88', fontFamily: THEME.fontMono }).setOrigin(0.5).setDepth(43).setInteractive({ cursor: 'pointer' }));
         closeBtn.on('pointerover', () => closeBtn.setColor('#ffffff'));
         closeBtn.on('pointerout',  () => closeBtn.setColor('#ffdd88'));
         closeBtn.on('pointerdown', closeAll);
         this._censusObjs.push(closeBtn);
 
         this._censusObjs.push(this._ui(this.scene.add.text(mx + mw / 2, my + 34, '⏸ paused — close to resume',
-            { fontSize: '9px', color: '#6a5020', fontFamily: 'monospace' }).setOrigin(0.5, 0).setDepth(43)));
+            { fontSize: '9px', color: '#6a5020', fontFamily: THEME.fontMono }).setOrigin(0.5, 0).setDepth(43)));
 
         const workers = this.scene.units.filter(u => !u.isEnemy && u.hp > 0 && u.type === 'worker').sort((a, b) => b.age - a.age || a.name.localeCompare(b.name));
         const perPage = 10;
@@ -484,7 +484,7 @@ export default {
             line.lineStyle(1, 0x333322, 0.5).lineBetween(mx + 15, ry + 24, mx + mw - 15, ry + 24);
             this._censusObjs.push(line);
 
-            const nameTxt = this._ui(this.scene.add.text(colX[0], ry, u.name, { fontSize: '13px', color: '#d4c8a8', fontFamily: 'monospace', fontStyle: 'bold' }).setDepth(43).setInteractive({ cursor: 'pointer' }));
+            const nameTxt = this._ui(this.scene.add.text(colX[0], ry, u.name, { fontSize: '13px', color: '#d4c8a8', fontFamily: THEME.fontMono, fontStyle: 'bold' }).setDepth(43).setInteractive({ cursor: 'pointer' }));
             nameTxt.on('pointerover', () => nameTxt.setColor('#88ccff'));
             nameTxt.on('pointerout',  () => nameTxt.setColor('#d4c8a8'));
             nameTxt.on('pointerdown', () => {
@@ -518,14 +518,14 @@ export default {
             this._censusObjs.push(pgTxt);
 
             if (page > 0) {
-                const prev = this._ui(this.scene.add.text(mx + 40, py, '◀ Prev', { fontSize: '12px', color: '#ffdd88', fontFamily: 'monospace' }).setOrigin(0, 0.5).setDepth(43).setInteractive({ cursor: 'pointer' }));
+                const prev = this._ui(this.scene.add.text(mx + 40, py, '◀ Prev', { fontSize: '12px', color: '#ffdd88', fontFamily: THEME.fontMono }).setOrigin(0, 0.5).setDepth(43).setInteractive({ cursor: 'pointer' }));
                 prev.on('pointerover', () => prev.setColor('#ffffff'));
                 prev.on('pointerout',  () => prev.setColor('#ffdd88'));
                 prev.on('pointerdown', () => this.showCensusPanel(page - 1));
                 this._censusObjs.push(prev);
             }
             if (page < totalPages - 1) {
-                const next = this._ui(this.scene.add.text(mx + mw - 40, py, 'Next ▶', { fontSize: '12px', color: '#ffdd88', fontFamily: 'monospace' }).setOrigin(1, 0.5).setDepth(43).setInteractive({ cursor: 'pointer' }));
+                const next = this._ui(this.scene.add.text(mx + mw - 40, py, 'Next ▶', { fontSize: '12px', color: '#ffdd88', fontFamily: THEME.fontMono }).setOrigin(1, 0.5).setDepth(43).setInteractive({ cursor: 'pointer' }));
                 next.on('pointerover', () => next.setColor('#ffffff'));
                 next.on('pointerout',  () => next.setColor('#ffdd88'));
                 next.on('pointerdown', () => this.showCensusPanel(page + 1));

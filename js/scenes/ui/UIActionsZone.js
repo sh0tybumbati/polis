@@ -1,8 +1,9 @@
-import { TILE, MAP_OY, FM_TYPES, FM_LABELS, MATERIAL_LABELS, MATERIAL_COLORS } from '../../config/gameConstants.js';
+import { TILE, MAP_OY, FM_TYPES, FM_LABELS, MATERIAL_LABELS, MATERIAL_COLORS, CONSTRUCT_VOLUME } from '../../config/gameConstants.js';
 import { CONSTRUCTS, CONSTRUCT_CATS, computeBuildCost } from '../../content/constructs/index.js';
+import { ITEMS } from '../../content/items/index.js';
 import { CROPS } from '../../content/crops/index.js';
 import UIPanel from '../UIPanel.js';
-import { tabStrip } from '../../ui/UIKit.js';
+import { tabStrip, THEME } from '../../ui/UIKit.js';
 
 export default {
     _renderActionsZone() {
@@ -10,7 +11,7 @@ export default {
         if (this._actionPanel) { this._actionPanel.destroy(); this._actionPanel = null; }
 
         const { PANEL_H, KEY_H, QB_H, TAB_H, panelY, ACT_W } = this.L;
-        const zx = 0;
+        const zx = this.L.ACT_X ?? 0;
         let zy = panelY + KEY_H;
         let fullH = PANEL_H - KEY_H - (QB_H ?? 0);
 
@@ -56,7 +57,7 @@ export default {
         g.fillStyle(bg, 0.97).fillRect(zx, zy, ACT_W, H);
         g.lineStyle(1, col, 0.5).lineBetween(zx, zy + H - 1, zx + ACT_W, zy + H - 1);
         this._tab(this.scene.add.text(zx + ACT_W / 2, zy + H / 2, label, {
-            fontFamily: 'monospace', fontSize: '9px', color: '#c8d4c0',
+            fontFamily: THEME.fontMono, fontSize: '9px', color: '#c8d4c0',
         }).setOrigin(0.5).setDepth(22));
         return H;
     },
@@ -121,7 +122,7 @@ export default {
         hdr.lineStyle(1, info.col, 0.45).lineBetween(zx, zy + TAB_H, zx + ACT_W, zy + TAB_H);
         this._tab(s.add.text(zx + ACT_W / 2, zy + TAB_H / 2,
             `${info.label} — ${tiles.length} tile${tiles.length !== 1 ? 's' : ''}`, {
-                fontFamily: 'monospace', fontSize: '10px', color: '#d4c8a8',
+                fontFamily: THEME.fontMono, fontSize: '10px', color: '#d4c8a8',
             }).setOrigin(0.5).setDepth(22));
 
         const bodyY  = zy + TAB_H;
@@ -150,7 +151,7 @@ export default {
             // "Accept all" hint
             const hintY = bodyY + 6;
             this._tab(s.add.text(zx + 6, hintY, allOn ? 'Accepts: all resources' : 'Accepts only:', {
-                fontFamily: 'monospace', fontSize: '8px', color: '#7a6a50',
+                fontFamily: THEME.fontMono, fontSize: '8px', color: '#7a6a50',
             }).setDepth(22));
 
             // Category toggle buttons
@@ -165,7 +166,7 @@ export default {
                 const hov = this._tab(s.add.graphics().setDepth(23).setAlpha(0));
                 hov.fillStyle(0xffffff, 0.12).fillRect(bx, btnY, btnW - 2, catH);
                 this._tab(s.add.text(bx + (btnW - 2) / 2, btnY + catH / 2, cat.label, {
-                    fontFamily: 'monospace', fontSize: '8px',
+                    fontFamily: THEME.fontMono, fontSize: '8px',
                     color: on ? '#e8d8a0' : '#554433', align: 'center',
                 }).setOrigin(0.5).setDepth(23));
                 const z = this._tab(s.add.zone(bx + (btnW - 2) / 2, btnY + catH / 2, btnW - 2, catH)
@@ -190,13 +191,36 @@ export default {
                 });
             });
 
-            const noteY = btnY + catH + 4;
-            this._tab(s.add.text(zx + ACT_W / 2, noteY, 'Toggle to restrict · all on = accept everything', {
-                fontFamily: 'monospace', fontSize: '8px', color: '#443c2c', align: 'center',
-                wordWrap: { width: ACT_W - 12 },
-            }).setOrigin(0.5, 0).setDepth(22));
+            // Inventory list below toggles
+            let invY = btnY + catH + 4;
+            const zoneInv = {};
+            for (const t of tiles) {
+                const tileCfg = zm.storageTiles.get(zm.tileKey(t.tx, t.ty));
+                for (const [res, qty] of Object.entries(tileCfg?.inventory ?? {})) {
+                    if (qty > 0) zoneInv[res] = (zoneInv[res] ?? 0) + qty;
+                }
+            }
+            const invEntries = Object.entries(zoneInv).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]);
+            const stripY = bodyY + bodyH;
+            if (invEntries.length === 0) {
+                this._tab(s.add.text(zx + ACT_W / 2, invY + 4, '(empty)', {
+                    fontFamily: THEME.fontMono, fontSize: '8px', color: '#443c2c',
+                }).setOrigin(0.5, 0).setDepth(22));
+            } else {
+                for (const [res, qty] of invEntries) {
+                    if (invY >= stripY - 12) break;
+                    const lbl = res.split('.').pop().slice(0, 13);
+                    this._tab(s.add.text(zx + 6, invY, `${qty}`, {
+                        fontFamily: THEME.fontMono, fontSize: '8px', color: '#ddcc88',
+                    }).setDepth(22));
+                    this._tab(s.add.text(zx + 28, invY, lbl, {
+                        fontFamily: THEME.fontMono, fontSize: '8px', color: '#9a8a6a',
+                    }).setDepth(22));
+                    invY += 12;
+                }
+            }
 
-            this._actStrip(zx, bodyY + bodyH, ACT_W, STRIP, [
+            this._actStrip(zx, stripY, ACT_W, STRIP, [
                 { label: '＋ Expand', color: 0x0e200e, cb: () => {
                     s.zoneMode = type;
                     s.selectedZoneType = null; s.selectedZoneTile = null; s.selectedZoneTiles = null;
@@ -221,11 +245,11 @@ export default {
         bg2.fillStyle(0x100c06, 0.85).fillRect(zx, bodyY, ACT_W, panelH);
 
         this._tab(s.add.text(zx + ACT_W / 2, bodyY + panelH / 2 - 10, info.hint, {
-            fontFamily: 'monospace', fontSize: '9px', color: '#7a6a50', align: 'center',
+            fontFamily: THEME.fontMono, fontSize: '9px', color: '#7a6a50', align: 'center',
             wordWrap: { width: ACT_W - 12 },
         }).setOrigin(0.5).setDepth(22));
         this._tab(s.add.text(zx + ACT_W / 2, bodyY + panelH / 2 + 8, `Expand to add tiles · Erase to delete`, {
-            fontFamily: 'monospace', fontSize: '8px', color: '#554a38', align: 'center',
+            fontFamily: THEME.fontMono, fontSize: '8px', color: '#554a38', align: 'center',
         }).setOrigin(0.5).setDepth(22));
 
         // Action strip
@@ -269,16 +293,17 @@ export default {
             t => { this._actConstructTab = t; this.updateUI(); });
 
         const panelH = fullH - TAB_H - STRIP;
-        this._actionPanel = new UIPanel(this.scene, zx, zy + TAB_H, ACT_W, panelH);
-        this._actionPanel.setItems(this._constructTabItems(b, this._actConstructTab));
+        if (this._actConstructTab === 'Inv') {
+            this._renderConstructInvPanel(b, zx, zy + TAB_H, ACT_W, panelH);
+        } else {
+            this._actionPanel = new UIPanel(this.scene, zx, zy + TAB_H, ACT_W, panelH);
+            this._actionPanel.setItems(this._constructTabItems(b, this._actConstructTab));
+        }
 
         const noAssign = b.type === 'wall' || b.type === 'palisade';
-        const hasInv   = !b.faction && Object.values(b.inventory ?? {}).some(v => v > 0);
         this._actStrip(zx, zy + TAB_H + panelH, ACT_W, STRIP, [
             { label: '👷 Workers', color: 0x334422, dimmed: noAssign,
               cb: () => { s.orderWorkersToConstruct(b); this.updateUI(); } },
-            { label: '📦 Inv', color: 0x1a2030, dimmed: !hasInv,
-              cb: () => { this.showInventoryModal(b); } },
             b.deconstructing
                 ? { label: '✗ Cancel', color: 0x332211, cb: () => { s.constructManager.cancelDeconstruct(b); this.updateUI(); } }
                 : { label: '🔨 Demo',  color: 0x441111, cb: () => { s.constructManager.orderDeconstruct(b); this.updateUI(); } },
@@ -287,9 +312,52 @@ export default {
     },
 
     _constructTabs(b) {
-        if (b.type === 'barracks' || b.type === 'archery' || b.type === 'stable') return ['Train'];
-        if (b.type === 'townhall') return ['Manage'];
-        return ['Actions'];
+        if (b.type === 'barracks' || b.type === 'archery' || b.type === 'stable') return ['Train', 'Inv'];
+        if (b.type === 'townhall') return ['Manage', 'Inv'];
+        return ['Actions', 'Inv'];
+    },
+
+    _renderConstructInvPanel(b, zx, zy, w, h) {
+        const s   = this.scene;
+        const pad = 6;
+        const bg  = this._tab(s.add.graphics().setDepth(21));
+        bg.fillStyle(0x0e0c08, 0.9).fillRect(zx, zy, w, h);
+
+        let ry = zy + pad;
+
+        const maxVol = CONSTRUCT_VOLUME[b.type];
+        if (maxVol) {
+            const curVol = s.economyManager.getConstructCurrentVolume(b);
+            const ratio  = Math.min(1, curVol / maxVol);
+            const barW   = w - pad * 2;
+            const barg   = this._tab(s.add.graphics().setDepth(21.5));
+            barg.fillStyle(0x1a1612, 1).fillRect(zx + pad, ry, barW, 6);
+            const fillCol = ratio > 0.85 ? 0xcc4422 : ratio > 0.5 ? 0xddaa33 : 0x448844;
+            barg.fillStyle(fillCol, 0.85).fillRect(zx + pad, ry, Math.round(barW * ratio), 6);
+            this._tab(s.add.text(zx + w / 2, ry - 1, `${curVol.toFixed(0)}/${maxVol} vol`, {
+                fontFamily: THEME.fontMono, fontSize: '7px', color: '#6a6050',
+            }).setOrigin(0.5, 1).setDepth(22));
+            ry += 9;
+        }
+
+        const entries = Object.entries(b.inventory ?? {}).filter(([, v]) => v > 0).sort((a, bb) => bb[1] - a[1]);
+        if (entries.length === 0) {
+            this._tab(s.add.text(zx + w / 2, zy + h / 2, '(empty)', {
+                fontFamily: THEME.fontMono, fontSize: '9px', color: '#4a4030',
+            }).setOrigin(0.5).setDepth(22));
+        } else {
+            for (const [k, v] of entries) {
+                if (ry > zy + h - 13) break;
+                const lbl = ITEMS[k]?.label ?? k.split('.').pop().slice(0, 16);
+                this._tab(s.add.text(zx + pad, ry, `${v}`, {
+                    fontFamily: THEME.fontMono, fontSize: '9px', color: '#ddcc88',
+                }).setDepth(22));
+                this._tab(s.add.text(zx + pad + 26, ry, lbl, {
+                    fontFamily: THEME.fontMono, fontSize: '9px', color: '#aac890',
+                }).setDepth(22));
+                ry += 13;
+            }
+        }
     },
 
     _constructTabItems(b, tab) {
@@ -372,71 +440,13 @@ export default {
     },
 
     _renderWorkerActions(sel, workers, zx, zy, ACT_W, fullH) {
-        const s     = this.scene;
-        const TAB_H = 22;
+        const s    = this.scene;
         const STRIP = 28;
-        const tabs  = ['Jobs', 'Orders', 'Vocation'];
-        if (!tabs.includes(this._actUnitTab)) this._actUnitTab = 'Jobs';
-        this._actTabBar(zx, zy, ACT_W, tabs, this._actUnitTab,
-            t => { this._actUnitTab = t; this.updateUI(); });
-
-        const panelH = fullH - TAB_H - STRIP;
-        const items  = [];
-
-        if (this._actUnitTab === 'Jobs') {
-            const ROLES = [
-                { role: 'farmer',     label: 'Farm',   color: 0x336622 },
-                { role: 'forager',    label: 'Forage', color: 0x2a4a22 },
-                { role: 'woodcutter', label: 'Lumber', color: 0x5a3a18 },
-                { role: 'miner',      label: 'Mine',   color: 0x444444 },
-                { role: 'builder',    label: 'Build',  color: 0x554422 },
-                { role: 'shepherd',   label: 'Herd',   color: 0x445533 },
-                { role: 'hunter',     label: 'Hunt',   color: 0x553322 },
-            ];
-            for (const { role, label, color } of ROLES) {
-                const active = workers.every(u => u.role === role);
-                items.push({ label, color: active ? color + 0x222222 : color, active, callback: () => {
-                    workers.forEach(u => { u.role = role; u.taskType = null; u.targetNode = null; u.moveTo = null; });
-                    s.deselect(); this.updateUI();
-                }});
-            }
-            if (workers.some(u => u.role)) {
-                items.push({ label: 'Clear Role', color: 0x3a2a1a, callback: () => {
-                    workers.forEach(u => { u.role = null; u.taskType = null; });
-                    this.updateUI();
-                }});
-            }
-        }
-
-        if (this._actUnitTab === 'Orders') {
-            items.push({ label: 'Recall Home', color: 0x223344, callback: () => {
-                workers.forEach(u => {
-                    const home = s.constructs.find(b => b.id === u.homeConstructId);
-                    if (home) u.moveTo = { x: (home.tx+home.width/2)*TILE, y: MAP_OY+(home.ty+home.height/2)*TILE };
-                    u.taskType = null; u.targetNode = null;
-                });
-                s.deselect(); this.updateUI();
-            }});
-        }
-
-        if (this._actUnitTab === 'Vocation') {
-            const VOCATIONS = ['farmer','hunter','woodcutter','miner','builder','shepherd',
-                'carpenter','mason','smith','smelter','miller','baker','butcher','presser','weaver','brewer','tanner','merchant','forager'];
-            for (const voc of VOCATIONS) {
-                const active = workers.every(u => u.vocation === voc);
-                items.push({ label: voc[0].toUpperCase() + voc.slice(1),
-                    color: active ? 0x334422 : 0x1e2c1a, active, callback: () => {
-                        workers.forEach(u => { u.vocation = voc; });
-                        this.updateUI();
-                    }});
-            }
-        }
-
-        this._actionPanel = new UIPanel(this.scene, zx, zy + TAB_H, ACT_W, panelH);
-        this._actionPanel.setItems(items);
-
-        this._actStrip(zx, zy + TAB_H + panelH, ACT_W, STRIP, [
-            { label: '✕ Clear', color: 0x2a1c10, cb: () => {
+        // Jobs and Vocation are now in the inspector Jobs tab.
+        // Orders are via the Orders toolbar button.
+        // Right panel just provides the deselect strip.
+        this._actStrip(zx, zy + fullH - STRIP, ACT_W, STRIP, [
+            { label: '✕ Deselect', color: 0x2a1c10, cb: () => {
                 s.constructType = null; s.roadMode = false;
                 s.deselect(); s.hoverGfx?.clear(); this.updateUI();
             }},
@@ -719,7 +729,7 @@ export default {
         const hdr = this._tab(s.add.graphics().setDepth(21));
         hdr.fillStyle(0x1a2010, 0.92).fillRect(zx, zy, ACT_W, TAB_H);
         this._tab(s.add.text(zx + ACT_W / 2, zy + TAB_H / 2, `Grow Zone — ${infoLine}`, {
-            fontFamily: 'monospace', fontSize: '9px', color: '#a8d880',
+            fontFamily: THEME.fontMono, fontSize: '9px', color: '#a8d880',
         }).setOrigin(0.5).setDepth(22));
 
         // Crop picker items
@@ -772,7 +782,7 @@ export default {
         hdr.fillStyle(0x1a1810, 0.92).fillRect(zx, zy, ACT_W, TAB_H);
         this._tab(s.add.text(zx + ACT_W / 2, zy + TAB_H / 2,
             `Material: ${def?.label ?? type}`, {
-                fontFamily: 'monospace', fontSize: '11px', color: '#d4c890',
+                fontFamily: THEME.fontMono, fontSize: '11px', color: '#d4c890',
             }).setOrigin(0.5).setDepth(22));
 
         // Material pick items — use per-material costs map if present, else computeBuildCost

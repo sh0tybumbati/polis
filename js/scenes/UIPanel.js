@@ -1,8 +1,5 @@
-/**
- * UIPanel — drag-scrollable button grid for the actions zone.
- * A persistent input zone handles both taps (fire callback) and drag (scroll).
- * Content objects are recreated on each scroll update; the zone persists.
- */
+import { THEME } from '../ui/UIKit.js';
+
 export default class UIPanel {
     constructor(scene, x, y, w, h) {
         this.scene = scene;
@@ -126,14 +123,14 @@ export default class UIPanel {
             if (visH < sz * 0.35) return;
             const lblY = item.sublabel ? by + sz * 0.28 : by + sz * 0.5;
             add(this.scene.add.text(bx + sz / 2, lblY, item.label, {
-                fontFamily: 'monospace', fontSize: fz,
+                fontFamily: THEME.fontMono, fontSize: fz,
                 color: item.dimmed ? '#554433' : '#d4c8a8',
                 align: 'center', wordWrap: { width: sz - 4 },
             }).setOrigin(0.5).setDepth(22));
 
             if (item.sublabel && visH > sz * 0.6) {
                 add(this.scene.add.text(bx + sz / 2, by + sz * 0.72, item.sublabel, {
-                    fontFamily: 'monospace', fontSize: sfz,
+                    fontFamily: THEME.fontMono, fontSize: sfz,
                     color: item.dimmed ? '#443322' : '#aa9966',
                     align: 'center', wordWrap: { width: sz - 6 },
                 }).setOrigin(0.5).setDepth(22));
@@ -144,13 +141,13 @@ export default class UIPanel {
                 const dot = add(this.scene.add.graphics().setDepth(23));
                 dot.fillStyle(item.matColor, 0.9).fillCircle(bx + sz - 7, by + 7, 4);
                 add(this.scene.add.text(bx + sz - 12, by + 2, item.matLabel, {
-                    fontFamily: 'monospace', fontSize: '7px', color: '#ccbbaa',
+                    fontFamily: THEME.fontMono, fontSize: '7px', color: '#ccbbaa',
                 }).setOrigin(1, 0).setDepth(23));
             }
             // Right-click hint chevron when picker available
             if (item.rightCallback && visH >= sz * 0.5) {
                 add(this.scene.add.text(bx + sz - 3, by + sz - 3, '▾', {
-                    fontFamily: 'monospace', fontSize: '8px', color: '#887755',
+                    fontFamily: THEME.fontMono, fontSize: '8px', color: '#887755',
                 }).setOrigin(1, 1).setDepth(23));
             }
         });
@@ -190,7 +187,7 @@ export default class UIPanel {
                 tg.fillStyle(0x100c06, 0.96).fillRect(ttX, ttY, ttW, ttH);
                 tg.lineStyle(1, 0x5a4010, 0.7).strokeRect(ttX, ttY, ttW, ttH);
                 add(this.scene.add.text(ttX + 5, ttY + ttH / 2, hovItem.desc, {
-                    fontFamily: 'monospace', fontSize: '9px', color: '#a89870',
+                    fontFamily: THEME.fontMono, fontSize: '9px', color: '#a89870',
                     wordWrap: { width: ttW - 10 },
                 }).setOrigin(0, 0.5).setDepth(29));
             }

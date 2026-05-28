@@ -6,6 +6,7 @@ import bed from './bed.js';
 import brewery from './brewery.js';
 import butchersblock from './butchersblock.js';
 import camp from './camp.js';
+import campfire from './campfire.js';
 import chest from './chest.js';
 import farm from './farm.js';
 import firepit from './firepit.js';
@@ -42,13 +43,13 @@ import watchtower from './watchtower.js';
 import workbench from './workbench.js';
 
 const defs = [
-    agora, anvil, archery_grounds, melee_grounds, bed, butchersblock, camp, chest, door, farm, fence, fence_gate, firepit, forge, garden, gate, grainsilo, hearth, house, low_wall, loom, marketstall, millstone, mine, mounted_grounds, olivepress, oracle, oven, palisade, pasture, stonecutter, storageshelf, tanningrack, tavernseat, temple, townhall, wall, wall_edge, watchtower, workbench
+    agora, anvil, archery_grounds, melee_grounds, bed, butchersblock, camp, campfire, chest, door, farm, fence, fence_gate, firepit, forge, garden, gate, grainsilo, hearth, house, low_wall, loom, marketstall, millstone, mine, mounted_grounds, olivepress, oracle, oven, palisade, pasture, stonecutter, storageshelf, tanningrack, tavernseat, temple, townhall, wall, wall_edge, watchtower, workbench
 ];
 
 export const CONSTRUCTS = Object.fromEntries(defs.map(d => [d.id, d]));
 
 export const CONSTRUCT_CATS = {
-    Civil:    ['camp', 'townhall', 'agora', 'temple', 'oracle', 'firepit', 'tavernseat'],
+    Civil:    ['camp', 'campfire', 'townhall', 'agora', 'temple', 'oracle', 'firepit', 'tavernseat'],
     Industry: ['pasture', 'mine', 'millstone', 'oven', 'forge', 'anvil', 'tanningrack', 'workbench', 'stonecutter', 'olivepress'],
     Military: ['melee_grounds', 'archery_grounds', 'mounted_grounds', 'watchtower', 'wall', 'palisade', 'gate', 'fence'],
     Furnish:  ['bed', 'chest', 'hearth', 'loom', 'millstone', 'workbench', 'anvil', 'forge', 'oven', 'tanningrack', 'butchersblock', 'storageshelf', 'marketstall', 'grainsilo']

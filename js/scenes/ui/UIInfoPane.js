@@ -1,4 +1,5 @@
-import { VET_LEVELS, CONSTRUCT_VOLUME, UNIT_NAMES, TRAITS, TILE, MAP_OY } from '../../config/gameConstants.js';
+import { VET_LEVELS, CONSTRUCT_VOLUME, UNIT_NAMES, TRAITS, TILE, MAP_OY, V25_SKILLS } from '../../config/gameConstants.js';
+import { THEME } from '../../ui/UIKit.js';
 import { CROPS } from '../../content/crops/index.js';
 import { ITEMS } from '../../content/items/index.js';
 import { WORKSHOP_JOBS } from '../../content/jobs/index.js';
@@ -7,9 +8,9 @@ import { CONSTRUCTS, computeBuildCost } from '../../content/constructs/index.js'
 export default {
     _renderInfoPane() {
         this._clearInfo();
-        const { INFO_W, PANEL_H, KEY_H, QB_H, panelY } = this.L;
+        const { INFO_W, INFO_X, PANEL_H, KEY_H, QB_H, panelY } = this.L;
         const W = INFO_W - 2, H = PANEL_H - KEY_H - (QB_H ?? 0);
-        const ox = 0, oy = panelY + KEY_H;
+        const ox = INFO_X ?? 0, oy = panelY + KEY_H;
         const pad = 8;
         const sel = this.scene.units.filter(u => u.selected && !u.isEnemy);
 
@@ -21,6 +22,8 @@ export default {
             this._renderNodeInfo(ox, oy, W, H, pad);
         } else if (this.scene.selectedZoneTile) {
             this._renderZoneInfo(ox, oy, W, H, pad);
+        } else if (this.scene.selectedGroundTile) {
+            this._renderGroundTileInfo(ox, oy, W, H, pad);
         } else {
             this._renderIdleInfo(ox, oy, W, H, pad);
         }
@@ -45,7 +48,7 @@ export default {
         const TH   = this.scene.uiManager?.L?.TAB_H ?? 34;
         const workshopDef = Object.values(WORKSHOP_JOBS).find(j => j.construct === b.type);
         const tabs = b.built
-            ? (workshopDef ? ['Info', 'Queue', 'Workers', 'Inv'] : ['Info', 'Workers', 'Inv'])
+            ? (workshopDef ? ['Info', 'Queue', 'Workers'] : ['Info', 'Workers'])
             : ['Info'];
         if (!tabs.includes(this._constructTab)) this._constructTab = 'Info';
         this._infTabBar(ox, oy, W, tabs, this._constructTab,
@@ -498,10 +501,10 @@ export default {
         const workers = sel.filter(w => w.type === 'worker' && w.age >= 2);
         const isAdultWorker = u.type === 'worker' && u.age >= 2;
         const tabs = isAdultWorker
-            ? ['Stats', 'Needs', 'Inv', 'Jobs', 'Orders']
+            ? ['Stats', 'Skills', 'Needs', 'Inv', 'Jobs']
             : ['Stats'];
-        if (!tabs.includes(this._unitTab)) this._unitTab = 'Stats';
-        this._infTabBar(ox, oy, W + 2, tabs, this._unitTab, t => { this._unitTab = t; this.updateUI(); });
+        if (!tabs.includes(this._unitTab)) { this._unitTab = 'Stats'; this._skillsScroll = 0; }
+        this._infTabBar(ox, oy, W + 2, tabs, this._unitTab, t => { if (t !== 'Skills') this._skillsScroll = 0; this._unitTab = t; this.updateUI(); });
 
         const TH = this.scene.uiManager?.L?.TAB_H ?? 34;
         const cy = oy + TH, ch = H - TH;
@@ -518,10 +521,10 @@ export default {
         const contentY = cy + 34;
         const contentH = ch - 34;
         if (this._unitTab === 'Stats')       this._renderUnitStats(u, ox, contentY, W, contentH, pad);
+        else if (this._unitTab === 'Skills') this._renderUnitSkills(u, ox, contentY, W, contentH, pad);
         else if (this._unitTab === 'Needs')  this._renderUnitNeeds(u, ox, contentY, W, contentH, pad);
         else if (this._unitTab === 'Inv')    this._renderUnitInventory(u, ox, contentY, W, contentH, pad);
         else if (this._unitTab === 'Jobs')   this._renderInlineJobs(workers, ox, contentY, W, contentH, pad);
-        else if (this._unitTab === 'Orders') this._renderInlineOrders(workers, ox, contentY, W, contentH, pad);
     },
 
     _renderUnitStats(u, ox, oy, W, H, pad) {
@@ -552,16 +555,17 @@ export default {
 
             const a = u.attributes;
             if (a) {
-                this._infTxt(ox + pad, ry, `STR${a.str} DEX${a.dex} CON${a.con}`, { fontSize: this._fs(9), color: '#9a8860' });
-                ry += 12;
-                this._infTxt(ox + pad, ry, `INT${a.int} AGI${a.agi} WIL${a.wil}`, { fontSize: this._fs(9), color: '#9a8860' });
-                ry += 13;
+                const halfW = Math.floor((W - pad * 2) / 2);
+                const ATTR_PAIRS = [['STR', a.str, 'DEX', a.dex], ['CON', a.con, 'INT', a.int], ['AGI', a.agi, 'WIL', a.wil]];
+                for (const [k1, v1, k2, v2] of ATTR_PAIRS) {
+                    this._infTxt(ox + pad, ry, k1, { fontSize: this._fs(8), color: '#6a6050' });
+                    this._infTxt(ox + pad + halfW - 6, ry, String(v1), { fontSize: this._fs(10), color: '#c8b888' }).setOrigin(1, 0);
+                    this._infTxt(ox + pad + halfW, ry, k2, { fontSize: this._fs(8), color: '#6a6050' });
+                    this._infTxt(ox + W - pad, ry, String(v2), { fontSize: this._fs(10), color: '#c8b888' }).setOrigin(1, 0);
+                    ry += 14;
+                }
             }
 
-            const burning    = Object.entries(u.passions ?? {}).find(([, v]) => v === 'burning');
-            const interested = Object.entries(u.passions ?? {}).filter(([, v]) => v === 'interested').map(([k]) => k);
-            if (burning)          { this._infTxt(ox + pad, ry, `♥ ${burning[0]}`, { fontSize: this._fs(9), color: '#c8603a' }); ry += 12; }
-            if (interested.length){ this._infTxt(ox + pad, ry, `~ ${interested.map(s => s.slice(0, 5)).join(', ')}`, { fontSize: this._fs(9), color: '#7a7060' }); ry += 12; }
             if ((u.traits ?? []).length) {
                 let tx = ox + pad;
                 for (const t of u.traits) {
@@ -572,20 +576,76 @@ export default {
                 }
                 ry += 12;
             }
-
-            const trained = Object.entries(u.skills ?? {}).filter(([, v]) => v.level > 1);
-            if (trained.length) {
-                const div = this._inf(this.scene.add.graphics().setDepth(22));
-                div.lineStyle(1, 0x3a3020, 0.4).lineBetween(ox + pad, ry, ox + W - pad, ry);
-                ry += 5;
-                trained.sort((a, b) => b[1].level - a[1].level).slice(0, 5).forEach(([k, v]) => {
-                    this._infTxt(ox + pad, ry, `${k.slice(0, 10)} ${'★'.repeat(Math.min(v.level - 1, 4))}`,
-                        { fontSize: this._fs(9), color: '#7a9060' });
-                    ry += 12;
-                });
-            }
         } else {
             this._infTxt(ox + pad, ry, `Atk:${u.atk}  Spd:${u.speed}`, { fontSize: this._fs(10), color: '#aaaacc' });
+        }
+    },
+
+    _renderUnitSkills(u, ox, oy, W, H, pad) {
+        const SKILL_LABELS = {
+            farming: 'Farming', woodcutting: 'Woodcutting', mining: 'Mining',
+            masonry: 'Masonry', bake: 'Baking', butcher: 'Butchery',
+            mill: 'Milling', tan: 'Tanning', smelt: 'Smelting',
+            forge: 'Forging', animalTrap: 'Trapping', spear: 'Spear',
+            sword: 'Sword', bow: 'Archery',
+        };
+
+        const rows = V25_SKILLS.map(k => ({
+            key: k, label: SKILL_LABELS[k] ?? k,
+            skill: u.skills?.[k] ?? { level: 1, xp: 0 },
+            passion: u.passions?.[k] ?? 'none',
+        }));
+        const passRank = { burning: 2, interested: 1, none: 0 };
+        rows.sort((a, b) => {
+            const pd = passRank[b.passion] - passRank[a.passion];
+            return pd !== 0 ? pd : b.skill.level - a.skill.level;
+        });
+
+        const ROW_H  = 15;
+        const needScroll = rows.length * ROW_H > H;
+        const btnH   = needScroll ? 14 : 0;
+        const listH  = H - btnH * 2;
+        const maxRows = Math.floor(listH / ROW_H);
+        const maxScroll = Math.max(0, rows.length - maxRows);
+        if (this._skillsScroll == null) this._skillsScroll = 0;
+        this._skillsScroll = Math.max(0, Math.min(this._skillsScroll, maxScroll));
+        const scroll = this._skillsScroll;
+
+        if (needScroll) {
+            const upTxt = this._inf(this.scene.add.text(ox + W - pad, oy, '▲', {
+                fontFamily: THEME.fontMono, fontSize: this._fs(9),
+                color: scroll > 0 ? '#c8a030' : '#3a3020',
+            }).setOrigin(1, 0).setDepth(22));
+            if (scroll > 0) {
+                upTxt.setInteractive({ cursor: 'pointer' });
+                upTxt.on('pointerdown', () => { this._skillsScroll = scroll - 1; this.updateUI(); });
+            }
+            const dnTxt = this._inf(this.scene.add.text(ox + W - pad, oy + H - btnH, '▼', {
+                fontFamily: THEME.fontMono, fontSize: this._fs(9),
+                color: scroll < maxScroll ? '#c8a030' : '#3a3020',
+            }).setOrigin(1, 0).setDepth(22));
+            if (scroll < maxScroll) {
+                dnTxt.setInteractive({ cursor: 'pointer' });
+                dnTxt.on('pointerdown', () => { this._skillsScroll = scroll + 1; this.updateUI(); });
+            }
+        }
+
+        const visible = rows.slice(scroll, scroll + maxRows);
+        let ry = oy + (needScroll ? btnH : 2);
+        for (const { label, skill, passion } of visible) {
+            const passCol  = passion === 'burning' ? '#cc4422' : '#c8a030';
+            const passIcon = passion === 'burning' ? '♥' : passion === 'interested' ? '~' : ' ';
+            this._infTxt(ox + pad, ry, passIcon, { fontSize: this._fs(9), color: passCol, fontFamily: THEME.fontMono });
+
+            const lvl = skill.level;
+            const nameCol = lvl > 1 ? '#d4c89a' : '#6a5840';
+            this._infTxt(ox + pad + 11, ry, label, { fontSize: this._fs(9), color: nameCol });
+
+            const stars = lvl > 1 ? '★'.repeat(Math.min(lvl - 1, 5)) : '—';
+            const starCol = lvl > 1 ? '#c8a030' : '#3a3020';
+            this._infTxt(ox + W - pad, ry, stars, { fontSize: this._fs(9), color: starCol, fontFamily: THEME.fontMono }).setOrigin(1, 0);
+
+            ry += ROW_H;
         }
     },
 
@@ -714,6 +774,41 @@ export default {
         });
     },
 
+    _renderGroundTileInfo(ox, oy, W, H, pad) {
+        const s   = this.scene;
+        const { tx, ty } = s.selectedGroundTile;
+        this._infCard(ox + 2, oy + 2, W - 4, H - 4);
+
+        this._infTxt(ox + pad, oy + pad, 'Ground Items', { fontSize: this._fs(12), color: '#c8a030' });
+        this._infTxt(ox + W - pad, oy + pad, `tile ${tx},${ty}`,
+            { fontSize: this._fs(8), color: '#5a5040' }).setOrigin(1, 0);
+
+        const tileItems = s.groundItems?.filter(i => {
+            const [itx, ity] = i.subKey.split(',').map(Number);
+            return itx === tx && ity === ty;
+        }) ?? [];
+
+        let ry = oy + pad + 18;
+        if (tileItems.length === 0) {
+            this._infTxt(ox + pad, ry, '(empty)', { fontSize: this._fs(9), color: '#4a4030' });
+        } else {
+            // Aggregate by resource
+            const totals = {};
+            for (const i of tileItems) totals[i.resource] = (totals[i.resource] ?? 0) + i.qty;
+            for (const [res, qty] of Object.entries(totals).sort((a, b) => b[1] - a[1])) {
+                if (ry > oy + H - 30) break;
+                const lbl = res.split('.').pop().slice(0, 14);
+                this._infTxt(ox + pad, ry, `${qty}×`, { fontSize: this._fs(10), color: '#ddcc88' });
+                this._infTxt(ox + pad + 28, ry, lbl, { fontSize: this._fs(10), color: '#aac890' });
+                ry += 14;
+            }
+        }
+
+        this._infBtn(ox + pad, oy + H - 30, W - pad * 2 - 4, 26, '✕ Close', 0x221a10, () => {
+            s.selectedGroundTile = null; this.updateUI();
+        });
+    },
+
     _renderIdleInfo(ox, oy, W, H, pad) {
         this._infCard(ox + 2, oy + 2, W - 4, H - 4);
         const workers = this.scene.units.filter(u => !u.isEnemy && u.type === 'worker' && u.hp > 0);
@@ -770,28 +865,73 @@ export default {
             { role: 'shepherd',   label: '🐑 Herd',   color: 0x445533 },
             { role: 'hunter',     label: '🏹 Hunt',   color: 0x553322 },
         ];
-        const cols = 3;
+        const VOCATIONS = [
+            'farmer','hunter','woodcutter','miner','builder','shepherd','forager',
+            'carpenter','mason','smith','smelter','miller','baker','butcher',
+            'presser','weaver','brewer','tanner','merchant',
+        ];
+
+        const cols = 2;
         const gap  = 3;
-        const btnW = Math.floor((W - pad * 2 - gap * (cols - 1)) / cols);
-        const btnH = 30;
-        let ry = oy + 4;
+        const btnW = Math.floor((W - pad * 2 - gap) / cols);
+        const btnH = 22;
+        let ry = oy + 3;
+
+        // Role buttons — 2-column grid
         ROLES.forEach((r, i) => {
             const col = i % cols;
             const bx  = ox + pad + col * (btnW + gap);
+            const by  = ry + Math.floor(i / cols) * (btnH + gap);
             const active = workers.length > 0 && workers.every(u => u.role === r.role);
-            this._infBtn(bx, ry, btnW, btnH, r.label,
-                active ? r.color + 0x111111 : r.color,
+            this._infBtn(bx, by, btnW, btnH, r.label,
+                active ? r.color + 0x222222 : r.color,
                 () => {
                     workers.forEach(u => { u.role = r.role; u.taskType = null; u.targetNode = null; u.moveTo = null; });
-                    s.deselect?.();
                     this.updateUI();
                 });
-            if (col === cols - 1) ry += btnH + gap;
         });
-        if (ROLES.length % cols !== 0) ry += btnH + gap;
-        if (workers.some(u => u.role) && ry < oy + H - 28) {
-            this._infBtn(ox + pad, ry, W - pad * 2 - 4, 26, 'Clear Role', 0x2a1a10, () => {
+        ry += Math.ceil(ROLES.length / cols) * (btnH + gap);
+
+        // Clear role
+        if (workers.some(u => u.role) && ry + 20 < oy + H) {
+            this._infBtn(ox + pad, ry, W - pad * 2 - 4, 18, '✕ Clear Role', 0x2a1a10, () => {
                 workers.forEach(u => { u.role = null; u.taskType = null; });
+                this.updateUI();
+            });
+            ry += 21;
+        }
+
+        // Calling / Vocation — with ◂ ▸ cycle arrows
+        if (ry + 18 < oy + H) {
+            const dg = this._inf(s.add.graphics().setDepth(22));
+            dg.lineStyle(1, 0x3a2e18, 0.35).lineBetween(ox + pad, ry + 2, ox + W - pad, ry + 2);
+            ry += 6;
+
+            const u     = workers[0];
+            const voc   = u?.vocation ?? null;
+            const vidx  = voc ? VOCATIONS.indexOf(voc) : -1;
+            const label = voc ? voc[0].toUpperCase() + voc.slice(1) : '—';
+
+            this._infTxt(ox + pad, ry, 'Calling', { fontSize: this._fs(8), color: '#5a5040' });
+            this._infTxt(ox + pad + 46, ry, label, { fontSize: this._fs(9), color: '#c8a840' });
+
+            // ◂ prev
+            const prevBtn = this._inf(s.add.text(ox + W - pad - 26, ry - 1, '◂', {
+                fontFamily: THEME.fontMono, fontSize: this._fs(10), color: '#807040',
+            }).setOrigin(0, 0).setDepth(22).setInteractive({ cursor: 'pointer' }));
+            prevBtn.on('pointerdown', () => {
+                const ni = vidx <= 0 ? VOCATIONS.length - 1 : vidx - 1;
+                workers.forEach(w => { w.vocation = VOCATIONS[ni]; });
+                this.updateUI();
+            });
+
+            // ▸ next
+            const nextBtn = this._inf(s.add.text(ox + W - pad - 10, ry - 1, '▸', {
+                fontFamily: THEME.fontMono, fontSize: this._fs(10), color: '#807040',
+            }).setOrigin(0, 0).setDepth(22).setInteractive({ cursor: 'pointer' }));
+            nextBtn.on('pointerdown', () => {
+                const ni = vidx < 0 ? 0 : (vidx + 1) % VOCATIONS.length;
+                workers.forEach(w => { w.vocation = VOCATIONS[ni]; });
                 this.updateUI();
             });
         }
@@ -921,28 +1061,6 @@ export default {
             this._infTxt(ox + pad, ry, allOn ? 'Accepts: all' : `Accepts: ${accepts.map(a => a.split('.')[1] ?? a).join(', ')}`,
                 { fontSize: this._fs(8), color: '#7a6a50' });
             ry += 13;
-
-            // Aggregate inventory across all tiles in this zone
-            const zoneInv = {};
-            for (const t of zoneTiles) {
-                const tileCfg = zm.storageTiles.get(zm.tileKey(t.tx, t.ty));
-                for (const [res, qty] of Object.entries(tileCfg?.inventory ?? {})) {
-                    if (qty > 0) zoneInv[res] = (zoneInv[res] ?? 0) + qty;
-                }
-            }
-            const invEntries = Object.entries(zoneInv).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]);
-            if (invEntries.length === 0) {
-                this._infTxt(ox + pad, ry, 'Empty', { fontSize: this._fs(9), color: '#4a4030' });
-                ry += 13;
-            } else {
-                for (const [res, qty] of invEntries) {
-                    if (ry > oy + H - 80) break;
-                    const label = res.split('.').pop();
-                    this._infTxt(ox + pad + 4, ry, `${qty}`, { fontSize: this._fs(10), color: '#ddcc88' });
-                    this._infTxt(ox + pad + 28, ry, label, { fontSize: this._fs(9), color: '#9a8a6a' });
-                    ry += 13;
-                }
-            }
         }
 
         if (isGrow) {

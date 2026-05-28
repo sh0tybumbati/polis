@@ -225,29 +225,27 @@ export default class ZoneManager {
         this._stockGfx.clear();
         if (this.storageTiles.size === 0) return;
 
-        const ICO = 7;   // icon square size px
-        const GAP = 2;   // gap between icons
-        // 2×2 grid centered in tile: total span = 2*ICO + GAP
-        const SPAN = ICO * 2 + GAP;
-        const OX = Math.floor((TILE - SPAN) / 2);
-        const OY = Math.floor((TILE - SPAN) / 2);
+        // 3×3 cubit grid — cubit centers at [5, 16, 27]px within each 32px tile
+        const SUB = [5, 16, 27];
+        const ICO = 8;   // icon square size, centered on cubit center
 
         for (const [key, cfg] of this.storageTiles) {
             const inv = cfg.inventory ?? {};
             const items = Object.entries(inv)
                 .filter(([, v]) => v > 0)
                 .sort((a, b) => b[1] - a[1])
-                .slice(0, 4);
+                .slice(0, 9);
             if (items.length === 0) continue;
 
             const [tx, ty] = key.split(',').map(Number);
-            const bx = tx * TILE + OX;
-            const by = MAP_OY + ty * TILE + OY;
+            const bx = tx * TILE;
+            const by = MAP_OY + ty * TILE;
 
             items.forEach(([itemKey], i) => {
                 const col = _itemColor(itemKey);
-                const ix = bx + (i % 2) * (ICO + GAP);
-                const iy = by + Math.floor(i / 2) * (ICO + GAP);
+                const cx = bx + SUB[i % 3];
+                const cy = by + SUB[Math.floor(i / 3)];
+                const ix = cx - ICO / 2, iy = cy - ICO / 2;
                 // Drop shadow
                 this._stockGfx.fillStyle(0x000000, 0.35);
                 this._stockGfx.fillRect(ix + 1, iy + 1, ICO, ICO);

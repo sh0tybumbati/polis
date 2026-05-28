@@ -49,6 +49,12 @@ export default {
         } else if (this.scene.phase === 'NIGHT') {
             sleepPri += 50;
             workPri  -= 20;
+            // Rested workers gather around a lit campfire before sleep
+            const hasLitFire = this.scene.constructs.some(b => b.built && b.type === 'campfire' && b.isLit);
+            if (hasLitFire && (n.rest ?? 1) > 0.70) {
+                sleepPri -= 35;
+                leisurePri += 30;
+            }
         }
 
         if (eatPri > 0)     plan.push({ intent: 'eat',       priority: eatPri });

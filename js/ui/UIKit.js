@@ -18,7 +18,7 @@ export const THEME = {
     dim:          '#554433',
     muted:        '#887755',
     hover:        '#ffffff',
-    fontMono:     'monospace',
+    fontMono:     '"Cascadia Code", "SF Mono", Consolas, ui-monospace, "Liberation Mono", monospace',
     fontSerif:    'Georgia, "Times New Roman", serif',
 };
 

@@ -11,7 +11,8 @@ export const GAME_CONFIG = {
   },
   input: {
     mouse: {
-      preventDefaultDown: false,  // let pointerdown reach Phaser for all buttons
+      preventDefaultDown:  false,  // let pointerdown reach Phaser for all buttons
+      preventDefaultWheel: true,   // prevent browser scroll hijacking during gameplay
     },
   },
 };

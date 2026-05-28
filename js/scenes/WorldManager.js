@@ -306,7 +306,7 @@ export default class WorldManager {
             this.scene.economyManager.collectFirstFruits(); // Restored: calculate daily tithe delivery preparation
 
             if ((this.scene.day - 1) % 8 === 0) {
-                this.scene.constructManager.redrawAll('farm');
+                this.scene.constructManager.renderAll();
             }
 
             this._trySpawnMigrant();

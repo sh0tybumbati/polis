@@ -1,5 +1,5 @@
 import { SCENE_KEYS } from '../config/sceneKeys.js';
-import { rule } from '../ui/UIKit.js';
+import { rule, THEME } from '../ui/UIKit.js';
 
 const CIVS = [
     {
@@ -78,7 +78,7 @@ export default class CivSelectScene extends Phaser.Scene {
 
         // Back
         const back = this.add.text(W * 0.05, H * 0.92, '← BACK', {
-            fontFamily: 'monospace', fontSize: '10px', color: '#665544',
+            fontFamily: THEME.fontMono, fontSize: '10px', color: '#665544',
         }).setOrigin(0, 0.5).setInteractive({ useHandCursor: true });
         back.on('pointerover',  () => back.setStyle({ color: '#aaa090' }));
         back.on('pointerout',   () => back.setStyle({ color: '#665544' }));
@@ -99,7 +99,7 @@ export default class CivSelectScene extends Phaser.Scene {
         }).setOrigin(0.5);
 
         this.add.text(cx, topY + cardH * 0.38, civ.subtitle, {
-            fontFamily: 'monospace', fontSize: '8px', color: '#665544',
+            fontFamily: THEME.fontMono, fontSize: '8px', color: '#665544',
         }).setOrigin(0.5);
 
         rule(this, cx, topY + cardH * 0.435, cardW * 0.72, { color: civ.accentColor, alpha: 0.3 });
@@ -112,12 +112,12 @@ export default class CivSelectScene extends Phaser.Scene {
         const traitTop = topY + cardH * 0.635;
         civ.traits.forEach((t, i) => {
             this.add.text(cx - cardW / 2 + 12, traitTop + i * 16, `· ${t}`, {
-                fontFamily: 'monospace', fontSize: '8px', color: '#998866',
+                fontFamily: THEME.fontMono, fontSize: '8px', color: '#998866',
             });
         });
 
         this.add.text(cx, topY + cardH * 0.895, civ.bonus, {
-            fontFamily: 'monospace', fontSize: '7.5px', color: '#554433',
+            fontFamily: THEME.fontMono, fontSize: '7.5px', color: '#554433',
             wordWrap: { width: cardW - 16 }, align: 'center',
         }).setOrigin(0.5);
 

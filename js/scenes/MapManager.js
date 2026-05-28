@@ -4,6 +4,7 @@ import {
     TILE_A, TILE_B, BIOME_A, BIOME_B,
     ROAD_NONE, ROAD_DESIRE, ROAD_PAVED, ROAD_SPD, TILE_SPD
 } from '../config/gameConstants.js';
+import { THEME } from '../ui/UIKit.js';
 import { CONSTRUCTS } from '../content/constructs/index.js';
 import { NODES } from '../content/nodes/index.js';
 import { ITEMS } from '../content/items/index.js';
@@ -118,7 +119,7 @@ export default class MapManager {
 
         for (const u of this.scene.units) {
             if (u.isEnemy || u.hp <= 0) continue;
-            const clearR = u.type === 'worker' ? 3 : u.type === 'scout' ? 8 : 5;
+            const clearR = u.type === 'worker' ? 5 : u.type === 'scout' ? 10 : 6;
             const dimR   = clearR * 2;
             const cx = Math.floor(u.x / TILE);
             const cy = Math.floor((u.y - MAP_OY) / TILE);
@@ -163,6 +164,13 @@ export default class MapManager {
 
     drawFog() {
         if (!this._fogPoolBlack) return;
+        if (!this.scene.fogEnabled) {
+            this._fogPoolBlack.forEach(b => b.setVisible(false));
+            this._fogPoolDim.forEach(b => b.setVisible(false));
+            for (const n of this.scene.resNodes) { n.gfx?.setVisible(true); n.labelObj?.setVisible(true); }
+            for (const item of this.scene.groundItems ?? []) { item.gfx?.setVisible(true); item.labelObj?.setVisible(true); }
+            return;
+        }
         const visMap = this.scene.visMap;
         const view   = this.scene.cameras.main.worldView;
 
@@ -171,15 +179,22 @@ export default class MapManager {
         const minTy = Math.floor((view.y - MAP_OY) / TILE) - 1;
         const maxTy = Math.ceil((view.bottom - MAP_OY) / TILE) + 1;
 
+        // Grow pools on demand so zoomed-out views never leave uncovered tiles
+        const needed = (maxTx - minTx + 1) * (maxTy - minTy + 1);
+        while (this._fogPoolBlack.length < needed)
+            this._fogPoolBlack.push(this._fogBlack.create(0, 0, null, false));
+        while (this._fogPoolDim.length < needed)
+            this._fogPoolDim.push(this._fogDim.create(0, 0, null, false));
+
         const pb = this._fogPoolBlack, pd = this._fogPoolDim;
         let bi = 0, di = 0;
 
         for (let ty = minTy; ty <= maxTy; ty++) {
             for (let tx = minTx; tx <= maxTx; tx++) {
                 const vis = visMap.get(`${tx},${ty}`) ?? 0;
-                if (vis === 0 && bi < pb.length) {
+                if (vis === 0) {
                     const b = pb[bi++]; b.x = tx * TILE; b.y = ty * TILE; b.setVisible(true);
-                } else if (vis === 1 && di < pd.length) {
+                } else if (vis === 1) {
                     const b = pd[di++]; b.x = tx * TILE; b.y = ty * TILE; b.setVisible(true);
                 }
             }
@@ -188,6 +203,22 @@ export default class MapManager {
         // Return unused bobs to invisible
         for (let i = bi; i < pb.length; i++) pb[i].setVisible(false);
         for (let i = di; i < pd.length; i++) pd[i].setVisible(false);
+
+        // Cull world objects under undiscovered (vis=0) fog
+        for (const n of this.scene.resNodes) {
+            const tx = Math.floor(n.x / TILE);
+            const ty = Math.floor((n.y - MAP_OY) / TILE);
+            const show = (visMap.get(`${tx},${ty}`) ?? 0) > 0;
+            n.gfx?.setVisible(show);
+            n.labelObj?.setVisible(show);
+        }
+        for (const item of this.scene.groundItems ?? []) {
+            const tx = Math.floor(item.x / TILE);
+            const ty = Math.floor((item.y - MAP_OY) / TILE);
+            const show = (visMap.get(`${tx},${ty}`) ?? 0) > 0;
+            item.gfx?.setVisible(show);
+            item.labelObj?.setVisible(show);
+        }
     }
 
     drawMinimap() {
@@ -384,9 +415,23 @@ export default class MapManager {
                        : def.resource.startsWith('Materials.Stone') ? 0x9999aa : 0xaa7733;
         n.gfx.fillStyle(barColor, 0.9).fillRect(-bw/2, by, bw * ratio, 4);
 
+        if (n.slated) {
+            const SLATE_COLORS = {
+                woodcutter: 0x66dd44,
+                miner:      0xaaaaee,
+                forager:    0x44ccaa,
+                hunter:     0xee7744,
+            };
+            const col = SLATE_COLORS[n.slateType] ?? 0xcccccc;
+            const r   = def.large ? 27 : 19;
+            n.gfx.lineStyle(2, col, 0.85).strokeCircle(0, 0, r);
+            // Small upward triangle above the ring as a flag
+            n.gfx.fillStyle(col, 1.0).fillTriangle(-4, -r - 1, 4, -r - 1, 0, -r - 7);
+        }
+
         const sym = ITEMS[def.resource]?.icon ?? '📦';
         n.labelObj = this.scene._w(this.scene.add.text(n.x, n.y - (def.large ? 28 : 20), `${sym}${n.stock}`, {
-            fontSize: '9px', color: '#ffffff', fontFamily: 'monospace',
+            fontSize: '9px', color: '#ffffff', fontFamily: THEME.fontMono,
             stroke: '#000000', strokeThickness: 2,
         }).setOrigin(0.5).setDepth(3));
     }

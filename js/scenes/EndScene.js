@@ -1,4 +1,5 @@
 import { SCENE_KEYS } from '../config/sceneKeys.js';
+import { THEME } from '../ui/UIKit.js';
 
 export default class EndScene extends Phaser.Scene {
     constructor() {
@@ -22,24 +23,24 @@ export default class EndScene extends Phaser.Scene {
         // Title
         this.add.text(cx, cy - 90, win ? 'VICTORY' : 'DEFEAT', {
             fontSize: '52px', color: win ? '#ddaa44' : '#cc4422',
-            fontFamily: 'monospace', fontStyle: 'bold',
+            fontFamily: THEME.fontMono, fontStyle: 'bold',
         }).setOrigin(0.5);
 
         // Subtitle
         if (this.reason) {
             this.add.text(cx, cy - 30, this.reason, {
-                fontSize: '18px', color: '#cccccc', fontFamily: 'monospace',
+                fontSize: '18px', color: '#cccccc', fontFamily: THEME.fontMono,
             }).setOrigin(0.5);
         }
 
         // Days survived
         this.add.text(cx, cy + 10, `Day ${this.days} reached`, {
-            fontSize: '16px', color: '#aaaaaa', fontFamily: 'monospace',
+            fontSize: '16px', color: '#aaaaaa', fontFamily: THEME.fontMono,
         }).setOrigin(0.5);
 
         // Restart button
         const btn = this.add.text(cx, cy + 70, '[ Play Again ]', {
-            fontSize: '22px', color: '#ffffff', fontFamily: 'monospace',
+            fontSize: '22px', color: '#ffffff', fontFamily: THEME.fontMono,
         }).setOrigin(0.5).setInteractive({ useHandCursor: true });
 
         btn.on('pointerover',  () => btn.setColor('#ffdd88'));
