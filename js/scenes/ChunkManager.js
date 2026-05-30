@@ -8,6 +8,19 @@ import { MathUtils } from '../utils/MathUtils.js';
 import { NODES } from '../content/nodes/index.js';
 import { ITEMS } from '../content/items/index.js';
 
+// Deterministic per-tile hash → stable colour variation & tuft placement.
+function tileHash(tx, ty) { return (((tx * 73856093) ^ (ty * 19349663)) >>> 0); }
+function lerpHex(a, b, t) {
+    const r = Math.round(((a >> 16) & 0xff) + (((b >> 16) & 0xff) - ((a >> 16) & 0xff)) * t);
+    const g = Math.round(((a >> 8)  & 0xff) + (((b >> 8)  & 0xff) - ((a >> 8)  & 0xff)) * t);
+    const bl= Math.round((a & 0xff) + ((b & 0xff) - (a & 0xff)) * t);
+    return (r << 16) | (g << 8) | bl;
+}
+function shadeHex(c, d) {
+    const cl = v => Math.max(0, Math.min(255, v + d));
+    return (cl((c >> 16) & 0xff) << 16) | (cl((c >> 8) & 0xff) << 8) | cl(c & 0xff);
+}
+
 export default class ChunkManager {
     constructor(scene) {
         this.scene = scene;
@@ -374,8 +387,24 @@ export default class ChunkManager {
                 const b  = chunk.biomes[i];
                 const colA = (BIOME_A[b] ?? TILE_A)[t] ?? TILE_A[t];
                 const colB = (BIOME_B[b] ?? TILE_B)[t] ?? TILE_B[t];
-                g.fillStyle((tx + ty) % 2 === 0 ? colA : colB)
-                 .fillRect(lx * TILE, ly * TILE, TILE, TILE);
+                // Seamless terrain: blend the two biome shades by a per-tile hash (continuous
+                // variation) instead of a hard A/B checkerboard.
+                const hsh  = tileHash(tx, ty);
+                const base = lerpHex(colA, colB, (hsh & 0xff) / 255);
+                g.fillStyle(base).fillRect(lx * TILE, ly * TILE, TILE, TILE);
+
+                // Cartoony grass: a few soft dappled tufts (deterministic) so the field reads as
+                // textured rather than flat squares.
+                if (t === T_GRASS) {
+                    const dark = shadeHex(base, -16), lite = shadeHex(base, 14);
+                    const n = 2 + (hsh % 2);
+                    for (let k = 0; k < n; k++) {
+                        const hx = ((hsh >> (k * 6)) % (TILE - 8)) + 4;
+                        const hy = ((hsh >> (k * 6 + 9)) % (TILE - 8)) + 4;
+                        g.fillStyle(k % 2 ? lite : dark, 0.45)
+                         .fillCircle(lx * TILE + hx, ly * TILE + hy, 2);
+                    }
+                }
 
                 if (t === T_WATER) {
                     g.fillStyle(0x4488cc, 0.28)
@@ -395,12 +424,8 @@ export default class ChunkManager {
             }
         }
 
-        // Grid lines (local coords)
-        g.lineStyle(1, 0x000000, 0.04);
-        for (let lx = 0; lx <= CHUNK_SIZE; lx++)
-            g.lineBetween(lx * TILE, 0, lx * TILE, size);
-        for (let ly = 0; ly <= CHUNK_SIZE; ly++)
-            g.lineBetween(0, ly * TILE, size, ly * TILE);
+        // (No per-tile grid lines — terrain reads as a seamless field. Placement ghosts/hover
+        //  draw their own gridding when building.)
 
         // Stamp into the RT then discard the temp Graphics
         chunk.rt.clear();

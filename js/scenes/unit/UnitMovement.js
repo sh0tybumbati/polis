@@ -1,6 +1,6 @@
 import {
     TILE, MAP_OY,
-    TILE_SPD, DESIRE_THRESHOLD, ROAD_DESIRE, ROAD_NONE,
+    TILE_SPD, DESIRE_THRESHOLD, TROD_THRESHOLD, ROAD_DESIRE, ROAD_TRODDEN, ROAD_NONE,
 } from '../../config/gameConstants.js';
 import { CONSTRUCTS } from '../../content/constructs/index.js';
 import { ITEMS } from '../../content/items/index.js';
@@ -127,9 +127,12 @@ export default {
             const tm = this.scene._trafficMap ?? (this.scene._trafficMap = new Map());
             const count = (tm.get(tKey) ?? 0) + 1;
             tm.set(tKey, count);
-            if (count >= DESIRE_THRESHOLD &&
-                (this.scene.roadMap.get(tKey) ?? ROAD_NONE) === ROAD_NONE) {
-                this.scene.roadMap.set(tKey, ROAD_DESIRE);
+            const cur = this.scene.roadMap.get(tKey) ?? ROAD_NONE;
+            if (cur === ROAD_NONE && count >= DESIRE_THRESHOLD) {
+                this.scene.roadMap.set(tKey, ROAD_DESIRE);          // worn path appears
+                this.scene.mapManager.drawDesirePath(tileX, tileY);
+            } else if (cur === ROAD_DESIRE && count >= TROD_THRESHOLD) {
+                this.scene.roadMap.set(tKey, ROAD_TRODDEN);          // hardens into a trodden road
                 this.scene.mapManager.drawDesirePath(tileX, tileY);
             }
         }

@@ -184,13 +184,7 @@ export default class GameScene extends Phaser.Scene {
         if (loaded) {
             this.constructManager.renderAll();
             this.zoneManager.renderAll();
-            // Redraw desire/paved paths
-            for (const [key, road] of this.roadMap) {
-                if (road > 0) {
-                    const [tx, ty] = key.split(',').map(Number);
-                    this.mapManager.drawDesirePath(tx, ty);
-                }
-            }
+            this.mapManager.redrawRoads();   // redraw the whole road layer
 
             this.constructManager.renderAll();
             for (const u of this.units) {

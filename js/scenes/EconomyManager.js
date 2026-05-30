@@ -374,6 +374,7 @@ export default class EconomyManager {
 
         this.scene.roadMap.set(rkey, 2);
         this.scene._roadsDirty = true;
+        this.scene.mapManager.drawDesirePath(tx, ty);   // render the paved tile immediately
         this.scene.updateUI();
     }
 }

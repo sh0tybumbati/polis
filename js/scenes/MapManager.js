@@ -2,7 +2,7 @@ import {
     TILE, MAP_OY, CHUNK_SIZE,
     T_SAND, T_GRASS, T_ROCK, T_FOREST, T_WATER, T_MOUNTAIN,
     TILE_A, TILE_B, BIOME_A, BIOME_B,
-    ROAD_NONE, ROAD_DESIRE, ROAD_PAVED, ROAD_SPD, TILE_SPD
+    ROAD_NONE, ROAD_DESIRE, ROAD_PAVED, ROAD_TRODDEN, ROAD_SPD, TILE_SPD
 } from '../config/gameConstants.js';
 import { CONSTRUCTS } from '../content/constructs/index.js';
 import { NODES } from '../content/nodes/index.js';
@@ -35,17 +35,44 @@ export default class MapManager {
         });
     }
 
+    // Roads convert the whole tile (no inset/outline): grass → worn dirt → trodden → paved.
+    // Per-tile hash gives organic colour variation so a path doesn't read as a uniform block.
     drawDesirePath(tx, ty) {
         if (!this.desireGfx) {
             this.desireGfx = this.scene._w(this.scene.add.graphics().setDepth(1));
         }
         const road = this.scene.roadMap.get(`${tx},${ty}`) ?? ROAD_NONE;
-        if (road === ROAD_DESIRE) {
-            this.desireGfx.fillStyle(0xb8946a, 0.55)
-                .fillRect(tx * TILE + 3, MAP_OY + ty * TILE + 3, TILE - 6, TILE - 6);
-        } else if (road === ROAD_PAVED) {
-            this.desireGfx.fillStyle(0x9a8870, 0.75)
-                .fillRect(tx * TILE + 1, MAP_OY + ty * TILE + 1, TILE - 2, TILE - 2);
+        if (road === ROAD_NONE) return;
+        const px = tx * TILE, py = MAP_OY + ty * TILE;
+        const h  = (((tx * 73856093) ^ (ty * 19349663)) >>> 0);
+        const jit = (h % 15) - 7;                       // ±7 per-tile shade jitter
+        const shade = (c) => {
+            const cl = v => Math.max(0, Math.min(255, v + jit));
+            return (cl((c >> 16) & 0xff) << 16) | (cl((c >> 8) & 0xff) << 8) | cl(c & 0xff);
+        };
+        let col, alpha;
+        if      (road === ROAD_DESIRE)  { col = 0xa98f63; alpha = 0.50; }  // faint worn dirt
+        else if (road === ROAD_TRODDEN) { col = 0x95794c; alpha = 0.92; }  // hardened path
+        else                            { col = 0x8a8478; alpha = 0.96; }  // paved road
+        this.desireGfx.fillStyle(shade(col), alpha).fillRect(px, py, TILE, TILE);
+        // A couple of darker pebbles/ruts on hardened/paved tiles for cartoony texture.
+        if (road !== ROAD_DESIRE) {
+            this.desireGfx.fillStyle(shade(col) & 0xe8e8e8, alpha * 0.6);
+            this.desireGfx.fillCircle(px + 6 + (h % (TILE - 12)), py + 6 + ((h >> 4) % (TILE - 12)), 2);
+        }
+    }
+
+    // Clear and redraw the whole road layer (used on load and after a paint, so upgrades don't
+    // leave stale fills layered underneath).
+    redrawRoads() {
+        if (!this.desireGfx) {
+            this.desireGfx = this.scene._w(this.scene.add.graphics().setDepth(1));
+        }
+        this.desireGfx.clear();
+        for (const [key, road] of this.scene.roadMap) {
+            if (!road) continue;
+            const [tx, ty] = key.split(',').map(Number);
+            this.drawDesirePath(tx, ty);
         }
     }
 

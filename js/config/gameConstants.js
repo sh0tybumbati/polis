@@ -217,11 +217,13 @@ export const BIOME_B = [
 export const TILE_SPD  = [1.0, 0.75, 0.6, 0.65, 0.0, 0.0];
 
 // Road / desire-path layer (stored in roadMap, separate from terrain)
-export const ROAD_NONE   = 0;  // no road
-export const ROAD_DESIRE = 1;  // worn desire path  — ×1.15 speed bonus
-export const ROAD_PAVED  = 2;  // player-built road — ×1.45 speed bonus
-export const ROAD_SPD    = [1.0, 1.15, 1.45];  // indexed by ROAD_* constant
+export const ROAD_NONE    = 0;  // no road
+export const ROAD_DESIRE  = 1;  // faint worn desire path — ×1.15 speed bonus
+export const ROAD_PAVED   = 2;  // player-built road       — ×1.45 speed bonus
+export const ROAD_TRODDEN = 3;  // hardened desire path (auto, from heavy traffic) — ×1.30
+export const ROAD_SPD     = [1.0, 1.15, 1.45, 1.30];  // indexed by ROAD_* constant
 export const DESIRE_THRESHOLD  = 240;   // traffic count before a desire path appears (8-min days → more traffic/day)
+export const TROD_THRESHOLD    = 620;   // sustained traffic before a desire path hardens into a trodden road
 export const HUNGER_THRESHOLD  = 56;    // game-seconds between meals (~3 meals per 8-min day)
 export const TRAFFIC_DECAY_PER_DAY = 18; // subtracted from every tile each day transition
 
