@@ -1,8 +1,8 @@
 export default {
     id: 'olive_grove',
     resource: 'Food.Produce.Olive',
-    stock: 50,
-    respawnDays: 2,
+    stockMin: 3, stockMax: 8,
+    respawnDays: 4,
     role: 'forager',
 
     draw(gfx, _n, alpha) {

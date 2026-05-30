@@ -1,5 +1,6 @@
 import {
     TILE, MAP_OY, APPLIANCE_DEF, CONSTRUCT_VOLUME,
+    SEASON_DAYS, DAY_DURATION, PROVISION_PERCAPITA, PROVISION_BUFFER_DAYS,
 } from '../config/gameConstants.js';
 import { CONSTRUCTS as CONSTRUCTS } from '../content/constructs/index.js';
 import { ITEMS } from '../content/items/index.js';
@@ -154,6 +155,28 @@ export default class EconomyManager {
 
     afford(cost) {
         return Object.entries(cost).every(([r, n]) => (this.scene.resources[r] ?? 0) >= n);
+    }
+
+    // Forward-provisioning pressure (0–1) for a staple resource: how far current stock is
+    // below a population- and season-scaled target. Drives job scoring so the colony builds
+    // a food/material buffer ahead of need (and especially before Autumn→Winter).
+    provisioningPressure(resKey, pop) {
+        const per = PROVISION_PERCAPITA[resKey];
+        if (!per) return 0;
+        const s = this.scene;
+        const seasonIdx = Math.floor(((s.day ?? 1) - 1) / SEASON_DAYS) % 4; // 0 Spring … 3 Winter
+        const isFood = resKey.startsWith('Food');
+        let bufferDays = PROVISION_BUFFER_DAYS;
+        if (isFood && seasonIdx === 2) bufferDays *= 2.0;   // Autumn: stockpile for winter
+        if (isFood && seasonIdx === 3) bufferDays *= 1.5;   // Winter: hold a high buffer
+        // Night approaching during the day ramps the food target so larders fill before dusk.
+        if (isFood && s.phase === 'DAY') {
+            const dusk = 1 - (s.timerMs ?? DAY_DURATION) / DAY_DURATION; // 0 dawn → 1 dusk
+            bufferDays *= 1 + dusk * 0.5;
+        }
+        const target = Math.max(1, (pop || 1) * per * bufferDays);
+        const stock  = this.scene.resources[resKey] ?? 0;
+        return Math.max(0, Math.min(1, (target - stock) / target));
     }
 
     // Dynamic item value: scarce items worth much more. Formula: base × (1 + 5/max(5,qty))

@@ -1,8 +1,8 @@
 export default {
     id: 'small_boulder',
     resource: 'Materials.Stone.Limestone',
-    stock: 40,
-    respawnDays: 6,
+    stockMin: 5, stockMax: 10,
+    respawnDays: 0,   // mined-out rock does not regrow
     role: 'miner',
 
     draw(gfx, _n, alpha) {

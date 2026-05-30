@@ -495,7 +495,7 @@ export default {
             });
             this._censusObjs.push(nameTxt);
 
-            const ageLabel = u.age === 0 ? 'Child' : u.age === 1 ? 'Youth' : 'Adult';
+            const ageLabel = `${Math.round(u.ageYears ?? (u.age ?? 0) * 6)}y`;
             this._censusObjs.push(this._ui(this.scene.add.text(colX[1], ry + 2, ageLabel, { fontSize: '11px', color: '#aaaacc' }).setDepth(43)));
             this._censusObjs.push(this._ui(this.scene.add.text(colX[2], ry + 2, u.gender === 'male' ? '♂' : '♀', { fontSize: '11px', color: '#cc99cc' }).setDepth(43)));
 

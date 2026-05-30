@@ -1,11 +1,13 @@
 import {
     DAY_DURATION, NIGHT_DURATION, TILE, MAP_OY, VET_LEVELS, pickVetName,
     APPLIANCE_DEF, SEASON_DAYS, pickFamilyName,
+    YEARS_PER_DAY, YEARS_PER_AGE_STEP,
 } from '../config/gameConstants.js';
 import { CONSTRUCTS } from '../content/constructs/index.js';
 import { UNITS } from '../content/units/index.js';
 import { NODES } from '../content/nodes/index.js';
 import { ITEMS } from '../content/items/index.js';
+import GameLogger from '../GameLogger.js';
 
 export default class WorldManager {
     constructor(scene) {
@@ -302,6 +304,9 @@ export default class WorldManager {
 
             this.tickNodeRespawn();
             this.ageUpUnits();
+            this._assignFamilyEstates();              // every adult belongs to a family estate
+            this.scene.constructManager.growEstates(); // estates expand ~1 tile/day
+            this._reclaimEmptyCamps();                 // tear down camps once everyone has a bed
             this.scene.units.forEach(u => { u._wageCollected = false; });
             this.scene.economyManager.collectFirstFruits(); // Restored: calculate daily tithe delivery preparation
 
@@ -326,14 +331,30 @@ export default class WorldManager {
 
     tickNodeRespawn() {
         for (const n of this.scene.resNodes) {
-            if (n.stock <= 0) {
+            const def = NODES[n.type];
+            const isTree = n.type === 'small_tree' || n.type === 'large_tree';
+
+            if (n.stock <= 0 && !n.sapling) {
                 n.respawnTimer = (n.respawnTimer ?? 0) + 1;
-                const def = NODES[n.type];
                 if (def && def.respawnDays > 0 && n.respawnTimer >= def.respawnDays) {
-                    n.stock = def.stock;
+                    const minS = def.stockMin ?? def.stock ?? 1;
+                    n.stock = minS;
+                    n.maxStock = def.stockMax ?? def.stock ?? minS;
+                    if (isTree) n.treeAge = 0;
                     n.respawnTimer = 0;
                     this.scene.mapManager.redrawNode(n);
                     this.scene.uiManager.showFloatText(n.x, n.y - 12, '🌱 regrown', '#88cc44');
+                }
+                continue;
+            }
+
+            if (isTree && !n.sapling && n.stock > 0) {
+                n.treeAge = (n.treeAge ?? 0) + 1;
+                const maxS = def?.stockMax ?? def?.stock ?? n.maxStock;
+                if (n.stock < maxS) {
+                    n.stock = Math.min(maxS, n.stock + Math.max(1, Math.floor(maxS / 20)));
+                    n.maxStock = maxS;
+                    this.scene.mapManager.redrawNode(n);
                 }
             }
         }
@@ -363,10 +384,22 @@ export default class WorldManager {
             u.isRouting = false;
             if (u.isEnemy) { u.aiMode = 'patrol'; u._assaultTowerId = null; }
             if (u.type !== 'worker') continue;
-            u.age++;
+
+            // Biological aging: ~1 year per in-game day. The integer life-stage `age` is derived
+            // from ageYears (floor / YEARS_PER_AGE_STEP) so units now live ~60 years while every
+            // existing age-stage check (>=2 adult, >=10 elder, etc.) keeps working unchanged.
+            u.ageYears = (u.ageYears ?? (u.age ?? 0) * YEARS_PER_AGE_STEP) + YEARS_PER_DAY;
+            const _prevAge = u.age ?? 0;
+            const _newAge  = Math.floor(u.ageYears / YEARS_PER_AGE_STEP);
+            if (_newAge === _prevAge) continue;   // no life-stage change today
+            u.age = _newAge;
             if (!u.isEnemy) {
+                this.scene.unitManager.redrawUnit(u);
                 if (u.age === 1) this.scene.uiManager.showFloatText(u.x, u.y - 18, '→ youth', '#ffeeaa');
-                if (u.age === 2) this.scene.uiManager.showFloatText(u.x, u.y - 18, '→ adult', '#ffdd44');
+                if (u.age === 2) {
+                    this.scene.uiManager.showFloatText(u.x, u.y - 18, '→ adult', '#ffdd44');
+                    this.scene.unitManager.assignVocation(u);
+                }
 
                 // Elder onset: first physical decline + wisdom bonus
                 if (u.age === 10 && u.attributes) {
@@ -426,20 +459,73 @@ export default class WorldManager {
             if ((u._gestationDays ?? 0) > 0) continue;
             const spouse = units.find(s => s.id === u.spouseId);
             if (!spouse || spouse.age < 2 || spouse.type !== 'worker') continue;
-            if (!u.homeConstructId || u.homeConstructId !== spouse.homeConstructId) continue;
+            // Couple must share a family estate with free bed capacity (estate-level breeding).
+            if (!u.estateId || u.estateId !== spouse.estateId) continue;
             if ((u.mood ?? 1) < 0.25 || (u.needs?.food ?? 1) < 0.1) continue;
             if ((spouse.mood ?? 1) < 0.25 || (spouse.needs?.food ?? 1) < 0.1) continue;
-            const home = this.scene.constructManager?.getById(u.homeConstructId);
-            if (home) {
-                const cap = this.scene.constructManager.getHouseCapacity(home);
-                const residents = units.filter(v => v.homeConstructId === home.id && !v.isEnemy && v.hp > 0);
-                if (residents.length >= cap) continue;
-            }
+            const estate = this.scene.estateBounds.find(d => d.id === u.estateId);
+            const cap = this.scene.constructManager.estateBedCapacity(estate);
+            const familySize = units.filter(v => v.estateId === u.estateId && !v.isEnemy && v.hp > 0).length;
+            if (familySize >= cap) continue;   // no spare bed → wait for the archon to add one
             if (Math.random() < 0.22) {
                 u._gestationDays = 3;
                 this.scene.uiManager?.showFloatText?.(u.x, u.y - 20, `${u.name} is expecting`, '#ffddff');
             }
         }
+    }
+
+    // Ensure every adult worker belongs to a family estate: couples join/found one; single
+    // adults live on a parent's estate. Runs daily as a safety net for marriage/birth/migration.
+    _assignFamilyEstates() {
+        const valid = id => id && this.scene.estateBounds.some(d => d.id === id);
+        const units = this.scene.units.filter(u => u.type === 'worker' && !u.isEnemy && u.hp > 0 && u.age >= 2);
+        for (const u of units) {
+            if (valid(u.estateId)) continue;
+            u.estateId = null;
+            if (u.spouseId) {
+                const sp = this.scene.units.find(s => s.id === u.spouseId);
+                if (valid(sp?.estateId)) { u.estateId = sp.estateId; continue; }
+                if (sp) { const f = u.gender === 'female' ? u : sp, m = u.gender === 'female' ? sp : u;
+                          if (this._foundEstate(f, m)) continue; }
+            }
+            const parent = this.scene.units.find(p => p.id === u.fatherId || p.id === u.motherId);
+            if (valid(parent?.estateId)) u.estateId = parent.estateId;
+        }
+    }
+
+    // A married couple claims/founds their estate. Returns the estate (or null if no land yet).
+    _foundEstate(f, m) {
+        const cm = this.scene.constructManager;
+        const owned = this.scene.estateBounds.find(d => d.familyId === f.id || d.familyId === m.id);
+        if (owned) { f.estateId = m.estateId = owned.id; return owned; }
+        const plot = this._findEstatePlot();
+        if (!plot) return null;
+        const dom = cm.createEstate(plot.cx, plot.cy, f.id, null, 2);
+        f.estateId = m.estateId = dom.id;
+        GameLogger.log('estate_found', { fam: f.familyName ?? f.name, cx: plot.cx, cy: plot.cy });
+        return dom;
+    }
+
+    // Find a public plot (inside the cultural border, clear of other estates) for a new estate.
+    _findEstatePlot() {
+        const cm = this.scene.constructManager;
+        const { cx, cy, R } = cm.culturalBounds();
+        for (let r = 4; r <= R; r++) {
+            for (let dy = -r; dy <= r; dy++) {
+                for (let dx = -r; dx <= r; dx++) {
+                    if (Math.abs(dx) < r && Math.abs(dy) < r) continue;
+                    const tx = cx + dx, ty = cy + dy;
+                    if (tx < 3 || ty < 3) continue;
+                    let ok = true;
+                    for (let yy = ty - 2; yy <= ty + 2 && ok; yy++)
+                        for (let xx = tx - 2; xx <= tx + 2; xx++) {
+                            if (cm.getEstateAt(xx, yy) || !cm.isFree(xx, yy, 1, 1)) { ok = false; break; }
+                        }
+                    if (ok) return { cx: tx, cy: ty };
+                }
+            }
+        }
+        return null;
     }
 
     _decayGrief() {
@@ -488,6 +574,9 @@ export default class WorldManager {
             const midY = Math.min(f.y, bestMale.y) - 20;
             this.scene.uiManager?.showFloatText?.(midX, midY,
                 `♥ ${f.name} & ${bestMale.name} wed`, '#ffaabb');
+
+            // New household → found a family estate on public land (archon builds its bedroom).
+            this._foundEstate(f, bestMale);
         }
     }
 
@@ -641,27 +730,31 @@ export default class WorldManager {
         if (this._migrantCooldown < 5) return;
         this._migrantCooldown = 0;
 
-        // Find a free 2×2 site near the civic construct for a camp
-        const site = this._findCampSite(civic);
-        if (!site) return; // map too full — skip this cycle
+        // Only build a new camp when there's no existing housing free — otherwise the arriving
+        // couple moves into available rooms/homes (#11: don't spawn redundant camps).
+        let camp = null, hx, hy;
+        if (this._freeResidentialSlots() >= 2) {
+            const cx = (civic.tx + 1) * TILE, cy = MAP_OY + (civic.ty + 1) * TILE;
+            hx = cx; hy = cy;   // arrive at the civic centre; _seekCampHome will house them
+        } else {
+            const site = this._findCampSite(civic);
+            if (!site) return; // map too full — skip this cycle
+            camp = this.scene.constructManager.placeBuiltConstruct('camp', site.tx, site.ty);
+            camp.isPublic = false;
+            camp.inventory = {
+                'Food.Produce.Berry':              8,
+                'Materials.Wood.Pine.Sticks':      5,
+                'Materials.Stone.Limestone.Stones': 3,
+            };
+            this.scene.constructManager.updateStorageCap();
+            hx = (camp.tx + camp.width / 2) * TILE;
+            hy = MAP_OY + (camp.ty + camp.height / 2) * TILE;
+        }
 
-        // Place a private camp with basic supplies
-        const camp = this.scene.constructManager.placeBuiltConstruct('camp', site.tx, site.ty);
-        camp.isPublic = false;
-        camp.inventory = {
-            'Food.Produce.Berry':              8,
-            'Materials.Wood.Pine.Sticks':      5,
-            'Materials.Stone.Limestone.Stones': 3,
-        };
-        this.scene.constructManager.updateStorageCap();
-
-        const hx = (camp.tx + camp.width / 2) * TILE;
-        const hy = MAP_OY + (camp.ty + camp.height / 2) * TILE;
-
-        const male   = this.scene.spawnUnit('worker', hx - 8, hy, false);
-        const female = this.scene.spawnUnit('worker', hx + 8, hy, false);
-        male.gender   = 'male';   male.age = 2; male.homeConstructId = camp.id; male.role = 'farmer';
-        female.gender = 'female'; female.age = 2; female.homeConstructId = camp.id;
+        const male   = this.scene.spawnUnit('worker', hx - 8, hy, false, 'male');
+        const female = this.scene.spawnUnit('worker', hx + 8, hy, false, 'female');
+        male.homeConstructId = camp?.id ?? null; male.role = 'farmer';   // spawnUnit already set adult ages
+        female.homeConstructId = camp?.id ?? null;
         male.spouseId = female.id; female.spouseId = male.id;
         const mFamilyName = pickFamilyName(this.scene.civ ?? 'greece');
         male.familyName = mFamilyName; female.familyName = mFamilyName;
@@ -671,6 +764,38 @@ export default class WorldManager {
 
         this.scene.uiManager.showFloatText(hx, hy - 28,
             `✦ ${male.name} ${mFamilyName} & ${female.name} arrive`, '#88eeff');
+    }
+
+    // Total free residential capacity: open slots in built homes (camp/house) + unclaimed beds.
+    _freeResidentialSlots() {
+        const fm = this.scene.constructManager;
+        let free = 0;
+        for (const b of fm.constructs) {
+            if (!b.built || b.faction || !CONSTRUCTS[b.type]?.isHomeType) continue;
+            const occ = this.scene.units.filter(w => w.homeConstructId === b.id && !w.isEnemy && w.hp > 0).length;
+            free += Math.max(0, fm.getHouseCapacity(b) - occ);
+        }
+        const taken = new Set(this.scene.units.map(w => w.bedConstructId).filter(Boolean));
+        for (const bed of fm.constructs)
+            if (bed.type === 'bed' && bed.built && !bed.faction && !taken.has(bed.id)) free++;
+        return free;
+    }
+
+    // Replace tents with rooms: a camp nobody calls home anymore (residents moved into beds) is
+    // torn down once real beds exist, so the colony upgrades from camp to housing. (#3)
+    _reclaimEmptyCamps() {
+        const fm = this.scene.constructManager;
+        if (!fm.constructs.some(b => b.type === 'bed' && b.built && !b.faction)) return;
+        for (const camp of fm.constructs) {
+            if (camp.type !== 'camp' || !camp.built || camp.faction || camp.deconstructing) continue;
+            const residents = this.scene.units.filter(w => w.homeConstructId === camp.id && !w.isEnemy && w.hp > 0).length;
+            if (residents > 0) { camp._emptyDays = 0; continue; }
+            camp._emptyDays = (camp._emptyDays ?? 0) + 1;
+            if (camp._emptyDays >= 1) {
+                fm.orderDeconstruct(camp);
+                this.scene.uiManager?.showToast?.('🏕 → 🏠 camp replaced by housing', '#aaddaa');
+            }
+        }
     }
 
     _findCampSite(near) {

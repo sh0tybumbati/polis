@@ -1,8 +1,8 @@
 export default {
     id: 'fishing_spot',
     resource: 'Food.Fish.Fresh',
-    stock: 50,
-    respawnDays: 1,
+    stockMin: 18, stockMax: 30,
+    respawnDays: 2,
     role: 'forager',
 
     draw(gfx, _n, alpha) {

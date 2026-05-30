@@ -1,6 +1,6 @@
 import {
     TILE, MAP_OY,
-    ARCHON_BUILD_ORDER, T_MOUNTAIN,
+    ARCHON_BUILD_ORDER, T_MOUNTAIN, T_GRASS,
 } from '../../config/gameConstants.js';
 import { CONSTRUCTS } from '../../content/constructs/index.js';
 import { NODES } from '../../content/nodes/index.js';
@@ -11,7 +11,9 @@ import { CROPS } from '../../content/crops/index.js';
 import GameLogger from '../../GameLogger.js';
 
 // Module-level constants to avoid per-frame allocations
-const _NO_DEPOSIT = new Set(['build', 'zone_workshop', 'workshop', 'eat', 'collect_tithe', 'leisure', 'merchant', 'plant_grow', 'harvest_grow', 'plant', 'mental_break']);
+const _NO_DEPOSIT = new Set(['build', 'zone_workshop', 'workshop', 'eat', 'collect_tithe', 'leisure', 'merchant', 'plant_grow', 'harvest_grow', 'plant', 'mental_break', 'bury']);
+// Rest / recreation tasks — these reset a unit's work streak (see tickWorker).
+const _RECREATION_TASKS = new Set(['eat', 'leisure', 'chat', 'rest_break', 'stroll', 'mental_break']);
 const _PRIVATE_ROLES = new Set(Object.values(JOBS).filter(j => j.private).map(j => j.id));
 const _FOOD_PRIORITY = ['Food.Grain.Wheat.Bread', 'Food.Meat.Venison.Sausages', 'Food.Grain.Wheat.Flour', 'Food.Produce.Olive', 'Food.Grain.Wheat', 'Food.Meat.Venison', 'Food.Produce.Berry', 'Food.Produce.WildGrapes', 'Food.Fish.Fresh'];
 const _NUTRITION_MAP = Object.fromEntries(Object.values(ITEMS).filter(d => d.nutrition != null).map(d => [d.key, d.nutrition]));
@@ -26,6 +28,32 @@ const _SELF_SUPPLY     = Object.fromEntries(Object.values(JOBS).filter(j => j.se
 export default {
     tickWorker(u, time, dt) {
         if (u.age < 2) { this.tickChild(u, dt); return; }
+
+        // ── Stuck recovery ──────────────────────────────────────────────────
+        // moveToward records how long the unit has failed to get closer to its
+        // target (u._reachFailT, seconds, set last tick). If it wasn't trying to
+        // travel last tick, clear it; if it's been unable to reach its goal for
+        // >8s, abandon the goal and role so it re-evaluates from scratch. Without
+        // this a unit latched to an unreachable node/site/storage freezes forever,
+        // since the role-idle timer only fires when it has NO task or target.
+        if (!u._mtCalled) {
+            u._reachFailT = 0;
+        } else if ((u._reachFailT ?? 0) > 8 && (u.taskType || u.targetNode) && u.taskType !== 'garrison') {
+            GameLogger.log('unstick', { u: u.name, task: u.taskType ?? 'gather', role: u.role ?? 'none' });
+            u._reachFailT = 0; u._rfTarget = null;
+            u.taskType = null; u.targetNode = null; u.taskConstructId = null;
+            u.workshopPhase = null; u.fetchConstructId = null;
+            u.currentPath = null; u._pathFailed = false; u._pathRetryTimer = 0;
+            u.workProgress = 0; u._buildWaitTimer = 0;
+            u.role = null; u.lastSeek = 0;
+        }
+        u._mtCalled = false;
+
+        // Work-streak: seconds of continuous productive work, reset by any rest/recreation.
+        // Feeds proactive-recreation scheduling in _rebuildDayPlan.
+        const _working = !u.isSleeping && (u.targetNode ||
+            (u.taskType && !_RECREATION_TASKS.has(u.taskType)));
+        u._workStreak = _working ? (u._workStreak ?? 0) + dt : 0;
 
         this._tickNeeds(u, dt);
         this._tickRelations(u, dt);
@@ -45,75 +73,36 @@ export default {
         }
         if (this.scene.phase === 'DAY') u._wageCollected = false;
 
-        // Rest need: tired villagers go home to sleep
-        const needsRest = (u.needs?.rest ?? 1.0) < 0.25 && !u.isSleeping;
+        // Manual sleep order (player right-clicked a bed/tent/house with this unit selected).
+        // Overrides need-based sleep: walk there and lie down now, regardless of rest level.
+        if (u._orderedSleepId != null && !u.isSleeping && u.taskType !== 'garrison') {
+            const sc = this.scene.constructManager?.getById(u._orderedSleepId);
+            if (!sc || !sc.built) { u._orderedSleepId = null; }
+            else {
+                if (sc.type === 'bed') u.bedConstructId = sc.id; else u.homeConstructId = sc.id;
+                const r = this._approachSleep(u, dt);
+                if (r === 'moving') return;
+                u._orderedSleepId = null;   // entered or nohome — order resolved
+                if (r === 'entered') { u.taskType = null; u.targetNode = null; u.workProgress = 0; }
+                if (u.isSleeping) return;
+            }
+        }
+
+        // Rest need: villagers sleep only when genuinely tired (rest < 0.40), day or night —
+        // not as a nightly ritual while still half-rested. The work-aware drain in _tickNeeds
+        // brings a working unit here in the early night; idlers later.
+        const needsRest = (u.needs?.rest ?? 1.0) < 0.40 && !u.isSleeping;
         if (needsRest && u.taskType !== 'garrison' && !u.isRouting) {
-            // Auto-assign to nearest camp appliance if homeless
-            if (!u.homeConstructId && !u.homeConstructId) this._seekCampHome(u);
+            // Auto-assign to nearest home (camp/house or a bedroom bed) if homeless.
+            if (!u.homeConstructId) this._seekCampHome(u);
 
-            const fm = this.scene.constructManager;
             if (u.homeConstructId != null) {
-                const campItem = fm?.getById(u.homeConstructId);
-                if (!campItem?.built) {
-                    u.homeConstructId = null;
-                } else {
-                    const hw = campItem.width ?? 2, hh = campItem.height ?? 2;
-                    // Door = bottom-centre of tent opening; interior = mid-centre inside
-                    const doorX     = (campItem.tx + hw / 2) * TILE;
-                    const doorY     = MAP_OY + (campItem.ty + hh) * TILE - 8;
-                    const interiorX = doorX;
-                    const interiorY = MAP_OY + (campItem.ty + hh / 2) * TILE - 4;
-
-                    if (Phaser.Math.Distance.Between(u.x, u.y, doorX, doorY) > 14) {
-                        if (this.totalCarrying(u) > 0 && u.taskType !== 'deposit' && u.taskType !== 'deposit_zone')
-                            this.seekDeposit(u);
-                        if (u.taskType === 'deposit')      { this.handleDepositTask(u, dt);     return; }
-                        if (u.taskType === 'deposit_zone') { this.handleDepositZoneTask(u, dt); return; }
-                        u.targetNode = null; u.moveTo = null;
-                        this.moveToward(u, doorX, doorY, 12, dt);
-                        u.isInside = false;
-                        return;
-                    } else {
-                        // Entered the tent — snap to interior and hide
-                        u.x = interiorX; u.y = interiorY;
-                        u.isInside = true;
-                        u.isSleeping = true;
-                        if (u.taskType && u.taskType !== 'garrison') {
-                            u.taskType = null; u.targetNode = null; u.workProgress = 0;
-                            u.workshopPhase = null; u.fetchConstructId = null;
-                        }
-                    }
-                }
-            } else if (u.homeConstructId) {
-                const home = this.scene.constructManager?.getById(u.homeConstructId);
-                if (home?.built) {
-                    // Prefer a built bed in the home's domain over the home center
-                    const dom = u.homeConstructId
-                        ? this.scene.estateBounds?.find(d => d.houseConstructId === u.homeConstructId) : null;
-                    const bed = dom
-                        ? this.scene.constructs.find(b => b.built && b.type === 'bed' && b.domainId === dom.id
-                            && !this.scene.units.some(w => w !== u && w.isSleeping && w._sleepConstructId === b.id))
-                        : null;
-                    const targetX = bed ? (bed.tx + 0.5) * TILE : (home.tx + home.width / 2) * TILE;
-                    const targetY = bed ? MAP_OY + (bed.ty + 0.5) * TILE : MAP_OY + (home.ty + home.height / 2) * TILE;
-                    if (Phaser.Math.Distance.Between(u.x, u.y, targetX, targetY) > 10) {
-                        if (this.totalCarrying(u) > 0 && u.taskType !== 'deposit') {
-                            u.taskType = 'deposit'; u.taskConstructId = home.id; u._depositPrivate = !home.isPublic;
-                        }
-                        if (u.taskType === 'deposit') { this.handleDepositTask(u, dt); return; }
-                        u.targetNode = null; u.moveTo = null;
-                        this.moveToward(u, targetX, targetY, 8, dt);
-                        u.isInside = false;
-                        return;
-                    } else {
-                        u.isInside = !bed;  // only go inside if sleeping in home, not at outdoor bed
-                        u._sleepConstructId = bed?.id ?? null;
-                        u.isSleeping = true;
-                        if (u.taskType && u.taskType !== 'garrison') {
-                            u.taskType = null; u.targetNode = null; u.workProgress = 0;
-                            u.workshopPhase = null; u.fetchConstructId = null;
-                        }
-                    }
+                const r = this._approachSleep(u, dt);
+                if (r === 'nohome') { u.homeConstructId = null; u.bedConstructId = null; }
+                else if (r === 'moving') { return; }
+                else if (r === 'entered' && u.taskType && u.taskType !== 'garrison') {
+                    u.taskType = null; u.targetNode = null; u.workProgress = 0;
+                    u.workshopPhase = null; u.fetchConstructId = null;
                 }
             }
             if (u.isSleeping) return;
@@ -171,6 +160,9 @@ export default {
         if (!u.dayPlan || time - (u._planTime ?? 0) > 3000) {
             this._rebuildDayPlan(u);
             u._planTime = time;
+            // Claim a home proactively (not just when exhausted) so the unit can both
+            // sleep there and eat from its food stores before hunger/fatigue turn critical.
+            if (!u.homeConstructId) this._seekCampHome(u);
         }
 
         // Execute head intent when idle
@@ -182,19 +174,13 @@ export default {
             if (intent === 'eat') {
                 this.pushTask(u, 'eat');
             } else if (intent === 'sleep') {
-                // Proactive sleep: head to tent door before the emergency threshold (< 0.25)
+                // Proactive sleep: head to bed/home and lie down when close.
+                if (!u.homeConstructId) this._seekCampHome(u);
                 if (u.homeConstructId != null) {
-                    const fm = this.scene.constructManager;
-                    const campItem = fm?.getById(u.homeConstructId);
-                    if (campItem?.built) {
-                        const hw = campItem.width ?? 2, hh = campItem.height ?? 2;
-                        u.moveTo = { x: (campItem.tx + hw / 2) * TILE, y: MAP_OY + (campItem.ty + hh) * TILE - 8 };
-                    }
-                } else if (u.homeConstructId) {
-                    const home = this.scene.constructManager?.getById(u.homeConstructId);
-                    if (home?.built) {
-                        u.moveTo = { x: (home.tx + home.width / 2) * TILE, y: MAP_OY + (home.ty + home.height / 2) * TILE };
-                    }
+                    const r = this._approachSleep(u, dt);
+                    if (r === 'nohome') { u.homeConstructId = null; u.bedConstructId = null; }
+                    else if (r === 'moving') { return; }
+                    else if (r === 'entered') { u.taskType = null; u.targetNode = null; u.workProgress = 0; }
                 }
             } else if (intent === 'socialize') {
                 // Try to chat with a nearby awake adult; fall back to strolling
@@ -214,7 +200,14 @@ export default {
                 if ((u.taskStack?.length ?? 0) > 0 && !u.taskType) {
                     this._dequeueTask(u);
                 } else {
-                    this.pickRole(u, time);
+                    // Pursue the preferred-profession building first if it's missing (gated).
+                    if (!u.taskType && !u.targetNode) this._seekVocationBuild(u, time);
+                    // Pick/keep a role. Commit to it for a window so units stick to a job
+                    // instead of re-scoring and thrashing every cycle.
+                    if (!u.taskType && !u.targetNode && (!u.role || time > (u._roleCommitUntil ?? 0))) {
+                        this.pickRole(u, time);
+                        u._roleCommitUntil = time + 14000;
+                    }
                     if (u.role && !u.taskType) {
                         if (u.role === 'farmer') this.seekFarmerTask(u);
                         else if (u.role === 'builder') this.seekBuilderTask(u);
@@ -241,12 +234,19 @@ export default {
                             else if (fallback?.intent === 'leisure') this.seekLeisureTask(u);
                         }
                         // Haul loose ground items before falling back to foraging
+                        if (!u.taskType && !u.targetNode) this.seekBuryTask(u);
                         if (!u.taskType && !u.targetNode) this.seekGroundItem(u);
-                        // Absolute last resort: gather any nearby resource node (no slate required)
+                        // Absolute last resort: gather any resource node, slate or not.
+                        // Full map range so idle workers trek to distant resources instead
+                        // of standing around when everything nearby is depleted.
                         if (!u.taskType && !u.targetNode) {
-                            this.seekNodeTask(u, ['berry_bush', 'wild_garden', 'olive_grove', 'grape_vine', 'wild_wheat', 'fishing_spot', 'small_tree', 'large_tree', 'small_boulder', 'large_boulder'], false);
-                            if (!u.taskType && !u.targetNode)
+                            this.seekNodeTask(u, ['berry_bush', 'wild_garden', 'olive_grove', 'grape_vine', 'wild_wheat', 'fishing_spot', 'small_tree', 'large_tree', 'small_boulder', 'large_boulder'], false, 8000);
+                            // Genuinely nothing to do — mill about rather than freeze in
+                            // place (recovers a little joy, relocates to re-scan for work).
+                            if (!u.taskType && !u.targetNode) {
                                 GameLogger.log('idle', { u: u.name, role: u.role ?? 'none', food: +(u.needs?.food ?? 1).toFixed(2) });
+                                u.taskType = 'stroll'; u.workProgress = 0; u._strollPoints = null;
+                            }
                         }
                     }
                 }
@@ -272,6 +272,8 @@ export default {
         } else if (u.role === 'merchant') {
             if (!u.taskType && time - u.lastSeek > 3000) { u.lastSeek = time; this.seekMerchantTask(u); }
         }
+
+        if (u.taskType === 'bury') { this.handleBuryTask(u, dt); return; }
 
         if (u.taskType === 'haul') this.handleHaulTask(u, dt);
         else if (u.taskType === 'eat') this.handleEatTask(u, dt);
@@ -491,26 +493,9 @@ export default {
 
     handleBuildTask(u, dt) {
         const b = this.scene.constructManager?.getById(u.taskConstructId);
-        if (!b || b.built) { u.taskType = null; return; }
+        if (!b || b.built) { u.taskType = null; u.workProgress = 0; return; }
 
-        // Ensure resources are gathered for construction
-        const cost = this.scene.constructManager.getRemainingCost(b);
-        const res = Object.keys(cost).find(r => cost[r] > 0);
-        if (res) {
-            if ((u.carrying[res] ?? 0) === 0) {
-                // Not carrying needed resource — attempt to take from commons
-                if ((this.scene.resources[res] ?? 0) > 0) {
-                    this.scene.economyManager.takeFromCommons(res, 1);
-                    u.carrying[res] = (u.carrying[res] ?? 0) + 1;
-                } else {
-                    // Wait up to 10s for resources before releasing the site
-                    u._buildWaitTimer = (u._buildWaitTimer ?? 0) + dt;
-                    if (u._buildWaitTimer > 10.0) { u._buildWaitTimer = 0; u.taskType = null; }
-                    return;
-                }
-            }
-        }
-
+        // Site build point (edge → its midpoint; tile → footprint centre).
         let cx, cy;
         if (b.placement === 'edge') {
             cx = b.isH ? (b.col + 0.5) * TILE : b.col * TILE;
@@ -519,25 +504,100 @@ export default {
             cx = (b.tx + b.width / 2) * TILE;
             cy = MAP_OY + (b.ty + b.height / 2) * TILE;
         }
+
+        // ── DELIVER PHASE ─────────────────────────────────────────────────────
+        // resNeeded = materials still to be hauled in; b.inventory = delivered on-site.
+        // Build can't start until the full cost is physically on the site.
+        b.inventory = b.inventory ?? {};
+        const needRes = Object.keys(b.resNeeded ?? {}).find(r => (b.resNeeded[r] ?? 0) > 0);
+        if (needRes) {
+            if ((u.carrying[needRes] ?? 0) > 0) {
+                // Carry it to the site and stock the ghost's mini-inventory.
+                if (this.moveToward(u, cx, cy, 28, dt)) return;
+                const give = Math.min(b.resNeeded[needRes], u.carrying[needRes]);
+                if (give > 0) {
+                    u.carrying[needRes] -= give;
+                    b.inventory[needRes] = (b.inventory[needRes] ?? 0) + give;
+                    b.resNeeded[needRes] -= give;
+                    this.scene.uiManager?.showFloatText?.(cx, cy - 12,
+                        `+${give} ${needRes.split('.').pop()}`, '#cdd6e0');
+                    this.scene.constructManager.redrawConstruct?.(b);
+                }
+                return;
+            }
+            // Fetch the material from the nearest storage or ground pile.
+            const src = this._findBuildMaterial(u, needRes);
+            if (!src) {
+                u._buildWaitTimer = (u._buildWaitTimer ?? 0) + dt;
+                if (u._buildWaitTimer > 12.0) { u._buildWaitTimer = 0; u.taskType = null; u.workProgress = 0; }
+                return;
+            }
+            u._buildWaitTimer = 0;
+            if (this.moveToward(u, src.x, src.y, 24, dt)) return;
+            // Grab up to carry capacity (spare beyond this piece's need cuts return trips).
+            const want = Math.max(0, (b.resNeeded[needRes] ?? 0) - (u.carrying[needRes] ?? 0));
+            let take = 0;
+            while (take < want && this.canUnitCarryMore(u, needRes, take + 1)) take++;
+            take = this._withdrawMaterial(src, needRes, take);
+            u.carrying[needRes] = (u.carrying[needRes] ?? 0) + take;
+            return;
+        }
+
+        // ── BUILD PHASE (all materials delivered) ─────────────────────────────
         if (this.moveToward(u, cx, cy, 28, dt)) return;
         u.isInside = false;
 
         const attrMult = this.getAttrMult(u, ['str']);
         const workSpeed = (1.0 + (u.skills.masonry?.level ?? 1) * 0.2) * attrMult * this.getRestMult(u);
         u.workProgress = (u.workProgress ?? 0) + dt * workSpeed;
-        if (u.workProgress >= 25.0) {
+        if (u.workProgress >= 12.0) {
             u.workProgress = 0;
-            // Consume the resource if present
-            if (res && (u.carrying[res] ?? 0) > 0) {
-                u.carrying[res]--;
-                if (b.resNeeded && b.resNeeded[res] > 0) {
-                    b.resNeeded[res]--;
-                }
-            }
             b.buildWork -= 5;
             this._gainSkillXp(u, 'masonry');
-            if (b.buildWork <= 0) { this.scene.constructManager.completeConstructConstruction(b); u.taskType = null; }
+            if (b.buildWork <= 0) {
+                b.inventory = {};   // delivered materials consumed into the structure
+                this.scene.constructManager.completeConstructConstruction(b);
+                u.taskType = null;
+            }
         }
+    },
+
+    // Nearest accessible source of a build material: a player construct holding it, or a loose
+    // ground pile — whichever is closer. Returns { kind:'construct'|'ground', ref, x, y } or null.
+    _findBuildMaterial(u, res) {
+        let best = null, bd = Infinity;
+        for (const b of this.scene.constructs) {
+            if (!b.built || b.faction === 'enemy') continue;
+            if ((b.inventory?.[res] ?? 0) <= 0) continue;
+            if (!this._canAccessConstruct(u, b)) continue;
+            const bx = (b.tx + (b.width ?? 1) / 2) * TILE, by = MAP_OY + (b.ty + (b.height ?? 1) / 2) * TILE;
+            const d = Phaser.Math.Distance.Between(u.x, u.y, bx, by);
+            if (d < bd) { bd = d; best = { kind: 'construct', ref: b, x: bx, y: by }; }
+        }
+        for (const it of this.scene.groundItems ?? []) {
+            if (it.resource !== res || it.qty <= 0) continue;
+            const d = Phaser.Math.Distance.Between(u.x, u.y, it.x, it.y);
+            if (d < bd) { bd = d; best = { kind: 'ground', ref: it, x: it.x, y: it.y }; }
+        }
+        return best;
+    },
+
+    // Remove up to `amount` of `res` from a source, committing it (out of storage/commons).
+    _withdrawMaterial(src, res, amount) {
+        if (amount <= 0 || !src) return 0;
+        if (src.kind === 'construct') {
+            const avail = src.ref.inventory?.[res] ?? 0;
+            const take = Math.min(amount, avail);
+            if (take > 0) { src.ref.inventory[res] -= take; this.scene.economyManager.syncResources(); }
+            return take;
+        }
+        const take = Math.min(amount, src.ref.qty);
+        if (take > 0) {
+            src.ref.qty -= take;
+            if (src.ref.qty <= 0) this.scene.unitManager.removeGroundItem(src.ref);
+            else this.scene.unitManager.drawGroundItem(src.ref);
+        }
+        return take;
     },
     handleZoneWorkshopTask(u, dt) {
         const fm = this.scene.constructManager;
@@ -601,14 +661,21 @@ export default {
         const b = this.scene.constructManager?.getById(u.taskConstructId);
         if (!b?.built || !b.deconstructing) { u.taskType = null; return; }
 
-        const cx = (b.tx + b.width / 2) * TILE, cy = MAP_OY + (b.ty + b.width / 2) * TILE;
+        let cx, cy;
+        if (b.placement === 'edge') {
+            cx = b.isH ? (b.col + 0.5) * TILE : b.col * TILE;
+            cy = b.isH ? MAP_OY + b.row * TILE : MAP_OY + (b.row + 0.5) * TILE;
+        } else {
+            cx = (b.tx + b.width / 2) * TILE;
+            cy = MAP_OY + (b.ty + b.width / 2) * TILE;
+        }
         if (this.moveToward(u, cx, cy, 28, dt)) return;
         u.isInside = false;
 
         const attrMult = this.getAttrMult(u, ['str']);
         const workSpeed = (1.0 + (u.skills.masonry?.level ?? 1) * 0.2) * attrMult * this.getRestMult(u);
         u.workProgress = (u.workProgress ?? 0) + dt * workSpeed;
-        if (u.workProgress >= 25.0) {
+        if (u.workProgress >= 12.0) {
             u.workProgress = 0;
             b.deconstructWork -= 5;
             this._gainSkillXp(u, 'masonry');
@@ -952,20 +1019,124 @@ export default {
         return best;
     },
 
+    // Walk to the unit's sleeping spot and lie down. Resolves the target as the unit's own
+    // bed (bedroom) or its home construct (camp/house). Returns 'entered' (now asleep),
+    // 'moving' (walking — caller should return), or 'nohome' (target gone/unbuilt).
+    _approachSleep(u, dt) {
+        const fm = this.scene.constructManager;
+        if (!fm) return 'nohome';
+        let target = u.bedConstructId ? fm.getById(u.bedConstructId) : null;
+        if (!target || !target.built || target.type !== 'bed') {
+            target = fm.getById(u.homeConstructId);
+            u.bedConstructId = (target && target.type === 'bed') ? target.id : null;
+        }
+        if (!target || !target.built) return 'nohome';
+
+        const isBed = target.type === 'bed';
+        const hw = target.width ?? 1, hh = target.height ?? 1;
+        const cx = (target.tx + hw / 2) * TILE;
+        const cy = MAP_OY + (target.ty + hh / 2) * TILE;
+        // Bed → approach the bed tile itself (the unit paths in through the door). Camp/house →
+        // one tile south of the blocked footprint (reliably walkable doorstep). Generous enter
+        // radius avoids the wall/footprint dead-band that otherwise strands the unit.
+        const ax = cx;
+        const ay = isBed ? cy : MAP_OY + (target.ty + hh) * TILE + TILE;
+        // ≥ diagonal-adjacent (≈1.42 tiles) so a unit that stops on a tile next to the
+        // blocked bed/footprint still counts as "at the bed" and lies down.
+        const enterR = isBed ? TILE * 1.6 : TILE * 1.6;
+
+        if (Phaser.Math.Distance.Between(u.x, u.y, ax, ay) > enterR) {
+            // Drop a carried load at storage on the way to bed.
+            if (this.totalCarrying(u) > 0 && u.taskType !== 'deposit' && u.taskType !== 'deposit_zone')
+                this.seekDeposit(u);
+            if (u.taskType === 'deposit')      { this.handleDepositTask(u, dt);     return 'moving'; }
+            if (u.taskType === 'deposit_zone') { this.handleDepositZoneTask(u, dt); return 'moving'; }
+            u.targetNode = null; u.moveTo = null;
+            this.moveToward(u, ax, ay, TILE * 0.4, dt);
+            return 'moving';
+        }
+        u.x = cx; u.y = cy;
+        u.isSleeping = true;
+        u.currentPath = null; u._reachFailT = 0;
+        if (isBed) { u._sleepConstructId = target.id; u.isInside = false; }
+        else       { u.isInside = true; u._sleepConstructId = null; }
+        return 'entered';
+    },
+
     _seekCampHome(u) {
-        if (u.homeConstructId != null || u.homeConstructId) return;
         const fm = this.scene.constructManager;
         if (!fm) return;
-        const slots = CONSTRUCTS['camp']?.provides?.sleepSlots ?? 2;
-        let bestKey = null, bestDist = Infinity;
-        for (const item of fm.constructs) {
-            if (!item.built || item.type !== 'camp') continue;
-            const occupants = this.scene.units.filter(w => w.homeConstructId === item.id).length;
-            if (occupants >= slots) continue;
-            const d = Phaser.Math.Distance.Between(u.x, u.y, (item.tx + 0.5) * TILE, MAP_OY + (item.ty + 0.5) * TILE);
-            if (d < bestDist) { bestDist = d; bestKey = item.id; }
+        // Family ownership: once a unit belongs to an estate, it sleeps only on its own estate.
+        const estate = u.estateId ? this.scene.estateBounds.find(d => d.id === u.estateId) : null;
+        const onEstate = (tx, ty) => !estate || (tx >= estate.x1 && tx <= estate.x2 && ty >= estate.y1 && ty <= estate.y2);
+
+        // Keep the current home if it's still valid; relocate onto the estate only once the
+        // estate actually has a free bed (so units don't go homeless waiting for their bedroom).
+        if (u.homeConstructId != null) {
+            const home = fm.getById(u.homeConstructId);
+            const homeOk = home && home.built && onEstate(home.tx, home.ty);
+            // Upgrade from the communal camp/tent to a real bedroom bed once one is free on-estate
+            // (so units actually move into newly built bedrooms instead of clinging to the camp). #3
+            const campUpgrade = homeOk && home.type === 'camp' && !u.bedConstructId
+                && this._estateBedFree(u, onEstate);
+            if (homeOk && !campUpgrade) return;
+            if (!homeOk) {
+                if (estate) {
+                    const claimed = this.scene.units.filter(w => w !== u && w.estateId === estate.id && w.bedConstructId).length;
+                    if (fm.estateBedCapacity(estate) - claimed <= 0) return;   // no on-estate bed yet → stay
+                } else if (home && home.built) return;
+            }
+            u.homeConstructId = null; u.bedConstructId = null;            // relocate
         }
-        if (bestKey !== null) u.homeConstructId = bestKey;
+
+        // Prefer a real bed (tier 0) over a communal camp/house slot (tier 1); break ties by distance.
+        let best = null, bestDist = Infinity, bestTier = 99;
+        const consider = (id, tx, ty, bedId) => {
+            const tier = bedId ? 0 : 1;
+            const d = Phaser.Math.Distance.Between(u.x, u.y, (tx + 0.5) * TILE, MAP_OY + (ty + 0.5) * TILE);
+            if (tier < bestTier || (tier === bestTier && d < bestDist)) { bestTier = tier; bestDist = d; best = { id, bedId }; }
+        };
+        // 1) Prefab homes (camp / house).
+        for (const item of fm.constructs) {
+            if (!item.built || item.faction || !CONSTRUCTS[item.type]?.isHomeType) continue;
+            if (!onEstate(item.tx, item.ty)) continue;
+            const occupants = this.scene.units.filter(w => w.homeConstructId === item.id).length;
+            if (occupants >= fm.getHouseCapacity(item)) continue;
+            consider(item.id, item.tx, item.ty, null);
+        }
+        // 2) Bedrooms — enclosed rooms with beds. Residents share the room's anchor bed as
+        //    homeConstructId (so cohabitation/breeding work), each claiming a specific bed.
+        const seen = new Set();
+        const takenBeds = new Set(this.scene.units.map(w => w.bedConstructId).filter(Boolean));
+        for (const bed of fm.constructs) {
+            if (bed.type !== 'bed' || !bed.built || bed.faction) continue;
+            if (!onEstate(bed.tx, bed.ty)) continue;
+            const anchor = fm.bedroomAnchor(bed);
+            if (seen.has(anchor.id)) continue;
+            seen.add(anchor.id);
+            const beds = fm._bedsInRoom(anchor);
+            const occupants = this.scene.units.filter(w => w.homeConstructId === anchor.id).length;
+            if (occupants >= beds.length) continue;
+            const freeBed = beds.find(b => !takenBeds.has(b.id)) ?? anchor;
+            consider(anchor.id, anchor.tx, anchor.ty, freeBed.id);
+        }
+        if (best) {
+            u.homeConstructId = best.id;
+            if (best.bedId) u.bedConstructId = best.bedId;
+        }
+    },
+
+    // True if an unclaimed, built bed exists within (onEstate) bounds — used to pull a camped
+    // unit into a real bedroom once one is available.
+    _estateBedFree(u, onEstate) {
+        const fm = this.scene.constructManager;
+        const taken = new Set(this.scene.units.filter(w => w !== u).map(w => w.bedConstructId).filter(Boolean));
+        for (const bed of fm.constructs) {
+            if (bed.type !== 'bed' || !bed.built || bed.faction) continue;
+            if (!onEstate(bed.tx, bed.ty)) continue;
+            if (!taken.has(bed.id)) return true;
+        }
+        return false;
     },
 
     seekLeisureTask(u) {
@@ -1151,6 +1322,43 @@ export default {
         u.targetItemId = null;
     },
 
+    seekBuryTask(u) {
+        const corpse = this.scene.units.find(c =>
+            c._corpse && c !== u &&
+            !this.scene.units.some(w => w !== u && w.taskType === 'bury' && w._buryTargetId === c.id));
+        if (!corpse) return;
+        u.taskType = 'bury';
+        u._buryTargetId = corpse.id;
+        u.workProgress = 0;
+    },
+
+    handleBuryTask(u, dt) {
+        const corpse = this.scene.units.find(c => c.id === u._buryTargetId && c._corpse);
+        if (!corpse) { u.taskType = null; u._buryTargetId = null; return; }
+
+        const d = Phaser.Math.Distance.Between(u.x, u.y, corpse.x, corpse.y);
+        if (d > TILE * 0.6) {
+            this.moveToward(u, corpse.x, corpse.y, TILE * 0.5, dt);
+            return;
+        }
+
+        u.workProgress = (u.workProgress ?? 0) + dt;
+        if (u.workProgress < 12) return;  // ~12 game-seconds of rite
+
+        // Complete burial
+        const name = corpse.name ?? 'the fallen';
+        this.scene.uiManager?.showFloatText?.(corpse.x, corpse.y - 20, `⚰ ${name} buried`, '#bbaacc');
+        // Small grief relief for nearby workers
+        for (const w of this.scene.units) {
+            if (w === u || w._corpse || w.hp <= 0 || w.isEnemy) continue;
+            if (Phaser.Math.Distance.Between(w.x, w.y, corpse.x, corpse.y) < 5 * TILE) {
+                w._grief = Math.max(0, (w._grief ?? 0) - 0.15);
+            }
+        }
+        this.scene.units = this.scene.units.filter(c => c !== corpse);
+        u.taskType = null; u._buryTargetId = null; u.workProgress = 0;
+    },
+
     seekDeposit(u) {
         const hasCarry = Object.keys(u.carrying).some(r => (u.carrying[r] || 0) > 0);
         if (!hasCarry) return;
@@ -1329,13 +1537,8 @@ export default {
         if (site) {
             u.taskType = 'build';
             u.taskConstructId = site.id;
-            if (site.placement === 'edge') {
-                const ex = site.isH ? (site.col + 0.5) * TILE : site.col * TILE;
-                const ey = site.isH ? MAP_OY + site.row * TILE : MAP_OY + (site.row + 0.5) * TILE;
-                u.moveTo = { x: ex, y: ey };
-            } else {
-                u.moveTo = { x: (site.tx + site.width / 2) * TILE, y: MAP_OY + (site.ty + site.height / 2) * TILE };
-            }
+            u.workProgress = 0;
+            // No moveTo here — handleBuildTask routes the builder to materials first, then the site.
             return;
         }
     },
@@ -1367,7 +1570,7 @@ export default {
         }
 
         // Crops growing but nothing to do — forage food nodes (no slate required)
-        this.seekNodeTask(u, ['berry_bush', 'wild_garden', 'olive_grove', 'grape_vine', 'wild_wheat', 'fishing_spot'], false);
+        this.seekNodeTask(u, ['berry_bush', 'wild_garden', 'olive_grove', 'grape_vine', 'wild_wheat', 'fishing_spot'], false, 2000);
     },
 
     seekWorkshopTask(u) {
@@ -1433,16 +1636,57 @@ export default {
         }
     },
 
+    // Pursue the unit's preferred profession by getting its building constructed when none
+    // exists yet — gated so it never starves the colony or clutters the map. On success the
+    // unit becomes a builder and raises the ghost via the normal build flow; once built, its
+    // ordinary seekWorkshopTask activates the vocation. Returns true if a build was started.
+    _seekVocationBuild(u, time) {
+        if (time - (u._vocBuildCheck ?? 0) < 6000) return false;   // throttle scans
+        u._vocBuildCheck = time;
+
+        const def = u.vocation && JOBS[u.vocation];
+        const ctype = def?.construct;
+        if (!ctype || !CONSTRUCTS[ctype]) return false;            // vocation needs no building
+        if (CONSTRUCTS[ctype].placement === 'edge') return false;
+
+        // Already exists (built or ghost) — the normal workshop flow will use/finish it.
+        if (this.scene.constructs.some(b => b.type === ctype && !b.faction)) return false;
+
+        const workers = this.scene.units.filter(w => w.type === 'worker' && !w.isEnemy && w.hp > 0);
+        const pop = workers.length;
+        const econ = this.scene.economyManager;
+
+        // Gate (a): no food crisis / spare labour — staple provisioning pressure must be modest.
+        const foodPressure = Math.max(
+            econ?.provisioningPressure?.('Food.Grain.Wheat',  pop) ?? 0,
+            econ?.provisioningPressure?.('Food.Produce.Berry', pop) ?? 0,
+            econ?.provisioningPressure?.('Food.Meat.Venison',  pop) ?? 0);
+        if (foodPressure > 0.6) return false;
+
+        // Gate (b): per-type cap so the map doesn't fill with one workshop.
+        const cap = Math.max(1, Math.ceil(pop / 8));
+        const builtCount = this.scene.constructs.filter(b => b.type === ctype && b.built && !b.faction).length;
+        if (builtCount >= cap) return false;
+
+        // (Materials are consumed from commons by the build flow as they become available, so
+        // we don't hard-block on affordability here — gathering is part of pursuing the goal.)
+        const placed = this._autoPlaceWorkshop(u, def);
+        if (placed) GameLogger.log('vocation_build', { u: u.name, voc: u.vocation, build: ctype });
+        return placed;
+    },
+
+    // Place a workshop's construct ghost near the unit. Indoor workshops need an enclosed
+    // room; outdoor ones can sit on any free ground. Returns true if a ghost was placed.
     _autoPlaceWorkshop(u, def) {
         const type = def.construct;
-        if (!type || !CONSTRUCTS[type]) return;
+        if (!type || !CONSTRUCTS[type]) return false;
         const cDef = CONSTRUCTS[type];
-        if (cDef.placement === 'edge') return;
+        if (cDef.placement === 'edge') return false;
         const cm = this.scene.constructManager;
         const baseTx = Math.floor(u.x / TILE);
         const baseTy = Math.floor((u.y - MAP_OY) / TILE);
+        const outdoor = !!cDef.outdoor;
 
-        // Only place inside an enclosed room — scan nearby tiles for one
         for (let r = 1; r <= 20; r++) {
             for (let dx = -r; dx <= r; dx++) {
                 for (let dy = -r; dy <= r; dy++) {
@@ -1450,18 +1694,20 @@ export default {
                     const tx = baseTx + dx, ty = baseTy + dy;
                     if (tx < 1 || ty < 1) continue;
                     if (!cm.isFree(tx, ty, cDef.width ?? 1, cDef.height ?? 1, type)) continue;
-                    // Check this tile is inside an enclosed room (bounded flood-fill < maxTiles)
-                    const room = cm.getRoomAt(tx, ty, 60);
-                    if (!room || room.length < 2 || room.length > 60) continue;
+                    // Indoor workshops must sit inside an enclosed room; outdoor ones don't.
+                    if (!outdoor) {
+                        const room = cm.getRoomAt(tx, ty, 60);
+                        if (!room || room.length < 2 || room.length > 60) continue;
+                    }
                     cm.placeConstruct(type, tx, ty);
                     u.role = 'builder';
                     this.scene.uiManager?.showFloatText?.(tx * TILE, MAP_OY + ty * TILE - 14,
-                        `${def.construct} placed`, '#aaddff');
-                    return;
+                        `${def.construct} planned`, '#aaddff');
+                    return true;
                 }
             }
         }
-        // No enclosed room found — idle until player builds one
+        return false;   // no valid site (indoor workshop needs a room built first)
     },
 
     // Returns true if construct b is inside the same oikos domain as unit u's home
@@ -1762,7 +2008,7 @@ export default {
             } else {
                 this.scene.uiManager.showFloatText(u.x, u.y - 14, 'hungry!', '#ff6644');
                 // No stored food anywhere — go forage immediately (no slate required)
-                this.seekNodeTask(u, ['berry_bush', 'wild_garden', 'olive_grove', 'grape_vine', 'wild_wheat', 'fishing_spot'], false);
+                this.seekNodeTask(u, ['berry_bush', 'wild_garden', 'olive_grove', 'grape_vine', 'wild_wheat', 'fishing_spot'], false, 2000);
             }
         }
 
@@ -1770,8 +2016,8 @@ export default {
         this.popTask(u);
     },
 
-    seekNodeTask(u, types, requireSlated = true) {
-        const near = this.findNearNode(u, 8000, types, requireSlated);
+    seekNodeTask(u, types, requireSlated = true, maxDist = 8000) {
+        const near = this.findNearNode(u, maxDist, types, requireSlated);
         if (near) {
             u.targetNode = near; u.moveTo = null;
         }
@@ -1827,45 +2073,211 @@ export default {
         }
     },
 
+    // Needs-driven settlement planner: build the top unmet infrastructure need, one at a
+    // time. Housing (emergent bedrooms) and food/workshop rooms come first, then the fixed
+    // storage/processing order. Rate-limited; waits while anything is still under construction.
     _runArchonAI(u, dt) {
-        // Rate limit: evaluate once every 5 seconds
         u._archonAiTimer = (u._archonAiTimer ?? 0) + dt;
         if (u._archonAiTimer < 5.0) return;
         u._archonAiTimer = 0;
-
-        // If something is already being built, the Archon waits
         if (this.scene.constructs.some(b => !b.built && !b.faction)) return;
 
+        const fm = this.scene.constructManager;
+        const econ = this.scene.economyManager;
+        const workers = this.scene.units.filter(w => w.type === 'worker' && !w.isEnemy && w.hp > 0);
+        const pop = workers.length;
+
+        // Room budget (proxy: 1 door = 1 room) keeps the archon from carpeting the map.
+        const roomCount  = this.scene.constructs.filter(b => b.type === 'door' && !b.faction).length;
+        const roomBudget = Math.ceil(pop / 3);
+
+        // 1) Family housing: build a family bedroom on an under-housed estate (familySize at or
+        //    above its bed capacity), or a freshly-founded estate with no beds yet.
+        for (const e of this.scene.estateBounds) {
+            const familySize = workers.filter(w => w.estateId === e.id).length;
+            if (familySize === 0) continue;
+            if (familySize > fm.estateBedCapacity(e) - 1 && roomCount < roomBudget
+                && this._archonBuildRoom(u, 'bedroom', e)) return;
+        }
+        // 1b) Pre-civic / estate-less units rely on the starting camp; build a generic bedroom
+        //     only if more such units exist than the camp/house (non-estate) capacity.
+        const estateless = workers.filter(w => !w.estateId).length;
+        let openCap = 0;
+        for (const b of fm.constructs) {
+            if (b.built && !b.faction && CONSTRUCTS[b.type]?.isHomeType) openCap += fm.getHouseCapacity(b);
+        }
+        if (estateless > openCap && roomCount < roomBudget && this._archonBuildRoom(u, 'bedroom')) return;
+
+        // 2) Provisioning → field crops are laid out as flexible grow zones (not fixed farm/garden
+        //    buildings); processed foods still need their workshop.
+        const GROW_CROPS = [
+            { res: 'Food.Grain.Wheat',   crop: 'wheat'   },
+            { res: 'Food.Produce.Berry', crop: 'berries' },
+        ];
+        for (const gc of GROW_CROPS) {
+            if (econ.provisioningPressure(gc.res, pop) < 0.5) continue;
+            const haveZone = [...(this.scene.zoneManager?.growTiles?.values() ?? [])]
+                .some(st => st.crop && CROPS[st.crop]?.output === gc.res);
+            if (haveZone) continue;
+            if (this._archonPaintGrowZone(u, gc.crop)) return;
+        }
+        // Bread needs a kitchen — an oven in an enclosed room (built as a furnished workshop).
+        if (econ.provisioningPressure('Food.Grain.Wheat.Bread', pop) >= 0.5
+            && !this.scene.constructs.some(b => b.type === 'oven' && !b.faction)
+            && roomCount < roomBudget && this._archonBuildRoom(u, 'workshop', null, 'oven')) return;
+
+        // 3) A vocation wants an indoor workshop but none exists → build a PURPOSE-FURNISHED
+        //    room: walls + the job's appliance (+ a chest as a prep/work surface) so it reads as a
+        //    proper kitchen/workshop (classifyRoom types it by the appliance's zoneType). #4
+        let wantType = null;
+        for (const w of workers) {
+            const ct = w.vocation && JOBS[w.vocation]?.construct;
+            if (ct && CONSTRUCTS[ct] && CONSTRUCTS[ct].placement !== 'edge' && !CONSTRUCTS[ct].outdoor
+                && !this.scene.constructs.some(b => b.type === ct && !b.faction)) { wantType = ct; break; }
+        }
+        if (wantType && roomCount < roomBudget && this._archonBuildRoom(u, 'workshop', null, wantType)) return;
+
+        // 4) Fallback: the fixed storage/processing build order.
         for (const type of ARCHON_BUILD_ORDER) {
-            // Check if construct already exists
             if (this.scene.constructs.some(b => b.type === type && !b.faction)) continue;
+            if (!CONSTRUCTS[type]) continue;
+            if (!econ.afford(CONSTRUCTS[type].cost || {})) continue;
+            if (this._archonPlace(u, type)) return;
+        }
+    },
 
-            const def = CONSTRUCTS[type];
-            if (!def) continue;
-
-            // Archon only places if state can afford it
-            const cost = def.cost || {};
-            // Simplified check: can we afford basic cost?
-            if (!this.scene.economyManager.afford(cost)) continue;
-
-            // Find a site
-            const site = this.scene.constructManager.findPublicBuildSite(type);
-            if (site) {
-                console.log(`[Archon AI] ${u.name} decides to build a public ${type} at ${site.tx}, ${site.ty}`);
-                // Use a temporary state to trigger placeConstruct logic
-                const prevType = this.scene.constructType;
-                this.scene.constructType = type;
-                this.scene.constructManager.placeConstruct(site.tx, site.ty);
-                this.scene.constructType = prevType;
-
-                // Ensure it's marked public (it should be by default now, but let's be certain for Archon tasks)
-                const newConstruct = this.scene.constructs[this.scene.constructs.length - 1];
-                if (newConstruct && newConstruct.type === type) newConstruct.isPublic = true;
-
-                this.scene.uiManager.showFloatText(u.x, u.y - 25, `⚜ Archon: "Build a ${type}!"`, '#ffdd44');
-                break; // One construct placement at a time
+    // Lay out a size×size grow-zone field on clear public grassland near the colony and assign
+    // it a crop — the archon's way of farming without fixed farm buildings (see #6).
+    _archonPaintGrowZone(u, cropKey, size = 3) {
+        const zm = this.scene.zoneManager, fm = this.scene.constructManager, cm = this.scene.chunkManager;
+        if (!zm || !fm) return false;
+        const th = this.scene.constructs.find(b => b.type === 'townhall' && !b.faction);
+        const center = th ? { tx: th.tx, ty: th.ty }
+                          : { tx: this.scene.spawnTx ?? 0, ty: this.scene.spawnTy ?? 0 };
+        const fits = (ox, oy) => {
+            for (let dy = 0; dy < size; dy++) for (let dx = 0; dx < size; dx++) {
+                const tx = ox + dx, ty = oy + dy;
+                if (cm && cm.getTile(tx, ty) !== T_GRASS) return false;
+                if (!fm.isFree(tx, ty, 1, 1)) return false;
+                if (zm._claimed?.(zm.tileKey(tx, ty))) return false;
+            }
+            return true;
+        };
+        for (let r = 2; r < 22; r++) {
+            for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) {
+                if (Math.abs(dx) < r && Math.abs(dy) < r) continue;
+                const ox = center.tx + dx, oy = center.ty + dy;
+                if (!fits(ox, oy)) continue;
+                for (let yy = 0; yy < size; yy++) for (let xx = 0; xx < size; xx++)
+                    zm.paintGrow(ox + xx, oy + yy, cropKey);
+                this.scene.uiManager?.showFloatText?.((ox + 1) * TILE, MAP_OY + oy * TILE - 8,
+                    `⚜ ${cropKey} field`, '#aadd66');
+                GameLogger.log('archon_grow', { u: u.name, crop: cropKey, tx: ox, ty: oy, size });
+                return true;
             }
         }
+        return false;
+    },
+
+    _archonPlace(u, type) {
+        const fm = this.scene.constructManager;
+        const site = fm.findPublicBuildSite(type);
+        if (!site) return false;
+        const c = fm.placeConstruct(type, site.tx, site.ty);
+        if (!c) return false;
+        c.isPublic = true;
+        this.scene.uiManager?.showFloatText?.(u.x, u.y - 25, `⚜ Archon: build ${type}`, '#ffdd44');
+        GameLogger.log('archon', { u: u.name, build: type });
+        return true;
+    },
+
+    // Plan a walled room as ghosts. 'bedroom' = 3×3 interior with 4 beds (all reachable from
+    // floor: back row of 3 + a front-corner bed; middle row + entry stay walkable); 'shell' =
+    // empty 2×2 for a unit to furnish. When `estate` is given, the room is sited inside its
+    // bounds so the beds inherit the estate's domainId (family ownership).
+    _archonBuildRoom(u, kind, estate = null, applianceType = null) {
+        const fm = this.scene.constructManager;
+        const iw = kind === 'bedroom' ? 3 : 2;
+        const ih = kind === 'bedroom' ? 3 : 2;
+        const site = this._findRoomSite(iw, ih, estate);
+        if (!site) return false;
+        const interior = this._planRoom(site.tx, site.ty, iw, ih);
+        if (!interior) return false;
+        const { tx, ty } = site;
+        let label = '⚜ workshop room planned';
+        if (kind === 'bedroom') {
+            fm.placeConstruct('bed', tx,     ty);       // back row
+            fm.placeConstruct('bed', tx + 1, ty);
+            fm.placeConstruct('bed', tx + 2, ty);
+            fm.placeConstruct('bed', tx,     ty + 2);   // front-left corner
+            label = '⚜ bedroom planned';
+        } else if (kind === 'workshop' && applianceType && CONSTRUCTS[applianceType]) {
+            // Furnish the room for its job: the appliance in the back-left, a chest (prep/work
+            // surface & local storage) in the back-right. Front row stays walkable to the door.
+            fm.placeConstruct(applianceType, tx, ty);
+            if (CONSTRUCTS.chest && fm.isFree(tx + 1, ty, 1, 1)) fm.placeConstruct('chest', tx + 1, ty);
+            label = `⚜ ${(CONSTRUCTS[applianceType].label ?? applianceType)} workshop planned`;
+        }
+        this.scene.uiManager?.showFloatText?.((site.tx + 1) * TILE, MAP_OY + site.ty * TILE - 10,
+            label, '#ffdd44');
+        GameLogger.log('archon_room', { u: u.name, kind, appliance: applianceType ?? null, estate: estate?.id ?? null, tx: site.tx, ty: site.ty });
+        return true;
+    },
+
+    // Lay wall_edge ghosts around an iw×ih interior with a door on the south wall middle.
+    // Returns the interior tiles, or null if the footprint/edges aren't clear.
+    _planRoom(tx, ty, iw, ih) {
+        const fm = this.scene.constructManager;
+        for (let r = ty; r < ty + ih; r++)
+            for (let c = tx; c < tx + iw; c++)
+                if (!fm.isFree(c, r, 1, 1)) return null;
+        const edges = [];
+        for (let c = tx; c < tx + iw; c++) { edges.push([true, ty, c]); edges.push([true, ty + ih, c]); }
+        for (let r = ty; r < ty + ih; r++) { edges.push([false, r, tx]); edges.push([false, r, tx + iw]); }
+        for (const [isH, row, col] of edges) if (fm.getEdge(isH, row, col)) return null;
+        const doorCol = tx + Math.floor(iw / 2);   // south wall, middle segment
+        for (const [isH, row, col] of edges) {
+            if (isH && row === ty + ih && col === doorCol) fm.placeEdge('door', true, row, col, null);
+            else fm.placeEdge('wall_edge', isH, row, col, null);
+        }
+        const interior = [];
+        for (let r = ty; r < ty + ih; r++) for (let c = tx; c < tx + iw; c++) interior.push({ tx: c, ty: r });
+        return interior;
+    },
+
+    // Find a clear site for a room: interior free, bounding edges empty, south-door exterior
+    // walkable. With `estate`, scan inside the estate's bounds; otherwise ring-scan near the
+    // townhall/camp.
+    _findRoomSite(iw, ih, estate = null) {
+        const fm = this.scene.constructManager;
+        const fits = (tx, ty) => {
+            for (let yy = ty; yy < ty + ih; yy++)
+                for (let xx = tx; xx < tx + iw; xx++)
+                    if (!fm.isFree(xx, yy, 1, 1)) return false;
+            if (!fm.isFree(tx + Math.floor(iw / 2), ty + ih, 1, 1)) return false;   // door exterior
+            for (let cc = tx; cc < tx + iw; cc++) { if (fm.getEdge(true, ty, cc) || fm.getEdge(true, ty + ih, cc)) return false; }
+            for (let rr = ty; rr < ty + ih; rr++) { if (fm.getEdge(false, rr, tx) || fm.getEdge(false, rr, tx + iw)) return false; }
+            return true;
+        };
+        if (estate) {
+            for (let ty = estate.y1; ty <= estate.y2 - ih + 1; ty++)
+                for (let tx = estate.x1; tx <= estate.x2 - iw + 1; tx++)
+                    if (tx >= 2 && ty >= 2 && fits(tx, ty)) return { tx, ty };
+            return null;
+        }
+        const anchor = fm.constructs.find(b => (b.type === 'townhall' || b.type === 'camp') && !b.faction);
+        const c = anchor ? { tx: anchor.tx, ty: anchor.ty }
+                         : { tx: this.scene.spawnTx ?? 20, ty: this.scene.spawnTy ?? 20 };
+        for (let r = 3; r < 22; r++) {
+            for (let dy = -r; dy <= r; dy++) {
+                for (let dx = -r; dx <= r; dx++) {
+                    if (Math.abs(dx) < r && Math.abs(dy) < r) continue;
+                    const tx = c.tx + dx, ty = c.ty + dy;
+                    if (tx >= 2 && ty >= 2 && fits(tx, ty)) return { tx, ty };
+                }
+            }
+        }
+        return null;
     },
 
     // Internal helpers used by pickRole/assignVocation (defined in UnitNeeds but need JOB_AFFINITIES

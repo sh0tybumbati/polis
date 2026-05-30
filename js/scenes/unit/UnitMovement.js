@@ -7,26 +7,37 @@ import { ITEMS } from '../../content/items/index.js';
 
 export default {
     moveToward(u, tx, ty, threshold, dt) {
+        u._mtCalled = true;   // flag for tickWorker's stuck-recovery (reset each worker tick)
         const d = Phaser.Math.Distance.Between(u.x, u.y, tx, ty);
         if (d <= threshold) {
             u.currentPath = null;
+            u._reachFailT = 0; u._rfTarget = null;
             return false;
         }
 
-        // --- Stuck detection: if barely moved in 1.5s while still far from target, nudge and retry ---
-        if (d > threshold * 3) {
-            u._stuckAcc = (u._stuckAcc ?? 0) + dt;
-            if (u._stuckAcc >= 1500) {
-                const moved = Math.abs(u.x - (u._stuckPrevX ?? u.x)) + Math.abs(u.y - (u._stuckPrevY ?? u.y));
-                if (moved < 3) {
-                    u.x += (Math.random() - 0.5) * TILE * 1.2;
-                    u.y += (Math.random() - 0.5) * TILE * 0.8;
-                    u.currentPath = null; u._pathFailed = false; u._pathRetryTimer = 0;
-                }
-                u._stuckAcc = 0; u._stuckPrevX = u.x; u._stuckPrevY = u.y;
-            }
-        } else {
-            u._stuckAcc = 0;
+        // Destination tile blocked (e.g. a construct footprint): the unit can never reach
+        // `threshold` px of its centre. Once it's standing on an adjacent tile it's as close
+        // as it can get, so count that as arrival — otherwise it grinds against the wall and
+        // the stuck-nudge below teleport-jitters it on the bordering tile.
+        const _tgtTx = Math.floor(tx / TILE), _tgtTy = Math.floor((ty - MAP_OY) / TILE);
+        const _curTx = Math.floor(u.x / TILE), _curTy = Math.floor((u.y - MAP_OY) / TILE);
+        if (Math.abs(_curTx - _tgtTx) <= 1 && Math.abs(_curTy - _tgtTy) <= 1 &&
+            this.scene.mapManager.isTileBlocked(tx, ty)) {
+            u.currentPath = null;
+            u._reachFailT = 0; u._rfTarget = null;
+            return false;
+        }
+
+        // Reach-failure tracker: accumulate time (s) the unit fails to get meaningfully
+        // closer to *this* target. tickWorker abandons goals that stall here — no handler
+        // has its own "can't reach" timeout, so otherwise the unit latches on forever.
+        const _tt = `${_tgtTx},${_tgtTy}`;
+        if (u._rfTarget !== _tt) { u._rfTarget = _tt; u._reachFailT = 0; u._rfDist = d; u._rfAcc = 0; }
+        u._rfAcc = (u._rfAcc ?? 0) + dt;
+        if (u._rfAcc >= 1.0) {
+            if (d < (u._rfDist ?? Infinity) - 3) u._reachFailT = 0;                 // got closer
+            else u._reachFailT = (u._reachFailT ?? 0) + u._rfAcc;                   // stalled
+            u._rfDist = d; u._rfAcc = 0;
         }
 
         // --- Pathfinding Logic ---

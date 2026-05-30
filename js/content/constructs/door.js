@@ -9,7 +9,7 @@ export default {
         'Materials.Metal.Iron':       { 'Materials.Metal.Iron': 1 },
     },
     allowedMaterials: ['Materials.Wood.Pine.Sticks', 'Materials.Wood.Pine', 'Materials.Metal.Iron'],
-    buildWork: 6,
+    buildWork: 4,
     height: 'door',
     passable: true,
     desc: "A door. Seals a gap in walls. Iron doors are much sturdier.",

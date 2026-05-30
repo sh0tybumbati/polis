@@ -16,9 +16,26 @@ export default {
         // Base priorities
         let workPri    = 30;
         let eatPri     = food < 0.7 ? (20 + (1 - food) * 80) : 0;
-        let sleepPri   = rest < 0.6 ? (15 + (1 - rest) * 75) : 0;
+        // Only propose sleep once genuinely tired (rest < 0.45) — never while comfortably rested.
+        let sleepPri   = rest < 0.45 ? (15 + (1 - rest) * 75) : 0;
         let socialPri  = social < 0.7 ? (5 + (1 - social) * 20) : 0;
         let leisurePri = joy < 0.7 ? (3 + (1 - joy) * 15) : 0;
+
+        // Proactive recreation: a long uninterrupted work streak earns a break even when
+        // joy/social aren't yet critical, so units don't grind until mood collapses. Traits
+        // shift how long they'll grind and what relief they prefer.
+        const traits = u.traits ?? [];
+        const streak = u._workStreak ?? 0;
+        const streakCap = traits.includes('industrious') ? 160
+                        : traits.includes('melancholic') ? 70 : 110;   // seconds of work (8-min days)
+        if (streak > streakCap) {
+            const over    = (streak - streakCap) / streakCap;
+            const recBump = Math.min(40, 12 + over * 25);
+            leisurePri += recBump * (traits.includes('melancholic') ? 1.3 : 1.0);
+            socialPri  += recBump * (traits.includes('sociable')   ? 1.4 : 0.7);
+        }
+        // Low mood (but not yet collapsed) also pulls toward recreation before a mental break.
+        if ((u.mood ?? 1) < 0.45) { leisurePri += 15; socialPri += 10; }
 
         // --- Time of Day Adjustments ---
         if (this.scene.phase === 'DAY') {
@@ -57,6 +74,10 @@ export default {
             }
         }
 
+        // Never propose sleep while comfortably rested — even at night. Time-of-day bumps only
+        // nudge an already-tired unit toward bed; sleep exists to recover, not as a ritual.
+        if (rest >= 0.45) sleepPri = 0;
+
         if (eatPri > 0)     plan.push({ intent: 'eat',       priority: eatPri });
         if (sleepPri > 0)   plan.push({ intent: 'sleep',     priority: sleepPri });
                             plan.push({ intent: 'work',      priority: workPri });
@@ -93,35 +114,39 @@ export default {
         const n = u.needs;
 
         // Food decays while awake; restored by eating
-        // Rate: empties in ~3 full day/night cycles (9 min real time)
+        // Rate halved for the 8-min day so a unit still empties in ~2 full day/night cycles.
         // Sumer civ bonus: 20% slower food decay
-        const foodDecay = this.scene.civ === 'sumer' ? 0.00152 : 0.0019;
+        const foodDecay = this.scene.civ === 'sumer' ? 0.00076 : 0.00095;
         if (!u.isSleeping) n.food = Math.max(0, n.food - dt * foodDecay);
 
         // Rest: decays while awake, recovers while sleeping
         // Passed-out sleep recovers at 35% rate and applies a joy penalty on wake
         if (u.isSleeping) {
-            const rate = u._passedOut ? 0.004 : 0.011;
+            const rate = u._passedOut ? 0.002 : 0.0055;
             n.rest = Math.min(1.0, n.rest + dt * rate);
             if (n.rest >= 0.95) {
                 u.isSleeping = false;
-                // Exit tent: place unit at the door so they walk out visibly
-                if (u.isInside && u.homeConstructId) {
-                    const home = this.scene.constructManager?.getById?.(u.homeConstructId);
-                    if (home) {
-                        const hw = home.width ?? 2, hh = home.height ?? 2;
-                        u.x = (home.tx + hw / 2) * TILE;
-                        u.y = MAP_OY + (home.ty + hh) * TILE - 8;
-                    }
+                // Exit: step just south of the bed/home so the unit walks out visibly.
+                const sleepId = u._sleepConstructId ?? (u.isInside ? u.homeConstructId : null);
+                const home = sleepId ? this.scene.constructManager?.getById?.(sleepId) : null;
+                if (home) {
+                    const hw = home.width ?? 1, hh = home.height ?? 1;
+                    u.x = (home.tx + hw / 2) * TILE;
+                    u.y = MAP_OY + (home.ty + hh) * TILE - 8;
                 }
                 u.isInside = false;
+                u._sleepConstructId = null;
                 if (u._passedOut) {
                     u._passedOut = false;
                     n.joy = Math.max(0, n.joy - 0.30); // slept rough penalty
                 }
             }
         } else {
-            n.rest = Math.max(0, n.rest - dt * 0.0028);
+            // Tasks cost stamina: working drains rest faster than idling, so a full work day
+            // leaves a unit genuinely tired (ready for bed) by the early night.
+            const _REST_NONWORK = new Set(['eat', 'rest_break', 'leisure', 'stroll', 'chat', 'mental_break']);
+            const working = !!u.targetNode || (u.taskType && !_REST_NONWORK.has(u.taskType));
+            n.rest = Math.max(0, n.rest - dt * (working ? 0.00225 : 0.0015));
         }
 
         // Social: recovery weighted by relationship quality with nearby units
@@ -129,23 +154,23 @@ export default {
         for (const w of this.scene.units) {
             if (w === u || w.isEnemy || w.hp <= 0) continue;
             if (Phaser.Math.Distance.Between(u.x, u.y, w.x, w.y) < 64) {
-                _socialRate += 0.004 + (u.relations?.[w.id] ?? 0) * 0.003;
+                _socialRate += 0.002 + (u.relations?.[w.id] ?? 0) * 0.0015;
                 _nearCount++;
             }
         }
         if (_nearCount > 0) {
-            n.social = Math.min(1.0, n.social + dt * Math.min(_socialRate, 0.014));
+            n.social = Math.min(1.0, n.social + dt * Math.min(_socialRate, 0.007));
         } else {
-            n.social = Math.max(0, n.social - dt * 0.0012);
+            n.social = Math.max(0, n.social - dt * 0.0006);
         }
 
         // Joy: decays while working (industrious trait slows drain)
         const isWorking = u.taskType && u.taskType !== 'eat' && !u.isSleeping;
-        const joyDrain = (u.traits ?? []).includes('industrious') ? 0.00075 : 0.0015;
+        const joyDrain = (u.traits ?? []).includes('industrious') ? 0.000375 : 0.00075;
         if (isWorking) {
             n.joy = Math.max(0, n.joy - dt * joyDrain);
         } else {
-            n.joy = Math.min(1.0, n.joy + dt * 0.003);
+            n.joy = Math.min(1.0, n.joy + dt * 0.0015);
         }
 
         // Mood: weighted needs + relations bonus − grief penalty ± trait modifiers
@@ -160,7 +185,7 @@ export default {
 
         // Starvation: food=0 drains HP; warn every 8s
         if (n.food <= 0 && !u.isSleeping) {
-            u.hp = Math.max(0, u.hp - dt * 0.5);
+            u.hp = Math.max(0, u.hp - dt * 0.25);
             u._starvTimer = (u._starvTimer ?? 0) + dt;
             if (u._starvTimer >= 8) {
                 u._starvTimer = 0;
@@ -231,19 +256,8 @@ export default {
     },
 
     tickChild(u, dt) {
-        // Age progression: child(0) → youth(1) after 2 min, youth(1) → adult(2) after 3 min
-        u.ageTimer = (u.ageTimer ?? 0) + dt;
-        const threshold = u.age === 0 ? 120000 : 180000;
-        if (u.ageTimer >= threshold) {
-            u.age++;
-            u.ageTimer = 0;
-            this.redrawUnit(u);
-            const stage = u.age === 1 ? 'youth' : 'adult';
-            this.scene.uiManager.showFloatText(u.x, u.y - 20, `${u.name} is now a ${stage}`, '#ddcc88');
-            if (u.age === 2) this.assignVocation(u);
-            return;
-        }
-
+        // Aging is handled centrally in WorldManager.ageUpUnits (ageYears model); children
+        // simply wander near home until they mature into the adult life-stage.
         const home = this.scene.constructManager?.getById(u.homeConstructId);
         if (!home) return;
         const hx = (home.tx + (home.width ?? 1) / 2) * TILE, hy = MAP_OY + (home.ty + (home.height ?? 1) / 2) * TILE;
@@ -261,11 +275,16 @@ export default {
         const workers = this.scene.units.filter(w => w.type==='worker' && !w.isEnemy && w.hp>0);
         const ctx = {
             cnt: r => { let n = 0; for (const w of workers) if (w.role === r) n++; return n; },
+            // Resource "need" = the greater of current storage shortfall and forward-provisioning
+            // pressure (population + season + dusk scaled). Folding provisioning in here makes
+            // every JOBS.score() forward-looking without touching the individual job files.
             need: res => {
                 const cap = this.scene.storageMax[res] || 0;
-                if (cap <= 0) return 0;
-                return 1.0 - Math.min(1.0, (this.scene.resources[res] || 0) / cap);
+                const storageFrac = cap > 0 ? 1.0 - Math.min(1.0, (this.scene.resources[res] || 0) / cap) : 0;
+                const prov = this.scene.economyManager?.provisioningPressure?.(res, workers.length) ?? 0;
+                return Math.max(storageFrac, prov);
             },
+            provision: res => this.scene.economyManager?.provisioningPressure?.(res, workers.length) ?? 0,
             constructs: this.scene.constructs,
             units: workers,
             resources: this.scene.resources,

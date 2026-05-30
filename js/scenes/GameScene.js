@@ -390,6 +390,7 @@ export default class GameScene extends Phaser.Scene {
     updateStorageCap() { this.constructManager.updateStorageCap(); }
     findConstructAt(wx, wy) { return this.constructManager.findConstructAt(wx, wy); }
     orderWorkersToConstruct(construct) { return this.constructManager.orderWorkersToConstruct(construct); }
+    orderWorkersToSleep(construct) { return this.unitManager.orderWorkersToSleep(construct); }
     demolishConstruct(b) { this.constructManager.demolishConstruct(b); }
     findNodeAt(wx, wy) { return this.mapManager.findNodeAt(wx, wy); }
     orderWorkersToNode(node) { return this.unitManager.orderWorkersToNode(node); }
@@ -403,7 +404,7 @@ export default class GameScene extends Phaser.Scene {
         }
     }
 
-    spawnUnit(type, x, y, isEnemy) { return this.unitManager.spawnUnit(type, x, y, isEnemy); }
+    spawnUnit(type, x, y, isEnemy, forcedGender = null) { return this.unitManager.spawnUnit(type, x, y, isEnemy, forcedGender); }
     redrawUnit(u) { this.unitManager.redrawUnit(u); }
     selectUnit(id, add) { this.unitManager.selectUnit(id, add); }
     deselect() { this.unitManager.deselect(); }
@@ -444,9 +445,7 @@ export default class GameScene extends Phaser.Scene {
 
         const sx = (camp.tx + camp.width / 2) * TILE, sy = MAP_OY + (camp.ty + camp.height / 2) * TILE;
 
-        const founder = this.spawnUnit('worker', sx, sy, false);
-        founder.gender     = 'male';
-        founder.age        = 2;
+        const founder = this.spawnUnit('worker', sx, sy, false, 'male');
         founder.isArchon   = true;
         founder.role       = 'builder';
         founder.homeConstructId = camp.id;
@@ -458,9 +457,7 @@ export default class GameScene extends Phaser.Scene {
         this.redrawUnit(founder);
         this.showFloatText(sx, sy - 20, `${founder.name}, Archon`, '#ffdd44');
 
-        const consort = this.spawnUnit('worker', sx + 12, sy, false);
-        consort.gender     = 'female';
-        consort.age        = 2;
+        const consort = this.spawnUnit('worker', sx + 12, sy, false, 'female');
         consort.spouseId   = founder.id;
         consort.role       = 'farmer';
         consort.homeConstructId = camp.id;

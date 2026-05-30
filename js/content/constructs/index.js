@@ -49,10 +49,10 @@ const defs = [
 export const CONSTRUCTS = Object.fromEntries(defs.map(d => [d.id, d]));
 
 export const CONSTRUCT_CATS = {
-    Civil:    ['camp', 'campfire', 'townhall', 'agora', 'temple', 'oracle', 'firepit', 'tavernseat'],
-    Industry: ['pasture', 'mine', 'millstone', 'oven', 'forge', 'anvil', 'tanningrack', 'workbench', 'stonecutter', 'olivepress'],
-    Military: ['melee_grounds', 'archery_grounds', 'mounted_grounds', 'watchtower', 'wall', 'palisade', 'gate', 'fence'],
-    Furnish:  ['bed', 'chest', 'hearth', 'loom', 'millstone', 'workbench', 'anvil', 'forge', 'oven', 'tanningrack', 'butchersblock', 'storageshelf', 'marketstall', 'grainsilo']
+    Structures: ['camp', 'house', 'townhall', 'agora', 'temple', 'oracle', 'campfire', 'firepit', 'tavernseat'],
+    Production:  ['pasture', 'mine', 'farm', 'garden', 'millstone', 'oven', 'forge', 'anvil', 'tanningrack', 'workbench', 'stonecutter', 'olivepress', 'butchersblock', 'loom', 'grainsilo'],
+    Military:   ['melee_grounds', 'archery_grounds', 'mounted_grounds', 'watchtower', 'wall', 'palisade', 'gate'],
+    Furniture:  ['bed', 'chest', 'hearth', 'loom', 'millstone', 'workbench', 'anvil', 'forge', 'oven', 'tanningrack', 'butchersblock', 'storageshelf', 'marketstall', 'grainsilo']
 };
 
 export function computeBuildCost(type, material = 'Materials.Wood.Pine') {

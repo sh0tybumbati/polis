@@ -6,9 +6,11 @@ import {
     ENABLE_PROACTIVE_AI, DESIRE_THRESHOLD, ROAD_DESIRE, ROAD_NONE, HUNGER_THRESHOLD,
     ARCHON_BUILD_ORDER,
     randomAttributes, blendAttributes, randomPhenotype, blendPhenotype,
+    inheritHairStyle,
     randomPassions, blendPassions,
     emptySkills,
     pickTraits, blendTraits,
+    YEARS_PER_AGE_STEP,
 } from '../config/gameConstants.js';
 import { THEME } from '../ui/UIKit.js';
 import { CONSTRUCTS } from '../content/constructs/index.js';
@@ -103,14 +105,14 @@ export default class UnitManager {
         this.scene.uiManager.showFloatText(u.x, u.y - 20, `${type} ready!`, '#88ff88');
     }
 
-    spawnUnit(type, x, y, isEnemy) {
+    spawnUnit(type, x, y, isEnemy, forcedGender = null) {
         const def = UNITS[type];
-        const gender = Math.random() < 0.5 ? 'male' : 'female';
+        const gender = forcedGender ?? (Math.random() < 0.5 ? 'male' : 'female');
 
         // Genealogy & genetics (workers only — soldiers use def defaults)
         const isWorker = type === 'worker';
         const attributes = isWorker ? randomAttributes() : null;
-        const phenotype  = isWorker ? randomPhenotype()  : null;
+        const phenotype  = isWorker ? randomPhenotype(gender) : null;
         const passions   = isWorker ? randomPassions()   : null;
         const maxHp  = isWorker ? 10 + attributes.con : def.hp;
         const speed  = isWorker ? def.speed * (1 + (attributes.agi - 5) * 0.04) : def.speed;
@@ -123,7 +125,7 @@ export default class UnitManager {
             gender, name: pickName(gender),
             moveTo: null, lastAtk: 0, lastGather: 0,
             speed, atk: def.atk, range: def.range,
-            wallSide: 0, homeConstructId: null, age: 2,
+            wallSide: 0, homeConstructId: null, bedConstructId: null, estateId: null, age: 2,
             taskType: null, taskConstructId: null, targetNode: null, targetItemId: null,
             carrying: { 'Food.Grain.Wheat': 0, 'Food.Grain.Wheat.Flour': 0, 'Food.Grain.Wheat.Bread': 0, 'Food.Meat.Venison': 0, 'Food.Meat.Venison.Sausages': 0, 'Food.Produce.Berry': 0, 'Food.Produce.Olive': 0, 'Materials.Stone.Limestone': 0, 'Materials.Wood.Pine': 0, 'Materials.Wood.Pine.Sticks': 0, 'Materials.Stone.Limestone.Stones': 0, 'Textile.Fiber.Wool': 0, 'Textile.Hide.Deer': 0, 'Materials.Metal.Copper.Ore': 0 }, carryMax,
             role: null, replantTimer: 0, trainTimer: 0, lastSeek: 0,
@@ -141,15 +143,28 @@ export default class UnitManager {
             mood: 1.0,
             _visible: true,
             _alpha: 1.0,
+            bodyParts: { head: 1.0, torso: 1.0, armL: 1.0, armR: 1.0, legL: 1.0, legR: 1.0 },
         };
         if (isWorker) {
             unit.traits = pickTraits();
+            this._initAdultAge(unit);   // arrives as a working-age adult (spread of years)
             this.assignVocation(unit);
+        } else {
+            unit.ageYears = (unit.age ?? 2) * YEARS_PER_AGE_STEP;
         }
         this.redrawUnit(unit);
         this.scene.units.push(unit);
         this._byUnitId.set(unit.id, unit);
         return unit;
+    }
+
+    // Give a unit a believable adult age (≈18–35 years) with the integer life-stage derived
+    // to match. Used for founders, migrants and estate-founding pairs.
+    _initAdultAge(u) {
+        u.ageYears = 18 + Math.floor(Math.random() * 18);
+        u.age = Math.floor(u.ageYears / YEARS_PER_AGE_STEP);
+        u._ageDayAcc = 0;
+        return u;
     }
 
     spawnChild(father, mother) {
@@ -165,9 +180,13 @@ export default class UnitManager {
         child.familyName = father.familyName ?? mother.familyName ?? null;
         child.traits     = blendTraits(father.traits ?? [], mother.traits ?? []);
         child.age       = 0;
+        child.ageYears  = 0;          // newborn — ages ~1 year/in-game-day in ageUpUnits
+        child._ageDayAcc = 0;
         child.homeConstructId = home.id;
+        child.estateId  = mother.estateId ?? father.estateId ?? null;   // born into the family estate
         child.attributes = blendAttributes(father.attributes ?? randomAttributes(), mother.attributes ?? randomAttributes());
-        child.phenotype  = blendPhenotype(father.phenotype ?? randomPhenotype(), mother.phenotype ?? randomPhenotype());
+        child.phenotype  = blendPhenotype(father.phenotype ?? randomPhenotype('male'), mother.phenotype ?? randomPhenotype('female'));
+        child.phenotype.hairStyle = inheritHairStyle(child.gender, father.phenotype?.hairStyle, mother.phenotype?.hairStyle);
         child.passions   = blendPassions(father.passions ?? randomPassions(), mother.passions ?? randomPassions());
         child.maxHp   = 10 + child.attributes.con;
         child.hp      = child.maxHp;
@@ -403,7 +422,7 @@ export default class UnitManager {
             if (_utMs > 20) GameLogger.log('slow_unit', { u: u.name ?? u.type, ms: Math.round(_utMs), task: u.taskType ?? 'none', role: u.role ?? 'none' });
         }
 
-        // Kick off fade-out for newly-dead units (deferred removal after tween).
+        // Handle newly-dead units: enemies fade out; friendly workers become burialable corpses.
         for (const u of this.scene.units) {
             if (u.hp > 0 || u._dying) continue;
             u._dying = true;
@@ -448,10 +467,19 @@ export default class UnitManager {
                     this.scene.uiManager.showFloatText(f.x, f.y - 18, 'routing!', '#ff4422');
                 });
             }
-            this.scene.tweens.add({
-                targets: u, _alpha: 0, duration: 280,
-                onComplete: () => { this._byUnitId.delete(u.id); this.scene.units = this.scene.units.filter(x => x !== u); },
-            });
+            if (!u.isEnemy && u.type === 'worker') {
+                // Friendly workers become corpses awaiting burial — no fade
+                u._corpse = true;
+                u.isSleeping = false;
+                u.isInside = false;
+                u.taskType = null; u.targetNode = null; u.moveTo = null;
+                this.scene.uiManager?.showFloatText?.(u.x, u.y - 22, `${u.name ?? 'Worker'} has died`, '#cc8899');
+            } else {
+                this.scene.tweens.add({
+                    targets: u, _alpha: 0, duration: 280,
+                    onComplete: () => { this._byUnitId.delete(u.id); this.scene.units = this.scene.units.filter(x => x !== u); },
+                });
+            }
         }
 
         // Single-pass draw of all units into one shared Graphics object.
@@ -536,9 +564,23 @@ export default class UnitManager {
         if (!sel.length) return false;
         for (const u of sel) {
             u.targetNode = null; u.taskType = 'build'; u.taskConstructId = b.id;
-            u.moveTo = null;
+            u.moveTo = null; u._orderedSleepId = null;
             u.role = 'builder';
         }
+        return true;
+    }
+
+    // Manual order: send selected workers to sleep at a specific bed / tent / house now.
+    orderWorkersToSleep(b) {
+        const sel = this.scene.units.filter(u => u.selected && !u.isEnemy && u.hp > 0 && u.type === 'worker' && u.age >= 2);
+        if (!sel.length) return false;
+        for (const u of sel) {
+            u._orderedSleepId = b.id;
+            u.taskType = null; u.targetNode = null; u.moveTo = null;
+        }
+        const fx = b.tx != null ? (b.tx + (b.width ?? 1) / 2) * TILE : sel[0].x;
+        const fy = b.ty != null ? MAP_OY + b.ty * TILE - 6 : sel[0].y;
+        this.scene.uiManager?.showFloatText?.(fx, fy, `${sel.length} → sleep`, '#aab0ff');
         return true;
     }
 

@@ -8,7 +8,7 @@ export default {
         'Materials.Stone.Limestone':        { 'Materials.Stone.Limestone': 1 },
     },
     allowedMaterials: ['Materials.Stone.Limestone.Stones', 'Materials.Stone.Limestone'],
-    buildWork: 14,
+    buildWork: 5,
     height: 'full',
     desc: "A sturdy stone defensive wall."
 };

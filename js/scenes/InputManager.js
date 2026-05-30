@@ -40,7 +40,10 @@ export default class InputManager {
                 }
                 if (s.zoneMode) {
                     s._zoneDragTiles.clear();
-                    const t = s.tileAt(ptr.worldX, ptr.worldY);
+                    const _L = s.uiManager?.L;
+                    const _uiH = (_L?.INSP_MAX_H ?? 0) + (_L?.TOOLBAR_H ?? 60);
+                    const _inUI = ptr.y < MAP_OY || ptr.y > s.SH - _uiH;
+                    const t = !_inUI && s.tileAt(ptr.worldX, ptr.worldY);
                     s._zoneDragStart = t ? { tx: t.tx, ty: t.ty } : null;
                 }
                 if (s.slateModeType) {
@@ -221,17 +224,15 @@ export default class InputManager {
                     for (let ry = y1; ry <= y2; ry++)
                         for (let rx = x1; rx <= x2; rx++)
                             this._applyZonePaint(rx, ry);
-                    const isStorage = s.zoneMode === 'storage';
-                    if (isGrow || isStorage) {
+                    if (isGrow) {
                         s.zoneMode = null;
-                        const selCol = isGrow ? 0x88ee55 : 0xffcc44;
                         const { tiles, zoneType, cropKey } = s.zoneManager.getConnectedTiles(startTile.tx, startTile.ty);
                         if (tiles.length) {
                             s.selectedZoneTile  = { tx: startTile.tx, ty: startTile.ty };
                             s.selectedZoneTiles = tiles;
                             s.selectedZoneType  = zoneType;
                             s.selectedZoneCrop  = cropKey;
-                            s.zoneManager.setSelection(tiles, selCol);
+                            s.zoneManager.setSelection(tiles, 0x88ee55);
                         }
                     }
                 }
@@ -317,7 +318,17 @@ export default class InputManager {
                 if (s.selIds.size > 0) {
                     if (hit && !hit.isEnemy) { s.selectUnit(hit.id, true); return; }
                     if (hit && hit.isEnemy) { /* Attack (TBD) */ return; }
-                    if (construct && s.orderWorkersToConstruct(construct)) return;
+                    // Built tent/house/bed → order sleep there; unbuilt construct → order its build.
+                    if (construct) {
+                        const isHome = construct.built &&
+                            (construct.type === 'bed' || CONSTRUCTS[construct.type]?.isHomeType);
+                        if (isHome) { if (s.orderWorkersToSleep(construct)) return; }
+                        else if (!construct.built && s.orderWorkersToConstruct(construct)) return;
+                    }
+                    // Unbuilt edge (wall / fence / gate / door) → order its construction.
+                    const _edge  = s.constructManager?.nearestEdge(wx, wy);
+                    const _edgeC = _edge ? s.constructManager.getEdge(_edge.isH, _edge.row, _edge.col) : null;
+                    if (_edgeC && !_edgeC.built && s.orderWorkersToConstruct(_edgeC)) return;
                     if (node && s.orderWorkersToNode(node)) return;
                     const deer = s.findDeerAt(wx, wy);
                     const sheep = s.findSheepAt(wx, wy);
@@ -353,6 +364,12 @@ export default class InputManager {
             if (node) { s.selectedNode = node; s.updateUI(); return; }
             const furnHit = s.constructManager?.findConstructAt(wx, wy);
             if (furnHit) { s.selectedConstruct = furnHit; s.updateUI(); return; }
+
+            // Edge constructs (walls / gates / doors / fences) — selectable when the click
+            // lands on a tile border (nearestEdge returns null otherwise).
+            const edge = s.constructManager?.nearestEdge(wx, wy);
+            const edgeC = edge ? s.constructManager.getEdge(edge.isH, edge.row, edge.col) : null;
+            if (edgeC) { s.selectedConstruct = edgeC; s.updateUI(); return; }
 
             // Check for ground item piles near click
             const nearItem = s.groundItems?.find(i => Math.abs(i.x - wx) < 10 && Math.abs(i.y - wy) < 10);

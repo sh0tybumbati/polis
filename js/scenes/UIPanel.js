@@ -141,7 +141,7 @@ export default class UIPanel {
                 const dot = add(this.scene.add.graphics().setDepth(23));
                 dot.fillStyle(item.matColor, 0.9).fillCircle(bx + sz - 7, by + 7, 4);
                 add(this.scene.add.text(bx + sz - 12, by + 2, item.matLabel, {
-                    fontFamily: THEME.fontMono, fontSize: '7px', color: '#ccbbaa',
+                    fontFamily: THEME.fontMono, fontSize: '9px', color: '#ccbbaa',
                 }).setOrigin(1, 0).setDepth(23));
             }
             // Right-click hint chevron when picker available

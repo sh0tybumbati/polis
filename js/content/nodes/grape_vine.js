@@ -1,8 +1,8 @@
 export default {
     id: 'grape_vine',
     resource: 'Food.Produce.WildGrapes',
-    stock: 60,
-    respawnDays: 2,
+    stockMin: 8, stockMax: 20,
+    respawnDays: 4,
     role: 'forager',
 
     draw(gfx, _n, alpha) {

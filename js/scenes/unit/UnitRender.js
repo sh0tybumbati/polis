@@ -54,9 +54,14 @@ export default {
         const scale = this._ageScale(age);
         const ox = u.x, oy = u.y;
 
-        // Shadow ellipse
-        gfx.fillStyle(0x000000, 0.18 * alpha)
-           .fillEllipse(ox, oy + 9 * scale, 22 * scale, 7 * scale);
+        const isSleepingDown = u.isSleeping && (u.isInside || !!u._sleepConstructId);
+        const isCorpse = !!u._corpse;
+
+        // Shadow ellipse — skip when lying down (worker.js draws its own horizontal shadow)
+        if (!isSleepingDown && !isCorpse) {
+            gfx.fillStyle(0x000000, 0.18 * alpha)
+               .fillEllipse(ox, oy + 9 * scale, 22 * scale, 7 * scale);
+        }
 
         // ZZZ label — still a separate Text object, just positioned here
         if (u.isSleeping && u.hp > 0 && this.scene.showNeeds !== false) {
@@ -120,7 +125,7 @@ export default {
         if (showLabel) {
             if (!u.nameLabel) {
                 u.nameLabel = this.scene._w(this.scene.add.text(ox, oy - 12, u.name, {
-                    fontSize: '7px', color: '#ffeecc', fontFamily: THEME.fontMono,
+                    fontSize: '9px', color: '#ffeecc', fontFamily: THEME.fontMono,
                     stroke: '#000000', strokeThickness: 1,
                 }).setOrigin(0.5, 1).setDepth(7));
             }
@@ -131,9 +136,36 @@ export default {
 
         const zoom = this.scene.cameras.main.zoom;
         const lod  = zoom < 0.20 ? 0 : zoom < 0.50 ? 1 : zoom < 1.50 ? 2 : 3;
+
+        const isMoving  = !!(u.moveTo || u.currentPath);
+        const isWorking = !u.isSleeping && u.hp > 0 && (u.workProgress ?? 0) > 0;
+        if (isMoving || isWorking) {
+            u._walkPhase = (u._walkPhase ?? 0) + (isWorking ? 0.10 : 0.14);
+        } else {
+            u._walkPhase = ((u._walkPhase ?? 0) * 0.80);
+        }
+
+        // Derive facing from position delta — persists when unit stops
+        const _fdx = u.x - (u._prevX ?? u.x);
+        const _fdy = u.y - (u._prevY ?? u.y);
+        if (_fdx * _fdx + _fdy * _fdy > 0.09) {
+            if      (_fdy < -Math.abs(_fdx) * 0.5)  u._facing = 'north';
+            else if (_fdy >  Math.abs(_fdx) * 0.5)  u._facing = 'south';
+            else if (_fdx >= 0)                      u._facing = 'east';
+            else                                     u._facing = 'west';
+        }
+        u._prevX = u.x;
+        u._prevY = u.y;
+
+        const htScale = u.phenotype?.heightScale ?? 1.0;
+        // Dim units sleeping inside a structure (they're behind the tent canvas)
+        const drawAlpha = isSleepingDown && u.isInside ? alpha * 0.70 : alpha;
         UNITS[u.type]?.draw(gfx, u, {
             totalCarrying: u => this.totalCarrying(u),
-            lod, ageScale: scale, ox, oy,
+            lod, ageScale: scale * htScale, walkPhase: u._walkPhase,
+            isMoving, isWorking, facing: u._facing ?? 'south', alpha: drawAlpha, ox, oy,
+            isSleeping: isSleepingDown,
+            isCorpse,
         });
 
         this._drawProgressBar(gfx, u, scale, ox, oy, alpha);
@@ -147,6 +179,14 @@ export default {
             const w = 22 * scale, h = 9 * scale;
             this.selGfx.fillStyle(0x44dd55, 0.28).fillEllipse(u.x, u.y + 7 * scale, w, h);
             this.selGfx.lineStyle(1, 0x55ff66, 0.75).strokeEllipse(u.x, u.y + 7 * scale, w, h);
+        }
+        // Highlight a selected edge construct (wall/gate/door/fence) along its border.
+        const sc = this.scene.selectedConstruct;
+        if (sc && sc.placement === 'edge') {
+            const x = sc.col * TILE, y = MAP_OY + sc.row * TILE;
+            this.selGfx.lineStyle(3, 0x66ddff, 0.9);
+            if (sc.isH) this.selGfx.lineBetween(x, y, x + TILE, y);
+            else        this.selGfx.lineBetween(x, y, x, y + TILE);
         }
     },
 
@@ -205,7 +245,7 @@ export default {
         if (!show) {
             const TASK_MAX = {
                 plant_grow: 1.0, harvest_grow: 2.0, plant: 6.0,
-                build: 25, repair: 25, deconstruct: 25,
+                build: 12, repair: 25, deconstruct: 25,
             };
             if (Object.prototype.hasOwnProperty.call(TASK_MAX, u.taskType) && (u.workProgress ?? 0) > 0) {
                 fraction = Math.min(1, u.workProgress / TASK_MAX[u.taskType]);

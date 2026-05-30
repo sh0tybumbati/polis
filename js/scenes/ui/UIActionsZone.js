@@ -38,12 +38,9 @@ export default {
         } else if (this.scene.materialPickMode) {
             this._renderMaterialPickPanel(this.scene.materialPickMode, zx, zy, ACT_W, fullH);
         } else {
-            const isFurnish = this.scene.buildCat === 'Furnish';
             this._renderCategoryTabs(zx, zy, ACT_W, TAB_H);
-            let subH = 0;
-            if (isFurnish) { this._renderFurnishSubTabs(zx, zy + TAB_H, ACT_W, TAB_H); subH = TAB_H; }
-            const panelH = fullH - TAB_H - subH;
-            this._actionPanel = new UIPanel(this.scene, zx, zy + TAB_H + subH, ACT_W, panelH);
+            const panelH = fullH - TAB_H;
+            this._actionPanel = new UIPanel(this.scene, zx, zy + TAB_H, ACT_W, panelH);
             this._actionPanel.setItems(this._buildMenuItems());
         }
     },
@@ -281,7 +278,19 @@ export default {
 
         if (!b.built) {
             this._actStrip(zx, zy + fullH - STRIP, ACT_W, STRIP, [
-                { label: 'Cancel Build', color: 0x443322, cb: () => { s.demolishConstruct(b); } },
+                { label: 'Cancel order', color: 0x443322, cb: () => { s.demolishConstruct(b); } },
+                { label: '✕ Close', color: 0x2a1c10, cb: close },
+            ]);
+            return;
+        }
+
+        // Edge constructs (walls/gates/doors/fences) have no inventory/workers/queue — the info
+        // pane shows their HP; here just offer deconstruct.
+        if (b.placement === 'edge') {
+            this._actStrip(zx, zy + fullH - STRIP, ACT_W, STRIP, [
+                b.deconstructing
+                    ? { label: '✗ Cancel', color: 0x332211, cb: () => { s.constructManager.cancelDeconstruct(b); this.updateUI(); } }
+                    : { label: '🔨 Deconstruct', color: 0x441111, cb: () => { s.constructManager.orderDeconstruct(b); this.updateUI(); } },
                 { label: '✕ Close', color: 0x2a1c10, cb: close },
             ]);
             return;
@@ -335,7 +344,7 @@ export default {
             const fillCol = ratio > 0.85 ? 0xcc4422 : ratio > 0.5 ? 0xddaa33 : 0x448844;
             barg.fillStyle(fillCol, 0.85).fillRect(zx + pad, ry, Math.round(barW * ratio), 6);
             this._tab(s.add.text(zx + w / 2, ry - 1, `${curVol.toFixed(0)}/${maxVol} vol`, {
-                fontFamily: THEME.fontMono, fontSize: '7px', color: '#6a6050',
+                fontFamily: THEME.fontMono, fontSize: '9px', color: '#6a6050',
             }).setOrigin(0.5, 1).setDepth(22));
             ry += 9;
         }
@@ -521,7 +530,7 @@ export default {
     },
 
     _renderCategoryTabs(x, y, w, h) {
-        const cats = [...Object.keys(CONSTRUCT_CATS).filter(k => k !== 'Furnish'), 'Furnish', 'Zones', 'Debug'];
+        const cats = [...Object.keys(CONSTRUCT_CATS), 'Zones', 'Debug'];
         const labels = cats.map(c => c.length > 5 ? c.slice(0, 4) : c);
         tabStrip(this.scene, x + 1, y, w - 2, h - 1, labels, labels[cats.indexOf(this.scene.buildCat)],
             (lbl) => { this.scene.buildCat = cats[labels.indexOf(lbl)]; this.updateUI(); },
@@ -530,20 +539,9 @@ export default {
               onAdd: (o) => this._tab(o) });
     },
 
-    _renderFurnishSubTabs(x, y, w, h) {
-        const cats = Object.keys(CONSTRUCT_CATS).filter(k => k !== 'Furnish');
-        tabStrip(this.scene, x + 1, y, w - 2, h - 1, cats, this.scene.furnishCat ?? 'Living',
-            (cat) => { this.scene.furnishCat = cat; this.updateUI(); },
-            { depth: 22, activeBg: 0x3a2a50, inactiveBg: 0x1a1020,
-              activeColor: '#cc99ff', inactiveColor: '#6a5a7a',
-              activeBorderColor: 0x9966cc,
-              onAdd: (o) => this._tab(o) });
-    },
-
     _buildMenuItems() {
-        if (this.scene.buildCat === 'Furnish') {
-            const cat  = this.scene.furnishCat ?? 'Living';
-            const ids  = CONSTRUCT_CATS[cat] ?? [];
+        if (this.scene.buildCat === 'Furniture') {
+            const ids  = CONSTRUCT_CATS['Furniture'] ?? [];
             return ids.map(type => {
                 const def      = CONSTRUCTS[type];
                 const isActive = this.scene.placementType === type && this.scene.constructMode;
@@ -640,7 +638,8 @@ export default {
             };
         });
 
-        // Wall-type buttons — each activates wallMode with its edge type
+        // Wall-type buttons (Military tab only) — each activates wallMode with its edge type
+        if (this.scene.buildCat === 'Military')
         for (const type of ['wall_edge', 'low_wall', 'fence', 'door', 'fence_gate']) {
             const def      = CONSTRUCTS[type];
             if (!def) continue;
@@ -676,7 +675,8 @@ export default {
             });
         }
 
-        // Rect wall — drag corner-to-corner to outline a room
+        // Rect wall — drag corner-to-corner to outline a room (Military tab only)
+        if (this.scene.buildCat === 'Military')
         items.push({
             label: 'Room', sublabel: 'drag rect',
             color: this.scene.wallRectMode ? 0x556688 : 0x223344,
@@ -691,6 +691,8 @@ export default {
             },
         });
 
+        // Road — infrastructure, shown under Structures and Military
+        if (this.scene.buildCat === 'Structures' || this.scene.buildCat === 'Military')
         items.push({
             label: 'Road', sublabel: '1s',
             color: this.scene.roadMode ? 0x4a5a28 : 0x2a2010,

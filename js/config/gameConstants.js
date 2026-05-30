@@ -57,10 +57,11 @@ export function blendTraits(fTraits = [], mTraits = []) {
 
 // ─── Genetic helpers (M4) ────────────────────────────────────────────────────
 
-const _SKIN = [0xc8a878, 0xb8945e, 0xa87848, 0xd4b888, 0x9a6840, 0xc09060];
-const _HAIR = [0x2a1a08, 0x3a2010, 0x1a1008, 0x5a3820, 0x4a2c18, 0x180808];
-const _EYE  = [0x5a6840, 0x3a4820, 0x6a5830, 0x4a3818, 0x385030, 0x2a3828];
-const _pick = arr => arr[Math.floor(Math.random() * arr.length)];
+const _SKIN  = [0xc8a878, 0xb8945e, 0xa87848, 0xd4b888, 0x9a6840, 0xc09060];
+const _HAIR  = [0x2a1a08, 0x3a2010, 0x1a1008, 0x5a3820, 0x4a2c18, 0x180808];
+const _EYE   = [0x5a6840, 0x3a4820, 0x6a5830, 0x4a3818, 0x385030, 0x2a3828];
+const _TUNIC = [0xf0e8d0, 0xd4956a, 0xa8b878, 0xe8c050, 0x9ab8d0, 0xd8a890];
+const _pick  = arr => arr[Math.floor(Math.random() * arr.length)];
 
 export const V25_SKILLS = [
   'farming','woodcutting','mining','masonry',
@@ -86,9 +87,30 @@ export function blendAttributes(a1, a2) {
   return out;
 }
 
-export function randomPhenotype() {
+// Gender-specific hair styles (rendered in content/units/worker.js). `curls` is shared
+// so a curly-haired parent can pass it to a child of either gender.
+const _HAIR_STYLES_M = ['curls', 'curls', 'short', 'short', 'bald'];   // weighted
+const _HAIR_STYLES_F = ['long', 'long', 'bun', 'curls'];
+export function hairStylesFor(gender) {
+  return gender === 'female' ? _HAIR_STYLES_F : _HAIR_STYLES_M;
+}
+export function randomHairStyle(gender) {
+  return _pick(hairStylesFor(gender));
+}
+// A child inherits the same-gender parent's style when it's valid for the child;
+// otherwise (or on a small mutation chance) a random gender-appropriate style.
+export function inheritHairStyle(gender, fatherStyle, motherStyle) {
+  const pool = hairStylesFor(gender);
+  const inherited = gender === 'female' ? motherStyle : fatherStyle;
+  if (inherited && pool.includes(inherited) && Math.random() > 0.15) return inherited;
+  return _pick(pool);
+}
+
+export function randomPhenotype(gender = null) {
   return {
     skinHex: _pick(_SKIN), hairHex: _pick(_HAIR), eyeHex: _pick(_EYE),
+    tunicHex: _pick(_TUNIC),
+    hairStyle: randomHairStyle(gender),
     heightScale: 0.85 + Math.random() * 0.3,
   };
 }
@@ -103,9 +125,10 @@ export function blendPhenotype(p1, p2) {
     return (r<<16)|(g<<8)|bl;
   };
   return {
-    skinHex: bh(p1.skinHex, p2.skinHex),
-    hairHex: bh(p1.hairHex, p2.hairHex),
-    eyeHex:  bh(p1.eyeHex,  p2.eyeHex),
+    skinHex:  bh(p1.skinHex,  p2.skinHex),
+    hairHex:  bh(p1.hairHex,  p2.hairHex),
+    eyeHex:   bh(p1.eyeHex,   p2.eyeHex),
+    tunicHex: bh(p1.tunicHex ?? _pick(_TUNIC), p2.tunicHex ?? _pick(_TUNIC)),
     heightScale: Math.max(0.6, Math.min(1.4,
       (p1.heightScale + p2.heightScale) / 2 + (Math.random() * 0.1 - 0.05))),
   };
@@ -198,19 +221,43 @@ export const ROAD_NONE   = 0;  // no road
 export const ROAD_DESIRE = 1;  // worn desire path  — ×1.15 speed bonus
 export const ROAD_PAVED  = 2;  // player-built road — ×1.45 speed bonus
 export const ROAD_SPD    = [1.0, 1.15, 1.45];  // indexed by ROAD_* constant
-export const DESIRE_THRESHOLD  = 120;   // traffic count before a desire path appears
-export const HUNGER_THRESHOLD  = 28;    // game-seconds between meals (~3 meals per 90s day)
+export const DESIRE_THRESHOLD  = 240;   // traffic count before a desire path appears (8-min days → more traffic/day)
+export const HUNGER_THRESHOLD  = 56;    // game-seconds between meals (~3 meals per 8-min day)
 export const TRAFFIC_DECAY_PER_DAY = 18; // subtracted from every tile each day transition
 
 // ─── Construct Definitions ────────────────────────────────────────────────────
 
 // ─── Day/Night Cycle Constants ──────────────────────────────────────────────
 
-export const DAY_DURATION    = 90000;   // 90s day
-export const NIGHT_DURATION  = 90000;   // 90s night
+export const DAY_DURATION    = 240000;  // 240s day  — full day/night cycle = 8 min
+export const NIGHT_DURATION  = 240000;  // 240s night
 export const WIN_NIGHTS      = 20;    // number of nights to survive to win
 export const SEASONS         = ['Spring', 'Summer', 'Autumn', 'Winter'];
-export const SEASON_DAYS     = 8;     // days per season
+export const SEASON_DAYS     = 30;    // days per season → 4 seasons = 120-day year
+export function currentSeason(day) { return SEASONS[Math.floor(((day ?? 1) - 1) / SEASON_DAYS) % 4]; }
+
+// ─── Aging scale ─────────────────────────────────────────────────────────────
+// Units age realistically: ~1 biological year per in-game day. The integer life-stage
+// `age` (0 child, 1 youth, 2 adult, …, 10 elder) is derived as floor(ageYears / YEARS_PER_AGE_STEP),
+// so every existing age-stage check keeps working while lifespans land around 60+ years
+// (≈60 in-game days). See WorldManager.ageUpUnits.
+export const YEARS_PER_DAY       = 1;
+export const YEARS_PER_AGE_STEP  = 6;
+export const ageToStage = (years) => Math.floor((years ?? 0) / YEARS_PER_AGE_STEP);
+
+// ─── Forward provisioning ─────────────────────────────────────────────────────
+// Per-worker, per-day target stock for staple outputs. Units gather/farm/cook toward
+// population × percapita × bufferDays (see EconomyManager.provisioningPressure), so the
+// colony builds a buffer ahead of need instead of only reacting to empty storage.
+export const PROVISION_BUFFER_DAYS = 2;
+export const PROVISION_PERCAPITA = {
+  // staple foods (raw + processed both count toward keeping people fed)
+  'Food.Grain.Wheat': 1.2, 'Food.Grain.Wheat.Bread': 1.0,
+  'Food.Produce.Berry': 1.0, 'Food.Produce.Olive': 0.8,
+  'Food.Meat.Venison': 0.7,
+  // key materials / fuel
+  'Materials.Wood.Pine': 1.0, 'Materials.Stone.Limestone': 0.5,
+};
 
 // ─── UI / Display Constants ──────────────────────────────────────────────────
 

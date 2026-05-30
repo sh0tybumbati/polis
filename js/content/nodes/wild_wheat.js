@@ -1,8 +1,8 @@
 export default {
     id: 'wild_wheat',
     resource: 'Food.Grain.Wheat',
-    stock: 60,
-    respawnDays: 3,
+    stockMin: 10, stockMax: 26,
+    respawnDays: 4,
     role: 'forager',
 
     draw(gfx, _n, alpha) {

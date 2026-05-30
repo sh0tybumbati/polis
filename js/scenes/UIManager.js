@@ -71,6 +71,7 @@ export default class UIManager {
         this._unitTab      = 'Stats';
         this._constructTab = 'Info';
         this._oikosTab     = 'Family';
+        this._zoneTab      = 'Info';
         // Right panel (actions) tab state
         this._actUnitTab       = 'Jobs';
         this._actMilTab        = 'Move';
@@ -121,7 +122,7 @@ export default class UIManager {
             stroke: '#000000', strokeThickness: 4,
         }).setOrigin(0.5).setDepth(100).setAlpha(0));
 
-        this.scene.buildCat = this.scene.buildCat ?? 'Civil';
+        this.scene.buildCat = this.scene.buildCat ?? 'Structures';
         this.updateUI();
     }
 
@@ -235,7 +236,7 @@ export default class UIManager {
             this._activePanel = id;
             if (id === 'zones')     this.scene.buildCat = 'Zones';
             else if (id === 'architect' && this.scene.buildCat === 'Zones')
-                                    this.scene.buildCat = 'Civil';
+                                    this.scene.buildCat = 'Structures';
             if (id === 'people')    this._censusPage = 0;
         }
         this.updateUI();
@@ -289,9 +290,11 @@ export default class UIManager {
             this.L.QB_H    = 0;
             this._renderInfoPane();
 
-            // Float panel — right of inspector; skip for unit-only selections
+            // Float panel — right of inspector
+            // Skip for unit-only selections and for zone-tile-only selections (info pane handles those)
             const onlyUnits = sel.length > 0 && !construct && !this.scene.selectedZoneTile && !hasTool;
-            if (!onlyUnits) {
+            const onlyZone  = !!this.scene.selectedZoneTile && sel.length === 0 && !construct;
+            if (!onlyUnits && !onlyZone) {
                 const rx = INSP_W, rw = FLOAT_W;
                 this._drawPanelBg(o => this._tab(o), rx, panelTopY, rw, panelH);
                 this.L.ACT_X = rx;
@@ -301,14 +304,12 @@ export default class UIManager {
                     this._renderActiveToolPanel(rx, panelTopY, rw, panelH);
                 } else if (construct) {
                     this._renderConstructActions(construct, rx, panelTopY, rw, panelH);
-                } else if (this.scene.selectedZoneType === 'grow' && this.scene.selectedZoneTile) {
-                    this._renderGrowZonePanel(rx, panelTopY, rw, panelH);
-                } else if (this.scene.selectedZoneType && this.scene.selectedZoneTile) {
-                    this._renderZonePanel(rx, panelTopY, rw, panelH);
                 }
             }
 
         } else if (hasTool) {
+            // While actively painting a zone, suppress the panel — mode hint bar above toolbar is enough
+            if (this._activePanel === 'zones' && this.scene.zoneMode) return;
             const compact = this._activePanel === 'zones' || this._activePanel === 'orders';
             const fw = compact ? Math.min(200, W) : Math.min(FLOAT_W, W);
             this._drawPanelBg(o => this._tab(o), 0, panelTopY, fw, panelH);
@@ -352,7 +353,7 @@ export default class UIManager {
     _renderBuildPanel(x, y, w, h) {
         const CAT_W = 140;
         const gap   = 3;
-        const cats  = [...Object.keys(CONSTRUCT_CATS).filter(k => k !== 'Furnish'), 'Furnish'];
+        const cats  = [...Object.keys(CONSTRUCT_CATS)];
         const cols  = 2;
         const rows  = Math.ceil(cats.length / cols);
         const btnW  = Math.floor((CAT_W - gap * (cols + 1)) / cols);
@@ -408,8 +409,8 @@ export default class UIManager {
 
     _buildCatItems() {
         const s = this.scene;
-        if (s.buildCat === 'Furnish') {
-            return (CONSTRUCT_CATS['Furnish'] ?? []).filter(t => CONSTRUCTS[t]).map(type => {
+        if (s.buildCat === 'Furniture') {
+            return (CONSTRUCT_CATS['Furniture'] ?? []).filter(t => CONSTRUCTS[t]).map(type => {
                 const def = CONSTRUCTS[type];
                 const isActive = s.placementType === type && s.constructMode;
                 return {
@@ -1074,8 +1075,9 @@ export default class UIManager {
         const { W, TOOLBAR_Y } = this.L;
         const baseY = TOOLBAR_Y - 10;
         this._toasts = (this._toasts ?? []).filter(t => t.active);
+        // Bump existing toasts upward (position only — never touch their lifecycle, so the
+        // guaranteed-destroy timer below is never orphaned when toasts stack rapidly).
         this._toasts.forEach(t => {
-            this.scene.tweens.killTweensOf(t);
             this.scene.tweens.add({ targets: t, y: t.y - 20, duration: 150, ease: 'Sine.easeOut' });
         });
         const t = this.scene.add.text(W / 2, baseY, msg, {
@@ -1085,17 +1087,18 @@ export default class UIManager {
         }).setOrigin(0.5, 1).setDepth(60).setAlpha(0);
         this._ui(t);
         this._toasts.push(t);
-        this.scene.tweens.add({
-            targets: t, alpha: 1, y: baseY - 6,
-            duration: 180, ease: 'Sine.easeOut',
-            onComplete: () => {
-                this.scene.tweens.add({
-                    targets: t, alpha: 0, y: baseY - 18,
-                    duration: 600, delay: 2200, ease: 'Sine.easeIn',
-                    onComplete: () => { t.destroy(); this._toasts = (this._toasts ?? []).filter(x => x !== t); },
-                });
-            },
-        });
+        // Fade in (alpha only — vertical position is owned by the bump tween above).
+        this.scene.tweens.add({ targets: t, alpha: 1, duration: 180, ease: 'Sine.easeOut' });
+        // Guaranteed lifetime: a fixed timer fades the toast out and destroys it regardless of
+        // any bump tweens, so a toast can never get stranded on screen.
+        const kill = () => {
+            if (!t.active) return;
+            this.scene.tweens.add({
+                targets: t, alpha: 0, duration: 600, ease: 'Sine.easeIn',
+                onComplete: () => { t.destroy(); this._toasts = (this._toasts ?? []).filter(x => x !== t); },
+            });
+        };
+        t._toastTimer = this.scene.time.delayedCall(2400, kill);
     }
 
     // ─── Pause Menu ───────────────────────────────────────────────────────────

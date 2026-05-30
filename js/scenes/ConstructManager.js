@@ -3,6 +3,19 @@ import {
 } from '../config/gameConstants.js';
 import { CONSTRUCTS, computeBuildCost } from '../content/constructs/index.js';
 
+// Durability multiplier on an edge construct's HP, by the material it was built from.
+// Order matters: most-specific resource paths are tested first (loose Stones before cut
+// Limestone, Sticks before solid Pine).
+export function materialHpMult(mat) {
+    if (!mat) return 1.0;
+    if (mat.includes('Metal.Iron') || mat.includes('Metal'))     return 2.5;  // iron — toughest
+    if (mat.includes('Stone.Limestone.Stones'))                  return 1.3;  // loose field stones
+    if (mat.includes('Stone'))                                   return 2.0;  // cut/solid stone
+    if (mat.includes('Wood.Pine.Sticks'))                        return 0.7;  // flimsy sticks
+    if (mat.includes('Wood'))                                    return 1.0;  // timber
+    return 1.0;
+}
+
 export default class ConstructManager {
     constructor(scene) {
         this.scene = scene;
@@ -178,6 +191,7 @@ export default class ConstructManager {
         const c = this.makeConstructObj(type, tx, ty, true);
         c.resNeeded = {};
         this.constructs.push(c);
+        this._byId.set(c.id, c);   // register for getById (camps/agora/etc. were missing this)
 
         if (CONSTRUCTS[type]?.isHomeType) {
             this.registerEstateBounds(c);
@@ -243,7 +257,34 @@ export default class ConstructManager {
     }
 
     getHouseCapacity(house) {
+        if (house?.type === 'bed') return this._bedsInRoom(house).length;
         return CONSTRUCTS[house.type]?.capacity || 4;
+    }
+
+    // ── Bedroom homes ─────────────────────────────────────────────────────────
+    // An enclosed room (bounded getRoomAt) containing built beds is a home; its
+    // capacity is the number of beds in it. Results memoised per constructs-version.
+    _bedsInRoom(bed) {
+        if (!bed || bed.type !== 'bed') return bed ? [bed] : [];
+        if (bed._brCv === this._cv && bed._brBeds) return bed._brBeds;
+        const room = this.getRoomAt(bed.tx, bed.ty, 80);
+        let beds;
+        if (!room) {
+            beds = [bed];   // unbounded / too large — treat as a lone slot
+        } else {
+            const inRoom = new Set(room.map(t => `${t.tx},${t.ty}`));
+            beds = this.constructs.filter(c => c.type === 'bed' && c.built && !c.faction
+                && inRoom.has(`${c.tx},${c.ty}`));
+            if (!beds.length) beds = [bed];
+        }
+        for (const b of beds) { b._brCv = this._cv; b._brBeds = beds; }
+        return beds;
+    }
+
+    // Stable home anchor for a bedroom: the lowest-id built bed sharing the room.
+    bedroomAnchor(bed) {
+        const beds = this._bedsInRoom(bed);
+        return beds.reduce((a, b) => (b.id < a.id ? b : a), beds[0]);
     }
 
     getHouseVolume(house) {
@@ -257,19 +298,22 @@ export default class ConstructManager {
     demolishConstruct(construct, refundFraction = 0.5) {
         if (construct.type === 'townhall') return;
         const def = CONSTRUCTS[construct.type];
-        const cost = def?.cost ?? {};
-        const resNeeded = construct.resNeeded ?? {};
-        for (const [r, n] of Object.entries(cost)) {
-            const spent = n - (resNeeded[r] ?? 0);
-            if (spent > 0) {
-                const refund = Math.floor(spent * refundFraction);
+        if (!construct.built) {
+            // Cancelled plan: nothing was consumed, so return everything delivered on-site.
+            for (const [r, qty] of Object.entries(construct.inventory ?? {})) {
+                if (qty > 0) this.scene.economyManager.addResource(r, qty);
+            }
+        } else {
+            // Deconstructed build: return a fraction of what it cost to build.
+            const cost = construct.placement === 'edge'
+                ? (def?.costs?.[construct.material] ?? def?.cost ?? {})
+                : computeBuildCost(construct.type, construct.material ?? undefined);
+            for (const [r, n] of Object.entries(cost)) {
+                const refund = Math.floor(n * refundFraction);
                 if (refund > 0) this.scene.economyManager.addResource(r, refund);
             }
         }
-        for (const [r, qty] of Object.entries(construct.inventory ?? {})) {
-            if (qty > 0) this.scene.economyManager.addResource(r, Math.floor(qty * refundFraction));
-        }
-        
+
         this.removeConstruct(construct);
 
         if (CONSTRUCTS[construct.type]?.isHomeType && construct.domainId) {
@@ -279,6 +323,24 @@ export default class ConstructManager {
         if (this.scene.selectedConstruct === construct) this.scene.selectedConstruct = null;
         this.scene.mapManager.redrawDomainBorders();
         this.scene.updateUI();
+    }
+
+    // Flag a built construct for deconstruction — builders pick it up via seekBuilderTask's
+    // deconSite scan and work it down in handleDeconstructTask, then demolishConstruct refunds.
+    orderDeconstruct(b) {
+        if (!b?.built || b.type === 'townhall' || b.faction) return;
+        b.deconstructing = true;
+        b.deconstructWork = b.maxBuildWork ?? Math.max(5, Math.round((b.maxHp ?? 15) / 3));
+        this.renderAll();
+        this.scene.updateUI?.();
+    }
+
+    cancelDeconstruct(b) {
+        if (!b) return;
+        b.deconstructing = false;
+        b.deconstructWork = 0;
+        this.renderAll();
+        this.scene.updateUI?.();
     }
 
 
@@ -297,7 +359,7 @@ export default class ConstructManager {
                    : (mat ? { [mat]: 1 } : {});
 
         const work  = def.buildWork || 10;
-        const maxHp = work * 3;
+        const maxHp = Math.round(work * 3 * materialHpMult(mat));
 
         const c = {
             id: this.scene.getId(),
@@ -439,6 +501,7 @@ export default class ConstructManager {
     // ─── Rendering ─────────────────────────────────────────────────────────────
 
     renderAll() {
+        this._cv = (this._cv ?? 0) + 1;   // constructs-version: bumped on any add/remove/build
         if (!this.constructGfx || !this.edgeGfx) return;
         this.constructGfx.clear();
         this.edgeGfx.clear();
@@ -548,24 +611,74 @@ export default class ConstructManager {
 
     // ─── Domain & Storage Logic (from ConstructManager) ─────────────────────────
 
-    registerEstateBounds(house) {
-        const pad = 3;
+    // Estate = a family's private land: a square radius `r` around a centre that grows over
+    // time (growEstates). x1..y2 are derived from cx±r so getEstateAt / border rendering stay
+    // rectangle-based. familyId identifies the owning family (1:1 with the estate).
+    createEstate(cx, cy, familyId, anchorId, r0 = 2) {
         const dom = {
             id: this.scene.getId(),
-            houseConstructId: house.id,
-            x1: house.tx - pad,
-            y1: house.ty - pad,
-            x2: house.tx + house.width - 1 + pad,
-            y2: house.ty + house.height - 1 + pad,
+            familyId, anchorConstructId: anchorId, houseConstructId: anchorId,
+            cx, cy, r: r0, maxR: 8,
+            x1: cx - r0, y1: cy - r0, x2: cx + r0, y2: cy + r0,
         };
         this.scene.estateBounds.push(dom);
-        house.domainId = dom.id;
         this.scene.mapManager.redrawDomainBorders();
+        return dom;
+    }
+
+    registerEstateBounds(house) {
+        const cx = house.tx + Math.floor((house.width ?? 1) / 2);
+        const cy = house.ty + Math.floor((house.height ?? 1) / 2);
+        const dom = this.createEstate(cx, cy, house.id, house.id, 3);
+        house.domainId = dom.id;
         return dom;
     }
 
     getEstateAt(tx, ty) {
         return this.scene.estateBounds.find(d => tx >= d.x1 && tx <= d.x2 && ty >= d.y1 && ty <= d.y2);
+    }
+
+    // Square cultural border around the civic centre; radius scales with population. Estates
+    // grow only within it; land inside the border but in no estate is public.
+    culturalBounds() {
+        const civic = this.constructs.find(b => b.type === 'townhall' && b.built && !b.faction)
+                   || this.constructs.find(b => b.type === 'camp' && !b.faction);
+        const cx = civic ? civic.tx + Math.floor((civic.width ?? 1) / 2) : (this.scene.spawnTx ?? 20);
+        const cy = civic ? civic.ty + Math.floor((civic.height ?? 1) / 2) : (this.scene.spawnTy ?? 20);
+        const pop = this.scene.units.filter(u => u.type === 'worker' && !u.isEnemy && u.hp > 0).length;
+        const R = Math.min(30, Math.round(6 + 1.5 * Math.sqrt(pop)));
+        return { cx, cy, R };
+    }
+
+    // Grow each estate one tile/day until it nears a neighbour (1-tile gap) or the border.
+    growEstates() {
+        const { cx: bcx, cy: bcy, R } = this.culturalBounds();
+        const ests = this.scene.estateBounds;
+        for (const d of ests) {
+            if (d.cx == null || d.r >= (d.maxR ?? 8)) continue;
+            const nr = d.r + 1;
+            const n = { x1: d.cx - nr, y1: d.cy - nr, x2: d.cx + nr, y2: d.cy + nr };
+            if (n.x1 < bcx - R || n.x2 > bcx + R || n.y1 < bcy - R || n.y2 > bcy + R) continue;
+            let blocked = false;
+            for (const o of ests) {
+                if (o === d || o.cx == null) continue;
+                if (n.x1 <= o.x2 + 1 && n.x2 >= o.x1 - 1 && n.y1 <= o.y2 + 1 && n.y2 >= o.y1 - 1) { blocked = true; break; }
+            }
+            if (blocked) continue;
+            d.r = nr; d.x1 = n.x1; d.y1 = n.y1; d.x2 = n.x2; d.y2 = n.y2;
+        }
+        this.scene.mapManager.redrawDomainBorders();
+    }
+
+    // Total built beds within an estate's bounds — the family's breeding/housing capacity.
+    estateBedCapacity(estate) {
+        if (!estate) return 0;
+        let n = 0;
+        for (const c of this.constructs) {
+            if (c.type !== 'bed' || !c.built || c.faction) continue;
+            if (c.tx >= estate.x1 && c.tx <= estate.x2 && c.ty >= estate.y1 && c.ty <= estate.y2) n++;
+        }
+        return n;
     }
 
     updateStorageCap() {

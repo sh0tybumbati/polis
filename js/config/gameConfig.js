@@ -8,6 +8,7 @@ export const GAME_CONFIG = {
   },
   render: {
     antialias: false,
+    resolution: Math.min(2, window.devicePixelRatio ?? 1),
   },
   input: {
     mouse: {

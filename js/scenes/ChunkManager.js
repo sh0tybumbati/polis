@@ -157,6 +157,22 @@ export default class ChunkManager {
             return chunk.biomes[ly * CHUNK_SIZE + lx];
         };
 
+        const _makeNode = (type, wx, wy) => {
+            const def = NODES[type];
+            if (!def) return null;
+            const minS = def.stockMin ?? def.stock ?? 1;
+            const maxS = def.stockMax ?? def.stock ?? minS;
+            const s = Math.floor(rng() * (maxS - minS + 1)) + minS;
+            const isTree = type === 'small_tree' || type === 'large_tree';
+            return {
+                id: this.scene.getId(), type, x: wx, y: wy,
+                stock: s, maxStock: maxS,
+                gfx: null, labelObj: null,
+                dormantTimer: 0, sapling: false, saplingTimer: 0,
+                ...(isTree ? { treeAge: 0 } : {}),
+            };
+        };
+
         const tryPlace = (type, count, okFn) => {
             const placed = [];
             const existing = this.scene.resNodes;
@@ -173,15 +189,32 @@ export default class ChunkManager {
                 const tooClose = existing.some(n => Phaser.Math.Distance.Between(wx, wy, n.x, n.y) < 40)
                               || placed.some(n => Phaser.Math.Distance.Between(wx, wy, n.x, n.y) < 40);
                 if (tooClose) continue;
-                const def = NODES[type];
-                if (!def) continue;
-                const node = {
-                    id: this.scene.getId(), type, x: wx, y: wy,
-                    stock: def.stock, maxStock: def.stock,
-                    gfx: null, labelObj: null,
-                    dormantTimer: 0, sapling: false, saplingTimer: 0,
-                };
-                placed.push(node);
+                const node = _makeNode(type, wx, wy);
+                if (node) placed.push(node);
+            }
+            return placed;
+        };
+
+        const tryCluster = (type, count, okFn, clusterRadius = 2) => {
+            const placed = [];
+            const existing = this.scene.resNodes;
+            let cTx = -1, cTy = -1;
+            for (let i = 0; i < 20 && cTx === -1; i++) {
+                const lx = Math.floor(rng() * (CHUNK_SIZE - 6)) + 3;
+                const ly = Math.floor(rng() * (CHUNK_SIZE - 6)) + 3;
+                const tx = cx * CHUNK_SIZE + lx, ty = cy * CHUNK_SIZE + ly;
+                if (okFn(getT(tx, ty), getB(tx, ty), tx, ty)) { cTx = tx; cTy = ty; }
+            }
+            if (cTx === -1) return placed;
+            for (let attempt = 0; attempt < count * 8 && placed.length < count; attempt++) {
+                const tx = cTx + Math.round((rng() * 2 - 1) * clusterRadius);
+                const ty = cTy + Math.round((rng() * 2 - 1) * clusterRadius);
+                if (!okFn(getT(tx, ty), getB(tx, ty), tx, ty)) continue;
+                const wx = tx * TILE + TILE / 2, wy = MAP_OY + ty * TILE + TILE / 2;
+                if (existing.some(n => Phaser.Math.Distance.Between(wx, wy, n.x, n.y) < 28)) continue;
+                if (placed.some(n => Phaser.Math.Distance.Between(wx, wy, n.x, n.y) < 22)) continue;
+                const node = _makeNode(type, wx, wy);
+                if (node) placed.push(node);
             }
             return placed;
         };
@@ -198,28 +231,35 @@ export default class ChunkManager {
         const nodes = [];
 
         if (centerBiome === 0) { // heartland
-            nodes.push(...tryPlace('berry_bush', 2, (t) => t === T_GRASS));
-            nodes.push(...tryPlace('small_tree', 1, (t) => t === T_GRASS || t === T_FOREST));
-            nodes.push(...tryPlace('small_boulder', 1, (t) => t !== T_WATER));
+            nodes.push(...tryCluster('berry_bush', 5, (t) => t === T_GRASS));
+            // Two larger small-tree groves + an occasional oak stand — trees common in the heartland
+            nodes.push(...tryCluster('small_tree', 7, (t) => t === T_GRASS || t === T_FOREST, 3));
+            nodes.push(...tryCluster('small_tree', 6, (t) => t === T_GRASS || t === T_FOREST, 3));
+            nodes.push(...tryCluster('large_tree', 4, (t) => t === T_FOREST || t === T_GRASS, 3));
+            nodes.push(...tryCluster('small_boulder', 4, (t) => t !== T_WATER));
+            nodes.push(...tryCluster('scrub', 5, (t) => t === T_GRASS || t === T_SAND));
             if (distFromSpawn > 1) {
-                nodes.push(...tryPlace('wild_garden', 1, (t) => t === T_GRASS));
-                nodes.push(...tryPlace('olive_grove', 1, (t) => t === T_GRASS || t === T_SAND));
+                nodes.push(...tryCluster('wild_garden', 3, (t) => t === T_GRASS));
+                nodes.push(...tryCluster('olive_grove', 2, (t) => t === T_GRASS || t === T_SAND));
             }
-            nodes.push(...tryPlace('scrub', 2, (t) => t === T_GRASS || t === T_SAND));
         } else if (centerBiome === 1) { // scrubland
-            nodes.push(...tryPlace('small_boulder', 2, (t) => t !== T_WATER));
-            nodes.push(...tryPlace('large_boulder', 1, (t) => t !== T_WATER));
-            nodes.push(...tryPlace('small_tree', 1, (t) => t === T_GRASS || t === T_FOREST));
-            nodes.push(...tryPlace('scrub', 2, (t) => t === T_GRASS || t === T_SAND));
-            nodes.push(...tryPlace('olive_grove', 1, (t) => t === T_GRASS || t === T_SAND));
+            nodes.push(...tryCluster('small_boulder', 5, (t) => t !== T_WATER));
+            nodes.push(...tryCluster('large_boulder', 4, (t) => t !== T_WATER));
+            nodes.push(...tryCluster('small_tree', 5, (t) => t === T_GRASS || t === T_FOREST, 3));
+            nodes.push(...tryCluster('scrub', 7, (t) => t === T_GRASS || t === T_SAND));
+            nodes.push(...tryCluster('olive_grove', 2, (t) => t === T_GRASS || t === T_SAND));
         } else if (centerBiome === 2) { // forest
-            nodes.push(...tryPlace('large_tree', 2, (t) => t === T_FOREST || t === T_GRASS));
-            nodes.push(...tryPlace('small_tree', 1, (t) => t === T_FOREST || t === T_GRASS));
-            nodes.push(...tryPlace('large_boulder', 1, (t) => t !== T_WATER));
+            // Dense forest — two large groves plus an understory of small trees
+            nodes.push(...tryCluster('large_tree', 8, (t) => t === T_FOREST || t === T_GRASS, 3));
+            nodes.push(...tryCluster('large_tree', 6, (t) => t === T_FOREST || t === T_GRASS, 3));
+            nodes.push(...tryCluster('small_tree', 6, (t) => t === T_FOREST || t === T_GRASS, 3));
+            nodes.push(...tryCluster('large_boulder', 3, (t) => t !== T_WATER));
+            nodes.push(...tryCluster('scrub', 3, (t) => t === T_GRASS || t === T_FOREST));
             nodes.push(...tryPlace('ore_vein', 1, (t) => t === T_ROCK || t === T_FOREST));
         } else { // badlands
-            nodes.push(...tryPlace('large_boulder', 1, (t) => t !== T_WATER));
-            nodes.push(...tryPlace('small_boulder', 1, (t) => t !== T_WATER));
+            nodes.push(...tryCluster('large_boulder', 4, (t) => t !== T_WATER));
+            nodes.push(...tryCluster('small_boulder', 3, (t) => t !== T_WATER));
+            nodes.push(...tryCluster('scrub', 4, (t) => t !== T_WATER));
             nodes.push(...tryPlace('ore_vein', 1, (t) => t === T_ROCK));
         }
 

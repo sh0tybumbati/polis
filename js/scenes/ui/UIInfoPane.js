@@ -63,26 +63,36 @@ export default {
 
         if (!b.built) {
             const barW = W - pad * 2 - 4;
-            const remaining = Object.values(b.resNeeded ?? {}).reduce((s, v) => s + v, 0);
+            const inv  = b.inventory ?? {};
+            const need = b.resNeeded ?? {};
+            const mats = [...new Set([...Object.keys(need), ...Object.keys(inv)])]
+                .filter(r => (need[r] ?? 0) + (inv[r] ?? 0) > 0);
+            const remaining = Object.values(need).reduce((s, v) => s + v, 0);
+            const totalCost = mats.reduce((s, r) => s + (need[r] ?? 0) + (inv[r] ?? 0), 0);
+            const delivered = mats.reduce((s, r) => s + (inv[r] ?? 0), 0);
+
             let ratio, barCol, phaseLabel;
             if (remaining > 0) {
-                const totalCost = Object.values(computeBuildCost(b.type)).reduce((s, v) => s + v, 0);
-                ratio = totalCost > 0 ? Math.max(0, 1 - remaining / totalCost) : 0;
+                // Delivery phase: bar = materials delivered / total bill.
+                ratio = totalCost > 0 ? delivered / totalCost : 0;
                 barCol = 0xff8833;
-                const needsStr = Object.entries(b.resNeeded ?? {}).filter(([, n]) => n > 0)
-                    .map(([r, n]) => `${n} ${r.split('.').pop().slice(0, 4)}`).join('  ');
-                phaseLabel = `📦 ${needsStr}`;
+                const bom = mats.map(r =>
+                    `${inv[r] ?? 0}/${(need[r] ?? 0) + (inv[r] ?? 0)} ${r.split('.').pop().slice(0, 5)}`).join('   ');
+                phaseLabel = `📦 ${bom}`;
             } else {
                 ratio = b.maxBuildWork > 0 ? Math.max(0, 1 - b.buildWork / b.maxBuildWork) : 0;
                 barCol = 0xffdd44;
-                phaseLabel = '⚒ construct…';
+                phaseLabel = '⚒ constructing…';
             }
             this._infBar(ox + pad, cy + 18, barW, 8, ratio, barCol);
             this._infTxt(ox + pad + barW - 2, cy + 17, `${Math.round(ratio * 100)}%`,
                 { fontSize: this._fs(8), color: '#9a9077' }).setOrigin(1, 0);
             this._infTxt(ox + pad, cy + 29, phaseLabel,
                 { fontSize: this._fs(9), color: '#9a9077', wordWrap: { width: barW } });
-            this._infBtn(ox + pad, cy + ch - 32, W - pad * 2 - 4, 28, 'Cancel Build', 0x443322, () => {
+            const ghostMat = b.material ? ` (${b.material.split('.').pop()})` : '';
+            this._infTxt(ox + pad, cy + 44, `🛡 HP when built: ${b.maxHp ?? (b.maxBuildWork ?? 0) * 3}${ghostMat}`,
+                { fontSize: this._fs(9), color: '#8a9aa8' });
+            this._infBtn(ox + pad, cy + ch - 32, W - pad * 2 - 4, 28, 'Cancel order', 0x443322, () => {
                 this.scene.demolishConstruct(b);
             });
             return;
@@ -96,6 +106,12 @@ export default {
 
     _renderConstructDetailInfo(b, def, ox, oy, W, H, pad) {
         let ry = oy;
+
+        // Current / max HP (edges show the material that sets their durability)
+        const matLabel = (b.placement === 'edge' && b.material) ? ` · ${b.material.split('.').pop()}` : '';
+        this._infTxt(ox + pad, ry, `🛡 ${Math.round(b.hp ?? 0)}/${b.maxHp ?? 0} HP${matLabel}`,
+            { fontSize: this._fs(9), color: '#8a9aa8' });
+        ry += 13;
 
         if (!CONSTRUCTS[b.type]?.isHomeType && b.type !== 'townhall') {
             const label = b.isPublic ? '[STATE]' : '[PRIVATE]';
@@ -511,8 +527,9 @@ export default {
         this._infCard(ox + 2, cy, W - 4, ch - 2);
         const fullName = [u.name, u.familyName].filter(Boolean).join(' ');
         this._infTxt(ox + pad, cy + 5, fullName, { fontSize: this._fs(13), color: '#e8d080' });
-        const ageTag = u.age < 2 ? (u.age === 0 ? 'Infant' : 'Youth')
-                     : u.age >= 10 ? `${vet}${nm} · Elder` : `${vet}${nm}`;
+        const _yrs = Math.round(u.ageYears ?? (u.age ?? 0) * 6);
+        const ageTag = u.age < 2 ? (u.age === 0 ? `Infant ${_yrs}y` : `Youth ${_yrs}y`)
+                     : u.age >= 10 ? `${vet}${nm} · Elder ${_yrs}y` : `${vet}${nm} · ${_yrs}y`;
         const roleSecondary = u.type === 'worker' && u.age >= 2
             ? (u.role ? u.role[0].toUpperCase() + u.role.slice(1) : 'Idle') + `  ·  ${ageTag}`
             : ageTag;
@@ -856,14 +873,18 @@ export default {
 
     _renderInlineJobs(workers, ox, oy, W, H, pad) {
         const s = this.scene;
-        const ROLES = [
-            { role: 'farmer',     label: '🌾 Farm',   color: 0x336622 },
-            { role: 'forager',    label: '🍄 Forage', color: 0x2a4a22 },
-            { role: 'woodcutter', label: '🪵 Lumber', color: 0x5a3a18 },
-            { role: 'miner',      label: '⛏ Mine',   color: 0x444444 },
-            { role: 'builder',    label: '🔨 Build',  color: 0x554422 },
-            { role: 'shepherd',   label: '🐑 Herd',   color: 0x445533 },
-            { role: 'hunter',     label: '🏹 Hunt',   color: 0x553322 },
+        if (!workers.length) return;
+        // Per-job priority for the selected worker(s): Off (0) disables the job, 1–4 bias how
+        // urgently the AI picks it (1 = most urgent), '—' = unset/normal. pickRole consumes
+        // u.taskPriorities. Tap a cell to cycle  —→1→2→3→4→Off→—.
+        const JOB_ROWS = [
+            { id: 'farmer',     label: '🌾 Farm'   },
+            { id: 'forager',    label: '🍄 Forage' },
+            { id: 'woodcutter', label: '🪵 Lumber' },
+            { id: 'miner',      label: '⛏ Mine'   },
+            { id: 'builder',    label: '🔨 Build'  },
+            { id: 'shepherd',   label: '🐑 Herd'   },
+            { id: 'hunter',     label: '🏹 Hunt'   },
         ];
         const VOCATIONS = [
             'farmer','hunter','woodcutter','miner','builder','shepherd','forager',
@@ -871,35 +892,34 @@ export default {
             'presser','weaver','brewer','tanner','merchant',
         ];
 
-        const cols = 2;
-        const gap  = 3;
-        const btnW = Math.floor((W - pad * 2 - gap) / cols);
-        const btnH = 22;
-        let ry = oy + 3;
+        this._infTxt(ox + pad, oy + 2, 'Job priority — tap to cycle (Off · 1–4)',
+            { fontSize: this._fs(8), color: '#7a6a4a' });
+        let ry = oy + 14;
+        const rowH = 16, cols = 2;
+        const cellW = Math.floor((W - pad * 2) / cols);
+        const u0 = workers[0];
+        const CYCLE = [undefined, 1, 2, 3, 4, 0];
+        const stLabel = v => v === 0 ? 'Off' : (v >= 1 && v <= 4) ? `P${v}` : '—';
+        const stColor = v => v === 0 ? 0x4a2020 : v === 1 ? 0x3a6a2a : v === 2 ? 0x315a36
+                          : v === 3 ? 0x2a3a4a : v === 4 ? 0x3a2a4a : 0x2a2418;
 
-        // Role buttons — 2-column grid
-        ROLES.forEach((r, i) => {
-            const col = i % cols;
-            const bx  = ox + pad + col * (btnW + gap);
-            const by  = ry + Math.floor(i / cols) * (btnH + gap);
-            const active = workers.length > 0 && workers.every(u => u.role === r.role);
-            this._infBtn(bx, by, btnW, btnH, r.label,
-                active ? r.color + 0x222222 : r.color,
-                () => {
-                    workers.forEach(u => { u.role = r.role; u.taskType = null; u.targetNode = null; u.moveTo = null; });
-                    this.updateUI();
+        // 2-column grid so all jobs fit the short info pane. Each cell is one cycling button.
+        JOB_ROWS.forEach((job, i) => {
+            const col = i % cols, rowi = Math.floor(i / cols);
+            const cx = ox + pad + col * cellW;
+            const cy = ry + rowi * rowH;
+            const cur = u0.taskPriorities?.[job.id];
+            this._infBtn(cx, cy, cellW - 4, rowH - 2, `${job.label}  ${stLabel(cur)}`, stColor(cur), () => {
+                const next = CYCLE[(CYCLE.findIndex(v => v === cur) + 1) % CYCLE.length];
+                workers.forEach(w => {
+                    if (!w.taskPriorities) w.taskPriorities = {};
+                    if (next === undefined) delete w.taskPriorities[job.id];
+                    else w.taskPriorities[job.id] = next;
                 });
-        });
-        ry += Math.ceil(ROLES.length / cols) * (btnH + gap);
-
-        // Clear role
-        if (workers.some(u => u.role) && ry + 20 < oy + H) {
-            this._infBtn(ox + pad, ry, W - pad * 2 - 4, 18, '✕ Clear Role', 0x2a1a10, () => {
-                workers.forEach(u => { u.role = null; u.taskType = null; });
                 this.updateUI();
             });
-            ry += 21;
-        }
+        });
+        ry += Math.ceil(JOB_ROWS.length / cols) * rowH + 6;
 
         // Calling / Vocation — with ◂ ▸ cycle arrows
         if (ry + 18 < oy + H) {
@@ -964,7 +984,6 @@ export default {
         const { tx, ty } = s.selectedZoneTile;
         const zm = s.zoneManager;
         const fm = s.constructManager;
-        const wm = s.constructManager;
         if (!zm) return;
 
         const zoneType  = s.selectedZoneType;
@@ -976,61 +995,91 @@ export default {
         const isGrow    = zoneType === 'grow';
         const isMarket  = zoneType === 'market';
 
-        // Try wall-enclosed room detection for work zones
-        const room          = isWork ? (wm?.getRoomAt(tx, ty) ?? null) : null;
+        const room          = isWork ? (fm?.getRoomAt(tx, ty) ?? null) : null;
         const analysisTiles = room ?? zoneTiles;
+        const rawType       = isWork && fm ? fm.classifyRoom(analysisTiles) : null;
+        const typeLabel     = isGrow    ? `Grow: ${cropKey ?? ''}` :
+                              isStorage ? 'Storage Zone' :
+                              isMarket  ? 'Market Zone' :
+                              rawType   ? rawType[0].toUpperCase() + rawType.slice(1) : 'Work Zone';
+        const headerCol     = isWork ? '#5599ff' : isStorage ? '#ffaa33' : isGrow ? '#88ee55' : '#ffdd66';
+        const expandMode    = isGrow ? `grow:${cropKey}` : zoneType;
 
-        const rawType  = isWork && fm ? fm.classifyRoom(analysisTiles) : null;
-        const typeLabel = isGrow ? `Grow: ${cropKey ?? ''}` :
-            isStorage ? 'Storage Zone' : isMarket ? 'Market Zone' :
-            rawType ? rawType[0].toUpperCase() + rawType.slice(1) : 'Work Zone';
-        const headerCol = isWork ? '#5599ff' : isStorage ? '#ffaa33' : isGrow ? '#88ee55' : '#ffdd66';
+        const TH = this.L?.TAB_H ?? 26;
 
-        this._infCard(ox, oy, W, H);
-        this._infTxt(ox + pad, oy + pad,      typeLabel, { fontSize: this._fs(13), color: headerCol });
-        this._infTxt(ox + pad, oy + pad + 18,
+        // Storage zones get Info / Inv tabs
+        let cy = oy, ch = H;
+        if (isStorage) {
+            if (!['Info', 'Inv'].includes(this._zoneTab)) this._zoneTab = 'Info';
+            this._infTabBar(ox, oy, W, ['Info', 'Inv'], this._zoneTab,
+                t => { this._zoneTab = t; this.updateUI(); });
+            cy = oy + TH;
+            ch = H - TH;
+        }
+
+        this._infCard(ox, cy, W, ch);
+        this._infTxt(ox + pad, cy + pad, typeLabel, { fontSize: this._fs(13), color: headerCol });
+        this._infTxt(ox + pad, cy + pad + 18,
             room ? `Enclosed room · ${room.length} tiles` : `Zone · ${zoneTiles.length} tiles`,
             { fontSize: this._fs(9), color: room ? '#8888aa' : '#6a5830' });
 
-        let ry = oy + pad + 36;
+        // Shared bottom buttons
+        const btnY = cy + ch - 56;
+        this._infBtn(ox + pad, btnY, W - pad * 2, 22, '+ Expand Zone', 0x224433, () => {
+            s.zoneMode = expandMode;
+            s.constructType = null; s.roadMode = false;
+            s.wallMode = false; s.constructMode = false;
+            s.zoneManager?.clearSelection();
+            s.selectedZoneTile = null; s.selectedZoneTiles = null;
+            s.selectedZoneType = null; s.selectedZoneCrop  = null;
+            s.hoverGfx?.clear();
+            this.updateUI();
+        });
+        this._infBtn(ox + pad, btnY + 28, W - pad * 2, 22, 'Erase · ✕ Close', 0x442222, () => {
+            for (const { tx: etx, ty: ety } of zoneTiles) zm.erase(etx, ety);
+            s.zoneManager?.clearSelection();
+            s.selectedZoneTile = null; s.selectedZoneTiles = null;
+            s.selectedZoneType = null; s.selectedZoneCrop  = null;
+            this.updateUI();
+        });
 
-        if (isWork && fm) {
-            const appList = analysisTiles
-                .map(t => { const it = fm.getAt(t.tx, t.ty); return it?.built ? CONSTRUCTS[it.type] : null; })
-                .filter(Boolean);
-            if (appList.length) {
-                this._infTxt(ox + pad, ry, 'Appliances:', { fontSize: this._fs(9), color: '#7a7060' });
-                ry += 12;
-                const grouped = {};
-                appList.forEach(d => grouped[d.label] = (grouped[d.label] ?? 0) + 1);
-                for (const [lbl, cnt] of Object.entries(grouped)) {
-                    this._infTxt(ox + pad + 6, ry, `${cnt > 1 ? cnt + '× ' : ''}${lbl}`,
-                        { fontSize: this._fs(10), color: '#c8c0a0' });
-                    ry += 13;
+        let ry = cy + pad + 36;
+
+        // Storage: Inv tab — resource list
+        if (isStorage && this._zoneTab === 'Inv') {
+            const zoneInv = {};
+            for (const t of zoneTiles) {
+                const cfg = zm.storageTiles?.get(zm.tileKey(t.tx, t.ty));
+                for (const [res, qty] of Object.entries(cfg?.inventory ?? {})) {
+                    if (qty > 0) zoneInv[res] = (zoneInv[res] ?? 0) + qty;
                 }
-            } else {
-                this._infTxt(ox + pad, ry, 'No appliances built', { fontSize: this._fs(9), color: '#5a5040' });
-                ry += 13;
             }
-            const zoneKeys = new Set(analysisTiles.map(t => zm.tileKey(t.tx, t.ty)));
-            const assigned = s.units.filter(u =>
-                (u.taskType === 'zone_workshop' || u.taskType === 'build_furniture') &&
-                zoneKeys.has(u.taskZoneKey ?? -1)
-            ).length;
-            ry += 3;
-            this._infTxt(ox + pad, ry, `Workers: ${assigned}`, { fontSize: this._fs(10), color: assigned ? '#88cc88' : '#5a5040' });
-            ry += 14;
+            const invEntries = Object.entries(zoneInv).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]);
+            if (invEntries.length === 0) {
+                this._infTxt(ox + pad, ry + 4, '(empty)', { fontSize: this._fs(9), color: '#554433' });
+            } else {
+                for (const [res, qty] of invEntries) {
+                    if (ry + 14 >= btnY - 2) break;
+                    const parts = res.split('.');
+                    const lbl = parts.slice(-2).join(' · ');
+                    this._infTxt(ox + pad, ry, `${qty}`, { fontSize: this._fs(10), color: '#ddcc88' });
+                    this._infTxt(ox + pad + 34, ry, lbl, { fontSize: this._fs(10), color: '#9a8a6a' });
+                    ry += 14;
+                }
+            }
+            return;
         }
 
+        // Storage: Info tab — accept filters
         if (isStorage) {
             const zoneKeys = new Set(zoneTiles.map(t => zm.tileKey(t.tx, t.ty)));
             const depositing = s.units.filter(u =>
                 u.taskType === 'deposit_zone' && zoneKeys.has(u.taskZoneKey ?? -1)
             ).length;
-            this._infTxt(ox + pad, ry, `Depositing: ${depositing}`, { fontSize: this._fs(9), color: depositing ? '#ffcc66' : '#5a5040' });
+            this._infTxt(ox + pad, ry, `Depositing: ${depositing}`,
+                { fontSize: this._fs(9), color: depositing ? '#ffcc66' : '#5a5040' });
             ry += 14;
 
-            // Category accept filter toggles
             const CATS = [
                 { id: 'Food.',            label: 'Food',  color: 0x336622 },
                 { id: 'Materials.Wood.',  label: 'Wood',  color: 0x6a3a14 },
@@ -1058,9 +1107,37 @@ export default {
                     });
             });
             ry += 30;
-            this._infTxt(ox + pad, ry, allOn ? 'Accepts: all' : `Accepts: ${accepts.map(a => a.split('.')[1] ?? a).join(', ')}`,
+            this._infTxt(ox + pad, ry,
+                allOn ? 'Accepts: all' : `Accepts: ${accepts.map(a => a.split('.')[1] ?? a).join(', ')}`,
                 { fontSize: this._fs(8), color: '#7a6a50' });
-            ry += 13;
+        }
+
+        if (isWork && fm) {
+            const appList = analysisTiles
+                .map(t => { const it = fm.getAt(t.tx, t.ty); return it?.built ? CONSTRUCTS[it.type] : null; })
+                .filter(Boolean);
+            if (appList.length) {
+                this._infTxt(ox + pad, ry, 'Appliances:', { fontSize: this._fs(9), color: '#7a7060' });
+                ry += 12;
+                const grouped = {};
+                appList.forEach(d => grouped[d.label] = (grouped[d.label] ?? 0) + 1);
+                for (const [lbl, cnt] of Object.entries(grouped)) {
+                    this._infTxt(ox + pad + 6, ry, `${cnt > 1 ? cnt + '× ' : ''}${lbl}`,
+                        { fontSize: this._fs(10), color: '#c8c0a0' });
+                    ry += 13;
+                }
+            } else {
+                this._infTxt(ox + pad, ry, 'No appliances built', { fontSize: this._fs(9), color: '#5a5040' });
+                ry += 13;
+            }
+            const zoneKeys = new Set(analysisTiles.map(t => zm.tileKey(t.tx, t.ty)));
+            const assigned = s.units.filter(u =>
+                (u.taskType === 'zone_workshop' || u.taskType === 'build_furniture') &&
+                zoneKeys.has(u.taskZoneKey ?? -1)
+            ).length;
+            ry += 3;
+            this._infTxt(ox + pad, ry, `Workers: ${assigned}`,
+                { fontSize: this._fs(10), color: assigned ? '#88cc88' : '#5a5040' });
         }
 
         if (isGrow) {
@@ -1069,12 +1146,14 @@ export default {
                 (u.taskType === 'harvest_grow' || u.taskType === 'plant_grow') &&
                 zoneKeys.has(u.taskZoneKey ?? -1)
             ).length;
-            const readyCount = zoneTiles.filter(t => zm.growTiles.get(zm.tileKey(t.tx, t.ty))?.slots.some(v => v >= 1)).length;
-            this._infTxt(ox + pad, ry, `Farmers: ${farming}${readyCount > 0 ? `  ·  ${readyCount} ready` : ''}`,
+            const readyCount = zoneTiles.filter(t =>
+                zm.growTiles.get(zm.tileKey(t.tx, t.ty))?.slots.some(v => v >= 1)
+            ).length;
+            this._infTxt(ox + pad, ry,
+                `Farmers: ${farming}${readyCount > 0 ? `  ·  ${readyCount} ready` : ''}`,
                 { fontSize: this._fs(9), color: farming ? '#88cc88' : '#5a5040' });
             ry += 16;
 
-            // Crop picker grid (3 per row)
             const cropBW = Math.floor((W - pad * 2 - 8) / 3);
             let ci = 0;
             for (const [key, crop] of Object.entries(CROPS)) {
@@ -1094,44 +1173,14 @@ export default {
                 ci++;
                 if (ci >= 3) { ci = 0; ry += 32; }
             }
-            if (ci > 0) ry += 32;
         }
 
         if (isMarket) {
             const merchants = s.units.filter(u => u.taskType === 'merchant' &&
                 zoneTiles.some(t => zm.tileKey(t.tx, t.ty) === u.taskZoneKey)
             ).length;
-            this._infTxt(ox + pad, ry, `Merchants: ${merchants}`, { fontSize: this._fs(10), color: merchants ? '#ffcc66' : '#5a5040' });
-            ry += 14;
+            this._infTxt(ox + pad, ry, `Merchants: ${merchants}`,
+                { fontSize: this._fs(10), color: merchants ? '#ffcc66' : '#5a5040' });
         }
-
-        // Determine expand mode string
-        const expandMode = isGrow ? `grow:${cropKey}` : zoneType;
-
-        // Buttons — anchored below content with a small gap
-        const btnY = Math.max(ry + 4, oy + H - 78);
-        this._infBtn(ox + pad, btnY, W - pad * 2, 22, '+ Expand Zone', 0x224433, () => {
-            s.zoneMode      = expandMode;
-            s.constructType      = null; s.roadMode  = false;
-            s.wallMode      = false; s.constructMode = false;
-            s.zoneManager?.clearSelection();
-            s.selectedZoneTile  = null; s.selectedZoneTiles = null;
-            s.selectedZoneType  = null; s.selectedZoneCrop  = null;
-            s.hoverGfx?.clear();
-            this.updateUI();
-        });
-        this._infBtn(ox + pad, btnY + 28, W - pad * 2, 22, 'Erase This Zone', 0x442222, () => {
-            for (const { tx: etx, ty: ety } of zoneTiles) zm.erase(etx, ety);
-            s.zoneManager?.clearSelection();
-            s.selectedZoneTile = null; s.selectedZoneTiles = null;
-            s.selectedZoneType = null; s.selectedZoneCrop  = null;
-            this.updateUI();
-        });
-        this._infBtn(ox + pad, btnY + 56, W - pad * 2, 22, '✕ Close', 0x1a1408, () => {
-            s.zoneManager?.clearSelection();
-            s.selectedZoneTile = null; s.selectedZoneTiles = null;
-            s.selectedZoneType = null; s.selectedZoneCrop  = null;
-            this.updateUI();
-        });
     },
 };
