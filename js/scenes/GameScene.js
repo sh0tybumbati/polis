@@ -213,7 +213,7 @@ export default class GameScene extends Phaser.Scene {
         this.mapManager.redrawDomainBorders();
         this.uiManager.createUI();
         this.inputManager.setupInput();
-        if (!loaded) this.spawnStartingState();
+        if (!loaded) { this.spawnStartingState(); this.natureManager.seedInitialWildlife(); }
 
         this.mapManager.recomputeVis();
         this.mapManager.drawFog();

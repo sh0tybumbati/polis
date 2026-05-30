@@ -60,6 +60,15 @@ export default class NatureManager {
         this.tickDeer(delta, dt);
         this.tickSheep(delta, dt);
         this.tickSpawning(delta);
+        this.tickBreeding(delta);
+    }
+
+    // Colony centre (townhall → first camp → spawn) — tamed sheep without a pasture mill here.
+    _colonyCenter() {
+        const cm = this.scene.constructManager;
+        const civic = cm?.constructs?.find(b => b.built && !b.faction && (b.type === 'townhall' || b.type === 'camp'));
+        if (civic) return { x: (civic.tx + (civic.width ?? 1) / 2) * TILE, y: MAP_OY + (civic.ty + (civic.height ?? 1) / 2) * TILE };
+        return { x: (this.scene.spawnTx ?? 0) * TILE, y: MAP_OY + (this.scene.spawnTy ?? 0) * TILE };
     }
 
     tickDeer(delta, dt) {
@@ -111,109 +120,180 @@ export default class NatureManager {
 
     tickSheep(delta, dt) {
         const friendlies = this.scene.units.filter(u => !u.isEnemy && u.hp > 0);
+        const cc = this._colonyCenter();
         for (const s of this.scene.sheep) {
-            if (s.isTamed && s.followUnit !== null) {
-                const leader = this.scene.units.find(u => u.id === s.followUnit && u.hp > 0);
-                if (!leader) { s.followUnit = null; s.isTamed = false; this.redrawSheep(s); continue; }
-                const dd = Phaser.Math.Distance.Between(s.x, s.y, leader.x, leader.y);
-                if (dd > 24) {
-                    const a = Math.atan2(leader.y - s.y, leader.x - s.x);
-                    s.x += Math.cos(a) * ANIMALS.sheep.speed * dt;
-                    s.y += Math.sin(a) * ANIMALS.sheep.speed * dt;
-                    s.gfx.setPosition(s.x, s.y);
-                }
-                continue;
-            }
+            if (s.isDead) continue;
 
+            // Wool regrows on wild sheep (autonomous shepherds shear them)
             if (!s.isTamed && !s.woolReady) {
                 s.woolTimer = (s.woolTimer ?? 0) + delta;
                 if (s.woolTimer >= ANIMALS.sheep.woolMs) { s.woolReady = true; s.woolTimer = 0; this.redrawSheep(s); }
             }
 
-            // Flee or wander
+            // ── Tamed sheep: follow a leading shepherd, else graze (pasture or colony). Never
+            //    flees, never reverts to wild — losing a leader just drops it into grazing. (#26)
+            if (s.isTamed) {
+                if (s.followUnit != null) {
+                    const leader = friendlies.find(u => u.id === s.followUnit);
+                    if (leader) {
+                        if (Phaser.Math.Distance.Between(s.x, s.y, leader.x, leader.y) > 24) {
+                            const a = Math.atan2(leader.y - s.y, leader.x - s.x);
+                            s.x += Math.cos(a) * ANIMALS.sheep.speed * dt;
+                            s.y += Math.sin(a) * ANIMALS.sheep.speed * dt;
+                        }
+                        s.gfx.setPosition(s.x, s.y);
+                        continue;
+                    }
+                    s.followUnit = null;   // leader gone — stay tamed and graze
+                }
+                this._grazeTamed(s, delta, dt, cc);
+                s.x = Phaser.Math.Clamp(s.x, TILE, NATURE_WORLD_W * TILE - TILE);
+                s.y = Phaser.Math.Clamp(s.y, MAP_OY + TILE, NATURE_BOTTOM - TILE);
+                s.gfx.setPosition(s.x, s.y);
+                continue;
+            }
+
+            // ── Wild sheep: flee from people, otherwise wander ──
             let fleeFrom = null, fleeD = ANIMALS.sheep.fleeRadius;
             for (const u of friendlies) {
                 if (u.role === 'shepherd' && u.targetSheep === s.id) continue;
                 const d = Phaser.Math.Distance.Between(s.x, s.y, u.x, u.y);
                 if (d < fleeD) { fleeD = d; fleeFrom = u; }
             }
-            
             if (fleeFrom) {
                 const angle = Math.atan2(s.y - fleeFrom.y, s.x - fleeFrom.x);
                 s.x += Math.cos(angle) * ANIMALS.sheep.speed * dt;
                 s.y += Math.sin(angle) * ANIMALS.sheep.speed * dt;
                 s.moveTo = null; s.wanderTimer = 0;
-            } else if (s.pastureZoneId != null) {
-                // Wander within pasture zone
-                s.wanderTimer = (s.wanderTimer ?? 0) - delta;
-                if (!s.moveTo || s.wanderTimer <= 0) {
-                    const zm = this.scene.zoneManager;
-                    if (zm && zm.pastureTiles.has(s.pastureZoneId)) {
-                        // Find all tiles in this pasture component
-                        const zones = zm.getPastureZones();
-                        const myZone = zones.find(z => z.some(t => t.key === s.pastureZoneId));
-                        if (myZone) {
-                            const targetTile = myZone[Math.floor(Math.random() * myZone.length)];
-                            s.moveTo = {
-                                x: targetTile.tx * TILE + TILE / 2 + Phaser.Math.Between(-8, 8),
-                                y: MAP_OY + targetTile.ty * TILE + TILE / 2 + Phaser.Math.Between(-8, 8)
-                            };
-                        } else {
-                            s.pastureZoneId = null; // Zone removed
-                        }
-                    } else {
-                        s.pastureZoneId = null; // Tile removed from pasture
-                    }
-                    s.wanderTimer = Phaser.Math.Between(3000, 7000);
-                }
-                
-                if (s.moveTo) {
-                    const dist = Phaser.Math.Distance.Between(s.x, s.y, s.moveTo.x, s.moveTo.y);
-                    if (dist < 4) s.moveTo = null;
-                    else {
-                        const a = Math.atan2(s.moveTo.y - s.y, s.moveTo.x - s.x);
-                        s.x += Math.cos(a) * ANIMALS.sheep.speed * 0.3 * dt;
-                        s.y += Math.sin(a) * ANIMALS.sheep.speed * 0.3 * dt;
-                    }
-                }
             } else {
-                // Wild sheep wander
-                s.wanderTimer = (s.wanderTimer ?? 0) - delta;
-                if (!s.moveTo || s.wanderTimer <= 0) {
-                    const angle = Math.random() * Math.PI * 2;
-                    const dist = Phaser.Math.Between(TILE * 1, TILE * 3);
-                    s.moveTo = { x: Phaser.Math.Clamp(s.x + Math.cos(angle) * dist, TILE, NATURE_WORLD_W * TILE - TILE),
-                                 y: Phaser.Math.Clamp(s.y + Math.sin(angle) * dist, MAP_OY + TILE, NATURE_BOTTOM - TILE) };
-                    s.wanderTimer = Phaser.Math.Between(4000, 8000);
-                }
-                if (s.moveTo) {
-                    const dist = Phaser.Math.Distance.Between(s.x, s.y, s.moveTo.x, s.moveTo.y);
-                    if (dist < 4) s.moveTo = null;
-                    else {
-                        const a = Math.atan2(s.moveTo.y - s.y, s.moveTo.x - s.x);
-                        s.x += Math.cos(a) * ANIMALS.sheep.speed * 0.3 * dt;
-                        s.y += Math.sin(a) * ANIMALS.sheep.speed * 0.3 * dt;
-                    }
-                }
+                this._wander(s, delta, dt, ANIMALS.sheep.speed * 0.3);
             }
-            
             s.x = Phaser.Math.Clamp(s.x, TILE, NATURE_WORLD_W * TILE - TILE);
             s.y = Phaser.Math.Clamp(s.y, MAP_OY + TILE, NATURE_BOTTOM - TILE);
             s.gfx.setPosition(s.x, s.y);
         }
     }
 
+    // Tamed-sheep grazing: roam the assigned pasture zone if it still exists, else mill within a
+    // few tiles of the colony centre.
+    _grazeTamed(s, delta, dt, cc) {
+        const zm = this.scene.zoneManager;
+        let anchor = cc, radius = TILE * 5;
+        if (s.pastureZoneId != null && zm?.pastureTiles?.has(s.pastureZoneId)) {
+            const myZone = zm.getPastureZones().find(z => z.some(t => t.key === s.pastureZoneId));
+            if (myZone) {
+                s.wanderTimer = (s.wanderTimer ?? 0) - delta;
+                if (!s.moveTo || s.wanderTimer <= 0) {
+                    const t = myZone[Math.floor(Math.random() * myZone.length)];
+                    s.moveTo = { x: t.tx * TILE + TILE / 2 + Phaser.Math.Between(-8, 8),
+                                 y: MAP_OY + t.ty * TILE + TILE / 2 + Phaser.Math.Between(-8, 8) };
+                    s.wanderTimer = Phaser.Math.Between(3000, 7000);
+                }
+                this._stepToward(s, ANIMALS.sheep.speed * 0.3, dt);
+                return;
+            }
+            s.pastureZoneId = null;   // pasture removed
+        }
+        // No pasture: wander near the colony centre.
+        s.wanderTimer = (s.wanderTimer ?? 0) - delta;
+        if (!s.moveTo || s.wanderTimer <= 0) {
+            const ang = Math.random() * Math.PI * 2, r = Phaser.Math.Between(0, radius);
+            s.moveTo = { x: anchor.x + Math.cos(ang) * r, y: anchor.y + Math.sin(ang) * r };
+            s.wanderTimer = Phaser.Math.Between(3000, 7000);
+        }
+        this._stepToward(s, ANIMALS.sheep.speed * 0.3, dt);
+    }
+
+    // Generic random wander (wild animals).
+    _wander(s, delta, dt, speed) {
+        s.wanderTimer = (s.wanderTimer ?? 0) - delta;
+        if (!s.moveTo || s.wanderTimer <= 0) {
+            const angle = Math.random() * Math.PI * 2;
+            const dist  = Phaser.Math.Between(TILE * 1, TILE * 3);
+            s.moveTo = { x: Phaser.Math.Clamp(s.x + Math.cos(angle) * dist, TILE, NATURE_WORLD_W * TILE - TILE),
+                         y: Phaser.Math.Clamp(s.y + Math.sin(angle) * dist, MAP_OY + TILE, NATURE_BOTTOM - TILE) };
+            s.wanderTimer = Phaser.Math.Between(4000, 8000);
+        }
+        this._stepToward(s, speed, dt);
+    }
+
+    _stepToward(s, speed, dt) {
+        if (!s.moveTo) return;
+        const dist = Phaser.Math.Distance.Between(s.x, s.y, s.moveTo.x, s.moveTo.y);
+        if (dist < 4) { s.moveTo = null; return; }
+        const a = Math.atan2(s.moveTo.y - s.y, s.moveTo.x - s.x);
+        s.x += Math.cos(a) * speed * dt;
+        s.y += Math.sin(a) * speed * dt;
+    }
+
+    // Edge entry is now only an extinction safety-net: if a wild species is nearly wiped out,
+    // a fresh animal wanders in from the map edge. Sustained growth comes from breeding below.
     tickSpawning(delta) {
         this.scene._edgeEntryTimer = (this.scene._edgeEntryTimer || 0) + delta;
-        if (this.scene._edgeEntryTimer >= 10000) {
-            this.scene._edgeEntryTimer = 0;
-            if (this.scene.deer.filter(d => !d.isDead).length < ANIMALS.deer.maxCount) {
-                this.spawnDeerAtEdge();
-            }
-            if (this.scene.sheep.length < ANIMALS.sheep.maxCount) {
-                this.spawnSheepAtEdge();
-            }
+        if (this.scene._edgeEntryTimer < 12000) return;
+        this.scene._edgeEntryTimer = 0;
+        const wildDeer  = this.scene.deer.filter(d => !d.isDead).length;
+        const wildSheep = this.scene.sheep.filter(s => !s.isDead && !s.isTamed).length;
+        if (wildDeer  < 2) this.spawnDeerAtEdge();
+        if (wildSheep < 2) this.spawnSheepAtEdge();
+    }
+
+    // Wild reproduction: a male & female of a species near each other occasionally produce
+    // offspring, up to the species cap. Tamed sheep breed too (domestic flocks can grow larger),
+    // their lambs born tame in the same pasture. (#16)
+    tickBreeding(delta) {
+        this._breedTimer = (this._breedTimer ?? 0) + delta;
+        if (this._breedTimer < 12000) return;
+        this._breedTimer = 0;
+        this._breedSpecies(this.scene.deer.filter(d => !d.isDead), ANIMALS.deer, ANIMALS.deer.maxCount,
+            (x, y) => this.spawnDeer(x, y), false);
+        this._breedSpecies(this.scene.sheep.filter(s => !s.isDead && !s.isTamed), ANIMALS.sheep, ANIMALS.sheep.maxCount,
+            (x, y) => this.spawnSheep(x, y), false);
+        this._breedSpecies(this.scene.sheep.filter(s => !s.isDead && s.isTamed), ANIMALS.sheep, ANIMALS.sheep.maxCount * 2,
+            (x, y) => this.spawnSheep(x, y), true);
+    }
+
+    _breedSpecies(herd, def, cap, spawnFn, tamed) {
+        if (herd.length < 2 || herd.length >= cap) return;
+        const males   = herd.filter(a => a.gender === 'male');
+        const females = herd.filter(a => a.gender === 'female');
+        if (!males.length || !females.length) return;
+        const R = def.breedRadius ?? 4 * TILE;
+        for (const f of females) {
+            const mate = males.find(m => Phaser.Math.Distance.Between(m.x, m.y, f.x, f.y) < R);
+            if (!mate || Math.random() > 0.5) continue;
+            const bx = f.x + Phaser.Math.Between(-TILE, TILE);
+            const by = f.y + Phaser.Math.Between(-TILE, TILE);
+            const baby = spawnFn(Phaser.Math.Clamp(bx, TILE, NATURE_WORLD_W * TILE - TILE),
+                                 Phaser.Math.Clamp(by, MAP_OY + TILE, NATURE_BOTTOM - TILE));
+            if (baby && tamed) { baby.isTamed = true; baby.pastureZoneId = f.pastureZoneId ?? null; this.redrawSheep(baby); }
+            this.scene.uiManager?.showFloatText?.(baby.x, baby.y - 14,
+                tamed ? '🐑 lamb born' : (def === ANIMALS.deer ? '🦌 fawn born' : '🐑 lamb born'), '#cfeac0');
+            return;   // one birth per breed window per species
         }
+    }
+
+    // Seed a starting wildlife population scattered across the discovered area (called once on a
+    // fresh game so the world isn't empty until edge-entry trickles animals in). (#17)
+    seedInitialWildlife() {
+        const cm = this.scene.chunkManager;
+        const cx = this.scene.spawnTx ?? 0, cy = this.scene.spawnTy ?? 0;
+        const place = (spawnFn, n) => {
+            let made = 0, tries = 0;
+            while (made < n && tries < n * 12) {
+                tries++;
+                const tx = cx + Phaser.Math.Between(-36, 36);
+                const ty = cy + Phaser.Math.Between(-36, 36);
+                if (tx < 1 || ty < 1) continue;
+                const terr = cm ? cm.getTile(tx, ty) : 0;
+                if (terr === T_FOREST || terr === T_GRASS || terr === T_SAND) {
+                    spawnFn(tx * TILE + TILE / 2, MAP_OY + ty * TILE + TILE / 2);
+                    made++;
+                }
+            }
+        };
+        place((x, y) => this.spawnDeer(x, y),  ANIMALS.deer.maxCount);
+        place((x, y) => this.spawnSheep(x, y), Math.ceil(ANIMALS.sheep.maxCount * 0.7));
     }
 
     spawnDeerAtEdge() {

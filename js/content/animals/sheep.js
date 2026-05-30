@@ -2,7 +2,8 @@ import { TILE } from '../../config/gameConstants.js';
 
 export default {
     id:         'sheep',
-    maxCount:   10,
+    maxCount:   14,
+    breedRadius: 4 * TILE,
     meat:       4,
     speed:      38,
     fleeRadius: 2.5 * TILE,
