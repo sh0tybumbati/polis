@@ -24,15 +24,29 @@ export default class MapManager {
         if (!g) return;
         g.clear();
         const PALETTE = [0xd4a855, 0x55a8d4, 0xa855d4, 0x55d488, 0xd45588, 0x88d455, 0x5588d4, 0xd48855];
+        const cm = this.scene.constructManager;
         this.scene.estateBounds.forEach((dom, i) => {
             if (dom.cx == null) return;
             const col = PALETTE[i % PALETTE.length];
-            // Circular homestead border centred on (cx,cy) with radius r tiles.
-            const px = (dom.cx + 0.5) * TILE;
-            const py = MAP_OY + (dom.cy + 0.5) * TILE;
-            const rad = (dom.r + 0.5) * TILE;
-            g.fillStyle(col, 0.07).fillCircle(px, py, rad);
-            g.lineStyle(2, col, 0.5).strokeCircle(px, py, rad);
+            const inEstate = (tx, ty) => cm.estateContains(dom, tx, ty);
+            // Tile-based homestead area (like the fog): fill every tile inside the circular radius
+            // and draw a stepped outline along edges where a tile borders the outside.
+            g.fillStyle(col, 0.08);
+            for (let ty = dom.y1; ty <= dom.y2; ty++)
+                for (let tx = dom.x1; tx <= dom.x2; tx++) {
+                    if (!inEstate(tx, ty)) continue;
+                    g.fillRect(tx * TILE, MAP_OY + ty * TILE, TILE, TILE);
+                }
+            g.lineStyle(2, col, 0.55);
+            for (let ty = dom.y1; ty <= dom.y2; ty++)
+                for (let tx = dom.x1; tx <= dom.x2; tx++) {
+                    if (!inEstate(tx, ty)) continue;
+                    const px = tx * TILE, py = MAP_OY + ty * TILE;
+                    if (!inEstate(tx, ty - 1)) g.lineBetween(px, py, px + TILE, py);
+                    if (!inEstate(tx, ty + 1)) g.lineBetween(px, py + TILE, px + TILE, py + TILE);
+                    if (!inEstate(tx - 1, ty)) g.lineBetween(px, py, px, py + TILE);
+                    if (!inEstate(tx + 1, ty)) g.lineBetween(px + TILE, py, px + TILE, py + TILE);
+                }
         });
     }
 
