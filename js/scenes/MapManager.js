@@ -25,13 +25,14 @@ export default class MapManager {
         g.clear();
         const PALETTE = [0xd4a855, 0x55a8d4, 0xa855d4, 0x55d488, 0xd45588, 0x88d455, 0x5588d4, 0xd48855];
         this.scene.estateBounds.forEach((dom, i) => {
+            if (dom.cx == null) return;
             const col = PALETTE[i % PALETTE.length];
-            const x1 = dom.x1 * TILE;
-            const y1 = MAP_OY + dom.y1 * TILE;
-            const w  = (dom.x2 - dom.x1 + 1) * TILE;
-            const h  = (dom.y2 - dom.y1 + 1) * TILE;
-            g.fillStyle(col, 0.07).fillRect(x1, y1, w, h);
-            g.lineStyle(2, col, 0.5).strokeRect(x1 + 1, y1 + 1, w - 2, h - 2);
+            // Circular homestead border centred on (cx,cy) with radius r tiles.
+            const px = (dom.cx + 0.5) * TILE;
+            const py = MAP_OY + (dom.cy + 0.5) * TILE;
+            const rad = (dom.r + 0.5) * TILE;
+            g.fillStyle(col, 0.07).fillCircle(px, py, rad);
+            g.lineStyle(2, col, 0.5).strokeCircle(px, py, rad);
         });
     }
 

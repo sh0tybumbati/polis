@@ -2,6 +2,7 @@ import {
     TILE, MAP_OY, ROOM_DEFS, ROOM_MAX_SLOTS, CONSTRUCT_VOLUME
 } from '../config/gameConstants.js';
 import { CONSTRUCTS, computeBuildCost } from '../content/constructs/index.js';
+import { NODES } from '../content/nodes/index.js';
 
 // Durability multiplier on an edge construct's HP, by the material it was built from.
 // Order matters: most-specific resource paths are tested first (loose Stones before cut
@@ -154,6 +155,7 @@ export default class ConstructManager {
             if (dom) {
                 c.domainId = dom.id;
                 c.isPublic = false;
+                this.growEstateToInclude(dom, tx, ty, def.width || 1, def.height || 1);
             } else {
                 const hasTH = this.constructs.some(cc => cc.type === 'townhall' && cc.built && !cc.faction);
                 c.isPublic = hasTH;
@@ -201,6 +203,7 @@ export default class ConstructManager {
             if (dom) {
                 c.domainId = dom.id;
                 c.isPublic = false;
+                this.growEstateToInclude(dom, tx, ty, def.width || 1, def.height || 1);
             } else {
                 c.isPublic = true;
             }
@@ -635,19 +638,66 @@ export default class ConstructManager {
 
     // ─── Domain & Storage Logic (from ConstructManager) ─────────────────────────
 
-    // Estate = a family's private land: a square radius `r` around a centre that grows over
-    // time (growEstates). x1..y2 are derived from cx±r so getEstateAt / border rendering stay
-    // rectangle-based. familyId identifies the owning family (1:1 with the estate).
+    // Estate = a family's private land: a CIRCULAR radius `r` (tiles) around a centre that grows
+    // to enclose the structures built within it (growEstateToInclude) and creeps outward over time
+    // (growEstates). x1..y2 track the bounding box (cx±r) for fast iteration/quick-reject; the true
+    // membership test is the circle (estateContains). familyId owns the estate 1:1.
+    _syncEstateBox(d) { d.x1 = d.cx - d.r; d.y1 = d.cy - d.r; d.x2 = d.cx + d.r; d.y2 = d.cy + d.r; }
+
+    estateContains(d, tx, ty) {
+        if (d.cx == null) return false;
+        const dx = tx - d.cx, dy = ty - d.cy, rr = d.r + 0.5;
+        return dx * dx + dy * dy <= rr * rr;
+    }
+
     createEstate(cx, cy, familyId, anchorId, r0 = 2) {
         const dom = {
             id: this.scene.getId(),
             familyId, anchorConstructId: anchorId, houseConstructId: anchorId,
-            cx, cy, r: r0, maxR: 8,
-            x1: cx - r0, y1: cy - r0, x2: cx + r0, y2: cy + r0,
+            cx, cy, r: r0, maxR: 12,
         };
+        this._syncEstateBox(dom);
         this.scene.estateBounds.push(dom);
+        this._autoSlateEstateNodes(dom);
         this.scene.mapManager.redrawDomainBorders();
         return dom;
+    }
+
+    // Expand an estate's circle so a newly-built structure (footprint tx,ty,w,h) sits comfortably
+    // inside it, clamped to maxR and the cultural border. Re-slates any nodes the growth swept in.
+    growEstateToInclude(dom, tx, ty, w = 1, h = 1) {
+        if (!dom || dom.cx == null) return;
+        const { cx: bcx, cy: bcy, R } = this.culturalBounds();
+        // farthest footprint corner from the estate centre
+        let far = 0;
+        for (const [px, py] of [[tx, ty], [tx + w - 1, ty], [tx, ty + h - 1], [tx + w - 1, ty + h - 1]])
+            far = Math.max(far, Math.hypot(px - dom.cx, py - dom.cy));
+        let want = Math.ceil(far) + 1;                                  // +1 tile margin
+        want = Math.min(want, dom.maxR ?? 12);
+        want = Math.min(want, Math.floor(R - Math.hypot(dom.cx - bcx, dom.cy - bcy))); // stay inside culture
+        if (want > dom.r) {
+            dom.r = want;
+            this._syncEstateBox(dom);
+            this._autoSlateEstateNodes(dom);
+            this.scene.mapManager.redrawDomainBorders();
+        }
+    }
+
+    // Auto-designate every harvestable resource node inside an estate's circle (or all estates if
+    // none given) for harvest — the family works the resources on its own land automatically.
+    _autoSlateEstateNodes(dom = null) {
+        const doms = dom ? [dom] : this.scene.estateBounds;
+        for (const n of this.scene.resNodes ?? []) {
+            const role = NODES[n.type]?.role;
+            if (role !== 'woodcutter' && role !== 'miner' && role !== 'forager') continue;
+            const tx = Math.floor(n.x / TILE), ty = Math.floor((n.y - MAP_OY) / TILE);
+            if (!doms.some(d => this.estateContains(d, tx, ty))) continue;
+            if (!n.slated) {
+                n.slated = true;
+                n.slateType = role;
+                this.scene.mapManager.redrawNode(n);
+            }
+        }
     }
 
     registerEstateBounds(house) {
@@ -659,7 +709,7 @@ export default class ConstructManager {
     }
 
     getEstateAt(tx, ty) {
-        return this.scene.estateBounds.find(d => tx >= d.x1 && tx <= d.x2 && ty >= d.y1 && ty <= d.y2);
+        return this.scene.estateBounds.find(d => this.estateContains(d, tx, ty));
     }
 
     // Square cultural border around the civic centre; radius scales with population. Estates
@@ -674,33 +724,36 @@ export default class ConstructManager {
         return { cx, cy, R };
     }
 
-    // Grow each estate one tile/day until it nears a neighbour (1-tile gap) or the border.
+    // Grow each estate circle one tile/day until it nears a neighbouring circle (1-tile gap) or
+    // reaches the cultural border. Newly-enclosed resource nodes are auto-slated.
     growEstates() {
         const { cx: bcx, cy: bcy, R } = this.culturalBounds();
         const ests = this.scene.estateBounds;
         for (const d of ests) {
-            if (d.cx == null || d.r >= (d.maxR ?? 8)) continue;
+            if (d.cx == null || d.r >= (d.maxR ?? 12)) continue;
             const nr = d.r + 1;
-            const n = { x1: d.cx - nr, y1: d.cy - nr, x2: d.cx + nr, y2: d.cy + nr };
-            if (n.x1 < bcx - R || n.x2 > bcx + R || n.y1 < bcy - R || n.y2 > bcy + R) continue;
+            // stay within the cultural circle
+            if (Math.hypot(d.cx - bcx, d.cy - bcy) + nr > R) continue;
+            // keep a 1-tile gap from every other estate circle
             let blocked = false;
             for (const o of ests) {
                 if (o === d || o.cx == null) continue;
-                if (n.x1 <= o.x2 + 1 && n.x2 >= o.x1 - 1 && n.y1 <= o.y2 + 1 && n.y2 >= o.y1 - 1) { blocked = true; break; }
+                if (Math.hypot(d.cx - o.cx, d.cy - o.cy) < nr + o.r + 1) { blocked = true; break; }
             }
             if (blocked) continue;
-            d.r = nr; d.x1 = n.x1; d.y1 = n.y1; d.x2 = n.x2; d.y2 = n.y2;
+            d.r = nr; this._syncEstateBox(d);
         }
+        this._autoSlateEstateNodes();
         this.scene.mapManager.redrawDomainBorders();
     }
 
-    // Total built beds within an estate's bounds — the family's breeding/housing capacity.
+    // Total built beds within an estate's circle — the family's breeding/housing capacity.
     estateBedCapacity(estate) {
         if (!estate) return 0;
         let n = 0;
         for (const c of this.constructs) {
             if (c.type !== 'bed' || !c.built || c.faction) continue;
-            if (c.tx >= estate.x1 && c.tx <= estate.x2 && c.ty >= estate.y1 && c.ty <= estate.y2) n++;
+            if (this.estateContains(estate, c.tx, c.ty)) n++;
         }
         return n;
     }

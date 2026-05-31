@@ -1068,7 +1068,7 @@ export default {
         if (!fm) return;
         // Family ownership: once a unit belongs to an estate, it sleeps only on its own estate.
         const estate = u.estateId ? this.scene.estateBounds.find(d => d.id === u.estateId) : null;
-        const onEstate = (tx, ty) => !estate || (tx >= estate.x1 && tx <= estate.x2 && ty >= estate.y1 && ty <= estate.y2);
+        const onEstate = (tx, ty) => !estate || fm.estateContains(estate, tx, ty);
 
         // Keep the current home if it's still valid; relocate onto the estate only once the
         // estate actually has a free bed (so units don't go homeless waiting for their bedroom).
@@ -2273,6 +2273,8 @@ export default {
             for (let ty = estate.y1; ty <= estate.y2 - ih + 1; ty++)
                 for (let tx = estate.x1; tx <= estate.x2 - iw + 1; tx++) {
                     if (tx < 2 || ty < 2 || !fits(tx, ty)) continue;
+                    // room must sit inside the circular estate (test its centre)
+                    if (!fm.estateContains(estate, tx + (iw - 1) / 2, ty + (ih - 1) / 2)) continue;
                     const s = fm.siteScore(tx, ty, iw, ih, eAnchor);
                     if (s > bestScore) { bestScore = s; best = { tx, ty }; }
                 }
