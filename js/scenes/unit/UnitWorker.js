@@ -15,7 +15,7 @@ const _NO_DEPOSIT = new Set(['build', 'zone_workshop', 'workshop', 'eat', 'colle
 // Rest / recreation tasks — these reset a unit's work streak (see tickWorker).
 const _RECREATION_TASKS = new Set(['eat', 'leisure', 'chat', 'rest_break', 'stroll', 'mental_break']);
 const _PRIVATE_ROLES = new Set(Object.values(JOBS).filter(j => j.private).map(j => j.id));
-const _FOOD_PRIORITY = ['Food.Grain.Wheat.Bread', 'Food.Meat.Venison.Sausages', 'Food.Grain.Wheat.Flour', 'Food.Produce.Olive', 'Food.Grain.Wheat', 'Food.Meat.Venison', 'Food.Produce.Berry', 'Food.Produce.WildGrapes', 'Food.Fish.Fresh'];
+const _FOOD_PRIORITY = ['Food.Grain.Wheat.Bread', 'Food.Meat.Venison.Sausages', 'Food.Grain.Wheat.Flour', 'Food.Produce.Olive', 'Food.Grain.Wheat', 'Food.Meat.Venison', 'Food.Produce.Berry', 'Food.Produce.WildGrapes', 'Food.Produce.Greens', 'Food.Fish.Fresh'];
 const _NUTRITION_MAP = Object.fromEntries(Object.values(ITEMS).filter(d => d.nutrition != null).map(d => [d.key, d.nutrition]));
 const _FOOD_CONSTRUCT_TYPES = new Set(['oven', 'butchersblock', 'grainsilo', 'house', 'camp', 'townhall']);
 const _STICKY_ROLES = new Set(['hunter', 'shepherd', 'farmer']);
@@ -2116,6 +2116,9 @@ export default {
         ];
         for (const gc of GROW_CROPS) {
             if (econ.provisioningPressure(gc.res, pop) < 0.5) continue;
+            // Gated: only cultivate crops whose wild form the colony has discovered. (#22)
+            const cdef = CROPS[gc.crop];
+            if ((cdef?.wild?.length ?? 0) > 0 && !this.scene.discoveredCrops?.has(gc.crop)) continue;
             const haveZone = [...(this.scene.zoneManager?.growTiles?.values() ?? [])]
                 .some(st => st.crop && CROPS[st.crop]?.output === gc.res);
             if (haveZone) continue;

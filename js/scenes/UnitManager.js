@@ -18,6 +18,7 @@ import { NODES } from '../content/nodes/index.js';
 import { ANIMALS } from '../content/animals/index.js';
 import { ITEMS } from '../content/items/index.js';
 import { JOBS, WORKSHOP_JOBS } from '../content/jobs/index.js';
+import { CROPS, CROPS_BY_WILD } from '../content/crops/index.js';
 import { UNITS } from '../content/units/index.js';
 import { MathUtils } from '../utils/MathUtils.js';
 import { Pathfinder } from '../utils/Pathfinder.js';
@@ -677,6 +678,14 @@ export default class UnitManager {
 
             this._gainSkillXp(u, skillKey);
             this.scene.uiManager.showFloatText(u.x, u.y - 14, `+${pick}${res[0].toUpperCase()}`, '#ffffff');
+
+            // Harvesting a wild plant teaches the colony to cultivate its domestic crop(s). (#22)
+            const newCrops = (CROPS_BY_WILD[n.type] ?? []).filter(k => !this.scene.discoveredCrops.has(k));
+            if (newCrops.length) {
+                for (const k of newCrops) this.scene.discoveredCrops.add(k);
+                this.scene.uiManager?.showToast?.(
+                    `🌱 Learned to farm: ${newCrops.map(k => CROPS[k].label).join(', ')}`, '#bfe8a0');
+            }
 
             // Debris byproducts: trees drop sticks, boulders drop small stones — also on the ground
             if (res === 'Materials.Wood.Pine') {

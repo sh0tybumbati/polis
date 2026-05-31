@@ -81,6 +81,7 @@ export default class GameScene extends Phaser.Scene {
         this.fordSet     = new Set();   // string keys "tx,ty" — also in chunkManager.fordSet
         this.deer        = [];
         this.sheep       = [];
+        this.discoveredCrops = new Set();   // crop keys unlocked by harvesting their wild form (#22)
         this.roadGfx     = null;
         this.roadMode    = false;
         this._roadsDirty = false;
@@ -279,6 +280,7 @@ export default class GameScene extends Phaser.Scene {
                 groundItems: this.groundItems.map(i => ({ id: i.id, resource: i.resource, qty: i.qty, x: i.x, y: i.y, subKey: i.subKey })),
                 deer:  this.deer.map(d => this._serAnimal(d)),
                 sheep: this.sheep.map(s => this._serAnimal(s)),
+                discoveredCrops: [...this.discoveredCrops],
             };
             localStorage.setItem('epochs_save', JSON.stringify(state));
             this.uiManager.showSaveFlash?.();
@@ -361,6 +363,7 @@ export default class GameScene extends Phaser.Scene {
             });
             this.deer      = (s.deer      ?? []).map(d => ({ ...d, gfx: null }));
             this.sheep     = (s.sheep     ?? []).map(ss => ({ ...ss, gfx: null, followUnit: null }));
+            this.discoveredCrops = new Set(s.discoveredCrops ?? []);
 
             // If no construct has inventory (old saves), seed townhall from legacy resources
             const anyInventory = this.constructs.some(b => b.isPublic && Object.values(b.inventory ?? {}).some(v => v > 0));

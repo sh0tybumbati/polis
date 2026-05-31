@@ -1,6 +1,6 @@
 export default {
     id: 'wild_garden',
-    resource: 'Food.Produce.Olive',
+    resource: 'Food.Produce.Greens',
     stockMin: 3, stockMax: 9,
     respawnDays: 4,
     role: 'forager',

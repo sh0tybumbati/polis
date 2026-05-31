@@ -24,12 +24,13 @@ import leatherKit  from './leatherKit.js';
 import bronzeKit   from './bronzeKit.js';
 import wild_grapes from './wild_grapes.js';
 import fish        from './fish.js';
+import greens      from './greens.js';
 
 const defs = [
     wheat, flour, bread, meat, cuts, sausages, olives, olive_oil, beer, berries,
     wood, sticks, planks, stone, stones, stoneBlocks, ore, ingot,
     wool, cloth_wool, hide, leather, leatherKit, bronzeKit,
-    wild_grapes, fish,
+    wild_grapes, fish, greens,
 ];
 
 export const ITEMS = Object.fromEntries(defs.map(d => [d.key, d]));

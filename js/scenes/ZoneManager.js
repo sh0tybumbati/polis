@@ -132,6 +132,11 @@ export default class ZoneManager {
     setGrowZoneCrop(tx, ty, crop) {
         const def = CROPS[crop];
         if (!def) return;
+        // Gated: can't cultivate a crop until its wild form has been discovered. (#22)
+        if ((def.wild?.length ?? 0) > 0 && !this.scene.discoveredCrops?.has(crop)) {
+            this.scene.uiManager?.showToast?.(`🔒 Find wild ${def.label} before farming it`, '#cc9966');
+            return;
+        }
         const { tiles } = this.getConnectedTiles(tx, ty);
         for (const { tx: ttx, ty: tty } of tiles) {
             const k = this.tileKey(ttx, tty);

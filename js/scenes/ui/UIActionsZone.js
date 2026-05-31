@@ -738,13 +738,19 @@ export default {
         const panelH = fullH - TAB_H - STRIP;
         const items  = Object.entries(CROPS).map(([key, crop]) => {
             const isActive = key === curCrop;
-            const yieldStr = `${tiles.length * crop.density} · ${(crop.growTime / 1000).toFixed(0)}s`;
+            const locked   = (crop.wild?.length ?? 0) > 0 && !s.discoveredCrops?.has(key);
+            const yieldStr = locked
+                ? `🔒 find wild ${crop.label.toLowerCase()}`
+                : `${tiles.length * crop.density} · ${(crop.growTime / 1000).toFixed(0)}s`;
             return {
-                label:    crop.label,
+                label:    locked ? `🔒 ${crop.label}` : crop.label,
                 sublabel: yieldStr,
-                color:    isActive ? crop.zoneColor : Math.max(0, (crop.zoneColor & 0xfefefe) >> 1),
+                color:    locked ? 0x2a2418
+                                 : isActive ? crop.zoneColor : Math.max(0, (crop.zoneColor & 0xfefefe) >> 1),
                 active:   isActive,
-                callback: () => {
+                callback: locked ? () => {
+                    s.uiManager?.showToast?.(`🔒 Find wild ${crop.label} before farming it`, '#cc9966');
+                } : () => {
                     zm.setGrowZoneCrop(tile.tx, tile.ty, key);
                     s.selectedZoneCrop = key;
                     // Re-select to refresh tile list
