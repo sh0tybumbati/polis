@@ -50,6 +50,7 @@ export default class InputManager {
                     const n = s.findNodeAt(ptr.worldX, ptr.worldY);
                     s._slateDragErasing = n && s.slateNodeTypes?.includes(n.type) ? n.slated : false;
                     s._slatedThisDrag = new Set();
+                    s._slateDragging = false;
                 }
             } else {
                 s._dragging = false; s._fmDragging = false; s._fmDragStart = null;
@@ -134,18 +135,22 @@ export default class InputManager {
                 const t = s.tileAt(ptr.worldX, ptr.worldY);
                 if (t) s._paintRoad(t.tx, t.ty);
             } else if (s.slateModeType && ptr.isDown && !isUI) {
-                // Drag over nodes to slate / unslate them in bulk
-                const n = s.findNodeAt(ptr.worldX, ptr.worldY);
-                if (n && s.slateNodeTypes?.includes(n.type)) {
-                    const nodeKey = `${Math.round(n.x)},${Math.round(n.y)}`;
-                    if (!s._slatedThisDrag.has(nodeKey)) {
-                        s._slatedThisDrag.add(nodeKey);
-                        n.slated    = !s._slateDragErasing;
-                        n.slateType = n.slated ? s.slateModeType : null;
-                        s.mapManager?.redrawNode(n);
-                        s.updateUI();
-                    }
-                }
+                // Drag a rectangle to designate every matching node inside it (applied on release).
+                // Draw an amber marquee so the area of effect is visible.
+                s._slateDragging = true;
+                const rx = Math.min(ptr.x, s._ptrDownX), ry = Math.min(ptr.y, s._ptrDownY);
+                const rw = Math.abs(ptr.x - s._ptrDownX), rh = Math.abs(ptr.y - s._ptrDownY);
+                const cl = Math.min(14, rw / 2, rh / 2);
+                s.dragGfx.clear()
+                    .fillStyle(0xffbb44, 0.16).fillRect(rx, ry, rw, rh)
+                    .lineStyle(2, 0xffd277, 0.95).strokeRect(rx, ry, rw, rh);
+                s.dragGfx.lineStyle(3, 0xffffff, 0.9);
+                [[rx, ry, 1, 1], [rx + rw, ry, -1, 1], [rx, ry + rh, 1, -1], [rx + rw, ry + rh, -1, -1]]
+                    .forEach(([px, py, sx2, sy2]) => {
+                        s.dragGfx.lineBetween(px, py, px + sx2 * cl, py);
+                        s.dragGfx.lineBetween(px, py, px, py + sy2 * cl);
+                    });
+                s.hoverGfx.clear();
             } else if (!s.constructType && !s.roadMode && !s.wallMode && !s.slateModeType && ptr.isDown && !ptr.middleButtonDown() && !isUI) {
                 const d = Phaser.Math.Distance.Between(ptr.x, ptr.y, s._ptrDownX, s._ptrDownY);
                 if (d > TAP_DIST) {
@@ -188,6 +193,32 @@ export default class InputManager {
             s._pinch.active = false;
             s.dragGfx.clear();
             if (s._touches.size >= 1) return;
+
+            // Designation drag (forage / woodcutting / mining): apply to every matching node inside
+            // the dragged rectangle. A plain tap (no drag) falls through to the single-node toggle.
+            if (s.slateModeType && s._slateDragging) {
+                s._slateDragging = false;
+                const moved = Phaser.Math.Distance.Between(ptr.x, ptr.y, s._ptrDownX, s._ptrDownY) >= TAP_DIST;
+                if (moved) {
+                    const cam = s.cameras.main;
+                    const tl = cam.getWorldPoint(Math.min(ptr.x, s._ptrDownX), Math.min(ptr.y, s._ptrDownY));
+                    const br = cam.getWorldPoint(Math.max(ptr.x, s._ptrDownX), Math.max(ptr.y, s._ptrDownY));
+                    const erasing = s._slateDragErasing;
+                    let cnt = 0;
+                    for (const n of s.resNodes ?? []) {
+                        if (!s.slateNodeTypes?.includes(n.type)) continue;
+                        if (n.x < tl.x || n.x > br.x || n.y < tl.y || n.y > br.y) continue;
+                        n.slated    = !erasing;
+                        n.slateType = n.slated ? s.slateModeType : null;
+                        s.mapManager?.redrawNode(n);
+                        cnt++;
+                    }
+                    if (cnt > 0) s.uiManager?.showFloatText?.(ptr.worldX, ptr.worldY - 10,
+                        `${erasing ? 'cleared' : 'marked'} ${cnt}`, erasing ? '#cc8866' : '#ffd277');
+                    s.updateUI();
+                    return;
+                }
+            }
 
             if (s._fmDragging) {
                 s._fmDragging = false;
