@@ -5,6 +5,7 @@ import { CONSTRUCTS, computeBuildCost } from '../content/constructs/index.js';
 import { NODES } from '../content/nodes/index.js';
 import { JOBS, WORKSHOP_JOBS } from '../content/jobs/index.js';
 import { CROPS } from '../content/crops/index.js';
+import { TECHS } from '../content/techs/index.js';
 
 // Durability multiplier on an edge construct's HP, by the material it was built from.
 // Order matters: most-specific resource paths are tested first (loose Stones before cut
@@ -141,6 +142,14 @@ export default class ConstructManager {
     placeConstruct(type, tx, ty, material = 'Materials.Wood.Pine') {
         const def = CONSTRUCTS[type];
         if (!def) return null;
+
+        // Tech gate (player + AI): can't build a type until its tech is researched.
+        if (!this.isConstructResearched(type)) {
+            const techId = this.scene.progression?.techForConstruct(type);
+            const techLbl = techId ? (TECHS[techId]?.label ?? techId) : 'research';
+            this.scene.uiManager?.showToast?.(`🔒 Research ${techLbl} first`, '#cc9966');
+            return null;
+        }
 
         if (def.placement === 'edge') {
             const edge = this.nearestEdge(tx * TILE + TILE/2, MAP_OY + ty * TILE + TILE/2);
@@ -529,6 +538,11 @@ export default class ConstructManager {
     // built the first one). The starting camp is always known.
     isConstructUnlocked(type) {
         return type === 'camp' || !!this.scene.unlockedConstructs?.has(type);
+    }
+
+    // Research gate: is this construct's tech researched? (types with no tech are always available.)
+    isConstructResearched(type) {
+        return this.scene.progression?.isConstructResearched(type) ?? true;
     }
 
     // Production-chain check (B2): is `res` obtainable right now? True if it's in stock, a producer

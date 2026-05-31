@@ -2096,6 +2096,7 @@ export default {
     // the player drives new production). Also respects the input-supply check (B2).
     _archonMayInitiate(type) {
         const cm = this.scene.constructManager;
+        if (!cm.isConstructResearched(type)) return false;   // tech gate (player + AI)
         if (cm.isConstructUnlocked(type) || _SURVIVAL_BUILDS.has(type)) return true;
         return this.scene.archonPioneers !== false;
     },

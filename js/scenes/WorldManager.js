@@ -307,6 +307,7 @@ export default class WorldManager {
             this._assignFamilyEstates();              // every adult belongs to a family estate
             this.scene.constructManager.growEstates(); // estates expand ~1 tile/day
             this._reclaimEmptyCamps();                 // tear down camps once everyone has a bed
+            this.scene.progression?.researchTick();    // accrue Lore + complete research
             this.scene.units.forEach(u => { u._wageCollected = false; });
             this.scene.economyManager.collectFirstFruits(); // Restored: calculate daily tithe delivery preparation
 

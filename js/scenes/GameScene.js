@@ -15,6 +15,7 @@ import NatureManager from './NatureManager.js';
 import WorldManager from './WorldManager.js';
 import ConstructManager from './ConstructManager.js';
 import ZoneManager from './ZoneManager.js';
+import ProgressionManager from './ProgressionManager.js';
 import GameLogger from '../GameLogger.js';
 
 export default class GameScene extends Phaser.Scene {
@@ -83,6 +84,9 @@ export default class GameScene extends Phaser.Scene {
         this.sheep       = [];
         this.discoveredCrops = new Set();   // crop keys unlocked by harvesting their wild form (#22)
         this.unlockedConstructs = new Set(['camp']);   // types the colony knows how to build (archon pioneers the first of each)
+        this.knownTechs    = new Set();   // researched techs (tech tree); gates advanced constructs
+        this.lore          = 0;           // accumulated research points
+        this.researchTarget = null;       // tech id currently being researched (auto-picked if null)
         // Settings: archon AI auto-pioneers new build types (toggle off → player drives progress)
         this.archonPioneers = (() => {
             try { return JSON.parse(localStorage.getItem('epochs_settings') ?? '{}').archonPioneers ?? true; }
@@ -133,6 +137,7 @@ export default class GameScene extends Phaser.Scene {
         this.natureManager = new NatureManager(this);
         this.worldManager = new WorldManager(this);
         this.zoneManager      = new ZoneManager(this);
+        this.progression      = new ProgressionManager(this);
         this.zoneMode         = null;
         this._zoneDragTiles   = new Set();
         this._zoneDragStart   = null;
@@ -288,6 +293,9 @@ export default class GameScene extends Phaser.Scene {
                 sheep: this.sheep.map(s => this._serAnimal(s)),
                 discoveredCrops: [...this.discoveredCrops],
                 unlockedConstructs: [...this.unlockedConstructs],
+                knownTechs: [...this.knownTechs],
+                lore: this.lore,
+                researchTarget: this.researchTarget,
             };
             localStorage.setItem('epochs_save', JSON.stringify(state));
             this.uiManager.showSaveFlash?.();
@@ -376,6 +384,9 @@ export default class GameScene extends Phaser.Scene {
             this.unlockedConstructs.add('camp');
             for (const c of this.constructManager?.constructs ?? [])
                 if (c.built && !c.faction && c.type) this.unlockedConstructs.add(c.type);
+            this.knownTechs     = new Set(s.knownTechs ?? []);
+            this.lore           = s.lore ?? 0;
+            this.researchTarget = s.researchTarget ?? null;
 
             // If no construct has inventory (old saves), seed townhall from legacy resources
             const anyInventory = this.constructs.some(b => b.isPublic && Object.values(b.inventory ?? {}).some(v => v > 0));

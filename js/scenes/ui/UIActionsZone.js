@@ -2,6 +2,7 @@ import { TILE, MAP_OY, FM_TYPES, FM_LABELS, MATERIAL_LABELS, MATERIAL_COLORS, CO
 import { CONSTRUCTS, CONSTRUCT_CATS, computeBuildCost } from '../../content/constructs/index.js';
 import { ITEMS } from '../../content/items/index.js';
 import { CROPS } from '../../content/crops/index.js';
+import { TECHS } from '../../content/techs/index.js';
 import UIPanel from '../UIPanel.js';
 import { tabStrip, THEME } from '../../ui/UIKit.js';
 
@@ -530,7 +531,7 @@ export default {
     },
 
     _renderCategoryTabs(x, y, w, h) {
-        const cats = [...Object.keys(CONSTRUCT_CATS), 'Zones', 'Debug'];
+        const cats = [...Object.keys(CONSTRUCT_CATS), 'Zones', 'Tech', 'Debug'];
         const labels = cats.map(c => c.length > 5 ? c.slice(0, 4) : c);
         tabStrip(this.scene, x + 1, y, w - 2, h - 1, labels, labels[cats.indexOf(this.scene.buildCat)],
             (lbl) => { this.scene.buildCat = cats[labels.indexOf(lbl)]; this.updateUI(); },
@@ -594,6 +595,28 @@ export default {
             return items;
         }
 
+        if (this.scene.buildCat === 'Tech') {
+            const pr = this.scene.progression;
+            const hdr = {
+                label: `🔬 ${pr?.currentEraLabel() ?? 'Stone Age'}`,
+                sublabel: `Lore ${Math.floor(this.scene.lore ?? 0)}${this.scene.researchTarget ? ` → ${TECHS[this.scene.researchTarget]?.label}` : ''}`,
+                color: 0x1a2438, callback: () => {},
+            };
+            const techItems = Object.values(TECHS).map(t => {
+                const known = pr?.isTechKnown(t.id);
+                const avail = pr?.techAvailable(t.id);
+                const targeted = this.scene.researchTarget === t.id;
+                const status = known ? '✓ known' : avail ? (targeted ? '◉ researching' : `${t.cost} Lore`) : '🔒 locked';
+                return {
+                    label: `${t.icon} ${t.label}`, sublabel: `${t.era} · ${status}`, desc: t.desc,
+                    color: known ? 0x21401f : targeted ? 0x2a3a5a : avail ? 0x2a2a18 : 0x1a1410,
+                    active: targeted,
+                    callback: avail && !known ? () => { pr.setResearch(t.id); this.updateUI(); } : () => {},
+                };
+            });
+            return [hdr, ...techItems];
+        }
+
         if (this.scene.buildCat === 'Debug') {
             return [
                 { label: '✏ Sprite Editor', color: 0x101820,
@@ -617,6 +640,17 @@ export default {
                 ? Object.entries(cost).map(([r, n]) => `${n} ${MATERIAL_LABELS[r] ?? r.split('.').pop()}`).join(' ')
                 : null;
             const hasPicker = mats.length > 1;
+            // Tech gate: lock constructs whose tech isn't researched yet.
+            const techId  = this.scene.progression?.techForConstruct(type);
+            const locked  = techId && !this.scene.progression.isTechKnown(techId);
+            if (locked) {
+                const tlbl = TECHS[techId]?.label ?? techId;
+                return {
+                    label: `🔒 ${def.label}`, sublabel: `needs ${tlbl}`, desc: def.desc,
+                    color: 0x241c10, dimmed: true, active: false,
+                    callback: () => this.scene.uiManager?.showToast?.(`🔒 Research ${tlbl} first`, '#cc9966'),
+                };
+            }
             return {
                 label: def.label, sublabel: costStr, desc: def.desc,
                 color: isActive ? 0x4a6070 : canAfford ? (def.color > 0 ? Math.max(0, (def.color & 0xfefefe) >> 1) : 0x2a1e0e) : 0x1a1208,
