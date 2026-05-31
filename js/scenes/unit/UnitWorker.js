@@ -1685,29 +1685,33 @@ export default {
         const cm = this.scene.constructManager;
         const baseTx = Math.floor(u.x / TILE);
         const baseTy = Math.floor((u.y - MAP_OY) / TILE);
+        const w = cDef.width ?? 1, h = cDef.height ?? 1;
         const outdoor = !!cDef.outdoor;
 
-        for (let r = 1; r <= 20; r++) {
-            for (let dx = -r; dx <= r; dx++) {
-                for (let dy = -r; dy <= r; dy++) {
-                    if (Math.abs(dx) !== r && Math.abs(dy) !== r) continue;
-                    const tx = baseTx + dx, ty = baseTy + dy;
-                    if (tx < 1 || ty < 1) continue;
-                    if (!cm.isFree(tx, ty, cDef.width ?? 1, cDef.height ?? 1, type)) continue;
-                    // Indoor workshops must sit inside an enclosed room; outdoor ones don't.
-                    if (!outdoor) {
+        let site;
+        if (outdoor) {
+            // Outdoor workshop → best-scoring open site (prefers road/building adjacency). #9
+            site = cm.findScoredSite({ tx: baseTx, ty: baseTy }, w, h, 20);
+        } else {
+            // Indoor workshop → first free tile inside an enclosed room (room placement, which is
+            // itself road-scored, decides the location).
+            for (let r = 1; r <= 20 && !site; r++)
+                for (let dx = -r; dx <= r && !site; dx++)
+                    for (let dy = -r; dy <= r; dy++) {
+                        if (Math.abs(dx) !== r && Math.abs(dy) !== r) continue;
+                        const tx = baseTx + dx, ty = baseTy + dy;
+                        if (tx < 1 || ty < 1 || !cm.isFree(tx, ty, w, h, type)) continue;
                         const room = cm.getRoomAt(tx, ty, 60);
                         if (!room || room.length < 2 || room.length > 60) continue;
+                        site = { tx, ty }; break;
                     }
-                    cm.placeConstruct(type, tx, ty);
-                    u.role = 'builder';
-                    this.scene.uiManager?.showFloatText?.(tx * TILE, MAP_OY + ty * TILE - 14,
-                        `${def.construct} planned`, '#aaddff');
-                    return true;
-                }
-            }
         }
-        return false;   // no valid site (indoor workshop needs a room built first)
+        if (!site) return false;   // no valid site (indoor workshop needs a room built first)
+        cm.placeConstruct(type, site.tx, site.ty);
+        u.role = 'builder';
+        this.scene.uiManager?.showFloatText?.(site.tx * TILE, MAP_OY + site.ty * TILE - 14,
+            `${def.construct} planned`, '#aaddff');
+        return true;
     },
 
     // Returns true if construct b is inside the same oikos domain as unit u's home
@@ -2263,24 +2267,21 @@ export default {
             return true;
         };
         if (estate) {
+            // Best-scoring fit within the estate (rooms line up along paths / against each other).
+            const eAnchor = { tx: estate.cx ?? estate.x1, ty: estate.cy ?? estate.y1 };
+            let best = null, bestScore = -Infinity;
             for (let ty = estate.y1; ty <= estate.y2 - ih + 1; ty++)
-                for (let tx = estate.x1; tx <= estate.x2 - iw + 1; tx++)
-                    if (tx >= 2 && ty >= 2 && fits(tx, ty)) return { tx, ty };
-            return null;
+                for (let tx = estate.x1; tx <= estate.x2 - iw + 1; tx++) {
+                    if (tx < 2 || ty < 2 || !fits(tx, ty)) continue;
+                    const s = fm.siteScore(tx, ty, iw, ih, eAnchor);
+                    if (s > bestScore) { bestScore = s; best = { tx, ty }; }
+                }
+            return best;
         }
         const anchor = fm.constructs.find(b => (b.type === 'townhall' || b.type === 'camp') && !b.faction);
         const c = anchor ? { tx: anchor.tx, ty: anchor.ty }
                          : { tx: this.scene.spawnTx ?? 20, ty: this.scene.spawnTy ?? 20 };
-        for (let r = 3; r < 22; r++) {
-            for (let dy = -r; dy <= r; dy++) {
-                for (let dx = -r; dx <= r; dx++) {
-                    if (Math.abs(dx) < r && Math.abs(dy) < r) continue;
-                    const tx = c.tx + dx, ty = c.ty + dy;
-                    if (tx >= 2 && ty >= 2 && fits(tx, ty)) return { tx, ty };
-                }
-            }
-        }
-        return null;
+        return fm.findScoredSite(c, iw, ih, 22, fits);
     },
 
     // Internal helpers used by pickRole/assignVocation (defined in UnitNeeds but need JOB_AFFINITIES

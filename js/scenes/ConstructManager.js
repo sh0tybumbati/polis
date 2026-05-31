@@ -457,24 +457,48 @@ export default class ConstructManager {
         return this.getAt(tx, ty);
     }
 
+    // Score a candidate footprint (higher = better). Rewards growing ALONG roads/paths and
+    // clustering next to existing buildings, penalises sitting on a road or straying far from the
+    // town centre — so the settlement forms coherent streets instead of sprawling in rings. (#9)
+    siteScore(tx, ty, w, h, anchor) {
+        const hasRoad = (x, y) => (this.scene.roadMap?.get(`${x},${y}`) ?? 0) > 0;
+        const occupied = (x, y) => (this.scene.mapData?.get(`${x},${y}`) ?? 0) >= 99;
+        let road = 0, build = 0, onRoad = 0;
+        for (let yy = ty; yy < ty + h; yy++)
+            for (let xx = tx; xx < tx + w; xx++)
+                if (hasRoad(xx, yy)) onRoad++;
+        const edge = (xx, yy) => { if (hasRoad(xx, yy)) road++; if (occupied(xx, yy)) build++; };
+        for (let xx = tx - 1; xx <= tx + w; xx++) { edge(xx, ty - 1); edge(xx, ty + h); }
+        for (let yy = ty; yy < ty + h; yy++)     { edge(tx - 1, yy); edge(tx + w, yy); }
+        let s = Math.min(road, 6) * 10 + Math.min(build, 4) * 4 - onRoad * 25;
+        if (anchor) s -= Phaser.Math.Distance.Between(tx, ty, anchor.tx, anchor.ty) * 0.3;
+        return s;
+    }
+
+    // Best-scoring free footprint within `radius` tiles of an anchor (replaces first-free-tile
+    // ring scans). `extraFits(tx,ty)` adds caller-specific constraints (room edges, terrain, …).
+    findScoredSite(anchor, w, h, radius = 22, extraFits = null) {
+        const a = anchor ?? { tx: this.scene.spawnTx ?? 0, ty: this.scene.spawnTy ?? 0 };
+        let best = null, bestScore = -Infinity;
+        for (let dy = -radius; dy <= radius; dy++) {
+            for (let dx = -radius; dx <= radius; dx++) {
+                const tx = a.tx + dx, ty = a.ty + dy;
+                if (tx < 1 || ty < 1) continue;
+                if (!this.isFree(tx, ty, w, h)) continue;
+                if (extraFits && !extraFits(tx, ty)) continue;
+                const s = this.siteScore(tx, ty, w, h, a);
+                if (s > bestScore) { bestScore = s; best = { tx, ty }; }
+            }
+        }
+        return best;
+    }
+
     findPublicBuildSite(type) {
         const def = CONSTRUCTS[type];
         if (!def) return null;
         const th = this.constructs.find(b => b.type === 'townhall' && !b.faction);
         const center = th ? { tx: th.tx, ty: th.ty } : { tx: this.scene.spawnTx ?? 0, ty: this.scene.spawnTy ?? 0 };
-        
-        for (let r = 2; r < 25; r++) {
-            for (let dy = -r; dy <= r; dy++) {
-                for (let dx = -r; dx <= r; dx++) {
-                    if (Math.abs(dx) < r && Math.abs(dy) < r) continue;
-                    const tx = center.tx + dx, ty = center.ty + dy;
-                    if (this.isFree(tx, ty, def.width, def.height, type)) {
-                        return { tx, ty };
-                    }
-                }
-            }
-        }
-        return null;
+        return this.findScoredSite(center, def.width || 1, def.height || 1, 24);
     }
 
     nearestEdge(wx, wy) {

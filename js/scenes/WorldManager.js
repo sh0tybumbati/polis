@@ -799,19 +799,8 @@ export default class WorldManager {
     }
 
     _findCampSite(near) {
-        const bm = this.scene.constructManager;
-        const cx = near.tx + 1, cy = near.ty + 1;
-        for (let r = 4; r <= 18; r++) {
-            for (let dy = -r; dy <= r; dy++) {
-                for (let dx = -r; dx <= r; dx++) {
-                    if (Math.abs(dx) !== r && Math.abs(dy) !== r) continue;
-                    const tx = cx + dx - 1, ty = cy + dy - 1;
-                    if (tx < 1 || ty < 1) continue;
-                    if (bm.isFree(tx, ty, 2)) return { tx, ty };
-                }
-            }
-        }
-        return null;
+        // Prefer a spot along a road / beside existing buildings near the civic centre.
+        return this.scene.constructManager.findScoredSite({ tx: near.tx, ty: near.ty }, 2, 2, 18);
     }
 
     _spawnCaravan() {
