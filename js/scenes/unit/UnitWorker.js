@@ -19,6 +19,9 @@ const _FOOD_PRIORITY = ['Food.Grain.Wheat.Bread', 'Food.Meat.Venison.Sausages', 
 const _NUTRITION_MAP = Object.fromEntries(Object.values(ITEMS).filter(d => d.nutrition != null).map(d => [d.key, d.nutrition]));
 const _FOOD_CONSTRUCT_TYPES = new Set(['oven', 'butchersblock', 'grainsilo', 'house', 'camp', 'townhall']);
 const _STICKY_ROLES = new Set(['hunter', 'shepherd', 'farmer']);
+// Survival-essential builds the archon AI may always pioneer even with auto-pioneer off (so a
+// player-driven colony never starves or goes homeless waiting for orders).
+const _SURVIVAL_BUILDS = new Set(['camp', 'bed', 'wall_edge', 'door', 'granary', 'woodshed', 'stonepile', 'storageshelf', 'grainsilo']);
 const _STORAGE_APPL = new Set(['grainsilo', 'storageshelf']);
 const _PUBLIC_STORAGE = new Set(['grainsilo', 'storageshelf', 'townhall', 'chest']);
 const _DEPOSIT_ROUTES  = Object.fromEntries(Object.values(JOBS).filter(j => j.depositTypes?.length > 0).map(j => [j.id, j.depositTypes]));
@@ -1649,6 +1652,14 @@ export default {
         if (!ctype || !CONSTRUCTS[ctype]) return false;            // vocation needs no building
         if (CONSTRUCTS[ctype].placement === 'edge') return false;
 
+        const cm = this.scene.constructManager;
+        // The archon's household pioneers new build types; other citizens only build what the
+        // colony already knows how to build (unlocked). And the archon respects the pioneer toggle.
+        if (u.isArchon) { if (!this._archonMayInitiate(ctype)) return false; }
+        else if (!cm.isConstructUnlocked(ctype)) return false;
+        // Don't pioneer a workshop whose input can't be supplied yet — e.g. an oven before a mill. (B2)
+        if (def.input && !cm.inputAvailable(def.input)) return false;
+
         // Already exists (built or ghost) — the normal workshop flow will use/finish it.
         if (this.scene.constructs.some(b => b.type === ctype && !b.faction)) return false;
 
@@ -2080,6 +2091,15 @@ export default {
     // Needs-driven settlement planner: build the top unmet infrastructure need, one at a
     // time. Housing (emergent bedrooms) and food/workshop rooms come first, then the fixed
     // storage/processing order. Rate-limited; waits while anything is still under construction.
+    // May the archon AI *initiate* a new (locked) build type? Always for survival essentials and
+    // already-unlocked types; for anything else only when the auto-pioneer setting is on (off →
+    // the player drives new production). Also respects the input-supply check (B2).
+    _archonMayInitiate(type) {
+        const cm = this.scene.constructManager;
+        if (cm.isConstructUnlocked(type) || _SURVIVAL_BUILDS.has(type)) return true;
+        return this.scene.archonPioneers !== false;
+    },
+
     _runArchonAI(u, dt) {
         u._archonAiTimer = (u._archonAiTimer ?? 0) + dt;
         if (u._archonAiTimer < 5.0) return;
@@ -2128,8 +2148,10 @@ export default {
             if (haveZone) continue;
             if (this._archonPaintGrowZone(u, gc.crop)) return;
         }
-        // Bread needs a kitchen — an oven in an enclosed room (built as a furnished workshop).
+        // Bread needs a kitchen — an oven in an enclosed room. Only once flour can be supplied
+        // (a mill exists) and the pioneer toggle allows it. (B2: no oven before the mill)
         if (econ.provisioningPressure('Food.Grain.Wheat.Bread', pop) >= 0.5
+            && this._archonMayInitiate('oven') && fm.inputAvailable('Food.Grain.Wheat.Flour')
             && !this.scene.constructs.some(b => b.type === 'oven' && !b.faction)
             && roomCount < roomBudget && this._archonBuildRoom(u, 'workshop', null, 'oven')) return;
 
@@ -2138,9 +2160,14 @@ export default {
         //    proper kitchen/workshop (classifyRoom types it by the appliance's zoneType). #4
         let wantType = null;
         for (const w of workers) {
-            const ct = w.vocation && JOBS[w.vocation]?.construct;
+            const job = w.vocation && JOBS[w.vocation];
+            const ct = job?.construct;
             if (ct && CONSTRUCTS[ct] && CONSTRUCTS[ct].placement !== 'edge' && !CONSTRUCTS[ct].outdoor
-                && !this.scene.constructs.some(b => b.type === ct && !b.faction)) { wantType = ct; break; }
+                && !this.scene.constructs.some(b => b.type === ct && !b.faction)
+                && this._archonMayInitiate(ct)                         // pioneer toggle / unlocked
+                && (!job.input || fm.inputAvailable(job.input))) {     // supplier exists (B2)
+                wantType = ct; break;
+            }
         }
         if (wantType && roomCount < roomBudget && this._archonBuildRoom(u, 'workshop', null, wantType)) return;
 
@@ -2148,6 +2175,7 @@ export default {
         for (const type of ARCHON_BUILD_ORDER) {
             if (this.scene.constructs.some(b => b.type === type && !b.faction)) continue;
             if (!CONSTRUCTS[type]) continue;
+            if (!this._archonMayInitiate(type)) continue;             // pioneer toggle / unlocked
             if (!econ.afford(CONSTRUCTS[type].cost || {})) continue;
             if (this._archonPlace(u, type)) return;
         }

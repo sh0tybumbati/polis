@@ -1174,7 +1174,7 @@ export default class UIManager {
         const s = this.scene;
         const W = s.SW, H = s.SH;
         const mw = Math.min(310, W * 0.75);
-        const mh = 284;
+        const mh = 322;
         const mx = (W - mw) / 2, my = (H - mh) / 2;
         const objs = [];
 
@@ -1251,6 +1251,12 @@ export default class UIManager {
                     s._autosaveEvent.remove(false); s._autosaveEvent = null;
                 }
             }
+        );
+
+        addRow('Archon Builds',
+            [{ label: 'AUTO', val: true }, { label: 'PLAYER', val: false }],
+            () => s.archonPioneers !== false,
+            v => { s.archonPioneers = v; this._saveSettings({ archonPioneers: v }); }
         );
 
         const sep2 = this._ui(s.add.graphics().setDepth(202));

@@ -82,6 +82,12 @@ export default class GameScene extends Phaser.Scene {
         this.deer        = [];
         this.sheep       = [];
         this.discoveredCrops = new Set();   // crop keys unlocked by harvesting their wild form (#22)
+        this.unlockedConstructs = new Set(['camp']);   // types the colony knows how to build (archon pioneers the first of each)
+        // Settings: archon AI auto-pioneers new build types (toggle off → player drives progress)
+        this.archonPioneers = (() => {
+            try { return JSON.parse(localStorage.getItem('epochs_settings') ?? '{}').archonPioneers ?? true; }
+            catch { return true; }
+        })();
         this.roadGfx     = null;
         this.roadMode    = false;
         this._roadsDirty = false;
@@ -281,6 +287,7 @@ export default class GameScene extends Phaser.Scene {
                 deer:  this.deer.map(d => this._serAnimal(d)),
                 sheep: this.sheep.map(s => this._serAnimal(s)),
                 discoveredCrops: [...this.discoveredCrops],
+                unlockedConstructs: [...this.unlockedConstructs],
             };
             localStorage.setItem('epochs_save', JSON.stringify(state));
             this.uiManager.showSaveFlash?.();
@@ -364,6 +371,11 @@ export default class GameScene extends Phaser.Scene {
             this.deer      = (s.deer      ?? []).map(d => ({ ...d, gfx: null }));
             this.sheep     = (s.sheep     ?? []).map(ss => ({ ...ss, gfx: null, followUnit: null }));
             this.discoveredCrops = new Set(s.discoveredCrops ?? []);
+            // Unlocked build types: restore, then back-fill from anything already built (old saves).
+            this.unlockedConstructs = new Set(s.unlockedConstructs ?? ['camp']);
+            this.unlockedConstructs.add('camp');
+            for (const c of this.constructManager?.constructs ?? [])
+                if (c.built && !c.faction && c.type) this.unlockedConstructs.add(c.type);
 
             // If no construct has inventory (old saves), seed townhall from legacy resources
             const anyInventory = this.constructs.some(b => b.isPublic && Object.values(b.inventory ?? {}).some(v => v > 0));

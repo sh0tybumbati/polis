@@ -3,6 +3,8 @@ import {
 } from '../config/gameConstants.js';
 import { CONSTRUCTS, computeBuildCost } from '../content/constructs/index.js';
 import { NODES } from '../content/nodes/index.js';
+import { JOBS, WORKSHOP_JOBS } from '../content/jobs/index.js';
+import { CROPS } from '../content/crops/index.js';
 
 // Durability multiplier on an edge construct's HP, by the material it was built from.
 // Order matters: most-specific resource paths are tested first (loose Stones before cut
@@ -16,6 +18,17 @@ export function materialHpMult(mat) {
     if (mat.includes('Wood'))                                    return 1.0;  // timber
     return 1.0;
 }
+
+// Reverse production map for build ordering / tech prerequisites (B2): which construct types
+// produce a resource, and which resources come straight from nodes / crops.
+const _RESOURCE_PRODUCERS = (() => {
+    const m = {};
+    for (const j of Object.values(WORKSHOP_JOBS))
+        if (j.output && j.construct) (m[j.output] ??= new Set()).add(j.construct);
+    return m;
+})();
+const _RESOURCE_FROM_NODE = new Set(Object.values(NODES).map(n => n.resource).filter(Boolean));
+const _RESOURCE_FROM_CROP = new Set(Object.values(CROPS).map(c => c.output).filter(Boolean));
 
 export default class ConstructManager {
     constructor(scene) {
@@ -233,6 +246,14 @@ export default class ConstructManager {
         if (b.placement === 'edge') this._checkRoomsFormedAtEdge(b);
         if (b.type === 'townhall') this._updatePreCivicCache();
         if (b.type === 'garden') this._updateGarlicCache();
+
+        // Tech foundation: completing the first of a type teaches the colony to build it. Because
+        // locked types can only be initiated by the archon's household, this first build is always
+        // archon-driven — so citizens may build more of it from now on.
+        if (!b.faction && b.type && this.scene.unlockedConstructs && !this.scene.unlockedConstructs.has(b.type)) {
+            this.scene.unlockedConstructs.add(b.type);
+            this.scene.uiManager?.showToast?.(`🏛 Colony learned to build ${label}`, '#e8d8a0');
+        }
     }
 
     _checkRoomsFormedAtEdge(edge) {
@@ -502,6 +523,29 @@ export default class ConstructManager {
         const th = this.constructs.find(b => b.type === 'townhall' && !b.faction);
         const center = th ? { tx: th.tx, ty: th.ty } : { tx: this.scene.spawnTx ?? 0, ty: this.scene.spawnTy ?? 0 };
         return this.findScoredSite(center, def.width || 1, def.height || 1, 24);
+    }
+
+    // Tech foundation: a construct type the colony has learned to build (the archon's household
+    // built the first one). The starting camp is always known.
+    isConstructUnlocked(type) {
+        return type === 'camp' || !!this.scene.unlockedConstructs?.has(type);
+    }
+
+    // Production-chain check (B2): is `res` obtainable right now? True if it's in stock, a producer
+    // workshop (built or planned) exists, or a raw node / grow-zone source exists. Used so the
+    // archon won't pioneer a workshop (e.g. oven→flour) before its supplier (mill→wheat) exists.
+    inputAvailable(res) {
+        if (!res) return true;
+        if ((this.scene.resources?.[res] ?? 0) > 0) return true;
+        const producers = _RESOURCE_PRODUCERS[res];
+        if (producers && this.constructs.some(b => !b.faction && producers.has(b.type))) return true;
+        if (_RESOURCE_FROM_NODE.has(res) &&
+            (this.scene.resNodes ?? []).some(n => n.stock > 0 && NODES[n.type]?.resource === res)) return true;
+        if (_RESOURCE_FROM_CROP.has(res)) {
+            const gz = this.scene.zoneManager?.growTiles;
+            if (gz && [...gz.values()].some(st => st.crop && CROPS[st.crop]?.output === res)) return true;
+        }
+        return false;
     }
 
     nearestEdge(wx, wy) {
