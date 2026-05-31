@@ -159,13 +159,21 @@ export default class InputManager {
                         s.dragGfx.clear();
                         s._drawFmDragPreview(s._fmDragStart.x, s._fmDragStart.y, ptr.worldX, ptr.worldY);
                     } else {
-                        // Box select
+                        // Box select — bright marquee so the area of effect is clearly visible
                         s._dragging = true;
                         const rx = Math.min(ptr.x, s._ptrDownX), ry = Math.min(ptr.y, s._ptrDownY);
                         const rw = Math.abs(ptr.x - s._ptrDownX), rh = Math.abs(ptr.y - s._ptrDownY);
+                        const cl = Math.min(14, rw / 2, rh / 2);   // corner-bracket length
                         s.dragGfx.clear()
-                            .fillStyle(0x4a7acc, 0.12).fillRect(rx, ry, rw, rh)
-                            .lineStyle(1, 0x4a7acc, 0.75).strokeRect(rx, ry, rw, rh);
+                            .fillStyle(0x66ccff, 0.18).fillRect(rx, ry, rw, rh)
+                            .lineStyle(2, 0x99e0ff, 0.95).strokeRect(rx, ry, rw, rh);
+                        // accent corner brackets
+                        s.dragGfx.lineStyle(3, 0xffffff, 0.9);
+                        [[rx, ry, 1, 1], [rx + rw, ry, -1, 1], [rx, ry + rh, 1, -1], [rx + rw, ry + rh, -1, -1]]
+                            .forEach(([px, py, sx2, sy2]) => {
+                                s.dragGfx.lineBetween(px, py, px + sx2 * cl, py);
+                                s.dragGfx.lineBetween(px, py, px, py + sy2 * cl);
+                            });
                         s.hoverGfx.clear();
                     }
                 }
@@ -361,7 +369,9 @@ export default class InputManager {
             s.selectedZoneCrop  = null;
             if (hit && !hit.isEnemy) { s.selectUnit(hit.id, ptr.event?.shiftKey ?? false); return; }
             if (construct) { s.selectedConstruct = construct; s.updateUI(); return; }
-            if (node) { s.selectedNode = node; s.updateUI(); return; }
+            // Nodes are not inspected via left-click — no info panel pops open. To put workers on
+            // a node, select them and right-click it (orderWorkersToNode).
+            if (node) { s.updateUI(); return; }
             const furnHit = s.constructManager?.findConstructAt(wx, wy);
             if (furnHit) { s.selectedConstruct = furnHit; s.updateUI(); return; }
 
