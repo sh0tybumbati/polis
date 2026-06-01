@@ -598,6 +598,8 @@ export default class InputManager {
         else if (s.zoneMode === 'storage')     s.zoneManager.paintStorage(tx, ty);
         else if (s.zoneMode === 'market')      s.zoneManager.paintMarket(tx, ty);
         else if (s.zoneMode === 'erase')       s.zoneManager.erase(tx, ty);
+        else if (s.zoneMode === 'roof')        s.roofManager?.planRoof(tx, ty, { auto: false });
+        else if (s.zoneMode === 'roof_remove') s.roofManager?.removeRoof(tx, ty);
         else if (s.zoneMode === 'grow')
             s.zoneManager.paintGrow(tx, ty, null);
         else if (s.zoneMode?.startsWith('grow:'))
@@ -608,11 +610,24 @@ export default class InputManager {
         const s = this.scene;
         const x1 = Math.min(start.tx, end.tx), x2 = Math.max(start.tx, end.tx);
         const y1 = Math.min(start.ty, end.ty), y2 = Math.max(start.ty, end.ty);
+        // Roof: tint each tile by support — green where a roof can go, red where it's out of range.
+        if (s.zoneMode === 'roof') {
+            s.hoverGfx.clear();
+            for (let ry = y1; ry <= y2; ry++) for (let rx = x1; rx <= x2; rx++) {
+                const ok = s.roofManager?.isSupported(rx, ry);
+                const c  = ok ? 0x66ccdd : 0xff4444;
+                s.hoverGfx.fillStyle(c, ok ? 0.22 : 0.30)
+                    .fillRect(rx * TILE, MAP_OY + ry * TILE, TILE, TILE);
+            }
+            s.hoverGfx.lineStyle(1, 0x66ccdd, 0.6)
+                .strokeRect(x1 * TILE, MAP_OY + y1 * TILE, (x2 - x1 + 1) * TILE, (y2 - y1 + 1) * TILE);
+            return;
+        }
         let col = 0xffffff;
         if (s.zoneMode === 'work')         col = 0x4488ff;
         else if (s.zoneMode === 'storage') col = 0xffaa22;
         else if (s.zoneMode === 'market')  col = 0xddaa22;
-        else if (s.zoneMode === 'erase')   col = 0xff4444;
+        else if (s.zoneMode === 'erase' || s.zoneMode === 'roof_remove') col = 0xff4444;
         else if (s.zoneMode === 'grow')    col = 0x558833;
         else if (s.zoneMode?.startsWith('grow:'))
             col = CROPS[s.zoneMode.split(':')[1]]?.zoneColor ?? 0x558833;

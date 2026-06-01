@@ -15,6 +15,7 @@ import NatureManager from './NatureManager.js';
 import WorldManager from './WorldManager.js';
 import ConstructManager from './ConstructManager.js';
 import ZoneManager from './ZoneManager.js';
+import RoofManager from './RoofManager.js';
 import ProgressionManager from './ProgressionManager.js';
 import GameLogger from '../GameLogger.js';
 
@@ -137,6 +138,7 @@ export default class GameScene extends Phaser.Scene {
         this.natureManager = new NatureManager(this);
         this.worldManager = new WorldManager(this);
         this.zoneManager      = new ZoneManager(this);
+        this.roofManager      = new RoofManager(this);
         this.progression      = new ProgressionManager(this);
         this.zoneMode         = null;
         this._zoneDragTiles   = new Set();
@@ -186,6 +188,7 @@ export default class GameScene extends Phaser.Scene {
 
         this.constructManager.init();
         this.zoneManager.init();
+        this.roofManager.init();
 
         this.borderGfx = this._w(this.add.graphics().setDepth(1));
         this.roadGfx = this._w(this.add.graphics().setDepth(1));
@@ -196,6 +199,7 @@ export default class GameScene extends Phaser.Scene {
         if (loaded) {
             this.constructManager.renderAll();
             this.zoneManager.renderAll();
+            this.roofManager.renderAll();
             this.mapManager.redrawRoads();   // redraw the whole road layer
 
             this.constructManager.renderAll();
@@ -272,7 +276,7 @@ export default class GameScene extends Phaser.Scene {
         if (this._gameOver) return;
         try {
             const state = {
-                v: 6,
+                v: 7,
                 day: this.day, phase: this.phase, timerMs: this.timerMs,
                 nightsSurvived: this.nightsSurvived, mealsDone: this.mealsDone,
                 resources: { ...this.resources }, storageMax: { ...this.storageMax },
@@ -286,6 +290,7 @@ export default class GameScene extends Phaser.Scene {
                 estateBounds: this.estateBounds,
                 constructs: this.constructManager.save(),
                 zones:      this.zoneManager.save(),
+                roofs:      this.roofManager.save(),
                 units:     this.units.map(u => this._serUnit(u)),
                 resNodes:  this.resNodes.map(n => this._serNode(n)),
                 groundItems: this.groundItems.map(i => ({ id: i.id, resource: i.resource, qty: i.qty, x: i.x, y: i.y, subKey: i.subKey })),
@@ -349,6 +354,7 @@ export default class GameScene extends Phaser.Scene {
             this.estateBounds = s.estateBounds ?? s.domains ?? [];
             this.constructManager.load({ constructs: s.constructs, walls: s.walls, furniture: s.furniture });
             this.zoneManager.load(s.zones ?? null);
+            this.roofManager.load(s.roofs ?? null);
 
             this.resNodes    = (s.resNodes  ?? []).map(n => ({ ...n, gfx: null, labelObj: null }));
             this.groundItems   = [];

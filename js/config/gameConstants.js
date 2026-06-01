@@ -179,6 +179,11 @@ export const ARCHON_BUILD_ORDER = [
 export const TILE      = 32;
 export const MAP_OY    = 52;   // topbar height; map starts here
 
+// Roofing (#29) — RimWorld-style support rule
+export const ROOF_SUPPORT_DIST = 6;   // max Chebyshev tiles a roof tile may sit from a full-height wall
+export const ROOF_BUILD_WORK   = 6;   // labor per roof tile (one builder visit ≈ -5 per 12s cycle)
+export const WARMTH_RADIUS     = 5;   // Chebyshev tiles a hearth/campfire warms an indoor tile
+
 // Chunk-based infinite map
 export const CHUNK_SIZE = 16;
 export const WORLD_SEED_DEFAULT = 0;

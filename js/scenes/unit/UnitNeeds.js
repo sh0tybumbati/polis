@@ -179,9 +179,15 @@ export default {
             ? relVals.reduce((a, b) => a + b, 0) / relVals.length * 0.05 : 0;
         const griefPenalty = (u._grief ?? 0) * 0.28;
         const traitMoodMod = (u.traits ?? []).includes('melancholic') ? -0.04 : 0;
+        // Roofing comfort (#29): under a finished roof = indoor (+0.03 mood); near a heat source = warm (+0.05).
+        const rm = this.scene.roofManager;
+        const utx = Math.floor(u.x / TILE), uty = Math.floor((u.y - MAP_OY) / TILE);
+        u._indoor = rm ? rm.isRoofed(utx, uty) : false;
+        u._warm   = u._indoor && rm.isWarm(utx, uty);
+        const comfortBonus = u._warm ? 0.05 : u._indoor ? 0.03 : 0;
         u.mood = Math.max(0, Math.min(1,
             n.food * 0.35 + n.rest * 0.28 + n.social * 0.20 + n.joy * 0.12
-            + relBonus - griefPenalty + traitMoodMod));
+            + relBonus - griefPenalty + traitMoodMod + comfortBonus));
 
         // Starvation: food=0 drains HP; warn every 8s
         if (n.food <= 0 && !u.isSleeping) {

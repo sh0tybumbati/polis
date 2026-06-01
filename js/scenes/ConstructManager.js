@@ -275,6 +275,8 @@ export default class ConstructManager {
                 const type = this.classifyRoom(room);
                 const name = type ? `${type} room` : 'room';
                 this.scene.uiManager?.showToast?.(`🏠 ${name} formed (${room.length} tiles)`, '#88ccff');
+                // RimWorld-style: enclosing a room auto-plans a roof over its interior (#29).
+                this.scene.roofManager?.autoRoofRoom(room);
                 return;
             }
         }
@@ -424,6 +426,7 @@ export default class ConstructManager {
 
     removeConstruct(c) {
         if (!c) return;
+        const wasSupport = c.placement === 'edge' && c.built && (c.height === 'full' || c.height === 'door');
         if (c.placement === 'edge') {
             if (c.isH) this.hEdges.delete(`${c.row},${c.col}`);
             else       this.vEdges.delete(`${c.row},${c.col}`);
@@ -434,6 +437,7 @@ export default class ConstructManager {
         this.constructs = this.constructs.filter(cc => cc.id !== c.id);
         if (c.type === 'townhall') this._updatePreCivicCache();
         if (c.type === 'garden') this._updateGarlicCache();
+        if (wasSupport) this._collapseRoofsNearEdge(c.isH, c.row, c.col);
         this.renderAll();
         this.updateStorageCap();
     }
@@ -470,11 +474,22 @@ export default class ConstructManager {
     removeEdge(isH, row, col) {
         const c = this.getEdge(isH, row, col);
         if (!c) return;
+        const wasSupport = c.built && (c.height === 'full' || c.height === 'door');
         if (isH) this.hEdges.delete(`${c.row},${c.col}`);
         else     this.vEdges.delete(`${c.row},${c.col}`);
         this._byId.delete(c.id);
         this.constructs = this.constructs.filter(cc => cc.id !== c.id);
         this.renderAll();
+        if (wasSupport) this._collapseRoofsNearEdge(isH, row, col);
+    }
+
+    // Re-check roofs around a removed wall — drop any that lost their support (#29).
+    _collapseRoofsNearEdge(isH, row, col) {
+        const rm = this.scene.roofManager;
+        if (!rm) return;
+        // The two tiles this edge bordered.
+        if (isH) { rm.revalidateAround(col, row - 1); rm.revalidateAround(col, row); }
+        else     { rm.revalidateAround(col - 1, row); rm.revalidateAround(col, row); }
     }
 
     renderWalls() { this.renderAll(); } // Alias used by InputManager

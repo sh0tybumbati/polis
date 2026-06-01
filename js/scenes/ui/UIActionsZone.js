@@ -71,6 +71,8 @@ export default {
         if (s.zoneMode === 'work')    return '🖌 Work Zone · drag to paint · ESC to cancel';
         if (s.zoneMode === 'storage') return '🖌 Storage Zone · drag to paint · ESC to cancel';
         if (s.zoneMode === 'market')  return '🖌 Market Zone · drag to paint · ESC to cancel';
+        if (s.zoneMode === 'roof')        return '🏠 Roof · drag to plan (green=ok, red=no support) · ESC';
+        if (s.zoneMode === 'roof_remove') return '🏚 Remove Roof · drag to tear down · ESC to cancel';
         if (s.zoneMode === 'erase')   return '🧹 Erase · drag to clear zones · ESC to cancel';
         if (s.constructType) {
             const def = CONSTRUCTS[s.constructType];
@@ -591,6 +593,8 @@ export default {
                 mk('Market Zone',  'merchants trade from stalls here',        'market',  0xaa8811),
             ];
             items.push(mk('Grow Zone', 'paint fields · right-click to set crop', 'grow', 0x336622));
+            items.push(mk('Roof',        'plan a roof — within 6 tiles of a wall',   'roof',        0x445566));
+            items.push(mk('Remove Roof', 'drag to tear roofs down',                  'roof_remove', 0x553344));
             items.push(mk('Erase Zones', 'drag to clear all zone markings', 'erase', 0x552222));
             return items;
         }

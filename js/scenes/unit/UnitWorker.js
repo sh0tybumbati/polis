@@ -11,7 +11,7 @@ import { CROPS } from '../../content/crops/index.js';
 import GameLogger from '../../GameLogger.js';
 
 // Module-level constants to avoid per-frame allocations
-const _NO_DEPOSIT = new Set(['build', 'zone_workshop', 'workshop', 'eat', 'collect_tithe', 'leisure', 'merchant', 'plant_grow', 'harvest_grow', 'plant', 'mental_break', 'bury']);
+const _NO_DEPOSIT = new Set(['build', 'roof_build', 'zone_workshop', 'workshop', 'eat', 'collect_tithe', 'leisure', 'merchant', 'plant_grow', 'harvest_grow', 'plant', 'mental_break', 'bury']);
 // Rest / recreation tasks — these reset a unit's work streak (see tickWorker).
 const _RECREATION_TASKS = new Set(['eat', 'leisure', 'chat', 'rest_break', 'stroll', 'mental_break']);
 const _PRIVATE_ROLES = new Set(Object.values(JOBS).filter(j => j.private).map(j => j.id));
@@ -286,6 +286,7 @@ export default {
         else if (u.taskType === 'stroll') this.handleStrollTask(u, dt);
         else if (u.taskType === 'mental_break') this.handleMentalBreakTask(u, dt);
         else if (u.taskType === 'build') this.handleBuildTask(u, dt);
+        else if (u.taskType === 'roof_build') this.handleRoofBuild(u, dt);
         else if (u.taskType === 'zone_workshop')   this.handleZoneWorkshopTask(u, dt);
         else if (u.taskType === 'deconstruct') this.handleDeconstructTask(u, dt);
         else if (u.taskType === 'repair') this.handleRepairTask(u, dt);
@@ -1543,6 +1544,52 @@ export default {
             u.workProgress = 0;
             // No moveTo here — handleBuildTask routes the builder to materials first, then the site.
             return;
+        }
+
+        // No construct to raise — pick up a planned roof tile if one is in reach (#29).
+        this._seekRoofBuild(u);
+    },
+
+    _seekRoofBuild(u) {
+        const rm = this.scene.roofManager;
+        if (!rm || rm.roofs.size === 0) return;
+        const claimed = new Set(this.scene.units
+            .filter(w => w.id !== u.id && w.taskType === 'roof_build' && w._roofKey)
+            .map(w => w._roofKey));
+        // nearestPlannedRoof gives the closest unbuilt tile; skip if another builder already has it.
+        let best = null, bestD = Infinity;
+        for (const [k, r] of rm.roofs) {
+            if (r.built || claimed.has(k)) continue;
+            const [tx, ty] = k.split(',').map(Number);
+            const cx = (tx + 0.5) * TILE, cy = MAP_OY + (ty + 0.5) * TILE;
+            const d = (cx - u.x) ** 2 + (cy - u.y) ** 2;
+            if (d < bestD) { bestD = d; best = k; }
+        }
+        if (best) { u.taskType = 'roof_build'; u._roofKey = best; u.workProgress = 0; }
+    },
+
+    handleRoofBuild(u, dt) {
+        const rm = this.scene.roofManager;
+        const k  = u._roofKey;
+        const roof = k ? rm?.roofs.get(k) : null;
+        if (!roof || roof.built) { u.taskType = null; u._roofKey = null; u.workProgress = 0; return; }
+
+        const [tx, ty] = k.split(',').map(Number);
+        const cx = (tx + 0.5) * TILE, cy = MAP_OY + (ty + 0.5) * TILE;
+        if (this.moveToward(u, cx, cy, 28, dt)) return;
+        u.isInside = false;
+
+        const attrMult  = this.getAttrMult(u, ['str']);
+        const workSpeed = (1.0 + (u.skills.masonry?.level ?? 1) * 0.2) * attrMult * this.getRestMult(u);
+        u.workProgress = (u.workProgress ?? 0) + dt * workSpeed;
+        if (u.workProgress >= 12.0) {
+            u.workProgress = 0;
+            roof.work -= 5;
+            this._gainSkillXp(u, 'masonry');
+            if (roof.work <= 0) {
+                rm.completeRoof(tx, ty);
+                u.taskType = null; u._roofKey = null;
+            }
         }
     },
 

@@ -685,7 +685,8 @@ export default {
             ry += 20;
         }
         const moodCol = mood > 0.7 ? 0x88ddaa : mood > 0.4 ? 0xddcc44 : 0xcc4433;
-        this._infTxt(ox + pad, ry + 2, 'Mood', { fontSize: this._fs(11), color: '#f0e0b0', stroke: '#000000', strokeThickness: 2 });
+        const comfortIcon = u._warm ? ' 🔥' : u._indoor ? ' 🏠' : '';
+        this._infTxt(ox + pad, ry + 2, `Mood${comfortIcon}`, { fontSize: this._fs(11), color: '#f0e0b0', stroke: '#000000', strokeThickness: 2 });
         this._infBar(ox + pad + labelW, ry + 1, bw, 13, mood, moodCol);
         if (u.isSleeping) this._infTxt(ox + W - pad - 4, ry + 1, '💤',
             { fontSize: this._fs(9), color: '#88aacc' }).setOrigin(1, 0);
