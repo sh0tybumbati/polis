@@ -459,6 +459,12 @@ export default class GameScene extends Phaser.Scene {
         const mx = this.spawnTx;
         const by = this.spawnTy;
 
+        // A founding colony already knows its staple crops — berries and grain — so the archon can
+        // lay grow zones from day one (exotic crops still need wild discovery, #22). Without this the
+        // colony can't farm until it forages wild forms, by which point it's often already starving.
+        this.discoveredCrops.add('berries');
+        this.discoveredCrops.add('wheat');
+
         const camp = this.placeBuiltConstruct('camp', mx, by);
         camp.isPublic = false;
         camp.inventory = {

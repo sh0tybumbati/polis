@@ -378,6 +378,45 @@ export default class ConstructManager {
         this.scene.updateUI?.();
     }
 
+    // Physical stock of a material a builder could actually pull from: any non-enemy construct's
+    // on-hand inventory (incl. private home camps) plus loose ground piles. Mirrors the sources
+    // _findBuildMaterial searches, so it answers "can this blueprint ever be supplied?".
+    availableQty(res) {
+        let q = 0;
+        for (const b of this.constructs) if (b.built && b.faction !== 'enemy') q += (b.inventory?.[res] ?? 0);
+        for (const it of this.scene.groundItems ?? []) if (it.resource === res && it.qty > 0) q += it.qty;
+        return q;
+    }
+    materialAvailable(res) { return this.availableQty(res) > 0; }
+
+    // Stale-blueprint GC: a ghost whose remaining materials exist NOWHERE in the colony can never be
+    // built — and while it lingers it freezes the archon's build planning. After STALL_LIMIT seconds
+    // of its materials being unobtainable, cancel it (refunding anything already delivered). Builds
+    // that are merely waiting for a free builder (materials on hand, or already fully delivered) are
+    // never touched — their timer keeps resetting.
+    tickBlueprintGC(dt) {
+        if (!dt || dt <= 0) return;
+        const STALL_LIMIT = 45;   // game-seconds with required materials unobtainable
+        let toCancel = null;
+        for (const c of this.constructs) {
+            if (c.built || c.faction) continue;
+            const need = c.resNeeded ?? {};
+            const missing = Object.keys(need).filter(r => (need[r] ?? 0) > 0);
+            if (missing.length === 0) { c._stallSec = 0; continue; }           // fully delivered, just needs labour
+            if (missing.some(r => this.materialAvailable(r))) { c._stallSec = 0; continue; }
+            c._stallSec = (c._stallSec ?? 0) + dt;
+            if (c._stallSec > STALL_LIMIT) (toCancel ??= []).push(c);
+        }
+        if (toCancel) for (const c of toCancel) this._cancelStalledBlueprint(c);
+    }
+
+    _cancelStalledBlueprint(c) {
+        // Refund anything already hauled onto the site back into the economy.
+        if (c.inventory) for (const [r, q] of Object.entries(c.inventory)) if (q > 0) this.scene.economyManager?.addResource(r, q);
+        this.removeConstruct(c);
+        this.scene.uiManager?.showToast?.('🏚 Blueprint cancelled — materials unavailable');
+    }
+
 
     // Edge-based placement (walls, fences)
     placeEdge(type, isH, row, col, material) {
@@ -663,11 +702,24 @@ export default class ConstructManager {
         }
     }
 
+    // Wall colour follows its build material so logs/cobble/dressed-block/brick read distinctly,
+    // falling back to the construct's own colour for fences, doors, and unmaterialed edges.
+    _wallMatColor(mat, fallback) {
+        if (!mat) return fallback;
+        if (mat.includes('Wood.Pine.Sticks'))      return 0x9a7a4a;  // pale wattle
+        if (mat.includes('Wood'))                   return 0x7a5030;  // timber / logs
+        if (mat.includes('Stone.Limestone.Stones')) return 0x8a8a92;  // grey cobblestone
+        if (mat.includes('Clay') || mat.includes('Brick')) return 0xa0533a; // fired clay brick (#28)
+        if (mat.includes('Metal'))                  return 0x6b7079;  // iron-banded
+        if (mat.includes('Stone'))                  return 0xa8a8b2;  // dressed stone block
+        return fallback;
+    }
+
     _renderEdge(c) {
         const def   = CONSTRUCTS[c.type];
         const g     = this.edgeGfx;
         const T     = TILE, OY = MAP_OY;
-        const color = def.color || 0xcccccc;
+        const color = this._wallMatColor(c.material, def.color || 0xcccccc);
         const alpha = c.built ? 1.0 : 0.4;
         const px    = c.col * T, py = OY + c.row * T;
         const isFence = def.height === 'fence' || def.height === 'low';

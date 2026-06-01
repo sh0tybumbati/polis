@@ -299,13 +299,18 @@ export default {
             getEstateAt: (tx, ty) => this.scene.constructManager.getEstateAt(tx, ty),
             growZones: this.scene.zoneManager?.growTiles.size ?? 0,
         };
+        // On-demand build gathering: how much mining/woodcutting pending blueprints still need,
+        // ON TOP of the provisioning/storage economy already folded into ctx.need(). This makes the
+        // colony gather specifically for what it's building without abandoning food/stock targets.
+        const buildPull = this._buildGatherPull();
         const cands = [];
         for (const job of Object.values(JOBS)) {
             if (!job.score) continue;
             const tp = priors[job.id] ?? 3; // unset = normal priority
             if (tp === 0) continue;          // player disabled this job
             let s = job.score(u, ctx);
-            if (s <= 0) continue;
+            if (s <= 0) continue;            // ineligible (age) or fully crowded — don't override
+            s += buildPull[job.id] ?? 0;     // pull toward the gather role whose output a build needs
             s += this._attrBonus(u, job.id);
             s += this._passionBonus(u, job.skill);
             if (u.vocation) {
@@ -328,6 +333,33 @@ export default {
             if (hasUnbuilt && u.age >= 2 && (priors['builder'] ?? 3) > 0) u.role = 'builder';
             else if (hasNodes && (priors['forager'] ?? 3) > 0) u.role = 'forager';
         }
+    },
+
+    // Build-demand pull for the raw-material gather roles: sum the material each pending blueprint
+    // still needs beyond what's already on hand (the true gathering shortfall), routed to the role
+    // that produces it — stone/ore → miner, wood → woodcutter. Returned as a score bonus that ADDS
+    // to the provisioning economy, so an active build draws gatherers once basic needs are met but
+    // never erases the food/stock signals. Saturates at ~a room's worth so one big project can't
+    // permanently peg every worker to mining.
+    _buildGatherPull() {
+        const cm = this.scene.constructManager;
+        if (!cm) return {};
+        let stone = 0, wood = 0;
+        for (const b of this.scene.constructs) {
+            if (b.built || b.faction) continue;
+            for (const [r, q] of Object.entries(b.resNeeded ?? {})) {
+                if ((q ?? 0) <= 0) continue;
+                const short = Math.max(0, q - cm.availableQty(r));
+                if (short <= 0) continue;
+                if (r.includes('Stone') || r.includes('Metal')) stone += short;
+                else if (r.includes('Wood')) wood += short;
+            }
+        }
+        const W = 75, CAP = 8;   // ~a room's worth of segments saturates the pull
+        return {
+            miner:      Math.min(1, stone / CAP) * W,
+            woodcutter: Math.min(1, wood  / CAP) * W,
+        };
     },
 
     assignVocation(u) {

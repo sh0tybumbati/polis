@@ -27,6 +27,9 @@ export default class WorldManager {
 
         // Meals are now handled by the worker hunger system in UnitManager (handleEatTask)
 
+        // Clear blueprints that can never be supplied so they don't freeze the archon's planning.
+        this.scene.constructManager?.tickBlueprintGC(delta * this.scene.tickSpeed / 1000);
+
         if (!this.scene.enemiesDisabled) {
             this.tickEnemyAI(delta * this.scene.tickSpeed);
             this.checkWinLose();

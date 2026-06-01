@@ -23,6 +23,9 @@ const _STICKY_ROLES = new Set(['hunter', 'shepherd', 'farmer']);
 // player-driven colony never starves or goes homeless waiting for orders).
 const _SURVIVAL_BUILDS = new Set(['camp', 'bed', 'wall_edge', 'door', 'granary', 'woodshed', 'stonepile', 'storageshelf', 'grainsilo']);
 const _STORAGE_APPL = new Set(['grainsilo', 'storageshelf']);
+// Dedicated colony-scale storage buildings (used to decide whether the archon needs to designate a
+// storage zone as a free fallback). Excludes furniture-scale storage like chests.
+const _STORAGE_TYPES = new Set(['granary', 'woodshed', 'stonepile', 'grainsilo', 'storageshelf']);
 const _PUBLIC_STORAGE = new Set(['grainsilo', 'storageshelf', 'townhall', 'chest']);
 const _DEPOSIT_ROUTES  = Object.fromEntries(Object.values(JOBS).filter(j => j.depositTypes?.length > 0).map(j => [j.id, j.depositTypes]));
 const _FETCH_SOURCES   = Object.fromEntries(Object.values(JOBS).filter(j => j.fetchSources).map(j => [j.id, j.fetchSources]));
@@ -215,7 +218,13 @@ export default {
                         if (u.role === 'farmer') this.seekFarmerTask(u);
                         else if (u.role === 'builder') this.seekBuilderTask(u);
                         else if (u.role in WORKSHOP_JOBS) this.seekWorkshopTask(u);
-                        else if (JOBS[u.role]?.nodeTypes) this.seekNodeTask(u, JOBS[u.role].nodeTypes);
+                        else if (JOBS[u.role]?.nodeTypes) {
+                            // Stockpile before cutting more: harvesting drops resources on the ground
+                            // next to the node — a raw-material gatherer hauls those loose piles to
+                            // storage FIRST, then seeks a new node. Without this, gatherers keep
+                            // harvesting (piling up ever more on the ground) and rarely store any of it.
+                            if (!this.seekGroundItem(u)) this.seekNodeTask(u, JOBS[u.role].nodeTypes);
+                        }
                     }
                     // Mood collapse: miserable units refuse productive work, seek relief
                     if (!u.taskType && !u.targetNode && u._moodCollapsed) {
@@ -2152,12 +2161,46 @@ export default {
         u._archonAiTimer = (u._archonAiTimer ?? 0) + dt;
         if (u._archonAiTimer < 5.0) return;
         u._archonAiTimer = 0;
-        if (this.scene.constructs.some(b => !b.built && !b.faction)) return;
 
         const fm = this.scene.constructManager;
         const econ = this.scene.economyManager;
         const workers = this.scene.units.filter(w => w.type === 'worker' && !w.isEnemy && w.hp > 0);
         const pop = workers.length;
+
+        // ── FOOD FIRST (survival) ─────────────────────────────────────────────
+        // Securing a grow zone costs no materials and no builder labour, so it must run BEFORE the
+        // "finish the current build first" guard below. Otherwise a single stuck/unaffordable
+        // blueprint freezes the archon forever and the colony never plants food → mass starvation.
+        const GROW_CROPS = [
+            { res: 'Food.Grain.Wheat',   crop: 'wheat'   },
+            { res: 'Food.Produce.Berry', crop: 'berries' },
+        ];
+        for (const gc of GROW_CROPS) {
+            if (econ.provisioningPressure(gc.res, pop) < 0.5) continue;
+            // Gated: only cultivate crops whose wild form the colony has discovered. (#22)
+            const cdef = CROPS[gc.crop];
+            if ((cdef?.wild?.length ?? 0) > 0 && !this.scene.discoveredCrops?.has(gc.crop)) continue;
+            const haveZone = [...(this.scene.zoneManager?.growTiles?.values() ?? [])]
+                .some(st => st.crop && CROPS[st.crop]?.output === gc.res);
+            if (haveZone) continue;
+            if (this._archonPaintGrowZone(u, gc.crop)) return;
+        }
+
+        // ── STORAGE (survival) ────────────────────────────────────────────────
+        // The colony must always have somewhere to stockpile what it harvests, or gathered goods
+        // rot on the ground. A storage zone is free (no materials, no builder labour), so — like a
+        // grow zone — it runs above the build-freeze guard. A proper granary/woodshed/stonepile is
+        // still raised later via ARCHON_BUILD_ORDER once materials allow; this just guarantees a
+        // deposit destination exists from day one.
+        const hasStorageConstruct = this.scene.constructs.some(b =>
+            b.built && !b.faction && _STORAGE_TYPES.has(b.type));
+        const hasStorageZone = (this.scene.zoneManager?.storageTiles?.size ?? 0) > 0;
+        if (!hasStorageConstruct && !hasStorageZone && this._archonPaintStorageZone(u)) return;
+
+        // ── Heavier building waits for the current project to finish (keeps the archon from
+        //    carpeting the map / over-committing labour). A blueprint that can never be supplied is
+        //    auto-cancelled by ConstructManager.tickBlueprintGC, so this guard can't freeze forever.
+        if (this.scene.constructs.some(b => !b.built && !b.faction)) return;
 
         // Room budget (proxy: 1 door = 1 room) keeps the archon from carpeting the map.
         const roomCount  = this.scene.constructs.filter(b => b.type === 'door' && !b.faction).length;
@@ -2180,23 +2223,7 @@ export default {
         }
         if (estateless > openCap && roomCount < roomBudget && this._archonBuildRoom(u, 'bedroom')) return;
 
-        // 2) Provisioning → field crops are laid out as flexible grow zones (not fixed farm/garden
-        //    buildings); processed foods still need their workshop.
-        const GROW_CROPS = [
-            { res: 'Food.Grain.Wheat',   crop: 'wheat'   },
-            { res: 'Food.Produce.Berry', crop: 'berries' },
-        ];
-        for (const gc of GROW_CROPS) {
-            if (econ.provisioningPressure(gc.res, pop) < 0.5) continue;
-            // Gated: only cultivate crops whose wild form the colony has discovered. (#22)
-            const cdef = CROPS[gc.crop];
-            if ((cdef?.wild?.length ?? 0) > 0 && !this.scene.discoveredCrops?.has(gc.crop)) continue;
-            const haveZone = [...(this.scene.zoneManager?.growTiles?.values() ?? [])]
-                .some(st => st.crop && CROPS[st.crop]?.output === gc.res);
-            if (haveZone) continue;
-            if (this._archonPaintGrowZone(u, gc.crop)) return;
-        }
-        // Bread needs a kitchen — an oven in an enclosed room. Only once flour can be supplied
+        // 2) Bread needs a kitchen — an oven in an enclosed room. Only once flour can be supplied
         // (a mill exists) and the pioneer toggle allows it. (B2: no oven before the mill)
         if (econ.provisioningPressure('Food.Grain.Wheat.Bread', pop) >= 0.5
             && this._archonMayInitiate('oven') && fm.inputAvailable('Food.Grain.Wheat.Flour')
@@ -2262,6 +2289,40 @@ export default {
         return false;
     },
 
+    // Designate a free storage zone on clear ground near the settlement core so harvested goods
+    // have a stockpile destination (counts toward commons via syncResources). Mirrors the grow-zone
+    // siting; works pre-civic by centring on the camp when there's no townhall yet.
+    _archonPaintStorageZone(u, size = 2) {
+        const zm = this.scene.zoneManager, fm = this.scene.constructManager, cm = this.scene.chunkManager;
+        if (!zm || !fm) return false;
+        const core = this.scene.constructs.find(b => (b.type === 'townhall' || b.type === 'camp') && !b.faction);
+        const center = core ? { tx: core.tx, ty: core.ty }
+                            : { tx: this.scene.spawnTx ?? 0, ty: this.scene.spawnTy ?? 0 };
+        const fits = (ox, oy) => {
+            for (let dy = 0; dy < size; dy++) for (let dx = 0; dx < size; dx++) {
+                const tx = ox + dx, ty = oy + dy;
+                if (cm && cm.getTile(tx, ty) !== T_GRASS) return false;
+                if (!fm.isFree(tx, ty, 1, 1)) return false;
+                if (zm._claimed?.(zm.tileKey(tx, ty))) return false;
+            }
+            return true;
+        };
+        for (let r = 2; r < 22; r++) {
+            for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) {
+                if (Math.abs(dx) < r && Math.abs(dy) < r) continue;
+                const ox = center.tx + dx, oy = center.ty + dy;
+                if (!fits(ox, oy)) continue;
+                for (let yy = 0; yy < size; yy++) for (let xx = 0; xx < size; xx++)
+                    zm.paintStorage(ox + xx, oy + yy);
+                this.scene.uiManager?.showFloatText?.((ox + 1) * TILE, MAP_OY + oy * TILE - 8,
+                    '⚜ stockpile', '#cdd6e0');
+                GameLogger.log('archon_storage', { u: u.name, tx: ox, ty: oy, size });
+                return true;
+            }
+        }
+        return false;
+    },
+
     _archonPlace(u, type) {
         const fm = this.scene.constructManager;
         const site = fm.findPublicBuildSite(type);
@@ -2284,7 +2345,17 @@ export default {
         const ih = kind === 'bedroom' ? 3 : 2;
         const site = this._findRoomSite(iw, ih, estate);
         if (!site) return false;
-        const interior = this._planRoom(site.tx, site.ty, iw, ih);
+
+        // Pick a wall material the colony can actually supply, by purpose: houses/workshops go up in
+        // cheap wood first (so a room can be raised from the camp's starting sticks/logs), reserving
+        // dressed stone for defensive walls. The colony doesn't gather build materials on demand, so
+        // committing a room it can't supply just leaves a permanently-stuck ghost — bail if nothing
+        // is affordable for the whole perimeter.
+        const wallCount = 2 * iw + 2 * ih - 1;     // perimeter edges minus the south door
+        const wallMat = this._chooseWallMaterial(wallCount, 'room');
+        if (!wallMat) return false;
+
+        const interior = this._planRoom(site.tx, site.ty, iw, ih, wallMat);
         if (!interior) return false;
         const { tx, ty } = site;
         let label = '⚜ workshop room planned';
@@ -2307,9 +2378,10 @@ export default {
         return true;
     },
 
-    // Lay wall_edge ghosts around an iw×ih interior with a door on the south wall middle.
-    // Returns the interior tiles, or null if the footprint/edges aren't clear.
-    _planRoom(tx, ty, iw, ih) {
+    // Lay wall_edge ghosts around an iw×ih interior with a door on the south wall middle, built
+    // from `wallMat` (null = wall_edge's default material). Returns interior tiles, or null if the
+    // footprint/edges aren't clear.
+    _planRoom(tx, ty, iw, ih, wallMat = null) {
         const fm = this.scene.constructManager;
         for (let r = ty; r < ty + ih; r++)
             for (let c = tx; c < tx + iw; c++)
@@ -2321,11 +2393,50 @@ export default {
         const doorCol = tx + Math.floor(iw / 2);   // south wall, middle segment
         for (const [isH, row, col] of edges) {
             if (isH && row === ty + ih && col === doorCol) fm.placeEdge('door', true, row, col, null);
-            else fm.placeEdge('wall_edge', isH, row, col, null);
+            else fm.placeEdge('wall_edge', isH, row, col, wallMat);
         }
         const interior = [];
         for (let r = ty; r < ty + ih; r++) for (let c = tx; c < tx + iw; c++) interior.push({ tx: c, ty: r });
         return interior;
+    },
+
+    // Choose a wall material the colony can supply for `wallCount` segments, by purpose. Houses go
+    // up cheap (wood first); defensive walls prefer the sturdiest available (block → brick later).
+    // Returns the material key, or null if nothing on hand covers the whole run.
+    _chooseWallMaterial(wallCount, purpose = 'room') {
+        const fm = this.scene.constructManager;
+        const def = CONSTRUCTS.wall_edge;
+        // Preference order per purpose (clay brick slots into the sturdy end once #28 lands).
+        const order = purpose === 'defense'
+            ? ['Materials.Stone.Limestone', 'Materials.Stone.Limestone.Stones',
+               'Materials.Wood.Pine', 'Materials.Wood.Pine.Sticks']
+            : ['Materials.Wood.Pine', 'Materials.Wood.Pine.Sticks',
+               'Materials.Stone.Limestone.Stones', 'Materials.Stone.Limestone'];
+        let gatherable = null;
+        for (const mat of order) {
+            const per = def.costs?.[mat]?.[mat];
+            if (per == null) continue;                                   // not a valid wall material
+            if (fm.availableQty(mat) >= per * wallCount) return mat;      // in stock → raise it now
+            if (!gatherable && this._materialGatherable(mat)) gatherable = mat;
+        }
+        // Nothing fully in stock, but a source exists for `gatherable` → commit anyway; on-demand
+        // gathering (the build-pull in pickRole) will supply it, and the blueprint GC cancels it only
+        // if the material truly never materialises. Returns null only when it's both unstocked AND
+        // ungatherable, so the archon never plans a genuinely impossible room.
+        return gatherable;
+    },
+
+    // Is `res` obtainable by gathering — i.e., does a live resource node produce its material family?
+    _materialGatherable(res) {
+        const fam = res.includes('Wood') ? 'Wood'
+                  : res.includes('Metal') ? 'Metal'
+                  : res.includes('Stone') ? 'Stone' : null;
+        if (!fam) return false;
+        for (const n of this.scene.resNodes ?? []) {
+            if ((n.stock ?? 0) <= 0) continue;
+            if ((NODES[n.type]?.resource ?? '').includes(fam)) return true;
+        }
+        return false;
     },
 
     // Find a clear site for a room: interior free, bounding edges empty, south-door exterior

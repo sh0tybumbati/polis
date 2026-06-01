@@ -313,12 +313,18 @@ export default {
         }
 
         const noAssign = b.type === 'wall' || b.type === 'palisade';
+        // A camp is a lightweight tent the player can strike at will — demolish it instantly rather
+        // than queuing worker labour (which never completes if the colony is dead/idle, leaving "no
+        // way to demolish the camp"). Real buildings still use the worker-driven deconstruct.
+        const demoBtn = b.type === 'camp'
+            ? { label: '🔨 Strike camp', color: 0x441111, cb: () => { s.demolishConstruct(b); this.updateUI(); } }
+            : b.deconstructing
+                ? { label: '✗ Cancel', color: 0x332211, cb: () => { s.constructManager.cancelDeconstruct(b); this.updateUI(); } }
+                : { label: '🔨 Demo',  color: 0x441111, cb: () => { s.constructManager.orderDeconstruct(b); this.updateUI(); } };
         this._actStrip(zx, zy + TAB_H + panelH, ACT_W, STRIP, [
             { label: '👷 Workers', color: 0x334422, dimmed: noAssign,
               cb: () => { s.orderWorkersToConstruct(b); this.updateUI(); } },
-            b.deconstructing
-                ? { label: '✗ Cancel', color: 0x332211, cb: () => { s.constructManager.cancelDeconstruct(b); this.updateUI(); } }
-                : { label: '🔨 Demo',  color: 0x441111, cb: () => { s.constructManager.orderDeconstruct(b); this.updateUI(); } },
+            demoBtn,
             { label: '✕ Close', color: 0x2a1c10, cb: close },
         ]);
     },
