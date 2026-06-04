@@ -40,14 +40,17 @@ export default class SpriteEditorScene extends Phaser.Scene {
     create() {
         const W = this.scale.width, H = this.scale.height;
         this.W = W; this.H = H;
-        this.CW = Math.min(Math.floor(W * 0.52), 420);   // canvas column width
-        this.PW = W - this.CW - 4;                        // property column width
-        this.CX = Math.floor(this.CW / 2);
+        this.RAIL_W = Phaser.Math.Clamp(Math.round(W * 0.07), 44, 72);  // slim icon rail (<1/8)
+        this.RAIL_X = W - this.RAIL_W;
+        this.CANVAS_W = this.RAIL_X;                      // canvas area = everything left of the rail
+        this.CX = Math.floor(this.RAIL_X / 2);
         this.CY = Math.floor(H / 2);
-        this.PX = this.CW + 4;
         this.VS = 7;                                      // view scale (px per rig unit)
+        this.panX = 0; this.panY = 0;                     // canvas pan offset (screen px)
 
         // Editor state
+        this.tool = 'place';                              // 'place' | 'pan'
+        this.openPanel = null;                            // 'color' | 'parts' | 'props' | 'anim' | null
         this.activePart = 0;
         this.selIdx = -1;
         this.newType = 'circle';
@@ -79,6 +82,8 @@ export default class SpriteEditorScene extends Phaser.Scene {
         this.shpGfx  = this.add.graphics().setDepth(2);
         this.selGfx  = this.add.graphics().setDepth(3);
         this.uiGfx   = this.add.graphics().setDepth(8);
+
+        this.input.mouse?.disableContextMenu();           // allow right-drag panning
 
         this.rig = this._loadAutosave() || this._blankRig();
         this._fitView();
@@ -140,16 +145,19 @@ export default class SpriteEditorScene extends Phaser.Scene {
 
     // ── Coordinate mapping (rig units ↔ screen) ─────────────────────────────────────
 
-    _sx(x) { return this.CX + x * this.VS; }
-    _sy(y) { return this.CY + y * this.VS; }
-    _gx(px) { return (px - this.CX) / this.VS; }
-    _gy(py) { return (py - this.CY) / this.VS; }
+    _sx(x) { return this.CX + this.panX + x * this.VS; }
+    _sy(y) { return this.CY + this.panY + y * this.VS; }
+    _gx(px) { return (px - this.CX - this.panX) / this.VS; }
+    _gy(py) { return (py - this.CY - this.panY) / this.VS; }
 
     _fitView() {
         const b = this._rigBounds();
-        if (!b) { this.VS = 7; return; }
+        if (!b) { this.VS = 7; this.panX = 0; this.panY = 0; return; }
         const w = Math.max(4, b.maxX - b.minX), h = Math.max(4, b.maxY - b.minY);
-        this.VS = Math.max(1, Math.min(12, Math.floor(Math.min(this.CW, this.H) * 0.7 / Math.max(w, h))));
+        this.VS = Math.max(1, Math.min(40, Math.min(this.CANVAS_W, this.H) * 0.7 / Math.max(w, h)));
+        // Centre the content's bbox in the canvas area.
+        this.panX = -((b.minX + b.maxX) / 2) * this.VS;
+        this.panY = -((b.minY + b.maxY) / 2) * this.VS;
     }
     _rigBounds() {
         let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity, any = false;
@@ -363,8 +371,15 @@ export default class SpriteEditorScene extends Phaser.Scene {
     // ── Input ────────────────────────────────────────────────────────────────────────
 
     _buildInput() {
-        const zone = this.add.zone(0, 0, this.CW, this.H).setOrigin(0).setInteractive();
+        const zone = this.add.zone(0, 0, this.CANVAS_W, this.H).setOrigin(0).setInteractive();
+        this._zone = zone;
         zone.on('pointerdown', ptr => {
+            // Pan: middle/right button, or the hand tool.
+            if (ptr.middleButtonDown?.() || ptr.rightButtonDown?.() || this.tool === 'pan') {
+                this._pan = { px: ptr.x, py: ptr.y };
+                this._drag = null;
+                return;
+            }
             let gx = this._gx(ptr.x), gy = this._gy(ptr.y);
             if (this.gridSnap) { gx = Math.round(gx); gy = Math.round(gy); }
             const sh = this.activeShapes();
@@ -383,6 +398,13 @@ export default class SpriteEditorScene extends Phaser.Scene {
             this._redraw();
         });
         zone.on('pointermove', ptr => {
+            if (this._pan) {
+                this.panX += ptr.x - this._pan.px;
+                this.panY += ptr.y - this._pan.py;
+                this._pan.px = ptr.x; this._pan.py = ptr.y;
+                this._drawCanvas();
+                return;
+            }
             if (!this._drag) return;
             let gx = this._gx(ptr.x), gy = this._gy(ptr.y);
             if (this.gridSnap) { gx = Math.round(gx); gy = Math.round(gy); }
@@ -393,9 +415,24 @@ export default class SpriteEditorScene extends Phaser.Scene {
             this._drag.ox = gx; this._drag.oy = gy;
             this._drawShapesOnly();
         });
-        zone.on('pointerup', () => { if (this._drag?.moved) { this._autosave(); this._redraw(); } this._drag = null; });
+        zone.on('pointerup', () => {
+            if (this._pan) { this._pan = null; return; }
+            if (this._drag?.moved) { this._autosave(); this._redraw(); }
+            this._drag = null;
+        });
 
-        this.input.keyboard?.on('keydown-ESC', () => this._close());
+        // Scroll to zoom toward the cursor.
+        this.input.on('wheel', (ptr, _over, _dx, dy) => {
+            if (ptr.x >= this.RAIL_X) return;            // ignore over the rail
+            const gx = this._gx(ptr.x), gy = this._gy(ptr.y);
+            this.VS = Phaser.Math.Clamp(this.VS * (dy < 0 ? 1.1 : 0.9), 0.5, 60);
+            this.panX = ptr.x - this.CX - gx * this.VS;  // keep that rig point under the cursor
+            this.panY = ptr.y - this.CY - gy * this.VS;
+            this._drawCanvas();
+        });
+
+        this.input.keyboard?.on('keydown-ESC', () => { if (this.openPanel) { this.openPanel = null; this._redraw(); } else this._close(); });
+        this.input.keyboard?.on('keydown-ZERO', () => { this._fitView(); this._redraw(); });
         this.input.keyboard?.on('keydown-DELETE', () => this._deleteSelected() ?? this._redraw());
         this.input.keyboard?.on('keydown-BACKSPACE', () => { this._deleteSelected(); this._redraw(); });
         this.input.keyboard?.on('keydown-Z', e => { if (e.ctrlKey || e.metaKey) { e.shiftKey ? this._redo() : this._undo(); } });
@@ -436,10 +473,16 @@ export default class SpriteEditorScene extends Phaser.Scene {
         this._buildUI();
     }
 
+    // Canvas-only redraw for smooth pan/zoom (skips the UI rebuild).
+    _drawCanvas() {
+        this._drawGrid();
+        this._drawShapesOnly();
+    }
+
     _drawShapesOnly() {
         this.shpGfx.clear();
         this.selGfx.clear();
-        const ox = this.CX, oy = this.CY;
+        const ox = this.CX + this.panX, oy = this.CY + this.panY;
         if (this.playing || this._scrubbing) {
             renderRig(this.shpGfx, this.rig, {
                 scale: this.VS, ox, oy, walkPhase: this._phase, moving: true,
@@ -473,153 +516,228 @@ export default class SpriteEditorScene extends Phaser.Scene {
 
     _drawBackground() {
         this.bgGfx.clear();
-        this.bgGfx.fillStyle(0x0a0e0a).fillRect(0, 0, this.W, this.H);
-        this.bgGfx.fillStyle(0x101810).fillRect(0, 0, this.CW, this.H);
-        this.bgGfx.fillStyle(0x0c100c).fillRect(this.PX, 0, this.PW, this.H);
-        this.bgGfx.lineStyle(1, 0x223322).lineBetween(this.CW, 0, this.CW, this.H);
+        this.bgGfx.fillStyle(0x0d120d).fillRect(0, 0, this.CANVAS_W, this.H);            // canvas area
+        this.bgGfx.fillStyle(0x141a14).fillRect(this.RAIL_X, 0, this.RAIL_W, this.H);    // rail strip
+        this.bgGfx.lineStyle(1, 0x2a3a2a).lineBetween(this.RAIL_X, 0, this.RAIL_X, this.H);
     }
 
     _drawGrid() {
         this.gridGfx.clear();
-        this.gridGfx.lineStyle(0.5, 0x1a221a, 0.4);
-        const span = 30;
-        for (let gx = -span; gx <= span; gx++) { const sx = this._sx(gx); if (sx >= 0 && sx <= this.CW) this.gridGfx.lineBetween(sx, 0, sx, this.H); }
-        for (let gy = -span; gy <= span; gy++) { const sy = this._sy(gy); if (sy >= 0 && sy <= this.H) this.gridGfx.lineBetween(0, sy, this.CW, sy); }
-        this.gridGfx.lineStyle(1, 0x335533, 0.6).lineBetween(this.CX, 0, this.CX, this.H).lineBetween(0, this.CY, this.CW, this.CY);
+        const gxMin = Math.floor(this._gx(0)), gxMax = Math.ceil(this._gx(this.CANVAS_W));
+        const gyMin = Math.floor(this._gy(0)), gyMax = Math.ceil(this._gy(this.H));
+        if (gxMax - gxMin <= 240 && gyMax - gyMin <= 240) {     // skip minor grid when very zoomed out
+            this.gridGfx.lineStyle(0.5, 0x1a221a, 0.4);
+            for (let gx = gxMin; gx <= gxMax; gx++) { const sx = this._sx(gx); if (sx >= 0 && sx <= this.CANVAS_W) this.gridGfx.lineBetween(sx, 0, sx, this.H); }
+            for (let gy = gyMin; gy <= gyMax; gy++) { const sy = this._sy(gy); if (sy >= 0 && sy <= this.H) this.gridGfx.lineBetween(0, sy, this.CANVAS_W, sy); }
+        }
+        const ox = this._sx(0), oy = this._sy(0);               // origin crosshair (rig 0,0)
+        this.gridGfx.lineStyle(1, 0x335533, 0.6);
+        if (ox >= 0 && ox <= this.CANVAS_W) this.gridGfx.lineBetween(ox, 0, ox, this.H);
+        if (oy >= 0 && oy <= this.H) this.gridGfx.lineBetween(0, oy, this.CANVAS_W, oy);
     }
 
-    // ── UI panel ──────────────────────────────────────────────────────────────────
+    // ── UI: shared helpers ──────────────────────────────────────────────────────────
+
+    _fs(n) { return `${Math.round(n * Math.min(1.4, Math.max(1, this.W / 420)))}px`; }
+    _txt(x, y, str, style) {
+        const o = this.add.text(x, y, str, { fontFamily: 'monospace', color: '#aaaaaa', ...style }).setDepth(10);
+        this._uiObjs.push(o); return o;
+    }
+    _btn(x, y, w, h, label, col, cb, active = false) {
+        const g = this.add.graphics().setDepth(9);
+        g.fillStyle(active ? 0x2a4428 : col, 1).fillRect(x, y, w, h);
+        g.lineStyle(1, active ? 0x44aa44 : 0x334433).strokeRect(x, y, w, h);
+        const t = this.add.text(x + w / 2, y + h / 2, label, { fontFamily: 'monospace', fontSize: this._fs(10), color: active ? '#88ff88' : '#aaccaa' }).setOrigin(0.5).setDepth(10);
+        const z = this.add.zone(x, y, w, h).setOrigin(0).setInteractive().setDepth(11);
+        z.on('pointerdown', cb);
+        this._uiObjs.push(g); this._uiObjs.push(t); this._uiObjs.push(z);
+        return z;
+    }
+    _swatch(x, y, sz, col, selected, cb) {
+        this.uiGfx.fillStyle(col).fillRect(x, y, sz, sz);
+        if (selected) this.uiGfx.lineStyle(2, 0xffffff).strokeRect(x - 1, y - 1, sz + 2, sz + 2);
+        const z = this.add.zone(x, y, sz, sz).setOrigin(0).setInteractive().setDepth(11);
+        z.on('pointerdown', cb);
+        this._uiObjs.push(z);
+    }
+    _togglePanel(name) { this.openPanel = this.openPanel === name ? null : name; this._redraw(); }
 
     _buildUI() {
         for (const o of this._uiObjs) o.destroy();
         this._uiObjs = [];
         this.uiGfx.clear();
+        this._buildRail();
+        this._buildPopover();
+    }
 
-        const add = o => { this._uiObjs.push(o); return o; };
-        const fs = n => `${Math.round(n * Math.min(1.4, Math.max(1, this.W / 420)))}px`;
-        const txt = (x, y, str, style) => add(this.add.text(x, y, str, { fontFamily: 'monospace', color: '#aaaaaa', ...style }).setDepth(10));
-        const btn = (x, y, w, h, label, col, cb, active = false) => {
-            const g = this.add.graphics().setDepth(9);
-            g.fillStyle(active ? 0x2a4428 : col, 1).fillRect(x, y, w, h);
-            g.lineStyle(1, active ? 0x44aa44 : 0x334433).strokeRect(x, y, w, h);
-            const t = this.add.text(x + w / 2, y + h / 2, label, { fontFamily: 'monospace', fontSize: fs(10), color: active ? '#88ff88' : '#aaccaa' }).setOrigin(0.5).setDepth(10);
-            const z = this.add.zone(x, y, w, h).setOrigin(0).setInteractive().setDepth(11);
-            z.on('pointerdown', cb);
-            add(g); add(t); add(z);
-            return z;
-        };
+    // ── Icon rail (always visible, < 1/8 screen) ─────────────────────────────────────
 
-        const PX = this.PX + 6, PW = this.PW - 10;
-        let py = 6;
+    _buildRail() {
+        const RX = this.RAIL_X, RW = this.RAIL_W;
+        const items = [];
+        const sep = () => items.push({ sep: true });
+        items.push({ ic: '✕', col: 0x221111, cb: () => this._close() });
+        sep();
+        items.push({ ic: '↶', cb: () => this._undo() });
+        items.push({ ic: '↷', cb: () => this._redo() });
+        sep();
+        for (const [icon, tp] of SHAPE_TYPES)
+            items.push({ ic: icon, cb: () => { this.newType = tp; this.tool = 'place'; this._redraw(); }, active: this.tool === 'place' && this.newType === tp });
+        items.push({ ic: '✋', cb: () => { this.tool = this.tool === 'pan' ? 'place' : 'pan'; this._redraw(); }, active: this.tool === 'pan' });
+        sep();
+        items.push({ ic: '🎨', cb: () => this._togglePanel('color'), active: this.openPanel === 'color' });
+        items.push({ ic: '🧩', cb: () => this._togglePanel('parts'), active: this.openPanel === 'parts' });
+        items.push({ ic: '⚙', cb: () => this._togglePanel('props'), active: this.openPanel === 'props' });
+        items.push({ ic: '🎞', cb: () => this._togglePanel('anim'), active: this.openPanel === 'anim' });
+        sep();
+        items.push({ ic: '🖼', cb: () => this._importImage() });
+        items.push({ ic: '⊞', cb: () => { this.gridSnap = !this.gridSnap; this._redraw(); }, active: this.gridSnap });
+        items.push({ ic: '⤢', cb: () => { this._fitView(); this._redraw(); } });
+        items.push({ ic: '📋', cb: () => this._showExport() });
 
-        // Header
-        txt(PX, py + 3, `✏ rig: ${this.rig.id}`, { fontSize: fs(11), color: '#c8a030' });
-        btn(PX + PW - 40, py, 40, 22, '✕ back', 0x221111, () => this._close());
-        py += 28;
+        const nIc = items.filter(i => !i.sep).length, nSep = items.length - nIc;
+        let size = Math.floor((this.H - nSep * 7 - 12) / nIc) - 3;
+        size = Phaser.Math.Clamp(size, 18, 34);
+        const x = RX + Math.floor((RW - size) / 2);
+        let y = 6;
+        for (const it of items) {
+            if (it.sep) { this.uiGfx.lineStyle(1, 0x2a3a2a, 0.8).lineBetween(RX + 6, y + 2, this.W - 6, y + 2); y += 7; continue; }
+            this._btn(x, y, size, size, it.ic, it.col ?? 0x111811, it.cb, it.active);
+            y += size + 3;
+        }
+    }
 
-        // Import / new / undo / redo / snap
-        btn(PX, py, 70, 22, '🖼 Import', 0x112011, () => this._importImage());
-        btn(PX + 74, py, 42, 22, 'New', 0x111811, () => { this._pushUndo(); this.rig = this._blankRig(); this.activePart = 0; this.selIdx = -1; this._fitView(); this._redraw(); });
-        btn(PX + 120, py, 26, 22, '↶', 0x111811, () => this._undo());
-        btn(PX + 148, py, 26, 22, '↷', 0x111811, () => this._redo());
-        btn(PX + 176, py, 56, 22, this.gridSnap ? 'snap:on' : 'snap:off', 0x111811, () => { this.gridSnap = !this.gridSnap; this._redraw(); }, this.gridSnap);
-        py += 28;
+    // ── Popovers (one open at a time, floats over the canvas edge) ────────────────────
 
-        // ── Parts ───────────────────────────────────────────────────────────────────
-        this.uiGfx.lineStyle(1, 0x223322, 0.6).lineBetween(PX, py, PX + PW, py); py += 6;
-        const part = this.rig.parts[this.activePart];
-        txt(PX, py + 3, `Parts (${this.rig.parts.length}):`, { fontSize: fs(9), color: '#668866' });
-        btn(PX + PW - 40, py, 40, 20, '+ part', 0x112211, () => { this._addPart(); this._redraw(); });
+    _buildPopover() {
+        if (!this.openPanel) return;
+        const POP_W = Math.min(Math.round(this.W * 0.30), 280);
+        const x = this.RAIL_X - POP_W - 2;
+        this.uiGfx.fillStyle(0x0c140c, 0.96).fillRect(x, 0, POP_W + 2, this.H);
+        this.uiGfx.lineStyle(1, 0x2a3a2a).strokeRect(x, 0, POP_W, this.H);
+        const px = x + 8, pw = POP_W - 16;
+        let py = 8;
+        const titles = { color: '🎨 Colour & alpha', parts: '🧩 Parts', props: '⚙ Shape', anim: '🎞 Animation' };
+        this._txt(px, py + 2, titles[this.openPanel], { fontSize: this._fs(11), color: '#c8a030' });
+        this._btn(x + POP_W - 24, py - 2, 20, 20, '✕', 0x221111, () => this._togglePanel(this.openPanel));
         py += 24;
-        // active part selector
-        btn(PX, py, 22, 22, '◀', 0x111811, () => { this.activePart = (this.activePart + this.rig.parts.length - 1) % this.rig.parts.length; this.selIdx = -1; this._redraw(); });
-        txt(PX + 28, py + 5, `${this.activePart}: ${part?.name ?? '—'} (z${part?.z ?? 0}, ${part?.shapes.length ?? 0})`, { fontSize: fs(9), color: '#aaddaa' });
-        btn(PX + PW - 22, py, 22, 22, '▶', 0x111811, () => { this.activePart = (this.activePart + 1) % this.rig.parts.length; this.selIdx = -1; this._redraw(); });
+        this.uiGfx.lineStyle(1, 0x223322, 0.6).lineBetween(px, py, px + pw, py); py += 6;
+        if (this.openPanel === 'color') this._panelColor(px, py, pw);
+        else if (this.openPanel === 'parts') this._panelParts(px, py, pw);
+        else if (this.openPanel === 'props') this._panelProps(px, py, pw);
+        else if (this.openPanel === 'anim') this._panelAnim(px, py, pw);
+    }
+
+    _panelColor(PX, py, PW) {
+        this._txt(PX, py, 'Fill colour', { fontSize: this._fs(9), color: '#668866' }); py += 16;
+        const cols = 6, SW = Math.floor(PW / cols) - 2;
+        PALETTE.forEach((col, i) => {
+            const sx = PX + (i % cols) * (SW + 2), sy = py + Math.floor(i / cols) * (SW + 2);
+            this._swatch(sx, sy, SW, col, this.newFill === col, () => {
+                this.newFill = col;
+                if (this.selIdx >= 0) { const s = this.activeShapes()[this.selIdx]; if (s.fill !== undefined) s.fill = col; else if (s.stroke) s.stroke.color = col; }
+                this._autosave(); this._redraw();
+            });
+        });
+        py += Math.ceil(PALETTE.length / cols) * (SW + 2) + 8;
+        this._txt(PX, py + 4, 'Alpha', { fontSize: this._fs(9), color: '#668866' });
+        const av = this.selIdx >= 0 ? (this.activeShapes()[this.selIdx].alpha ?? 1) : this.newAlpha;
+        this._btn(PX + 48, py, 22, 22, '−', 0x111811, () => this._setAlpha(-0.1));
+        this._txt(PX + 74, py + 4, av.toFixed(1), { fontSize: this._fs(10), color: '#cccccc' });
+        this._btn(PX + 96, py, 22, 22, '+', 0x111811, () => this._setAlpha(0.1));
+    }
+    _setAlpha(d) {
+        this.newAlpha = Phaser.Math.Clamp(Math.round((this.newAlpha + d) * 10) / 10, 0, 1);
+        if (this.selIdx >= 0) this.activeShapes()[this.selIdx].alpha = this.newAlpha;
+        this._autosave(); this._redraw();
+    }
+
+    _panelParts(PX, py, PW) {
+        const part = this.rig.parts[this.activePart];
+        this._txt(PX, py + 3, `${this.rig.parts.length} part(s)`, { fontSize: this._fs(9), color: '#668866' });
+        this._btn(PX + PW - 44, py, 44, 20, '+ part', 0x112211, () => { this._addPart(); this._redraw(); });
         py += 26;
-        // rename / pivot / z / delete part
-        btn(PX, py, 52, 20, 'name◀▶', 0x111811, () => this._cyclePartName(1));
-        btn(PX + 56, py, 52, 20, '⌖ pivot', 0x111811, () => this._setPivotToSelection());
-        btn(PX + 112, py, 22, 20, 'z−', 0x111811, () => { if (part) { this._pushUndo(); part.z = (part.z ?? 0) - 1; this._redraw(); } });
-        btn(PX + 136, py, 22, 20, 'z+', 0x111811, () => { if (part) { this._pushUndo(); part.z = (part.z ?? 0) + 1; this._redraw(); } });
-        btn(PX + PW - 24, py, 24, 20, '🗑', 0x331111, () => {
+        this._btn(PX, py, 24, 24, '◀', 0x111811, () => { this.activePart = (this.activePart + this.rig.parts.length - 1) % this.rig.parts.length; this.selIdx = -1; this._redraw(); });
+        this._txt(PX + 30, py + 7, `${this.activePart}: ${part?.name ?? '—'}`, { fontSize: this._fs(9), color: '#aaddaa' });
+        this._btn(PX + PW - 24, py, 24, 24, '▶', 0x111811, () => { this.activePart = (this.activePart + 1) % this.rig.parts.length; this.selIdx = -1; this._redraw(); });
+        py += 28;
+        this._txt(PX, py + 3, `z ${part?.z ?? 0} · ${part?.shapes.length ?? 0} shapes`, { fontSize: this._fs(8), color: '#668866' });
+        py += 18;
+        this._btn(PX, py, 74, 22, 'name ◀▶', 0x111811, () => this._cyclePartName(1));
+        this._btn(PX + 80, py, 66, 22, '⌖ pivot', 0x111811, () => this._setPivotToSelection());
+        py += 26;
+        this._btn(PX, py, 32, 22, 'z−', 0x111811, () => { if (part) { this._pushUndo(); part.z = (part.z ?? 0) - 1; this._redraw(); } });
+        this._btn(PX + 36, py, 32, 22, 'z+', 0x111811, () => { if (part) { this._pushUndo(); part.z = (part.z ?? 0) + 1; this._redraw(); } });
+        this._btn(PX + PW - 64, py, 64, 22, '🗑 part', 0x331111, () => {
             if (this.rig.parts.length > 1) { this._pushUndo(); this.rig.parts.splice(this.activePart, 1); this.activePart = 0; this.selIdx = -1; this._redraw(); }
         });
-        py += 26;
+    }
 
-        // ── New shape type + fill ─────────────────────────────────────────────────────
-        this.uiGfx.lineStyle(1, 0x223322, 0.6).lineBetween(PX, py, PX + PW, py); py += 6;
-        txt(PX, py + 3, 'Add shape:', { fontSize: fs(9), color: '#668866' });
-        py += 16;
-        SHAPE_TYPES.forEach(([icon, tp], i) => {
-            btn(PX + (i % 6) * 38, py, 34, 24, icon, 0x111811, () => { this.newType = tp; this._redraw(); }, this.newType === tp);
-        });
-        py += 30;
-        // palette swatches
-        const SW = Math.floor(PW / 12) - 1;
-        PALETTE.forEach((col, i) => {
-            const sx = PX + (i % 12) * (SW + 1), sy = py + Math.floor(i / 12) * (SW + 1);
-            this.uiGfx.fillStyle(col).fillRect(sx, sy, SW, SW);
-            if (this.newFill === col) this.uiGfx.lineStyle(2, 0xffffff).strokeRect(sx - 1, sy - 1, SW + 2, SW + 2);
-            const z = this.add.zone(sx, sy, SW, SW).setOrigin(0).setInteractive().setDepth(11);
-            z.on('pointerdown', () => { this.newFill = col; if (this.selIdx >= 0) { const s = this.activeShapes()[this.selIdx]; if (s.fill !== undefined) s.fill = col; else if (s.stroke) s.stroke.color = col; } this._autosave(); this._redraw(); });
-            add(z);
-        });
-        py += Math.ceil(PALETTE.length / 12) * (SW + 1) + 6;
-
-        // ── Selected shape props ──────────────────────────────────────────────────────
+    _panelProps(PX, py, PW) {
         const s = this.activeShapes()[this.selIdx];
-        if (s) {
-            txt(PX, py, `#${this.selIdx} ${s.type}`, { fontSize: fs(9), color: '#c8a030' });
-            btn(PX + PW - 60, py - 2, 60, 20, '🗑 del', 0x331111, () => { this._deleteSelected(); this._redraw(); });
-            py += 16;
-            const fields = {
-                circle: ['x', 'y', 'r'], ellipse: ['x', 'y', 'rx', 'ry'],
-                rect: ['x', 'y', 'w', 'h'], triangle: ['x1', 'y1', 'x2', 'y2', 'x3', 'y3'],
-                line: ['x1', 'y1', 'x2', 'y2'], polygon: [],
-            }[s.type] ?? [];
-            let col = 0;
-            for (const f of fields) {
-                if (typeof s[f] !== 'number') continue;
-                const cx = PX + col * (PW / 3);
-                txt(cx, py + 3, `${f}`, { fontSize: fs(8), color: '#668866' });
-                btn(cx + 22, py, 16, 18, '−', 0x111811, () => this._nudge(f, -1));
-                txt(cx + 40, py + 3, String(s[f]), { fontSize: fs(8), color: '#ddddaa' });
-                btn(cx + 64, py, 16, 18, '+', 0x111811, () => this._nudge(f, 1));
-                col++; if (col === 3) { col = 0; py += 22; }
-            }
-            if (col !== 0) py += 22;
-            if (s.type === 'polygon') { txt(PX, py, `polygon: ${s.points.length} pts (drag to move)`, { fontSize: fs(8), color: '#668866' }); py += 18; }
-        } else {
-            txt(PX, py + 3, 'Tap canvas to add to active part', { fontSize: fs(9), color: '#446644' });
-            py += 20;
+        if (!s) {
+            this._txt(PX, py + 3, 'No shape selected.', { fontSize: this._fs(9), color: '#668866' });
+            this._txt(PX, py + 22, 'Pick a shape tool and tap', { fontSize: this._fs(8), color: '#446644' });
+            this._txt(PX, py + 36, 'the canvas to add one.', { fontSize: this._fs(8), color: '#446644' });
+            return;
         }
-
-        // ── Animation / keyframes ──────────────────────────────────────────────────────
-        this.uiGfx.lineStyle(1, 0x223322, 0.6).lineBetween(PX, py, PX + PW, py); py += 6;
-        const clip = this.rig.clips?.[this.activeClip];
-        txt(PX, py + 3, `Clip '${this.activeClip}'  t=${this.playhead.toFixed(2)}/${(clip?.length ?? 1).toFixed(2)}`, { fontSize: fs(9), color: '#668866' });
-        py += 18;
-        btn(PX, py, 40, 22, this.playing ? '⏸ stop' : '▶ play', 0x111811, () => { this.playing = !this.playing; this._scrubbing = false; this._redraw(); }, this.playing);
-        btn(PX + 44, py, 26, 22, 't−', 0x111811, () => { this.playing = false; this._scrubbing = true; this.playhead = Math.max(0, Math.round((this.playhead - 0.05) * 100) / 100); this._redraw(); });
-        btn(PX + 72, py, 26, 22, 't+', 0x111811, () => { this.playing = false; this._scrubbing = true; this.playhead = Math.round((this.playhead + 0.05) * 100) / 100; this._redraw(); });
-        btn(PX + 102, py, 60, 22, '＋ key', 0x112011, () => this._addKey());
-        btn(PX + 166, py, 66, 22, 'clr track', 0x331111, () => this._clearTrack());
+        this._txt(PX, py, `#${this.selIdx} ${s.type}`, { fontSize: this._fs(10), color: '#c8a030' });
+        this._btn(PX + PW - 56, py - 2, 56, 20, '🗑 del', 0x331111, () => { this._deleteSelected(); this._redraw(); });
+        py += 20;
+        const fields = {
+            circle: ['x', 'y', 'r'], ellipse: ['x', 'y', 'rx', 'ry'],
+            rect: ['x', 'y', 'w', 'h'], triangle: ['x1', 'y1', 'x2', 'y2', 'x3', 'y3'],
+            line: ['x1', 'y1', 'x2', 'y2'], polygon: [],
+        }[s.type] ?? [];
+        let col = 0;
+        for (const f of fields) {
+            if (typeof s[f] !== 'number') continue;
+            const cx = PX + col * (PW / 2);
+            this._txt(cx, py + 3, f, { fontSize: this._fs(8), color: '#668866' });
+            this._btn(cx + 24, py, 18, 18, '−', 0x111811, () => this._nudge(f, -1));
+            this._txt(cx + 44, py + 3, String(s[f]), { fontSize: this._fs(8), color: '#ddddaa' });
+            this._btn(cx + 68, py, 18, 18, '+', 0x111811, () => this._nudge(f, 1));
+            col++; if (col === 2) { col = 0; py += 22; }
+        }
+        if (col !== 0) py += 22;
+        const hasSt = !!s.stroke;
+        this._btn(PX, py, 72, 22, hasSt ? '⊘ stroke' : '+ stroke', 0x111811, () => {
+            this._pushUndo();
+            if (hasSt) delete s.stroke; else s.stroke = { color: this.newFill, width: 1, alpha: 1 };
+            this._redraw();
+        }, hasSt);
+        if (hasSt) {
+            this._txt(PX + 78, py + 4, 'w', { fontSize: this._fs(8), color: '#668866' });
+            this._btn(PX + 94, py, 18, 22, '−', 0x111811, () => { s.stroke.width = Math.max(0.5, Math.round((s.stroke.width - 0.5) * 2) / 2); this._autosave(); this._redraw(); });
+            this._txt(PX + 114, py + 4, String(s.stroke.width ?? 1), { fontSize: this._fs(8), color: '#ddddaa' });
+            this._btn(PX + 132, py, 18, 22, '+', 0x111811, () => { s.stroke.width = Math.round((s.stroke.width + 0.5) * 2) / 2; this._autosave(); this._redraw(); });
+        }
         py += 26;
-        // pose editor (for the key you'll add)
-        txt(PX, py + 3, `pose rot ${this.pose.rot.toFixed(2)} x${this.pose.x} y${this.pose.y}`, { fontSize: fs(8), color: '#668866' });
-        py += 16;
-        const poseBtn = (x, lbl, fn) => btn(x, py, 26, 20, lbl, 0x111811, () => { fn(); this._scrubbing = true; this.playing = false; this._redraw(); });
-        poseBtn(PX, 'r−', () => this.pose.rot = Math.round((this.pose.rot - 0.1) * 100) / 100);
-        poseBtn(PX + 28, 'r+', () => this.pose.rot = Math.round((this.pose.rot + 0.1) * 100) / 100);
-        poseBtn(PX + 60, 'x−', () => this.pose.x -= 1);
-        poseBtn(PX + 88, 'x+', () => this.pose.x += 1);
-        poseBtn(PX + 120, 'y−', () => this.pose.y -= 1);
-        poseBtn(PX + 148, 'y+', () => this.pose.y += 1);
-        py += 24;
+        if (s.type === 'polygon') this._txt(PX, py, `polygon: ${s.points.length} pts · drag to move`, { fontSize: this._fs(8), color: '#668866' });
+    }
 
-        // ── Export ──────────────────────────────────────────────────────────────────
-        this.uiGfx.lineStyle(1, 0x223322, 0.6).lineBetween(PX, py, PX + PW, py); py += 8;
-        btn(PX, py, PW, 26, '📋 Export rig .js', 0x112011, () => this._showExport());
+    _panelAnim(PX, py, PW) {
+        const clip = this.rig.clips?.[this.activeClip];
+        this._txt(PX, py + 3, `Clip '${this.activeClip}'`, { fontSize: this._fs(9), color: '#668866' });
+        py += 16;
+        this._txt(PX, py + 3, `t ${this.playhead.toFixed(2)} / ${(clip?.length ?? 1).toFixed(2)}`, { fontSize: this._fs(8), color: '#88aa88' });
+        py += 18;
+        this._btn(PX, py, 44, 22, this.playing ? '⏸' : '▶', 0x111811, () => { this.playing = !this.playing; this._scrubbing = false; this._redraw(); }, this.playing);
+        this._btn(PX + 48, py, 28, 22, 't−', 0x111811, () => { this.playing = false; this._scrubbing = true; this.playhead = Math.max(0, Math.round((this.playhead - 0.05) * 100) / 100); this._redraw(); });
+        this._btn(PX + 78, py, 28, 22, 't+', 0x111811, () => { this.playing = false; this._scrubbing = true; this.playhead = Math.round((this.playhead + 0.05) * 100) / 100; this._redraw(); });
+        py += 26;
+        this._btn(PX, py, 72, 22, '＋ key', 0x112011, () => this._addKey());
+        this._btn(PX + 78, py, 74, 22, 'clr track', 0x331111, () => this._clearTrack());
+        py += 28;
+        this._txt(PX, py + 3, `pose r${this.pose.rot.toFixed(2)} x${this.pose.x} y${this.pose.y}`, { fontSize: this._fs(8), color: '#668866' });
+        py += 16;
+        const poseBtn = (x, lbl, fn) => this._btn(x, py, 28, 20, lbl, 0x111811, () => { fn(); this._scrubbing = true; this.playing = false; this._redraw(); });
+        poseBtn(PX, 'r−', () => this.pose.rot = Math.round((this.pose.rot - 0.1) * 100) / 100);
+        poseBtn(PX + 30, 'r+', () => this.pose.rot = Math.round((this.pose.rot + 0.1) * 100) / 100);
+        poseBtn(PX + 62, 'x−', () => this.pose.x -= 1);
+        poseBtn(PX + 92, 'x+', () => this.pose.x += 1);
+        poseBtn(PX + 122, 'y−', () => this.pose.y -= 1);
+        poseBtn(PX + 152, 'y+', () => this.pose.y += 1);
     }
 
     // ── Export ──────────────────────────────────────────────────────────────────────
