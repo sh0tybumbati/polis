@@ -2,11 +2,19 @@
  * Generic shape renderer for declarative sprite definitions.
  *
  * Shape object fields:
- *   type      'circle' | 'triangle' | 'rect' | 'line'
+ *   type      'circle' | 'triangle' | 'rect' | 'line' | 'polygon' | 'ellipse'
  *   fill      hex color OR '$varName' string resolved from vars
  *   stroke    { color, width, alpha } — all fields accept '$varName'
  *   alpha     0–1, default 1 (applies to fill only; stroke.alpha is separate)
  *   when      (vars) => boolean — if present, shape is skipped when falsy
+ *
+ * Geometry per type:
+ *   circle    x, y, r
+ *   triangle  x1,y1, x2,y2, x3,y3
+ *   rect      x, y, w, h
+ *   line      x1,y1, x2,y2
+ *   polygon   points: [{x,y}, …]   (closed; used by the image-trace pipeline)
+ *   ellipse   x, y, rx, ry, rot?   (rot in radians — rotated ellipses emit a polygon)
  *
  * '$varName' resolution works on any numeric or color field.
  * Shapes are drawn in array order (painter's algorithm).
@@ -63,6 +71,32 @@ export function renderShapes(gfx, shapes, vars, opts = {}) {
             case 'line':
                 if (s.stroke) gfx.lineBetween(scx(s.x1), scy(s.y1), scx(s.x2), scy(s.y2));
                 break;
+            case 'polygon': {
+                const pts = (s.points ?? []).map(p => ({ x: scx(p.x), y: scy(p.y) }));
+                if (pts.length < 3) break;
+                if (s.fill !== undefined) gfx.fillPoints(pts, true);
+                if (s.stroke)            gfx.strokePoints(pts, true);
+                break;
+            }
+            case 'ellipse': {
+                const cx = scx(s.x), cy = scy(s.y), rx = sc(s.rx), ry = sc(s.ry);
+                const rot = res(s.rot ?? 0, vars);
+                if (!rot) {
+                    if (s.fill !== undefined) gfx.fillEllipse(cx, cy, rx * 2, ry * 2);
+                    if (s.stroke)            gfx.strokeEllipse(cx, cy, rx * 2, ry * 2);
+                } else {
+                    // Phaser has no rotated-ellipse primitive — approximate with a polygon.
+                    const N = 24, cos = Math.cos(rot), sin = Math.sin(rot), pts = [];
+                    for (let i = 0; i < N; i++) {
+                        const a = (i / N) * Math.PI * 2;
+                        const ex = Math.cos(a) * rx, ey = Math.sin(a) * ry;
+                        pts.push({ x: cx + ex * cos - ey * sin, y: cy + ex * sin + ey * cos });
+                    }
+                    if (s.fill !== undefined) gfx.fillPoints(pts, true);
+                    if (s.stroke)            gfx.strokePoints(pts, true);
+                }
+                break;
+            }
         }
     }
 }

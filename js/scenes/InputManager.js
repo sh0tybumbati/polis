@@ -499,6 +499,12 @@ export default class InputManager {
         s.input.keyboard?.on('keydown-A', () => s.units.filter(u => !u.isEnemy).forEach(u => s.selectUnit(u.id, true)));
         s.input.keyboard?.on('keydown-F', () => { const sel = s.units.filter(u => u.selected && !u.isEnemy); if (sel.length) s.moveSelectedTo((s.spawnTx ?? 0) * TILE, MAP_OY + (s.spawnTy ?? 0) * TILE); });
         s.input.keyboard?.on('keydown-BACKTICK', () => s.scene.launch('SpriteEditorScene'));
+        // Debug: spawn a rig-animated critter at the camera centre (proves the sprite pipeline).
+        s.input.keyboard?.on('keydown-K', () => {
+            const cam = s.cameras.main;
+            s.natureManager?.spawnCritter(cam.scrollX + cam.width / (2 * cam.zoom),
+                                          cam.scrollY + cam.height / (2 * cam.zoom));
+        });
 
         // Arrow key camera pan — held keys give continuous smooth scroll
         const cursors = s.input.keyboard?.createCursorKeys();

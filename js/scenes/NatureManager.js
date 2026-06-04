@@ -12,6 +12,49 @@ import { ANIMALS } from '../content/animals/index.js';
 export default class NatureManager {
     constructor(scene) {
         this.scene = scene;
+        this.critters = [];   // demo rig-animated creatures (opt-in, spawned with K)
+    }
+
+    // ── Critter (rig-animated demo creature) ────────────────────────────────────
+    spawnCritter(x, y) {
+        const c = {
+            id: this.scene.getId(), x, y,
+            _walkPhase: 0, moving: false, facing: 'south',
+            _dir: Math.random() * Math.PI * 2, _go: true,
+            wanderTimer: Phaser.Math.Between(1500, 4000),
+            gfx: this.scene._w(this.scene.add.graphics().setDepth(5)),
+        };
+        this.critters.push(c);
+        this.redrawCritter(c);
+        return c;
+    }
+
+    redrawCritter(c) {
+        const g = c.gfx;
+        g.clear().setPosition(c.x, c.y);
+        ANIMALS.critter.draw(g, c, { moving: c.moving });
+    }
+
+    tickCritter(delta, dt) {
+        const sp = ANIMALS.critter.speed;
+        for (const c of this.critters) {
+            c.wanderTimer -= delta;
+            if (c.wanderTimer <= 0) {
+                c.wanderTimer = Phaser.Math.Between(1500, 4000);
+                c._dir = Math.random() * Math.PI * 2;
+                c._go = Math.random() < 0.7;
+            }
+            if (c._go) {
+                c.x += Math.cos(c._dir) * sp * dt;
+                c.y += Math.sin(c._dir) * sp * dt;
+                c.facing = Math.cos(c._dir) >= 0 ? 'east' : 'west';
+                c.moving = true;
+            } else {
+                c.moving = false;
+            }
+            c._walkPhase += c.moving ? 0.22 : 0.05;
+            this.redrawCritter(c);   // rig animation needs a per-frame redraw
+        }
     }
 
     spawnDeer(x, y, gender = null) {
@@ -59,6 +102,7 @@ export default class NatureManager {
     tick(delta, dt) {
         this.tickDeer(delta, dt);
         this.tickSheep(delta, dt);
+        this.tickCritter(delta, dt);
         this.tickSpawning(delta);
         this.tickBreeding(delta);
     }
