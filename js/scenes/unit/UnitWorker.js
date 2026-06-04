@@ -2018,6 +2018,12 @@ export default {
             return;
         }
 
+        // Eat from a loose food pile lying nearby (harvested food not yet hauled to storage). Nobody
+        // should starve standing next to a pile of berries just outside the larder.
+        const near = this._eatFromGroundPile(u, dt, 8 * TILE);
+        if (near === 'moving') return;
+        if (near === 'ate') { this.scene.uiManager.showFloatText(u.x, u.y - 14, '🍱 full', '#ffee88'); this.popTask(u); return; }
+
         // Try to eat from the nearest food construct's inventory
         let foodConstruct = null, bd = Infinity;
         for (const b of this.scene.constructs) {
@@ -2077,14 +2083,49 @@ export default {
             if (ate) {
                 this.scene.uiManager.showFloatText(u.x, u.y - 14, '🍱 full', '#ffee88');
             } else {
-                this.scene.uiManager.showFloatText(u.x, u.y - 14, 'hungry!', '#ff6644');
-                // No stored food anywhere — go forage immediately (no slate required)
-                this.seekNodeTask(u, ['berry_bush', 'wild_garden', 'olive_grove', 'grape_vine', 'wild_wheat', 'fishing_spot'], false, 2000);
+                // No stored food anywhere — eat the nearest harvested pile on the ground if one
+                // exists (beats foraging from scratch), else go forage.
+                const far = this._eatFromGroundPile(u, dt, 4000);
+                if (far === 'moving') return;
+                if (far === 'ate') {
+                    this.scene.uiManager.showFloatText(u.x, u.y - 14, '🍱 full', '#ffee88');
+                } else {
+                    this.scene.uiManager.showFloatText(u.x, u.y - 14, 'hungry!', '#ff6644');
+                    this.seekNodeTask(u, ['berry_bush', 'wild_garden', 'olive_grove', 'grape_vine', 'wild_wheat', 'fishing_spot'], false, 2000);
+                }
             }
         }
 
         // Restore saved task
         this.popTask(u);
+    },
+
+    // Eat directly from a loose food pile on the ground within `maxDist`. Returns 'moving' (walking
+    // to it — caller should return and resume next tick), 'ate' (consumed some), or 'none'. Eating
+    // ignores haul reservations — hunger outranks stockpiling.
+    _eatFromGroundPile(u, dt, maxDist) {
+        let best = null, bd = Infinity;
+        for (const it of this.scene.groundItems ?? []) {
+            if ((it.qty ?? 0) <= 0) continue;
+            if (!((_NUTRITION_MAP[it.resource] ?? 0) > 0)) continue;   // edible only
+            const d = Phaser.Math.Distance.Between(u.x, u.y, it.x, it.y);
+            if (d < maxDist && d < bd) { bd = d; best = it; }
+        }
+        if (!best) return 'none';
+        if (this.moveToward(u, best.x, best.y, 20, dt)) return 'moving';
+
+        if (!u.needs) u.needs = { food: 0, rest: 1, social: 0.8, joy: 0.8 };
+        const nut = _NUTRITION_MAP[best.resource] ?? 0.2;
+        let ate = false;
+        while ((u.needs.food ?? 0) < 0.95 && best.qty > 0) {
+            best.qty--;
+            u.needs.food = Math.min(1.0, (u.needs.food ?? 0) + nut);
+            u.dailyNutrition = Math.min(1.0, (u.dailyNutrition ?? 0) + nut);
+            ate = true;
+        }
+        if (best.qty <= 0) this.scene.unitManager.removeGroundItem(best);
+        else this.scene.unitManager.drawGroundItem(best);
+        return ate ? 'ate' : 'none';
     },
 
     seekNodeTask(u, types, requireSlated = true, maxDist = 8000) {
