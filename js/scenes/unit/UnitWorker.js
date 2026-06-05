@@ -560,6 +560,13 @@ export default {
         if (this.moveToward(u, cx, cy, 28, dt)) return;
         u.isInside = false;
 
+        // Construction has started: give any resource nodes under the footprint one final
+        // harvest, then clear them (deferred from plan time so a cancelled ghost keeps them).
+        if (!b._salvaged && b.placement !== 'edge') {
+            this.scene.constructManager._salvageNodesUnder(b.tx, b.ty, b.width, b.height);
+            b._salvaged = true;
+        }
+
         const attrMult = this.getAttrMult(u, ['str']);
         const workSpeed = (1.0 + (u.skills.masonry?.level ?? 1) * 0.2) * attrMult * this.getRestMult(u);
         u.workProgress = (u.workProgress ?? 0) + dt * workSpeed;

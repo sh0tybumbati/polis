@@ -182,7 +182,9 @@ export default class ConstructManager {
 
         if (!this.isFree(tx, ty, def.width, def.height, type)) return null;
 
-        this._salvageNodesUnder(tx, ty, def.width, def.height);
+        // Note: nodes under a blueprint are salvaged when construction *starts*
+        // (UnitWorker.handleBuildTask), not at plan time — so cancelling an unstarted
+        // ghost leaves the node intact. Instant builds (placeBuiltConstruct) salvage now.
 
         const isWallType = ['wall', 'palisade', 'gate', 'watchtower'].includes(type);
         this.occupy(tx, ty, def.width, def.height, isWallType ? 98 : 99);
