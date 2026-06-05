@@ -2485,11 +2485,14 @@ export default {
     // townhall/camp.
     _findRoomSite(iw, ih, estate = null) {
         const fm = this.scene.constructManager;
+        const zm = this.scene.zoneManager;
+        const claimed = (xx, yy) => zm?._claimed?.(zm.tileKey(xx, yy));
         const fits = (tx, ty) => {
             for (let yy = ty; yy < ty + ih; yy++)
                 for (let xx = tx; xx < tx + iw; xx++)
-                    if (!fm.isFree(xx, yy, 1, 1)) return false;
-            if (!fm.isFree(tx + Math.floor(iw / 2), ty + ih, 1, 1)) return false;   // door exterior
+                    if (!fm.isFree(xx, yy, 1, 1) || claimed(xx, yy)) return false;   // don't build over grow/storage zones
+            const doorCol = tx + Math.floor(iw / 2);
+            if (!fm.isFree(doorCol, ty + ih, 1, 1) || claimed(doorCol, ty + ih)) return false;   // door exterior
             for (let cc = tx; cc < tx + iw; cc++) { if (fm.getEdge(true, ty, cc) || fm.getEdge(true, ty + ih, cc)) return false; }
             for (let rr = ty; rr < ty + ih; rr++) { if (fm.getEdge(false, rr, tx) || fm.getEdge(false, rr, tx + iw)) return false; }
             return true;

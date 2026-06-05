@@ -97,6 +97,29 @@ export default class ConstructManager {
         }
     }
 
+    // Building over resource nodes gives them one final harvest (remaining stock dropped as
+    // ground items, exactly like a normal harvest) before removing them — so overbuilding a
+    // camp or structure salvages the resources that were sitting there instead of wasting them.
+    _salvageNodesUnder(tx, ty, width = 1, height = 1) {
+        const nodes = this.scene.resNodes;
+        if (!nodes?.length) return;
+        for (let i = nodes.length - 1; i >= 0; i--) {
+            const n = nodes[i];
+            const ntx = n.tx ?? Math.floor(n.x / TILE);
+            const nty = n.ty ?? Math.floor((n.y - MAP_OY) / TILE);
+            if (ntx < tx || ntx >= tx + width || nty < ty || nty >= ty + height) continue;
+            const res = NODES[n.type]?.resource;
+            const qty = Math.max(0, Math.floor(n.stock ?? 0));
+            if (res && qty > 0) {
+                this.scene.unitManager?.spawnGroundItems?.(n, res, qty);
+                this.scene.uiManager?.showFloatText?.(n.x, n.y - 14, `salvaged +${qty}`, '#cfe8a0');
+            }
+            n.stock = 0;                              // release any unit currently targeting it
+            n.gfx?.destroy(); n.labelObj?.destroy();
+            nodes.splice(i, 1);
+        }
+    }
+
     makeConstructObj(type, tx, ty, built) {
         const def = CONSTRUCTS[type];
         if (!def) return null;
@@ -159,6 +182,8 @@ export default class ConstructManager {
 
         if (!this.isFree(tx, ty, def.width, def.height, type)) return null;
 
+        this._salvageNodesUnder(tx, ty, def.width, def.height);
+
         const isWallType = ['wall', 'palisade', 'gate', 'watchtower'].includes(type);
         this.occupy(tx, ty, def.width, def.height, isWallType ? 98 : 99);
 
@@ -209,6 +234,8 @@ export default class ConstructManager {
         const def = CONSTRUCTS[type];
         if (!def) return null;
         
+        this._salvageNodesUnder(tx, ty, def.width, def.height);
+
         const isWallType = ['wall', 'palisade', 'gate', 'watchtower'].includes(type);
         this.occupy(tx, ty, def.width, def.height, isWallType ? 98 : 99);
 
