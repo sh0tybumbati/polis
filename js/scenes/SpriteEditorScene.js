@@ -58,6 +58,7 @@ export default class SpriteEditorScene extends Phaser.Scene {
         this.newAlpha = 1.0;
         this.gridSnap = true;
         this.pv = {};                                     // $var resolution for fills (none yet)
+        this.traceSettings = { colorCount: 6, resolution: 4, maxShapes: 80 };  // image-trace knobs
 
         // Animation authoring
         this.activeClip = 'walk';
@@ -82,6 +83,12 @@ export default class SpriteEditorScene extends Phaser.Scene {
         this.shpGfx  = this.add.graphics().setDepth(2);
         this.selGfx  = this.add.graphics().setDepth(3);
         this.uiGfx   = this.add.graphics().setDepth(8);
+
+        // Persistent hover tooltip (not part of the rebuilt UI objects).
+        this._tip = this.add.text(0, 0, '', {
+            fontFamily: 'monospace', fontSize: this._fs(10), color: '#e8f0e8',
+            backgroundColor: '#1a261a', padding: { x: 6, y: 3 },
+        }).setDepth(30).setVisible(false);
 
         this.input.mouse?.disableContextMenu();           // allow right-drag panning
 
@@ -289,12 +296,17 @@ export default class SpriteEditorScene extends Phaser.Scene {
             const img = new Image();
             img.onload = () => {
                 URL.revokeObjectURL(url);
+                this._lastImage = img;            // kept so Re-trace can re-run with new settings
                 this._vectorizeAndLoad(img);
             };
             img.onerror = () => URL.revokeObjectURL(url);
             img.src = url;
         };
         input.click();
+    }
+
+    _retrace() {
+        if (this._lastImage) this._vectorizeAndLoad(this._lastImage);
     }
 
     _vectorizeAndLoad(img) {
@@ -308,7 +320,7 @@ export default class SpriteEditorScene extends Phaser.Scene {
         ctx.drawImage(img, 0, 0, w, h);
         const imageData = ctx.getImageData(0, 0, w, h);
 
-        const { shapes, groups } = vectorizeImage(imageData, { colorCount: 6, resolution: 4, maxShapes: 80 });
+        const { shapes, groups } = vectorizeImage(imageData, { ...this.traceSettings });
         if (!shapes.length) return;
 
         this._pushUndo();
@@ -543,16 +555,26 @@ export default class SpriteEditorScene extends Phaser.Scene {
         const o = this.add.text(x, y, str, { fontFamily: 'monospace', color: '#aaaaaa', ...style }).setDepth(10);
         this._uiObjs.push(o); return o;
     }
-    _btn(x, y, w, h, label, col, cb, active = false) {
+    _btn(x, y, w, h, label, col, cb, active = false, tip = null) {
         const g = this.add.graphics().setDepth(9);
         g.fillStyle(active ? 0x2a4428 : col, 1).fillRect(x, y, w, h);
         g.lineStyle(1, active ? 0x44aa44 : 0x334433).strokeRect(x, y, w, h);
         const t = this.add.text(x + w / 2, y + h / 2, label, { fontFamily: 'monospace', fontSize: this._fs(10), color: active ? '#88ff88' : '#aaccaa' }).setOrigin(0.5).setDepth(10);
         const z = this.add.zone(x, y, w, h).setOrigin(0).setInteractive().setDepth(11);
         z.on('pointerdown', cb);
+        if (tip) { z.on('pointerover', () => this._showTip(tip, x, y + h / 2)); z.on('pointerout', () => this._hideTip()); }
         this._uiObjs.push(g); this._uiObjs.push(t); this._uiObjs.push(z);
         return z;
     }
+    // Tooltip floats to the LEFT of the anchor (rail sits on the right edge).
+    _showTip(text, anchorX, anchorY) {
+        this._tip.setText(text);
+        const w = this._tip.width, h = this._tip.height;
+        const x = Math.max(2, anchorX - 8 - w);
+        const y = Phaser.Math.Clamp(anchorY - h / 2, 2, this.H - h - 2);
+        this._tip.setPosition(x, y).setVisible(true);
+    }
+    _hideTip() { this._tip?.setVisible(false); }
     _swatch(x, y, sz, col, selected, cb) {
         this.uiGfx.fillStyle(col).fillRect(x, y, sz, sz);
         if (selected) this.uiGfx.lineStyle(2, 0xffffff).strokeRect(x - 1, y - 1, sz + 2, sz + 2);
@@ -566,6 +588,7 @@ export default class SpriteEditorScene extends Phaser.Scene {
         for (const o of this._uiObjs) o.destroy();
         this._uiObjs = [];
         this.uiGfx.clear();
+        this._hideTip();                      // a hovered button may have just been destroyed
         this._buildRail();
         this._buildPopover();
     }
@@ -574,26 +597,27 @@ export default class SpriteEditorScene extends Phaser.Scene {
 
     _buildRail() {
         const RX = this.RAIL_X, RW = this.RAIL_W;
+        const SHAPE_TIPS = { circle: 'Circle', triangle: 'Triangle', rect: 'Rectangle', line: 'Line', polygon: 'Polygon', ellipse: 'Ellipse' };
         const items = [];
         const sep = () => items.push({ sep: true });
-        items.push({ ic: '✕', col: 0x221111, cb: () => this._close() });
+        items.push({ ic: '✕', col: 0x221111, cb: () => this._close(), tip: 'Close  (Esc)' });
         sep();
-        items.push({ ic: '↶', cb: () => this._undo() });
-        items.push({ ic: '↷', cb: () => this._redo() });
+        items.push({ ic: '↶', cb: () => this._undo(), tip: 'Undo  (Ctrl+Z)' });
+        items.push({ ic: '↷', cb: () => this._redo(), tip: 'Redo  (Ctrl+Y)' });
         sep();
         for (const [icon, tp] of SHAPE_TYPES)
-            items.push({ ic: icon, cb: () => { this.newType = tp; this.tool = 'place'; this._redraw(); }, active: this.tool === 'place' && this.newType === tp });
-        items.push({ ic: '✋', cb: () => { this.tool = this.tool === 'pan' ? 'place' : 'pan'; this._redraw(); }, active: this.tool === 'pan' });
+            items.push({ ic: icon, cb: () => { this.newType = tp; this.tool = 'place'; this._redraw(); }, active: this.tool === 'place' && this.newType === tp, tip: `${SHAPE_TIPS[tp]} tool` });
+        items.push({ ic: '✋', cb: () => { this.tool = this.tool === 'pan' ? 'place' : 'pan'; this._redraw(); }, active: this.tool === 'pan', tip: 'Pan  (or middle/right-drag)' });
         sep();
-        items.push({ ic: '🎨', cb: () => this._togglePanel('color'), active: this.openPanel === 'color' });
-        items.push({ ic: '🧩', cb: () => this._togglePanel('parts'), active: this.openPanel === 'parts' });
-        items.push({ ic: '⚙', cb: () => this._togglePanel('props'), active: this.openPanel === 'props' });
-        items.push({ ic: '🎞', cb: () => this._togglePanel('anim'), active: this.openPanel === 'anim' });
+        items.push({ ic: '🎨', cb: () => this._togglePanel('color'), active: this.openPanel === 'color', tip: 'Colour & alpha' });
+        items.push({ ic: '🧩', cb: () => this._togglePanel('parts'), active: this.openPanel === 'parts', tip: 'Parts' });
+        items.push({ ic: '⚙', cb: () => this._togglePanel('props'), active: this.openPanel === 'props', tip: 'Shape properties' });
+        items.push({ ic: '🎞', cb: () => this._togglePanel('anim'), active: this.openPanel === 'anim', tip: 'Animation / keyframes' });
         sep();
-        items.push({ ic: '🖼', cb: () => this._importImage() });
-        items.push({ ic: '⊞', cb: () => { this.gridSnap = !this.gridSnap; this._redraw(); }, active: this.gridSnap });
-        items.push({ ic: '⤢', cb: () => { this._fitView(); this._redraw(); } });
-        items.push({ ic: '📋', cb: () => this._showExport() });
+        items.push({ ic: '🖼', cb: () => this._togglePanel('trace'), active: this.openPanel === 'trace', tip: 'Import image → trace' });
+        items.push({ ic: '⊞', cb: () => { this.gridSnap = !this.gridSnap; this._redraw(); }, active: this.gridSnap, tip: 'Grid snap' });
+        items.push({ ic: '⤢', cb: () => { this._fitView(); this._redraw(); }, tip: 'Fit view  (0)' });
+        items.push({ ic: '📋', cb: () => this._showExport(), tip: 'Export rig .js' });
 
         const nIc = items.filter(i => !i.sep).length, nSep = items.length - nIc;
         let size = Math.floor((this.H - nSep * 7 - 12) / nIc) - 3;
@@ -602,7 +626,7 @@ export default class SpriteEditorScene extends Phaser.Scene {
         let y = 6;
         for (const it of items) {
             if (it.sep) { this.uiGfx.lineStyle(1, 0x2a3a2a, 0.8).lineBetween(RX + 6, y + 2, this.W - 6, y + 2); y += 7; continue; }
-            this._btn(x, y, size, size, it.ic, it.col ?? 0x111811, it.cb, it.active);
+            this._btn(x, y, size, size, it.ic, it.col ?? 0x111811, it.cb, it.active, it.tip);
             y += size + 3;
         }
     }
@@ -617,7 +641,7 @@ export default class SpriteEditorScene extends Phaser.Scene {
         this.uiGfx.lineStyle(1, 0x2a3a2a).strokeRect(x, 0, POP_W, this.H);
         const px = x + 8, pw = POP_W - 16;
         let py = 8;
-        const titles = { color: '🎨 Colour & alpha', parts: '🧩 Parts', props: '⚙ Shape', anim: '🎞 Animation' };
+        const titles = { color: '🎨 Colour & alpha', parts: '🧩 Parts', props: '⚙ Shape', anim: '🎞 Animation', trace: '🖼 Import & trace' };
         this._txt(px, py + 2, titles[this.openPanel], { fontSize: this._fs(11), color: '#c8a030' });
         this._btn(x + POP_W - 24, py - 2, 20, 20, '✕', 0x221111, () => this._togglePanel(this.openPanel));
         py += 24;
@@ -626,6 +650,35 @@ export default class SpriteEditorScene extends Phaser.Scene {
         else if (this.openPanel === 'parts') this._panelParts(px, py, pw);
         else if (this.openPanel === 'props') this._panelProps(px, py, pw);
         else if (this.openPanel === 'anim') this._panelAnim(px, py, pw);
+        else if (this.openPanel === 'trace') this._panelTrace(px, py, pw);
+    }
+
+    _panelTrace(PX, py, PW) {
+        const ts = this.traceSettings;
+        // label, key, min, max, step, hint
+        const rows = [
+            ['Colours', 'colorCount', 2, 32, 1, 'more = more parts/detail'],
+            ['Coarseness', 'resolution', 2, 20, 1, 'lower = finer detail'],
+            ['Max shapes', 'maxShapes', 20, 400, 20, 'cap on traced shapes'],
+        ];
+        const apply = (k, d, lo, hi) => { ts[k] = Phaser.Math.Clamp(ts[k] + d, lo, hi); this._redraw(); };
+        for (const [label, key, lo, hi, step, hint] of rows) {
+            this._txt(PX, py + 4, label, { fontSize: this._fs(9), color: '#668866' });
+            this._btn(PX + PW - 86, py, 22, 22, '−', 0x111811, () => apply(key, -step, lo, hi));
+            this._txt(PX + PW - 56, py + 4, String(ts[key]), { fontSize: this._fs(10), color: '#ddddaa' });
+            this._btn(PX + PW - 26, py, 22, 22, '+', 0x111811, () => apply(key, step, lo, hi));
+            py += 22;
+            this._txt(PX + 6, py, hint, { fontSize: this._fs(7), color: '#557755' });
+            py += 16;
+        }
+        py += 6;
+        this._btn(PX, py, PW, 26, '🖼 Choose image…', 0x112011, () => this._importImage());
+        py += 30;
+        const can = !!this._lastImage;
+        this._btn(PX, py, PW, 24, can ? '↻ Re-trace with these settings' : '↻ Re-trace (import first)', can ? 0x112011 : 0x161616, () => this._retrace());
+        py += 30;
+        this._txt(PX, py, 'Tip: import once, then tweak', { fontSize: this._fs(8), color: '#557755' });
+        this._txt(PX, py + 13, 'the knobs and Re-trace.', { fontSize: this._fs(8), color: '#557755' });
     }
 
     _panelColor(PX, py, PW) {
