@@ -62,12 +62,14 @@ export function renderRig(gfx, rig, ctx = {}) {
         gfx.scaleCanvas(scale * signX * (t.sx ?? 1), scale * (t.sy ?? 1));
         // Author-space translation (e.g. limb bob), in rig units.
         gfx.translateCanvas(t.x ?? 0, t.y ?? 0);
-        // Rotate around the part pivot.
+        // Shift so the rig origin sits at the anchor. This must come BEFORE the pivot wrap so the
+        // pivot (authored in rig coords) is the actual rotation centre — otherwise rotation happens
+        // about (pivot + origin), which puts a leg's pivot on the floor instead of at the hip.
+        gfx.translateCanvas(-origin.x, -origin.y);
+        // Rotate around the part pivot (now in the same, origin-shifted space as the shapes).
         gfx.translateCanvas(pivot.x, pivot.y);
         gfx.rotateCanvas(t.rot ?? 0);
         gfx.translateCanvas(-pivot.x, -pivot.y);
-        // Shapes are authored relative to the rig origin → shift so origin sits at (0,0).
-        gfx.translateCanvas(-origin.x, -origin.y);
 
         renderShapes(gfx, part.shapes ?? [], vars, { scale: 1, alpha: ctx.alpha ?? 1 });
         gfx.restore();
