@@ -420,7 +420,50 @@ export default class GameScene extends Phaser.Scene {
     demolishConstruct(b) { this.constructManager.demolishConstruct(b); }
     findNodeAt(wx, wy) { return this.mapManager.findNodeAt(wx, wy); }
     orderWorkersToNode(node) { return this.unitManager.orderWorkersToNode(node); }
+    orderWorkersToHaul(item) { return this.unitManager.orderWorkersToHaul(item); }
+    orderWorkersToWorkshop(b) { return this.unitManager.orderWorkersToWorkshop(b); }
+    orderWorkersToRepair(b) { return this.unitManager.orderWorkersToRepair(b); }
+    orderDeconstruct(b) { return this.constructManager.orderDeconstruct(b); }
     _slaughterSheep(b) { this.natureManager.slaughterSheep(b); }
+
+    // Aggregate the orders a selected worker could carry out at a clicked world point.
+    // Returns ordered descriptors { id, label, color, exec }; `exec` performs the order.
+    // Used by the right-click handler: 0 task verbs → move, 1 → run it, ≥2 → context menu.
+    actionsAt(wx, wy) {
+        const acts = [];
+        const construct = this.findConstructAt(wx, wy);
+        if (construct && !construct.faction) {
+            const def = CONSTRUCTS[construct.type] ?? {};
+            if (!construct.built) {
+                acts.push({ id: 'build', label: `🔨 Build ${def.label ?? construct.type}`, color: 0x1a3a44, exec: () => this.orderWorkersToConstruct(construct) });
+            } else {
+                if (def.job) acts.push({ id: 'work', label: `⚙ Work at ${def.label ?? construct.type}`, color: 0x3a3010, exec: () => this.orderWorkersToWorkshop(construct) });
+                if (def.isHomeType || construct.type === 'bed') acts.push({ id: 'sleep', label: '😴 Sleep here', color: 0x222a44, exec: () => this.orderWorkersToSleep(construct) });
+                if ((construct.hp ?? 0) < (construct.maxHp ?? 0)) acts.push({ id: 'repair', label: '🔧 Repair', color: 0x14401f, exec: () => this.orderWorkersToRepair(construct) });
+                if (!construct.deconstructing) acts.push({ id: 'deconstruct', label: '🗑 Deconstruct', color: 0x441111, exec: () => { this.orderDeconstruct(construct); return true; } });
+            }
+        }
+        // Unbuilt edge (wall/fence/gate/door) under the cursor → build it.
+        if (!acts.some(a => a.id === 'build')) {
+            const e = this.constructManager?.nearestEdge(wx, wy);
+            const ec = e ? this.constructManager.getEdge(e.isH, e.row, e.col) : null;
+            if (ec && !ec.built && !ec.faction) acts.push({ id: 'build', label: '🔨 Build wall', color: 0x1a3a44, exec: () => this.orderWorkersToConstruct(ec) });
+        }
+        const node = this.findNodeAt(wx, wy);
+        if (node && (node.stock ?? 0) > 0) acts.push({ id: 'harvest', label: '🌿 Harvest', color: 0x1f3a14, exec: () => this.orderWorkersToNode(node) });
+        // Ground-item pile(s) on the clicked tile.
+        const tx = Math.floor(wx / TILE), ty = Math.floor((wy - MAP_OY) / TILE);
+        const pile = this.groundItems.find(it => Math.floor(it.x / TILE) === tx && Math.floor((it.y - MAP_OY) / TILE) === ty);
+        if (pile) acts.push({ id: 'haul', label: '📦 Haul', color: 0x3a3214, exec: () => this.orderWorkersToHaul(pile) });
+        // Animals.
+        const deer = this.findDeerAt(wx, wy);
+        if (deer) acts.push({ id: 'hunt', label: '🏹 Hunt', color: 0x3a2410, exec: () => this.assignHunters(deer) });
+        const sheep = this.findSheepAt(wx, wy);
+        if (sheep) acts.push({ id: 'herd', label: sheep.isTamed ? '🐑 Lead' : '🐑 Tame', color: 0x2a2a18, exec: () => this.assignShepherds(sheep) });
+        // Always-available fallback.
+        acts.push({ id: 'move', label: '🚶 Move here', color: 0x202020, exec: () => { this.moveSelectedTo(wx, wy); return true; } });
+        return acts;
+    }
     attractAdults() {
         const homeless = this.units.filter(u => !u.isEnemy && u.hp > 0 && u.type === 'worker' && u.age >= 2 && !u.homeConstructId);
         for (const u of homeless) {

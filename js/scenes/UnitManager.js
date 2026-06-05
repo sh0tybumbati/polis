@@ -557,6 +557,7 @@ export default class UnitManager {
             u.moveTo = null;
             u.role = roleMap[node.type] ?? 'forager';
         }
+        this.scene.uiManager?.showFloatText?.(node.x, node.y - 18, `${sel.length} → harvest`, '#cfe8a0');
         return true;
     }
 
@@ -568,6 +569,59 @@ export default class UnitManager {
             u.moveTo = null; u._orderedSleepId = null;
             u.role = 'builder';
         }
+        this._orderFloat(b, `${sel.length} → build`, '#a0d8e8');
+        return true;
+    }
+
+    // Confirmation float-text anchored over a construct (tile-based) or edge.
+    _orderFloat(b, msg, color) {
+        const fx = b.tx != null ? (b.tx + (b.width ?? 1) / 2) * TILE : (b.x ?? this.scene.cameras.main.midPoint.x);
+        const fy = b.ty != null ? MAP_OY + b.ty * TILE - 6 : (b.y ?? this.scene.cameras.main.midPoint.y);
+        this.scene.uiManager?.showFloatText?.(fx, fy, msg, color);
+    }
+
+    // Manual order: haul a specific ground-item pile to storage.
+    orderWorkersToHaul(item) {
+        const sel = this.scene.units.filter(u => u.selected && !u.isEnemy && u.hp > 0 && u.type === 'worker' && u.age >= 2);
+        if (!sel.length) return false;
+        for (const u of sel) {
+            u.taskType = 'haul'; u.targetItemId = item.id;
+            u.targetNode = null; u.taskConstructId = null; u.moveTo = null; u._orderedSleepId = null;
+        }
+        item.reserved = sel[0].id;
+        this.scene.uiManager?.showFloatText?.(item.x, item.y - 16, `${sel.length} → haul`, '#e8d0a0');
+        return true;
+    }
+
+    // Manual order: work at a specific production construct (oven/mill/etc.).
+    // Seeds the worker's role to the building's job and lets seekWorkshopTask bind the station.
+    orderWorkersToWorkshop(b) {
+        const job = CONSTRUCTS[b.type]?.job;
+        if (!job || !(job in WORKSHOP_JOBS)) return false;
+        const sel = this.scene.units.filter(u => u.selected && !u.isEnemy && u.hp > 0 && u.type === 'worker' && u.age >= 2);
+        if (!sel.length) return false;
+        const now = this.scene.time.now;
+        for (const u of sel) {
+            u.role = job;
+            u.taskType = null; u.targetNode = null; u.taskConstructId = null;
+            u.moveTo = null; u._orderedSleepId = null;
+            u._roleCommitUntil = now + 60000;   // hold the role so the AI won't re-pick it
+            u.lastSeek = 0;                       // force an immediate workshop seek
+        }
+        this._orderFloat(b, `${sel.length} → work`, '#e8c070');
+        return true;
+    }
+
+    // Manual order: repair a specific damaged construct.
+    orderWorkersToRepair(b) {
+        const sel = this.scene.units.filter(u => u.selected && !u.isEnemy && u.hp > 0 && u.type === 'worker' && u.age >= 2);
+        if (!sel.length) return false;
+        for (const u of sel) {
+            u.taskType = 'repair'; u.taskConstructId = b.id; u.workProgress = 0;
+            u.targetNode = null; u.moveTo = null; u._orderedSleepId = null;
+            u.role = 'builder';
+        }
+        this._orderFloat(b, `${sel.length} → repair`, '#a0e8c0');
         return true;
     }
 

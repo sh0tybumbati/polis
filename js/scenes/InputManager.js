@@ -27,6 +27,7 @@ export default class InputManager {
 
         s.input.on('pointerdown', ptr => {
             s._touches.set(ptr.id, { x: ptr.x, y: ptr.y });
+            if (s.uiManager?._ctxMenuOpen) return;   // context menu open — its own zones handle input
             if (s._touches.size === 1) {
                 s._ptrDownX = ptr.x; s._ptrDownY = ptr.y; s._dragging = false;
                 if (s.wallMode) {
@@ -193,6 +194,7 @@ export default class InputManager {
             s._pinch.active = false;
             s.dragGfx.clear();
             if (s._touches.size >= 1) return;
+            if (s.uiManager?._ctxMenuOpen) return;   // context menu open — let its zones handle the click
 
             // Designation drag (forage / woodcutting / mining): apply to every matching node inside
             // the dragged rectangle. A plain tap (no drag) falls through to the single-node toggle.
@@ -357,22 +359,9 @@ export default class InputManager {
                 if (s.selIds.size > 0) {
                     if (hit && !hit.isEnemy) { s.selectUnit(hit.id, true); return; }
                     if (hit && hit.isEnemy) { /* Attack (TBD) */ return; }
-                    // Built tent/house/bed → order sleep there; unbuilt construct → order its build.
-                    if (construct) {
-                        const isHome = construct.built &&
-                            (construct.type === 'bed' || CONSTRUCTS[construct.type]?.isHomeType);
-                        if (isHome) { if (s.orderWorkersToSleep(construct)) return; }
-                        else if (!construct.built && s.orderWorkersToConstruct(construct)) return;
-                    }
-                    // Unbuilt edge (wall / fence / gate / door) → order its construction.
-                    const _edge  = s.constructManager?.nearestEdge(wx, wy);
-                    const _edgeC = _edge ? s.constructManager.getEdge(_edge.isH, _edge.row, _edge.col) : null;
-                    if (_edgeC && !_edgeC.built && s.orderWorkersToConstruct(_edgeC)) return;
-                    if (node && s.orderWorkersToNode(node)) return;
-                    const deer = s.findDeerAt(wx, wy);
-                    const sheep = s.findSheepAt(wx, wy);
-                    if (deer) { s.assignHunters(deer); return; }
-                    if (sheep) { s.assignShepherds(sheep); return; }
+                    // A further right-click while the menu is open just dismisses it.
+                    if (s.uiManager?._ctxMenuOpen) { s.uiManager.closeContextMenu(); return; }
+                    // Touch: double-tap empty space deselects.
                     if (isTouch) {
                         const now = Date.now();
                         const doubleTap = (now - this._lastTapTime < 350) &&
@@ -380,7 +369,13 @@ export default class InputManager {
                         this._lastTapTime = now; this._lastTapX = wx; this._lastTapY = wy;
                         if (doubleTap) { s.deselect(); return; }
                     }
-                    s.moveSelectedTo(wx, wy);
+                    // Gather every order possible here. 0 task verbs → move; 1 → do it
+                    // (blind, with float-text confirmation); 2+ → show the action menu.
+                    const acts = s.actionsAt(wx, wy);
+                    const tasks = acts.filter(a => a.id !== 'move');
+                    if (tasks.length === 0) s.moveSelectedTo(wx, wy);
+                    else if (tasks.length === 1) tasks[0].exec();
+                    else s.uiManager?.showContextMenu(ptr.x, ptr.y, acts);
                 }
                 return;
             }
@@ -472,6 +467,8 @@ export default class InputManager {
         });
 
         s.input.keyboard?.on('keydown-ESC', () => {
+            // Close an open right-click action menu first
+            if (s.uiManager?._ctxMenuOpen) { s.uiManager.closeContextMenu(); return; }
             // If settings panel is open, close it and return to pause menu
             if (s.uiManager?._settingsMenuOpen) { s.uiManager.hideSettingsPanel(); s.uiManager.showPauseMenu(); return; }
             // If pause menu is open, close it and resume

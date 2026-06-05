@@ -1101,6 +1101,68 @@ export default class UIManager {
         t._toastTimer = this.scene.time.delayedCall(2400, kill);
     }
 
+    // ─── Right-click action menu ────────────────────────────────────────────────
+    // A small screen-space popup of order buttons, anchored at the pointer. Items are
+    // { label, color, exec } (exec performs the order). Includes a Cancel row. The
+    // backdrop and ESC dismiss it; selecting a row runs exec then closes.
+    showContextMenu(sx, sy, items) {
+        if (!this.L) return;
+        this._destroyCtxObjs();
+        const objs = [];
+        const reg = o => { this._ui(o); objs.push(o); return o; };
+        const fsz = this._fs(11);
+        const ROW = Math.max(24, Math.round(this.L.H * 0.034));
+        const W = Phaser.Math.Clamp(Math.round(this.L.W * 0.18), 156, 248);
+        const rows = items.map(it => ({ label: it.label, color: it.color ?? 0x242424, exec: it.exec }));
+        rows.push({ label: '✕ Cancel', color: 0x2a1c10, exec: () => true });
+        const H = rows.length * ROW;
+        let x = sx, y = sy;
+        if (x + W > this.L.W - 4) x = this.L.W - W - 4;
+        if (y + H > this.L.H - 4) y = this.L.H - H - 4;
+        x = Math.max(4, x); y = Math.max(4, y);
+
+        // Full-screen backdrop: any outside click closes the menu.
+        const back = reg(this.scene.add.rectangle(this.L.W / 2, this.L.H / 2, this.L.W, this.L.H, 0x000000, 0.001)
+            .setDepth(61).setInteractive());
+        back.on('pointerup', () => this.closeContextMenu());
+
+        const bg = reg(this.scene.add.graphics().setDepth(62));
+        bg.fillStyle(0x12100a, 0.97).fillRect(x, y, W, H);
+        bg.lineStyle(1, 0x5a4010, 0.85).strokeRect(x, y, W, H);
+
+        rows.forEach((r, i) => {
+            const ry = y + i * ROW;
+            const g = reg(this.scene.add.graphics().setDepth(63));
+            g.fillStyle(r.color, 0.92).fillRect(x + 2, ry + 1, W - 4, ROW - 2);
+            const hov = reg(this.scene.add.graphics().setDepth(64).setAlpha(0));
+            hov.fillStyle(0xffffff, 0.14).fillRect(x + 2, ry + 1, W - 4, ROW - 2);
+            reg(this.scene.add.text(x + 10, ry + ROW / 2, r.label, {
+                fontFamily: THEME.fontMono, fontSize: fsz, color: '#e8dcc0',
+            }).setOrigin(0, 0.5).setDepth(65));
+            const z = reg(this.scene.add.zone(x + W / 2, ry + ROW / 2, W - 4, ROW - 2)
+                .setInteractive({ cursor: 'pointer' }).setDepth(66));
+            z.on('pointerover', () => hov.setAlpha(1));
+            z.on('pointerout', () => hov.setAlpha(0));
+            z.on('pointerup', () => { try { r.exec?.(); } finally { this.closeContextMenu(); } });
+        });
+
+        this._ctxMenu = objs;
+        this._ctxMenuOpen = true;
+    }
+
+    _destroyCtxObjs() {
+        if (this._ctxMenu) { for (const o of this._ctxMenu) o.destroy?.(); this._ctxMenu = null; }
+    }
+
+    closeContextMenu() {
+        this._destroyCtxObjs();
+        if (this._ctxMenuOpen) {
+            // Hold the "open" gate through the rest of this input dispatch so the world
+            // pointer handlers swallow the same click that closed us; clear it next tick.
+            this.scene.time.delayedCall(0, () => { this._ctxMenuOpen = false; });
+        }
+    }
+
     // ─── Pause Menu ───────────────────────────────────────────────────────────
 
     showPauseMenu() {
