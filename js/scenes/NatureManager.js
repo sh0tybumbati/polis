@@ -76,7 +76,7 @@ export default class NatureManager {
     redrawDeer(d) {
         const g = d.gfx;
         g.clear().setPosition(d.x, d.y);
-        ANIMALS.deer.draw(g, d);
+        ANIMALS.deer.draw(g, d, { moving: d.moving ?? false });
     }
 
     spawnSheep(x, y, gender = null) {
@@ -158,7 +158,20 @@ export default class NatureManager {
             }
             d.x = Phaser.Math.Clamp(d.x, TILE, NATURE_WORLD_W * TILE - TILE);
             d.y = Phaser.Math.Clamp(d.y, MAP_OY + TILE, NATURE_BOTTOM - TILE);
-            d.gfx.setPosition(d.x, d.y);
+
+            // Facing + gait from motion (drives the directional rig + leg swing).
+            const mdx = d.x - (d._px ?? d.x), mdy = d.y - (d._py ?? d.y);
+            d._px = d.x; d._py = d.y;
+            const moving = (mdx * mdx + mdy * mdy) > 0.02;
+            if (moving) {
+                d._walkPhase = (d._walkPhase ?? 0) + 0.16;
+                if (Math.abs(mdx) > Math.abs(mdy)) d.facing = mdx >= 0 ? 'east' : 'west';
+                else                                d.facing = mdy >= 0 ? 'south' : 'north';
+            } else {
+                d._walkPhase = (d._walkPhase ?? 0) * 0.8;
+            }
+            d.moving = moving;
+            this.redrawDeer(d);   // per-frame redraw so the rig animates
         }
     }
 
