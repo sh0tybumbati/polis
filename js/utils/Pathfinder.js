@@ -51,8 +51,11 @@ export class Pathfinder {
             for (const neighbor of this._getAdjacent(current.x, current.y)) {
                 const nk = key(neighbor.x, neighbor.y);
                 if (closedSet.has(nk) || this._isBlocked(neighbor.x, neighbor.y)) continue;
+                // Diagonals: only if both shared orthogonal cells are open (never cut a wall corner).
+                if (neighbor.diag &&
+                    (this._isBlocked(neighbor.x, current.y) || this._isBlocked(current.x, neighbor.y))) continue;
 
-                const gScore = current.g + 1;
+                const gScore = current.g + (neighbor.diag ? Math.SQRT2 : 1);
                 const existing = openMap.get(nk);
                 if (!existing) {
                     const node = { x: neighbor.x, y: neighbor.y, g: gScore,
@@ -75,8 +78,10 @@ export class Pathfinder {
         return this.scene.mapManager.isTileBlocked(wx, wy);
     }
 
+    // Octile distance: cardinal cost 1, diagonal cost √2.
     _dist(x1, y1, x2, y2) {
-        return Math.abs(x1 - x2) + Math.abs(y1 - y2);
+        const dx = Math.abs(x1 - x2), dy = Math.abs(y1 - y2);
+        return (dx + dy) + (Math.SQRT2 - 2) * Math.min(dx, dy);
     }
 
     _getAdjacent(x, y) {
@@ -85,7 +90,26 @@ export class Pathfinder {
             { x: x + 1, y: y },
             { x: x, y: y - 1 },
             { x: x, y: y + 1 },
+            { x: x - 1, y: y - 1, diag: true },
+            { x: x + 1, y: y - 1, diag: true },
+            { x: x - 1, y: y + 1, diag: true },
+            { x: x + 1, y: y + 1, diag: true },
         ];
+    }
+
+    /**
+     * True if a straight world-space line from (wx1,wy1) to (wx2,wy2) crosses no blocked tile.
+     * Used by the movement funnel to skip redundant waypoints and cut corners naturally.
+     */
+    lineClear(wx1, wy1, wx2, wy2) {
+        const dx = wx2 - wx1, dy = wy2 - wy1;
+        const len = Math.hypot(dx, dy);
+        const steps = Math.max(1, Math.ceil(len / (TILE * 0.5)));
+        for (let i = 1; i <= steps; i++) {
+            const t = i / steps;
+            if (this.scene.mapManager.isTileBlocked(wx1 + dx * t, wy1 + dy * t)) return false;
+        }
+        return true;
     }
 
     _reconstructPath(node) {

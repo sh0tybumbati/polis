@@ -140,7 +140,10 @@ export default {
         const isMoving  = !!(u.moveTo || u.currentPath);
         const isWorking = !u.isSleeping && u.hp > 0 && (u.workProgress ?? 0) > 0;
         if (isMoving || isWorking) {
-            u._walkPhase = (u._walkPhase ?? 0) + (isWorking ? 0.10 : 0.14);
+            // Gait cadence scales with actual speed so a unit easing in/out doesn't churn its legs.
+            const sp = Math.hypot(u.vx ?? 0, u.vy ?? 0);
+            const moveFrac = isWorking ? 1 : Math.max(0.25, u.speed ? Math.min(1, sp / u.speed) : 1);
+            u._walkPhase = (u._walkPhase ?? 0) + (isWorking ? 0.10 : 0.14 * moveFrac);
         } else {
             u._walkPhase = ((u._walkPhase ?? 0) * 0.80);
         }

@@ -125,6 +125,7 @@ export default class UnitManager {
             isEnemy, selected: false,
             gender, name: pickName(gender),
             moveTo: null, lastAtk: 0, lastGather: 0,
+            vx: 0, vy: 0,   // steering velocity (UnitMovement._steer)
             speed, atk: def.atk, range: def.range,
             wallSide: 0, homeConstructId: null, bedConstructId: null, estateId: null, age: 2,
             taskType: null, taskConstructId: null, targetNode: null, targetItemId: null,
@@ -388,6 +389,8 @@ export default class UnitManager {
         const units = this.scene.units;
         const STRIDE = 3; // each unit ticks every 3rd frame, accumulates dt in between
 
+        this._rebuildUnitGrid(units);   // spatial hash for cheap crowd-separation lookups
+
         for (let i = 0; i < units.length; i++) {
             const u = units[i];
             if (u.hp <= 0) continue;
@@ -505,14 +508,10 @@ export default class UnitManager {
         }
 
         if (u.moveTo) {
-            const d = Phaser.Math.Distance.Between(u.x, u.y, u.moveTo.x, u.moveTo.y);
-            if (d > 3) {
-                const a = Phaser.Math.Angle.Between(u.x, u.y, u.moveTo.x, u.moveTo.y);
-                u.x += Math.cos(a) * u.speed * dt;
-                u.y += Math.sin(a) * u.speed * dt;
-                return;
-            }
-            u.x = u.moveTo.x; u.y = u.moveTo.y; u.moveTo = null;
+            // Route player/formation moves through the pathfinder + steering: no clipping through
+            // buildings, smooth acceleration/turning, and crowd separation like every other mover.
+            if (this.moveToward(u, u.moveTo.x, u.moveTo.y, 4, dt)) return;
+            u.moveTo = null; u.vx = 0; u.vy = 0;
         }
 
         this.updateCombat(u, time, dt);
@@ -541,6 +540,34 @@ export default class UnitManager {
     unitAt(x, y) {
         const r = this.scene.sys.game.device.input.touch ? 16 : 12;
         return this.scene.units.find(u => u.hp > 0 && Phaser.Math.Distance.Between(x, y, u.x, u.y) < r);
+    }
+
+    // Per-frame spatial hash (cell = TILE) so steering can find nearby units cheaply.
+    _rebuildUnitGrid(units) {
+        const grid = this._unitGrid ?? (this._unitGrid = new Map());
+        grid.clear();
+        for (const u of units) {
+            if (u.hp <= 0) continue;
+            const k = `${Math.floor(u.x / TILE)},${Math.floor(u.y / TILE)}`;
+            let arr = grid.get(k);
+            if (!arr) { arr = []; grid.set(k, arr); }
+            arr.push(u);
+        }
+    }
+
+    // Units within `radius` px of u (from the 3×3 cells around it). Null if the grid isn't built.
+    _neighbors(u, radius) {
+        const grid = this._unitGrid;
+        if (!grid) return null;
+        const cx = Math.floor(u.x / TILE), cy = Math.floor(u.y / TILE);
+        const span = Math.max(1, Math.ceil(radius / TILE));
+        const out = [];
+        for (let gy = cy - span; gy <= cy + span; gy++)
+            for (let gx = cx - span; gx <= cx + span; gx++) {
+                const arr = grid.get(`${gx},${gy}`);
+                if (arr) for (const o of arr) out.push(o);
+            }
+        return out;
     }
 
     orderWorkersToNode(node) {

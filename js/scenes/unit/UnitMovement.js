@@ -5,13 +5,57 @@ import {
 import { CONSTRUCTS } from '../../content/constructs/index.js';
 import { ITEMS } from '../../content/items/index.js';
 
+// Steering / separation tuning.
+const ACCEL_TIME = 0.30;        // seconds to reach full speed (smaller = snappier)
+const ARRIVE_R   = TILE * 0.6;  // start easing to a stop within this distance of the final goal
+const SEP_R      = TILE * 0.7;  // personal-space radius for crowd separation
+const SEP_FORCE  = 0.6;         // separation strength (fraction of maxSpeed)
+
 export default {
+    // Velocity-based steering: accelerate toward the target (smooth start/stop + turning),
+    // ease to a stop on final approach, and gently separate from same-faction neighbours.
+    // Updates u.vx/u.vy and integrates position. Keeps facing/anim (position-delta based) intact.
+    _steer(u, targetX, targetY, dt, maxSpeed, arrive) {
+        u.vx = u.vx ?? 0; u.vy = u.vy ?? 0;
+        const dx = targetX - u.x, dy = targetY - u.y;
+        const dist = Math.hypot(dx, dy) || 1;
+        const desiredSpeed = (arrive && dist < ARRIVE_R) ? maxSpeed * (dist / ARRIVE_R) : maxSpeed;
+        let dvx = (dx / dist) * desiredSpeed;
+        let dvy = (dy / dist) * desiredSpeed;
+
+        // Crowd separation — repel from nearby same-faction units so they flow apart, not stack.
+        const nb = this._neighbors?.(u, SEP_R);
+        if (nb) {
+            let sx = 0, sy = 0;
+            for (const o of nb) {
+                if (o === u || o.isEnemy !== u.isEnemy || o.hp <= 0) continue;
+                const ox = u.x - o.x, oy = u.y - o.y;
+                const od = Math.hypot(ox, oy);
+                if (od > 0.001 && od < SEP_R) { const w = (1 - od / SEP_R) / od; sx += ox * w; sy += oy * w; }
+            }
+            dvx += sx * SEP_FORCE * maxSpeed;
+            dvy += sy * SEP_FORCE * maxSpeed;
+        }
+
+        // Accelerate toward the desired velocity with a capped per-tick step.
+        const accel = (maxSpeed / ACCEL_TIME) * dt;
+        let ddx = dvx - u.vx, ddy = dvy - u.vy;
+        const dd = Math.hypot(ddx, ddy);
+        if (dd > accel && dd > 0) { ddx = ddx / dd * accel; ddy = ddy / dd * accel; }
+        u.vx += ddx; u.vy += ddy;
+        const sp = Math.hypot(u.vx, u.vy);
+        if (sp > maxSpeed && sp > 0) { u.vx = u.vx / sp * maxSpeed; u.vy = u.vy / sp * maxSpeed; }
+
+        u.x += u.vx * dt; u.y += u.vy * dt;
+    },
+
     moveToward(u, tx, ty, threshold, dt) {
         u._mtCalled = true;   // flag for tickWorker's stuck-recovery (reset each worker tick)
         const d = Phaser.Math.Distance.Between(u.x, u.y, tx, ty);
         if (d <= threshold) {
             u.currentPath = null;
             u._reachFailT = 0; u._rfTarget = null;
+            u.vx = 0; u.vy = 0;
             return false;
         }
 
@@ -25,6 +69,7 @@ export default {
             this.scene.mapManager.isTileBlocked(tx, ty)) {
             u.currentPath = null;
             u._reachFailT = 0; u._rfTarget = null;
+            u.vx = 0; u.vy = 0;
             return false;
         }
 
@@ -61,21 +106,29 @@ export default {
         }
 
         let moveTargetX = tx, moveTargetY = ty;
+        let onFinalLeg = true;
 
         if (u.currentPath && u.currentPath.length > 0) {
-            // Follow path waypoints
-            if (u._pathIndex < u.currentPath.length) {
-                const wp = u.currentPath[u._pathIndex];
-                moveTargetX = wp.tx * TILE + TILE / 2;
-                moveTargetY = MAP_OY + wp.ty * TILE + TILE / 2;
-
-                const distToWp = Phaser.Math.Distance.Between(u.x, u.y, moveTargetX, moveTargetY);
-                if (distToWp < 8) {
-                    u._pathIndex++;
-                    return true; // continue moving next tick
-                }
-            } else {
+            if (u._pathIndex >= u.currentPath.length) {
                 u.currentPath = null;
+            } else {
+                // LOS funnel: skip ahead to the furthest waypoint visible in a straight line,
+                // so the unit cuts corners into smooth diagonals instead of hugging tile centres.
+                const wpWorld = (i) => {
+                    const w = u.currentPath[i];
+                    return [w.tx * TILE + TILE / 2, MAP_OY + w.ty * TILE + TILE / 2];
+                };
+                const maxLook = Math.min(u.currentPath.length, u._pathIndex + 10);
+                for (let i = u._pathIndex + 1; i < maxLook; i++) {
+                    const [wx, wy] = wpWorld(i);
+                    if (this.pathfinder.lineClear(u.x, u.y, wx, wy)) u._pathIndex = i; else break;
+                }
+                [moveTargetX, moveTargetY] = wpWorld(u._pathIndex);
+                onFinalLeg = u._pathIndex >= u.currentPath.length - 1;   // ease only at the real goal
+                if (Phaser.Math.Distance.Between(u.x, u.y, moveTargetX, moveTargetY) < 8) {
+                    u._pathIndex++;
+                    return true; // advance to the next waypoint next tick
+                }
             }
         }
 
@@ -118,8 +171,11 @@ export default {
             onionMult *= 0.6 + (u.needs?.food ?? 1.0) * 0.4;
         }
 
-        u.x += Math.cos(a) * u.speed * spd * onionMult * dt;
-        u.y += Math.sin(a) * u.speed * spd * onionMult * dt;
+        const maxSpeed = u.speed * spd * onionMult;
+        // Ease to a stop only when steering at the real destination (the final target, or the last
+        // path waypoint) — intermediate waypoints keep full speed so units don't dawdle at corners.
+        const arrive = onFinalLeg;
+        this._steer(u, moveTargetX, moveTargetY, dt, maxSpeed, arrive);
 
         // Accumulate foot traffic; create desire path when threshold reached
         if (!u.isEnemy) {

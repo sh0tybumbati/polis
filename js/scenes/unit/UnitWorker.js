@@ -140,14 +140,9 @@ export default {
         }
 
         if (u.moveTo) {
-            const d = Phaser.Math.Distance.Between(u.x, u.y, u.moveTo.x, u.moveTo.y);
-            if (d > 3) {
-                const a = Phaser.Math.Angle.Between(u.x, u.y, u.moveTo.x, u.moveTo.y);
-                u.x += Math.cos(a) * u.speed * dt;
-                u.y += Math.sin(a) * u.speed * dt;
-                return;
-            }
-            u.moveTo = null;
+            // Pathfind + steer (smooth, no clipping) like every other mover.
+            if (this.moveToward(u, u.moveTo.x, u.moveTo.y, 4, dt)) return;
+            u.moveTo = null; u.vx = 0; u.vy = 0;
         }
 
         // Collect tithes when idle
