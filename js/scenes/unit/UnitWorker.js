@@ -318,66 +318,89 @@ export default {
         if (u.targetNode) this.handleGatherTask(u, dt);
     },
 
+    // Game animals a hunter will pursue. Each species carries its own meatKey/hideKey so the
+    // butcher/tanner get distinct meat & leather (venison/pork/beef, deer/boar/aurochs hide).
+    _huntableHerds() {
+        return [
+            ['deer',    this.scene.deer],
+            ['boar',    this.scene.boar],
+            ['aurochs', this.scene.aurochs],
+        ];
+    },
+
     tickHunter(u, dt) {
-        // Find assigned or nearest deer
-        let deer = u.targetDeer ? this.scene.deer.find(d => d.id === u.targetDeer) : null;
-        if (!deer) {
-            deer = this.scene.deer.filter(d => !d.isDead).reduce((best, d) => {
-                const dist = Phaser.Math.Distance.Between(u.x, u.y, d.x, d.y);
-                return (!best || dist < best.dist) ? { d, dist } : best;
-            }, null)?.d ?? null;
-            if (deer) u.targetDeer = deer.id;
-            else { u.role = null; u.targetDeer = null; return; } // Bug 1: release role so pickRole re-runs
+        const nm = this.scene.natureManager;
+        if (u.targetDeer && u.targetAnimal == null) { u.targetAnimal = u.targetDeer; u.targetDeer = null; } // migrate old saves
+        const herds = this._huntableHerds();
+
+        // Resolve the assigned target, or pick the nearest live (or still-harvestable) animal.
+        let prey = null, species = null;
+        if (u.targetAnimal != null) {
+            for (const [s, arr] of herds) { const f = arr?.find(a => a.id === u.targetAnimal); if (f) { prey = f; species = s; break; } }
+        }
+        if (!prey) {
+            let best = null;
+            for (const [s, arr] of herds) for (const a of (arr ?? [])) {
+                if (a.isDead && a.meatLeft <= 0 && a.hideLeft <= 0) continue;
+                const dist = Phaser.Math.Distance.Between(u.x, u.y, a.x, a.y);
+                if (!best || dist < best.dist) best = { a, s, dist };
+            }
+            if (best) { prey = best.a; species = best.s; u.targetAnimal = prey.id; }
+            else { u.role = null; u.targetAnimal = null; return; } // release role so pickRole re-runs
         }
 
-        if (deer.isDead) {
-            // Harvest carcass: take meat and hide
+        const def     = ANIMALS[species];
+        const meatKey = def.meatKey ?? 'Food.Meat.Venison';
+        const hideKey = def.hideKey ?? 'Textile.Hide.Deer';
+
+        if (prey.isDead) {
+            // Harvest carcass: take meat and hide (species-specific keys)
             let meatPick = 0;
-            while (meatPick < deer.meatLeft && this.canUnitCarryMore(u, 'Food.Meat.Venison', meatPick + 1)) {
-                meatPick++;
-            }
+            while (meatPick < prey.meatLeft && this.canUnitCarryMore(u, meatKey, meatPick + 1)) meatPick++;
             let hidePick = 0;
-            while (hidePick < deer.hideLeft && this.canUnitCarryMore(u, 'Textile.Hide.Deer', hidePick + 1, meatPick)) {
-                // The 4th param 'meatPick' would need to be handled by canUnitCarryMore or manual weight calc
-                // Let's just do manual check here for simplicity since it's mixed harvest
-                const curW = this.getUnitCarryWeight(u) + meatPick * ITEMS['Food.Meat.Venison'].weight;
-                const curV = this.getUnitCarryVolume(u) + meatPick * ITEMS['Food.Meat.Venison'].volume;
-                const nextW = curW + (hidePick + 1) * ITEMS['Textile.Hide.Deer'].weight;
-                const nextV = curV + (hidePick + 1) * ITEMS['Textile.Hide.Deer'].volume;
+            while (hidePick < prey.hideLeft) {
+                const curW = this.getUnitCarryWeight(u) + meatPick * ITEMS[meatKey].weight;
+                const curV = this.getUnitCarryVolume(u) + meatPick * ITEMS[meatKey].volume;
+                const nextW = curW + (hidePick + 1) * ITEMS[hideKey].weight;
+                const nextV = curV + (hidePick + 1) * ITEMS[hideKey].volume;
                 if (nextW <= this.getUnitMaxWeight(u) && nextV <= this.getUnitMaxVolume(u)) hidePick++;
                 else break;
             }
 
             if (meatPick > 0 || hidePick > 0) {
-                deer.meatLeft -= meatPick;
-                deer.hideLeft -= hidePick;
-                u.carrying['Food.Meat.Venison'] = (u.carrying['Food.Meat.Venison'] ?? 0) + meatPick;
-                u.carrying['Textile.Hide.Deer'] = (u.carrying['Textile.Hide.Deer'] ?? 0) + hidePick;
-
-                // Track production
-                this.scene.natureManager.redrawDeer(deer);
+                prey.meatLeft -= meatPick;
+                prey.hideLeft -= hidePick;
+                u.carrying[meatKey] = (u.carrying[meatKey] ?? 0) + meatPick;
+                u.carrying[hideKey] = (u.carrying[hideKey] ?? 0) + hidePick;
+                nm.redrawAnimal(prey);
             }
-            if (deer.meatLeft <= 0 && deer.hideLeft <= 0) u.targetDeer = null;
+            if (prey.meatLeft <= 0 && prey.hideLeft <= 0) u.targetAnimal = null;
             if (meatPick === 0 && hidePick === 0) u.role = null; // full
             return;
         }
 
-        // Chase and attack live deer
-        const dist = Phaser.Math.Distance.Between(u.x, u.y, deer.x, deer.y);
-        if (dist <= ANIMALS.deer.atkRange) {
+        // Chase and attack live prey
+        const dist = Phaser.Math.Distance.Between(u.x, u.y, prey.x, prey.y);
+        if (dist <= def.atkRange) {
             const now = this.scene.time.now;
             if (now - (u.lastAtk ?? 0) > 1200) {
                 u.lastAtk = now;
-                deer.hp -= 1;
+                prey.hp -= 1;
                 this._gainSkillXp(u, 'animalTrap');
-                if (deer.hp <= 0) {
-                    deer.isDead = true;
-                    this.scene.natureManager.redrawDeer(deer);
-                    this.scene.uiManager.showFloatText(deer.x, deer.y - 16, 'killed!', '#ffaa44');
+                // Provoke hostile species — struck boar/aurochs turn and fight back.
+                if ((def.aggressive || def.defensive) && prey.hp > 0) {
+                    prey.aggroTarget = u.id;
+                    prey.aggroUntil  = now + 9000;
+                }
+                if (prey.hp <= 0) {
+                    prey.isDead = true;
+                    prey.aggroTarget = null;
+                    nm.redrawAnimal(prey);
+                    this.scene.uiManager.showFloatText(prey.x, prey.y - 16, 'killed!', '#ffaa44');
                 }
             }
         } else {
-            this.moveToward(u, deer.x, deer.y, u.speed, dt);
+            this.moveToward(u, prey.x, prey.y, u.speed, dt);
         }
     },
 
@@ -614,12 +637,32 @@ export default {
         }
         return take;
     },
+    // Resolve a multi-input workshop job (def.inputs) to a single concrete input/output for this
+    // tick. Picks whatever the unit is carrying, else what the bench inbox holds, else the most-
+    // stocked input in commons. Jobs without `inputs` pass through unchanged (safe for all roles).
+    _wsResolveDef(u, def, b) {
+        if (!def?.inputs) return def;
+        const keys = def.inputs;
+        let inKey = keys.find(k => (u.carrying?.[k] ?? 0) > 0);
+        if (!inKey && b) inKey = keys.find(k => (b.inbox?.[k] ?? 0) > 0);
+        if (!inKey) {
+            let best = def.input, bestN = -1;
+            for (const k of keys) {
+                const n = this.scene.resources?.[k] ?? 0;
+                if (n > bestN) { bestN = n; best = k; }
+            }
+            inKey = best;
+        }
+        const output = def.outputFor ? def.outputFor(inKey) : def.output;
+        return { ...def, input: inKey, output };
+    },
+
     handleZoneWorkshopTask(u, dt) {
         const fm = this.scene.constructManager;
         const item = fm?.getById(u.taskConstructId);
         if (!item?.built) { u.taskType = null; u.workshopPhase = null; return; }
 
-        const def = WORKSHOP_JOBS[u.role];
+        const def = this._wsResolveDef(u, WORKSHOP_JOBS[u.role], item);
         if (!def) { u.taskType = null; return; }
 
         const queue = item.productionQueue; // null=auto, []=queue-idle, [...]= has orders
@@ -1716,7 +1759,7 @@ export default {
         if (u.isArchon) { if (!this._archonMayInitiate(ctype)) return false; }
         else if (!cm.isConstructUnlocked(ctype)) return false;
         // Don't pioneer a workshop whose input can't be supplied yet — e.g. an oven before a mill. (B2)
-        if (def.input && !cm.inputAvailable(def.input)) return false;
+        if (def.input && !(def.inputs ?? [def.input]).some(k => cm.inputAvailable(k))) return false;
 
         // Already exists (built or ghost) — the normal workshop flow will use/finish it.
         if (this.scene.constructs.some(b => b.type === ctype && !b.faction)) return false;
@@ -1819,8 +1862,8 @@ export default {
     },
 
     handleWorkshopTask(u, dt) {
-        const def = WORKSHOP_JOBS[u.role];
         const b   = this.scene.constructManager?.getById(u.taskConstructId);
+        const def = this._wsResolveDef(u, WORKSHOP_JOBS[u.role], b);
         if (!b?.built || !def) { u.taskType = null; u.workshopPhase = null; u.isInside = false; return; }
 
         // === PROCURER: goFetch → goWork → loop back to goFetch ===
@@ -2283,7 +2326,7 @@ export default {
             if (ct && CONSTRUCTS[ct] && CONSTRUCTS[ct].placement !== 'edge' && !CONSTRUCTS[ct].outdoor
                 && !this.scene.constructs.some(b => b.type === ct && !b.faction)
                 && this._archonMayInitiate(ct)                         // pioneer toggle / unlocked
-                && (!job.input || fm.inputAvailable(job.input))) {     // supplier exists (B2)
+                && (!job.input || (job.inputs ?? [job.input]).some(k => fm.inputAvailable(k)))) {     // supplier exists (B2)
                 wantType = ct; break;
             }
         }

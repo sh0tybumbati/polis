@@ -6,8 +6,10 @@
 import critter from './critter.js';
 import deer    from './deer.js';
 import sheep   from './sheep.js';
+import boar    from './boar.js';
+import aurochs from './aurochs.js';
 
-const defs = [critter, deer, sheep];
+const defs = [critter, deer, sheep, boar, aurochs];
 
 export const SPRITES = Object.fromEntries(defs.map(d => [d.id, d]));
 

@@ -25,12 +25,19 @@ import bronzeKit   from './bronzeKit.js';
 import wild_grapes from './wild_grapes.js';
 import fish        from './fish.js';
 import greens      from './greens.js';
+import pork           from './pork.js';
+import beef           from './beef.js';
+import hideBoar       from './hideBoar.js';
+import hideAurochs    from './hideAurochs.js';
+import leatherBoar    from './leatherBoar.js';
+import leatherAurochs from './leatherAurochs.js';
 
 const defs = [
     wheat, flour, bread, meat, cuts, sausages, olives, olive_oil, beer, berries,
     wood, sticks, planks, stone, stones, stoneBlocks, ore, ingot,
     wool, cloth_wool, hide, leather, leatherKit, bronzeKit,
     wild_grapes, fish, greens,
+    pork, beef, hideBoar, hideAurochs, leatherBoar, leatherAurochs,
 ];
 
 export const ITEMS = Object.fromEntries(defs.map(d => [d.key, d]));

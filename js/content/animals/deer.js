@@ -8,6 +8,8 @@ export default {
     breedRadius: 4 * TILE,
     meat:       8,
     hide:       2,
+    meatKey:    'Food.Meat.Venison',
+    hideKey:    'Textile.Hide.Deer',
     speed:      52,
     fleeRadius: 3.5 * TILE,
     atkRange:   0.9 * TILE,

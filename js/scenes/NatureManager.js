@@ -61,7 +61,7 @@ export default class NatureManager {
         const def = ANIMALS.deer;
         if (!gender) gender = Math.random() < 0.5 ? 'male' : 'female';
         const d = {
-            id: this.scene.getId(), x, y, gender,
+            id: this.scene.getId(), species: 'deer', x, y, gender,
             hp: 2, isDead: false, meatLeft: def.meat, hideLeft: def.hide,
             speed: def.speed + Phaser.Math.Between(-5, 5),
             wanderTimer: Phaser.Math.Between(2000, 5000),
@@ -82,7 +82,7 @@ export default class NatureManager {
     spawnSheep(x, y, gender = null) {
         if (!gender) gender = Math.random() < 0.5 ? 'male' : 'female';
         const s = {
-            id: this.scene.getId(), x, y, gender,
+            id: this.scene.getId(), species: 'sheep', x, y, gender,
             hp: 2, isDead: false, isTamed: false, followUnit: null,
             woolReady: true, woolTimer: 0,
             ateToday: 3, hungryDays: 0,
@@ -116,12 +116,113 @@ export default class NatureManager {
         this.redrawSheep(s);
     }
 
+    // Generic per-species redraw (dispatches on a.species). Used by the hunter and the beast tick.
+    redrawAnimal(a) {
+        const g = a.gfx; if (!g) return;
+        g.clear().setPosition(a.x, a.y);
+        (ANIMALS[a.species] ?? ANIMALS.deer).draw(g, a, { moving: a.moving ?? false });
+    }
+
+    // Facing + gait from motion delta, then generic redraw (mirrors _animSheep for boar/aurochs).
+    _animBeast(a) {
+        const mdx = a.x - (a._px ?? a.x), mdy = a.y - (a._py ?? a.y);
+        a._px = a.x; a._py = a.y;
+        const moving = (mdx * mdx + mdy * mdy) > 0.02;
+        if (moving) {
+            a._walkPhase = (a._walkPhase ?? 0) + 0.16;
+            if (Math.abs(mdx) > Math.abs(mdy)) a.facing = mdx >= 0 ? 'east' : 'west';
+            else                                a.facing = mdy >= 0 ? 'south' : 'north';
+        } else {
+            a._walkPhase = (a._walkPhase ?? 0) * 0.8;
+        }
+        a.moving = moving;
+        this.redrawAnimal(a);
+    }
+
+    spawnBoar(x, y, gender = null)    { return this._spawnBeast('boar', x, y, gender); }
+    spawnAurochs(x, y, gender = null) { return this._spawnBeast('aurochs', x, y, gender); }
+
+    _spawnBeast(species, x, y, gender = null) {
+        const def = ANIMALS[species];
+        if (!gender) gender = Math.random() < 0.5 ? 'male' : 'female';
+        const a = {
+            id: this.scene.getId(), species, x, y, gender,
+            hp: def.hp ?? 3, isDead: false, meatLeft: def.meat, hideLeft: def.hide, scale: def.scale ?? 1,
+            speed: def.speed + Phaser.Math.Between(-4, 4),
+            wanderTimer: Phaser.Math.Between(2000, 5000),
+            ateToday: 3, hungryDays: 0,
+            aggroTarget: null, aggroUntil: 0,
+            gfx: this.scene._w(this.scene.add.graphics().setDepth(5)),
+        };
+        this.redrawAnimal(a);
+        this.scene[species].push(a);
+        return a;
+    }
+
     tick(delta, dt) {
         this.tickDeer(delta, dt);
         this.tickSheep(delta, dt);
+        this.tickBeasts(delta, dt);
         this.tickCritter(delta, dt);
         this.tickSpawning(delta);
         this.tickBreeding(delta);
+    }
+
+    // Boar & aurochs share one hostile-capable AI. Aggressive species (boar) charge anyone within
+    // aggroRadius; defensive ones (aurochs) only turn hostile when struck or cornered. Both flee
+    // mild threats and graze otherwise. (#27)
+    tickBeasts(delta, dt) {
+        const friendlies = this.scene.units.filter(u => !u.isEnemy && u.hp > 0);
+        for (const a of this.scene.boar)    this._tickBeast(a, ANIMALS.boar, delta, dt, friendlies);
+        for (const a of this.scene.aurochs) this._tickBeast(a, ANIMALS.aurochs, delta, dt, friendlies);
+    }
+
+    _tickBeast(a, def, delta, dt, friendlies) {
+        if (a.isDead) return;   // carcass already drawn at death; no movement
+        const now = this.scene.time.now;
+        if (a.aggroUntil && now > a.aggroUntil) { a.aggroTarget = null; a.aggroUntil = 0; }
+
+        let near = null, nd = Infinity;
+        for (const u of friendlies) {
+            const d = Phaser.Math.Distance.Between(a.x, a.y, u.x, u.y);
+            if (d < nd) { nd = d; near = u; }
+        }
+
+        // Resolve a hostile target: an existing grudge, an aggressive beast's proximity aggro, or
+        // a defensive beast that's been cornered (very close).
+        let target = a.aggroTarget != null ? friendlies.find(u => u.id === a.aggroTarget) ?? null : null;
+        if (!target && near) {
+            if (def.aggressive && nd <= (def.aggroRadius ?? 2.5 * TILE)) { target = near; }
+            else if (def.defensive && nd <= def.atkRange * 1.2)          { target = near; }
+            if (target) { a.aggroTarget = near.id; a.aggroUntil = now + 9000; }
+        }
+
+        if (target) {
+            const d = Phaser.Math.Distance.Between(a.x, a.y, target.x, target.y);
+            if (d <= def.atkRange) {
+                if (now - (a.lastAtk ?? 0) > 1100) {
+                    a.lastAtk = now;
+                    target.hp -= def.atk ?? 2;
+                    this.scene.uiManager?.showFloatText?.(target.x, target.y - 14, `-${def.atk ?? 2}`, '#ff6666');
+                }
+            } else {
+                const ang = Math.atan2(target.y - a.y, target.x - a.x);   // charge
+                a.x += Math.cos(ang) * def.speed * 1.2 * dt;
+                a.y += Math.sin(ang) * def.speed * 1.2 * dt;
+            }
+            a.moveTo = null; a.wanderTimer = 0;
+        } else if (near && nd < def.fleeRadius) {
+            const ang = Math.atan2(a.y - near.y, a.x - near.x);            // flee
+            a.x += Math.cos(ang) * def.speed * dt;
+            a.y += Math.sin(ang) * def.speed * dt;
+            a.moveTo = null; a.wanderTimer = 0;
+        } else {
+            this._wander(a, delta, dt, def.speed * 0.3);                   // graze
+        }
+
+        a.x = Phaser.Math.Clamp(a.x, TILE, NATURE_WORLD_W * TILE - TILE);
+        a.y = Phaser.Math.Clamp(a.y, MAP_OY + TILE, NATURE_BOTTOM - TILE);
+        this._animBeast(a);
     }
 
     // Colony centre (townhall → first camp → spawn) — tamed sheep without a pasture mill here.
@@ -306,10 +407,24 @@ export default class NatureManager {
         this.scene._edgeEntryTimer = (this.scene._edgeEntryTimer || 0) + delta;
         if (this.scene._edgeEntryTimer < 12000) return;
         this.scene._edgeEntryTimer = 0;
-        const wildDeer  = this.scene.deer.filter(d => !d.isDead).length;
-        const wildSheep = this.scene.sheep.filter(s => !s.isDead && !s.isTamed).length;
-        if (wildDeer  < 2) this.spawnDeerAtEdge();
-        if (wildSheep < 2) this.spawnSheepAtEdge();
+        const wildDeer    = this.scene.deer.filter(d => !d.isDead).length;
+        const wildSheep   = this.scene.sheep.filter(s => !s.isDead && !s.isTamed).length;
+        const wildBoar    = this.scene.boar.filter(a => !a.isDead).length;
+        const wildAurochs = this.scene.aurochs.filter(a => !a.isDead).length;
+        if (wildDeer    < 2) this.spawnDeerAtEdge();
+        if (wildSheep   < 2) this.spawnSheepAtEdge();
+        if (wildBoar    < 2) this._spawnAtEdge((x, y) => this.spawnBoar(x, y));
+        if (wildAurochs < 1) this._spawnAtEdge((x, y) => this.spawnAurochs(x, y));
+    }
+
+    _spawnAtEdge(spawnFn) {
+        const side = Math.floor(Math.random() * 4);
+        let x, y;
+        if (side === 0)      { x = Phaser.Math.Between(TILE, NATURE_WORLD_W*TILE-TILE); y = MAP_OY + TILE; }
+        else if (side === 1) { x = Phaser.Math.Between(TILE, NATURE_WORLD_W*TILE-TILE); y = NATURE_BOTTOM - TILE; }
+        else if (side === 2) { x = TILE; y = Phaser.Math.Between(MAP_OY + TILE, NATURE_BOTTOM - TILE); }
+        else                 { x = NATURE_WORLD_W*TILE - TILE; y = Phaser.Math.Between(MAP_OY + TILE, NATURE_BOTTOM - TILE); }
+        spawnFn(x, y);
     }
 
     // Wild reproduction: a male & female of a species near each other occasionally produce
@@ -325,6 +440,10 @@ export default class NatureManager {
             (x, y) => this.spawnSheep(x, y), false);
         this._breedSpecies(this.scene.sheep.filter(s => !s.isDead && s.isTamed), ANIMALS.sheep, ANIMALS.sheep.maxCount * 2,
             (x, y) => this.spawnSheep(x, y), true);
+        this._breedSpecies(this.scene.boar.filter(a => !a.isDead), ANIMALS.boar, ANIMALS.boar.maxCount,
+            (x, y) => this.spawnBoar(x, y), false);
+        this._breedSpecies(this.scene.aurochs.filter(a => !a.isDead), ANIMALS.aurochs, ANIMALS.aurochs.maxCount,
+            (x, y) => this.spawnAurochs(x, y), false);
     }
 
     _breedSpecies(herd, def, cap, spawnFn, tamed) {
@@ -341,8 +460,12 @@ export default class NatureManager {
             const baby = spawnFn(Phaser.Math.Clamp(bx, TILE, NATURE_WORLD_W * TILE - TILE),
                                  Phaser.Math.Clamp(by, MAP_OY + TILE, NATURE_BOTTOM - TILE));
             if (baby && tamed) { baby.isTamed = true; baby.pastureZoneId = f.pastureZoneId ?? null; this.redrawSheep(baby); }
-            this.scene.uiManager?.showFloatText?.(baby.x, baby.y - 14,
-                tamed ? '🐑 lamb born' : (def === ANIMALS.deer ? '🦌 fawn born' : '🐑 lamb born'), '#cfeac0');
+            const bornText = tamed ? '🐑 lamb born'
+                : def === ANIMALS.deer    ? '🦌 fawn born'
+                : def === ANIMALS.boar    ? '🐗 piglet born'
+                : def === ANIMALS.aurochs ? '🐂 calf born'
+                : '🐑 lamb born';
+            this.scene.uiManager?.showFloatText?.(baby.x, baby.y - 14, bornText, '#cfeac0');
             return;   // one birth per breed window per species
         }
     }
@@ -366,8 +489,10 @@ export default class NatureManager {
                 }
             }
         };
-        place((x, y) => this.spawnDeer(x, y),  ANIMALS.deer.maxCount);
-        place((x, y) => this.spawnSheep(x, y), Math.ceil(ANIMALS.sheep.maxCount * 0.7));
+        place((x, y) => this.spawnDeer(x, y),    ANIMALS.deer.maxCount);
+        place((x, y) => this.spawnSheep(x, y),   Math.ceil(ANIMALS.sheep.maxCount * 0.7));
+        place((x, y) => this.spawnBoar(x, y),    Math.ceil(ANIMALS.boar.maxCount * 0.6));
+        place((x, y) => this.spawnAurochs(x, y), Math.ceil(ANIMALS.aurochs.maxCount * 0.5));
     }
 
     spawnDeerAtEdge() {

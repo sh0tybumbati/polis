@@ -1,0 +1,887 @@
+{
+  "/home/ad/Projects/Polis/.beads/metadata.json": {
+    "mtime": 1779515872.2499788,
+    "ast_hash": "a51612ee3fe56452839d234342692f82",
+    "semantic_hash": "a51612ee3fe56452839d234342692f82"
+  },
+  "/home/ad/Projects/Polis/.beads/hooks/post-checkout": {
+    "mtime": 1779515872.2499325,
+    "ast_hash": "dd10ddeca36905e11cf4f37cd42f1df3",
+    "semantic_hash": "dd10ddeca36905e11cf4f37cd42f1df3"
+  },
+  "/home/ad/Projects/Polis/.beads/hooks/post-merge": {
+    "mtime": 1779515872.2499788,
+    "ast_hash": "334b7294ae9bde58cf03cee30da1e584",
+    "semantic_hash": "334b7294ae9bde58cf03cee30da1e584"
+  },
+  "/home/ad/Projects/Polis/.beads/hooks/pre-commit": {
+    "mtime": 1779515872.2499788,
+    "ast_hash": "dddbfc222a52bd9d1133c8d55d2f203f",
+    "semantic_hash": "dddbfc222a52bd9d1133c8d55d2f203f"
+  },
+  "/home/ad/Projects/Polis/.beads/hooks/pre-push": {
+    "mtime": 1779515872.2499788,
+    "ast_hash": "99632f5e88715e32eb390ae2b3a89d80",
+    "semantic_hash": "99632f5e88715e32eb390ae2b3a89d80"
+  },
+  "/home/ad/Projects/Polis/.beads/hooks/prepare-commit-msg": {
+    "mtime": 1779515872.2499788,
+    "ast_hash": "02241046e40318f8a37e707018f371f2",
+    "semantic_hash": "02241046e40318f8a37e707018f371f2"
+  },
+  "/home/ad/Projects/Polis/.claude/settings.json": {
+    "mtime": 1779515872.2499788,
+    "ast_hash": "e41fc12aec465e7d715aa58e3dcfe27a",
+    "semantic_hash": "e41fc12aec465e7d715aa58e3dcfe27a"
+  },
+  "/home/ad/Projects/Polis/js/GameLogger.js": {
+    "mtime": 1779515872.2576795,
+    "ast_hash": "410807f5c754d6b2f384f97273cfbaad",
+    "semantic_hash": "410807f5c754d6b2f384f97273cfbaad"
+  },
+  "/home/ad/Projects/Polis/js/main.js": {
+    "mtime": 1779515872.2589061,
+    "ast_hash": "0113335161380d4fae5f92de9d520ce4",
+    "semantic_hash": "0113335161380d4fae5f92de9d520ce4"
+  },
+  "/home/ad/Projects/Polis/js/assets/AssetManager.js": {
+    "mtime": 1779515872.257742,
+    "ast_hash": "2984ccc078a37bfcaf66e3db23b33204",
+    "semantic_hash": "2984ccc078a37bfcaf66e3db23b33204"
+  },
+  "/home/ad/Projects/Polis/js/config/gameConfig.js": {
+    "mtime": 1779515872.257742,
+    "ast_hash": "82d30c7d2ed64611d433f77f0fb5236e",
+    "semantic_hash": "82d30c7d2ed64611d433f77f0fb5236e"
+  },
+  "/home/ad/Projects/Polis/js/config/gameConstants.js": {
+    "mtime": 1779515872.2577727,
+    "ast_hash": "f34f4efa7ec4e272d4e7665f49b415be",
+    "semantic_hash": "f34f4efa7ec4e272d4e7665f49b415be"
+  },
+  "/home/ad/Projects/Polis/js/config/sceneKeys.js": {
+    "mtime": 1779515872.2577727,
+    "ast_hash": "4c2b296189aa33d161bfbf460eb8cd8e",
+    "semantic_hash": "4c2b296189aa33d161bfbf460eb8cd8e"
+  },
+  "/home/ad/Projects/Polis/js/content/animals/deer.js": {
+    "mtime": 1779515872.2578366,
+    "ast_hash": "0107a5af1cbbf8472f6f047d94838278",
+    "semantic_hash": "0107a5af1cbbf8472f6f047d94838278"
+  },
+  "/home/ad/Projects/Polis/js/content/animals/index.js": {
+    "mtime": 1779515872.2578595,
+    "ast_hash": "a21d7c4470fafd6b6e0244d8979638c6",
+    "semantic_hash": "a21d7c4470fafd6b6e0244d8979638c6"
+  },
+  "/home/ad/Projects/Polis/js/content/animals/sheep.js": {
+    "mtime": 1779515872.2578595,
+    "ast_hash": "a8cecf2929c658e5301a83325a8eaa21",
+    "semantic_hash": "a8cecf2929c658e5301a83325a8eaa21"
+  },
+  "/home/ad/Projects/Polis/js/content/constructs/agora.js": {
+    "mtime": 1779515872.2578595,
+    "ast_hash": "ae1ab091da2727aa40048381a1106804",
+    "semantic_hash": "ae1ab091da2727aa40048381a1106804"
+  },
+  "/home/ad/Projects/Polis/js/content/constructs/anvil.js": {
+    "mtime": 1779515872.2579079,
+    "ast_hash": "ab87d3eecedd6e0ef98ec108a5a23a77",
+    "semantic_hash": "ab87d3eecedd6e0ef98ec108a5a23a77"
+  },
+  "/home/ad/Projects/Polis/js/content/constructs/archery_grounds.js": {
+    "mtime": 1779515872.2579079,
+    "ast_hash": "5beebf53d517a0d0aaab63a7b1482c07",
+    "semantic_hash": "5beebf53d517a0d0aaab63a7b1482c07"
+  },
+  "/home/ad/Projects/Polis/js/content/constructs/bed.js": {
+    "mtime": 1779515872.2579079,
+    "ast_hash": "134da4e1beb85903798aec8efa795f84",
+    "semantic_hash": "134da4e1beb85903798aec8efa795f84"
+  },
+  "/home/ad/Projects/Polis/js/content/constructs/brewery.js": {
+    "mtime": 1779515872.2579079,
+    "ast_hash": "92d64ae8e66d4900bee22e2b907c7902",
+    "semantic_hash": "92d64ae8e66d4900bee22e2b907c7902"
+  },
+  "/home/ad/Projects/Polis/js/content/constructs/butchersblock.js": {
+    "mtime": 1779515872.2579079,
+    "ast_hash": "5ffbbdd7cde9f92ad1f751c7eabdb600",
+    "semantic_hash": "5ffbbdd7cde9f92ad1f751c7eabdb600"
+  },
+  "/home/ad/Projects/Polis/js/content/constructs/camp.js": {
+    "mtime": 1779515872.2579079,
+    "ast_hash": "918f8175d981ed6df0c8b5752fd9879f",
+    "semantic_hash": "918f8175d981ed6df0c8b5752fd9879f"
+  },
+  "/home/ad/Projects/Polis/js/content/constructs/chest.js": {
+    "mtime": 1779515872.2579079,
+    "ast_hash": "2adaf332ff6368014725c8b120ccb619",
+    "semantic_hash": "2adaf332ff6368014725c8b120ccb619"
+  },
+  "/home/ad/Projects/Polis/js/content/constructs/door.js": {
+    "mtime": 1779515872.2579079,
+    "ast_hash": "9c85ed83ceb91f830fc5356b3d9fe65d",
+    "semantic_hash": "9c85ed83ceb91f830fc5356b3d9fe65d"
+  },
+  "/home/ad/Projects/Polis/js/content/constructs/farm.js": {
+    "mtime": 1779515872.2579079,
+    "ast_hash": "5922d9f2cab187fa388c2c9e446c1509",
+    "semantic_hash": "5922d9f2cab187fa388c2c9e446c1509"
+  },
+  "/home/ad/Projects/Polis/js/content/constructs/fence.js": {
+    "mtime": 1779515872.2579079,
+    "ast_hash": "04343ceace2efa110ff874e876db1b5f",
+    "semantic_hash": "04343ceace2efa110ff874e876db1b5f"
+  },
+  "/home/ad/Projects/Polis/js/content/constructs/fence_gate.js": {
+    "mtime": 1779515872.2579079,
+    "ast_hash": "c284b6e30d6ff40c9f64ff80a102288f",
+    "semantic_hash": "c284b6e30d6ff40c9f64ff80a102288f"
+  },
+  "/home/ad/Projects/Polis/js/content/constructs/firepit.js": {
+    "mtime": 1779515872.2579079,
+    "ast_hash": "9bf02ef167e34611e118e54ddf8924c5",
+    "semantic_hash": "9bf02ef167e34611e118e54ddf8924c5"
+  },
+  "/home/ad/Projects/Polis/js/content/constructs/forge.js": {
+    "mtime": 1779515872.2579079,
+    "ast_hash": "59a94cfa108ca03bcb833aae642acc7c",
+    "semantic_hash": "59a94cfa108ca03bcb833aae642acc7c"
+  },
+  "/home/ad/Projects/Polis/js/content/constructs/garden.js": {
+    "mtime": 1779515872.2579079,
+    "ast_hash": "5de3b32c19b657363e5a9a7432ebc5f6",
+    "semantic_hash": "5de3b32c19b657363e5a9a7432ebc5f6"
+  },
+  "/home/ad/Projects/Polis/js/content/constructs/gate.js": {
+    "mtime": 1779515872.2579079,
+    "ast_hash": "ec294b2de1492a2fc63b2ff2e688fa3d",
+    "semantic_hash": "ec294b2de1492a2fc63b2ff2e688fa3d"
+  },
+  "/home/ad/Projects/Polis/js/content/constructs/grainsilo.js": {
+    "mtime": 1779515872.2579079,
+    "ast_hash": "74aa45e765c0293a03644aa6197eddfe",
+    "semantic_hash": "74aa45e765c0293a03644aa6197eddfe"
+  },
+  "/home/ad/Projects/Polis/js/content/constructs/hearth.js": {
+    "mtime": 1779515872.2579079,
+    "ast_hash": "b386afb72a5341c0be3b9adcc59150d2",
+    "semantic_hash": "b386afb72a5341c0be3b9adcc59150d2"
+  },
+  "/home/ad/Projects/Polis/js/content/constructs/house.js": {
+    "mtime": 1779515872.2579079,
+    "ast_hash": "11938385a0bc2507e1aa31c11664a571",
+    "semantic_hash": "11938385a0bc2507e1aa31c11664a571"
+  },
+  "/home/ad/Projects/Polis/js/content/constructs/index.js": {
+    "mtime": 1779515872.2579079,
+    "ast_hash": "572a04fbd8f5960b4835cdefb0980c64",
+    "semantic_hash": "572a04fbd8f5960b4835cdefb0980c64"
+  },
+  "/home/ad/Projects/Polis/js/content/constructs/loom.js": {
+    "mtime": 1779515872.2579079,
+    "ast_hash": "f18f71e4d77479c26b18b12986dfe282",
+    "semantic_hash": "f18f71e4d77479c26b18b12986dfe282"
+  },
+  "/home/ad/Projects/Polis/js/content/constructs/low_wall.js": {
+    "mtime": 1779515872.2579079,
+    "ast_hash": "9dc6585118e70cc1ccdca97ed101054c",
+    "semantic_hash": "9dc6585118e70cc1ccdca97ed101054c"
+  },
+  "/home/ad/Projects/Polis/js/content/constructs/marketstall.js": {
+    "mtime": 1779515872.2579079,
+    "ast_hash": "a8dffebebe1eb9e24bc38aaf6c77129d",
+    "semantic_hash": "a8dffebebe1eb9e24bc38aaf6c77129d"
+  },
+  "/home/ad/Projects/Polis/js/content/constructs/melee_grounds.js": {
+    "mtime": 1779515872.2579079,
+    "ast_hash": "37e14ecde9301722bb90f284eb654aa5",
+    "semantic_hash": "37e14ecde9301722bb90f284eb654aa5"
+  },
+  "/home/ad/Projects/Polis/js/content/constructs/millstone.js": {
+    "mtime": 1779515872.2579079,
+    "ast_hash": "0615f934dfcefccf0b3d2cff38c833ca",
+    "semantic_hash": "0615f934dfcefccf0b3d2cff38c833ca"
+  },
+  "/home/ad/Projects/Polis/js/content/constructs/mine.js": {
+    "mtime": 1779515872.2579079,
+    "ast_hash": "aac501117c024ecbf85aa562d479fcd6",
+    "semantic_hash": "aac501117c024ecbf85aa562d479fcd6"
+  },
+  "/home/ad/Projects/Polis/js/content/constructs/mounted_grounds.js": {
+    "mtime": 1779515872.2579079,
+    "ast_hash": "9c3094e7fb5c06385e37ea66e90c5a9d",
+    "semantic_hash": "9c3094e7fb5c06385e37ea66e90c5a9d"
+  },
+  "/home/ad/Projects/Polis/js/content/constructs/olivepress.js": {
+    "mtime": 1779515872.2579079,
+    "ast_hash": "0b70f8dd54a8f5bd5a7d0a30981faf12",
+    "semantic_hash": "0b70f8dd54a8f5bd5a7d0a30981faf12"
+  },
+  "/home/ad/Projects/Polis/js/content/constructs/oracle.js": {
+    "mtime": 1779515872.2579079,
+    "ast_hash": "b540881286dd6fc6c879e5cfce6fd2ef",
+    "semantic_hash": "b540881286dd6fc6c879e5cfce6fd2ef"
+  },
+  "/home/ad/Projects/Polis/js/content/constructs/oven.js": {
+    "mtime": 1779515872.2579079,
+    "ast_hash": "25157e5080c11b0c14e83c207954bae9",
+    "semantic_hash": "25157e5080c11b0c14e83c207954bae9"
+  },
+  "/home/ad/Projects/Polis/js/content/constructs/palisade.js": {
+    "mtime": 1779515872.2579079,
+    "ast_hash": "c04ab853d0115cf56383bb2aaf9a4670",
+    "semantic_hash": "c04ab853d0115cf56383bb2aaf9a4670"
+  },
+  "/home/ad/Projects/Polis/js/content/constructs/pasture.js": {
+    "mtime": 1779515872.2579079,
+    "ast_hash": "c894f275045fa8805ba0e180daf8f149",
+    "semantic_hash": "c894f275045fa8805ba0e180daf8f149"
+  },
+  "/home/ad/Projects/Polis/js/content/constructs/stonecutter.js": {
+    "mtime": 1779515872.2579079,
+    "ast_hash": "836cd3f26e3289dc246436293eb9a07d",
+    "semantic_hash": "836cd3f26e3289dc246436293eb9a07d"
+  },
+  "/home/ad/Projects/Polis/js/content/constructs/storageshelf.js": {
+    "mtime": 1779515872.2579079,
+    "ast_hash": "195c699b02f00f91b308cc746de8028a",
+    "semantic_hash": "195c699b02f00f91b308cc746de8028a"
+  },
+  "/home/ad/Projects/Polis/js/content/constructs/tanningrack.js": {
+    "mtime": 1779515872.2579079,
+    "ast_hash": "fb0cbee799424a0475b56096ee29885f",
+    "semantic_hash": "fb0cbee799424a0475b56096ee29885f"
+  },
+  "/home/ad/Projects/Polis/js/content/constructs/tavernseat.js": {
+    "mtime": 1779515872.2579079,
+    "ast_hash": "39e96828203f166b6f354bc04cc643a7",
+    "semantic_hash": "39e96828203f166b6f354bc04cc643a7"
+  },
+  "/home/ad/Projects/Polis/js/content/constructs/temple.js": {
+    "mtime": 1779515872.2579079,
+    "ast_hash": "d2287bcd18b4a451dee5dac8f1c0c59e",
+    "semantic_hash": "d2287bcd18b4a451dee5dac8f1c0c59e"
+  },
+  "/home/ad/Projects/Polis/js/content/constructs/townhall.js": {
+    "mtime": 1779515872.2579079,
+    "ast_hash": "8fe30574edc3b1a85d83310ca9fb3a94",
+    "semantic_hash": "8fe30574edc3b1a85d83310ca9fb3a94"
+  },
+  "/home/ad/Projects/Polis/js/content/constructs/wall.js": {
+    "mtime": 1779515872.2579079,
+    "ast_hash": "55e49debb0d39cd62f52417a315525a5",
+    "semantic_hash": "55e49debb0d39cd62f52417a315525a5"
+  },
+  "/home/ad/Projects/Polis/js/content/constructs/wall_edge.js": {
+    "mtime": 1779515872.2579079,
+    "ast_hash": "95b031afef32589489bbf19931718281",
+    "semantic_hash": "95b031afef32589489bbf19931718281"
+  },
+  "/home/ad/Projects/Polis/js/content/constructs/watchtower.js": {
+    "mtime": 1779515872.2579079,
+    "ast_hash": "191ba39c5deb833068c0d04ce4856e9a",
+    "semantic_hash": "191ba39c5deb833068c0d04ce4856e9a"
+  },
+  "/home/ad/Projects/Polis/js/content/constructs/workbench.js": {
+    "mtime": 1779515872.2579079,
+    "ast_hash": "ddd3d2565f669485b337064ddc6a36c4",
+    "semantic_hash": "ddd3d2565f669485b337064ddc6a36c4"
+  },
+  "/home/ad/Projects/Polis/js/content/crops/index.js": {
+    "mtime": 1779515872.2579079,
+    "ast_hash": "c1a5d42c16d0fad1ea0051b596bcceaf",
+    "semantic_hash": "c1a5d42c16d0fad1ea0051b596bcceaf"
+  },
+  "/home/ad/Projects/Polis/js/content/items/beer.js": {
+    "mtime": 1779515872.2579079,
+    "ast_hash": "59fc0026cb5d3b54832fd09d6596cb81",
+    "semantic_hash": "59fc0026cb5d3b54832fd09d6596cb81"
+  },
+  "/home/ad/Projects/Polis/js/content/items/berries.js": {
+    "mtime": 1779515872.258357,
+    "ast_hash": "8ea7eb2be9e1f6603b32e0e938db3953",
+    "semantic_hash": "8ea7eb2be9e1f6603b32e0e938db3953"
+  },
+  "/home/ad/Projects/Polis/js/content/items/bread.js": {
+    "mtime": 1779515872.258357,
+    "ast_hash": "f96ca955bddcd0cdb7eef9426fd9c8fe",
+    "semantic_hash": "f96ca955bddcd0cdb7eef9426fd9c8fe"
+  },
+  "/home/ad/Projects/Polis/js/content/items/bronzeKit.js": {
+    "mtime": 1779515872.258357,
+    "ast_hash": "8fa277976671f8ad3ef3ff49d19b69d5",
+    "semantic_hash": "8fa277976671f8ad3ef3ff49d19b69d5"
+  },
+  "/home/ad/Projects/Polis/js/content/items/cloth_wool.js": {
+    "mtime": 1779515872.258357,
+    "ast_hash": "85a44f02727c87f608e058d7f58a98ca",
+    "semantic_hash": "85a44f02727c87f608e058d7f58a98ca"
+  },
+  "/home/ad/Projects/Polis/js/content/items/cuts.js": {
+    "mtime": 1779515872.258357,
+    "ast_hash": "06a20d7f538c9395738bbfcf3f15d677",
+    "semantic_hash": "06a20d7f538c9395738bbfcf3f15d677"
+  },
+  "/home/ad/Projects/Polis/js/content/items/flour.js": {
+    "mtime": 1779515872.258357,
+    "ast_hash": "d1851ca449a3c5eb39e8cc501fb027b8",
+    "semantic_hash": "d1851ca449a3c5eb39e8cc501fb027b8"
+  },
+  "/home/ad/Projects/Polis/js/content/items/hide.js": {
+    "mtime": 1779515872.258357,
+    "ast_hash": "aeeeb1c1da2615b0f804cbc930f6d567",
+    "semantic_hash": "aeeeb1c1da2615b0f804cbc930f6d567"
+  },
+  "/home/ad/Projects/Polis/js/content/items/index.js": {
+    "mtime": 1779515872.258357,
+    "ast_hash": "6dc0901f228200f9ec45792229c431c5",
+    "semantic_hash": "6dc0901f228200f9ec45792229c431c5"
+  },
+  "/home/ad/Projects/Polis/js/content/items/ingot.js": {
+    "mtime": 1779515872.258357,
+    "ast_hash": "ef1d2af2cb158564030d6c6a4e872734",
+    "semantic_hash": "ef1d2af2cb158564030d6c6a4e872734"
+  },
+  "/home/ad/Projects/Polis/js/content/items/leather.js": {
+    "mtime": 1779515872.258357,
+    "ast_hash": "f3a9173b9104ebc96fbc8aa602e319a9",
+    "semantic_hash": "f3a9173b9104ebc96fbc8aa602e319a9"
+  },
+  "/home/ad/Projects/Polis/js/content/items/leatherKit.js": {
+    "mtime": 1779515872.258357,
+    "ast_hash": "50a4f2d67a486073fab7b42fa52caf7b",
+    "semantic_hash": "50a4f2d67a486073fab7b42fa52caf7b"
+  },
+  "/home/ad/Projects/Polis/js/content/items/meat.js": {
+    "mtime": 1779515872.258357,
+    "ast_hash": "f3579c2efe98b698c30ef21e82341c79",
+    "semantic_hash": "f3579c2efe98b698c30ef21e82341c79"
+  },
+  "/home/ad/Projects/Polis/js/content/items/olive_oil.js": {
+    "mtime": 1779515872.258357,
+    "ast_hash": "14d970faab5a9ca657c2c2f2f361f056",
+    "semantic_hash": "14d970faab5a9ca657c2c2f2f361f056"
+  },
+  "/home/ad/Projects/Polis/js/content/items/olives.js": {
+    "mtime": 1779515872.258357,
+    "ast_hash": "1e13186cf2966b7a753231fb3eb238a8",
+    "semantic_hash": "1e13186cf2966b7a753231fb3eb238a8"
+  },
+  "/home/ad/Projects/Polis/js/content/items/ore.js": {
+    "mtime": 1779515872.258357,
+    "ast_hash": "e1047182b709d945d201cdfdaf9f74db",
+    "semantic_hash": "e1047182b709d945d201cdfdaf9f74db"
+  },
+  "/home/ad/Projects/Polis/js/content/items/planks.js": {
+    "mtime": 1779515872.258357,
+    "ast_hash": "11267fe9320c88c7f634fbdae3531d08",
+    "semantic_hash": "11267fe9320c88c7f634fbdae3531d08"
+  },
+  "/home/ad/Projects/Polis/js/content/items/sausages.js": {
+    "mtime": 1779515872.258357,
+    "ast_hash": "7d9929682dc76c214af34c300786b6a1",
+    "semantic_hash": "7d9929682dc76c214af34c300786b6a1"
+  },
+  "/home/ad/Projects/Polis/js/content/items/sticks.js": {
+    "mtime": 1779515872.258357,
+    "ast_hash": "3fc25458299d5a1f2eb95a0f1fa3619e",
+    "semantic_hash": "3fc25458299d5a1f2eb95a0f1fa3619e"
+  },
+  "/home/ad/Projects/Polis/js/content/items/stone.js": {
+    "mtime": 1779515872.258357,
+    "ast_hash": "606f42e542a8be518004d316771666f4",
+    "semantic_hash": "606f42e542a8be518004d316771666f4"
+  },
+  "/home/ad/Projects/Polis/js/content/items/stoneBlocks.js": {
+    "mtime": 1779515872.258357,
+    "ast_hash": "4b4c5c2b3433c17f828fab6094695445",
+    "semantic_hash": "4b4c5c2b3433c17f828fab6094695445"
+  },
+  "/home/ad/Projects/Polis/js/content/items/stones.js": {
+    "mtime": 1779515872.258357,
+    "ast_hash": "490bd1c03ab59c4580b25af4b09e6bcf",
+    "semantic_hash": "490bd1c03ab59c4580b25af4b09e6bcf"
+  },
+  "/home/ad/Projects/Polis/js/content/items/wheat.js": {
+    "mtime": 1779515872.258357,
+    "ast_hash": "d5b651eaf67db6b33c34c02f620bc4cd",
+    "semantic_hash": "d5b651eaf67db6b33c34c02f620bc4cd"
+  },
+  "/home/ad/Projects/Polis/js/content/items/wood.js": {
+    "mtime": 1779515872.258357,
+    "ast_hash": "4d13d052f3ed62dd7b24ef9bc3692d45",
+    "semantic_hash": "4d13d052f3ed62dd7b24ef9bc3692d45"
+  },
+  "/home/ad/Projects/Polis/js/content/items/wool.js": {
+    "mtime": 1779515872.258357,
+    "ast_hash": "fcf6cd7b90a10e3626c773d44a78edcd",
+    "semantic_hash": "fcf6cd7b90a10e3626c773d44a78edcd"
+  },
+  "/home/ad/Projects/Polis/js/content/jobs/baker.js": {
+    "mtime": 1779515872.258357,
+    "ast_hash": "dd40a4efd5c8a4be97acf65ef3848004",
+    "semantic_hash": "dd40a4efd5c8a4be97acf65ef3848004"
+  },
+  "/home/ad/Projects/Polis/js/content/jobs/brewer.js": {
+    "mtime": 1779515872.2586076,
+    "ast_hash": "7d5bc2a24ed53cc713f05716b17d0877",
+    "semantic_hash": "7d5bc2a24ed53cc713f05716b17d0877"
+  },
+  "/home/ad/Projects/Polis/js/content/jobs/builder.js": {
+    "mtime": 1779515872.2586076,
+    "ast_hash": "538a4ad1796cc9613388ffa0983efd3e",
+    "semantic_hash": "538a4ad1796cc9613388ffa0983efd3e"
+  },
+  "/home/ad/Projects/Polis/js/content/jobs/butcher.js": {
+    "mtime": 1779515872.2586076,
+    "ast_hash": "8430f198ac9f5d6ffd4a6458b74ae913",
+    "semantic_hash": "8430f198ac9f5d6ffd4a6458b74ae913"
+  },
+  "/home/ad/Projects/Polis/js/content/jobs/carpenter.js": {
+    "mtime": 1779515872.2586076,
+    "ast_hash": "da55b153eb101fe0ab1634401e0e2dbd",
+    "semantic_hash": "da55b153eb101fe0ab1634401e0e2dbd"
+  },
+  "/home/ad/Projects/Polis/js/content/jobs/farmer.js": {
+    "mtime": 1779515872.2586076,
+    "ast_hash": "cb08fec39db85bf94fcc49ba86e86036",
+    "semantic_hash": "cb08fec39db85bf94fcc49ba86e86036"
+  },
+  "/home/ad/Projects/Polis/js/content/jobs/forager.js": {
+    "mtime": 1779515872.2586076,
+    "ast_hash": "0f7ca1221c1fdb15e4993cdf829073be",
+    "semantic_hash": "0f7ca1221c1fdb15e4993cdf829073be"
+  },
+  "/home/ad/Projects/Polis/js/content/jobs/hunter.js": {
+    "mtime": 1779515872.2586076,
+    "ast_hash": "c332e47d66043586f3a277d0d1c6a850",
+    "semantic_hash": "c332e47d66043586f3a277d0d1c6a850"
+  },
+  "/home/ad/Projects/Polis/js/content/jobs/index.js": {
+    "mtime": 1779515872.2586076,
+    "ast_hash": "ff6dea7847349918c6ce07669e9d68c6",
+    "semantic_hash": "ff6dea7847349918c6ce07669e9d68c6"
+  },
+  "/home/ad/Projects/Polis/js/content/jobs/mason.js": {
+    "mtime": 1779515872.2586076,
+    "ast_hash": "b0e3b4134da9e848f95cdf225603194a",
+    "semantic_hash": "b0e3b4134da9e848f95cdf225603194a"
+  },
+  "/home/ad/Projects/Polis/js/content/jobs/merchant.js": {
+    "mtime": 1779515872.2586076,
+    "ast_hash": "814331a13fbe653ea967f760b5430ee0",
+    "semantic_hash": "814331a13fbe653ea967f760b5430ee0"
+  },
+  "/home/ad/Projects/Polis/js/content/jobs/miller.js": {
+    "mtime": 1779515872.2586076,
+    "ast_hash": "10adf82a6dc94b77426207e7a18b0a0d",
+    "semantic_hash": "10adf82a6dc94b77426207e7a18b0a0d"
+  },
+  "/home/ad/Projects/Polis/js/content/jobs/miner.js": {
+    "mtime": 1779515872.2586076,
+    "ast_hash": "b38214343b569a3bbba01dd8a05b83ae",
+    "semantic_hash": "b38214343b569a3bbba01dd8a05b83ae"
+  },
+  "/home/ad/Projects/Polis/js/content/jobs/presser.js": {
+    "mtime": 1779515872.2586076,
+    "ast_hash": "7ed6392deda5006ec7bb30d3f0fe2fa0",
+    "semantic_hash": "7ed6392deda5006ec7bb30d3f0fe2fa0"
+  },
+  "/home/ad/Projects/Polis/js/content/jobs/shepherd.js": {
+    "mtime": 1779515872.2586076,
+    "ast_hash": "9d8bc6eb3e295b0849e355cfd293f7bd",
+    "semantic_hash": "9d8bc6eb3e295b0849e355cfd293f7bd"
+  },
+  "/home/ad/Projects/Polis/js/content/jobs/smelter.js": {
+    "mtime": 1779515872.2586076,
+    "ast_hash": "953060268616a3de077f40339a9acab2",
+    "semantic_hash": "953060268616a3de077f40339a9acab2"
+  },
+  "/home/ad/Projects/Polis/js/content/jobs/smith.js": {
+    "mtime": 1779515872.2586076,
+    "ast_hash": "2f4a152b0350e2b3881e3743985010c3",
+    "semantic_hash": "2f4a152b0350e2b3881e3743985010c3"
+  },
+  "/home/ad/Projects/Polis/js/content/jobs/tanner.js": {
+    "mtime": 1779515872.2586076,
+    "ast_hash": "21a0d64a5a577d1dcf2edd44700ad9d6",
+    "semantic_hash": "21a0d64a5a577d1dcf2edd44700ad9d6"
+  },
+  "/home/ad/Projects/Polis/js/content/jobs/weaver.js": {
+    "mtime": 1779515872.2586076,
+    "ast_hash": "9693a1b800f2e8a4adb63ed233109b37",
+    "semantic_hash": "9693a1b800f2e8a4adb63ed233109b37"
+  },
+  "/home/ad/Projects/Polis/js/content/jobs/woodcutter.js": {
+    "mtime": 1779515872.2586076,
+    "ast_hash": "69fb609eaa6728add398fd81de4d391b",
+    "semantic_hash": "69fb609eaa6728add398fd81de4d391b"
+  },
+  "/home/ad/Projects/Polis/js/content/jobs/workshopScore.js": {
+    "mtime": 1779515872.2586076,
+    "ast_hash": "8161a9f7f362d384ee725c916b4eab15",
+    "semantic_hash": "8161a9f7f362d384ee725c916b4eab15"
+  },
+  "/home/ad/Projects/Polis/js/content/nodes/berry_bush.js": {
+    "mtime": 1779515872.2586076,
+    "ast_hash": "393df09590d666484f76e6efb8b98fbc",
+    "semantic_hash": "393df09590d666484f76e6efb8b98fbc"
+  },
+  "/home/ad/Projects/Polis/js/content/nodes/index.js": {
+    "mtime": 1779515872.2588134,
+    "ast_hash": "79df2da70bd19a23a1c26d177e050de7",
+    "semantic_hash": "79df2da70bd19a23a1c26d177e050de7"
+  },
+  "/home/ad/Projects/Polis/js/content/nodes/large_boulder.js": {
+    "mtime": 1779515872.2588134,
+    "ast_hash": "8e28d9ceabe3fb9df263e767eeabfcad",
+    "semantic_hash": "8e28d9ceabe3fb9df263e767eeabfcad"
+  },
+  "/home/ad/Projects/Polis/js/content/nodes/large_tree.js": {
+    "mtime": 1779515872.2588134,
+    "ast_hash": "ab21683d298c822010fbb99eb5f12a00",
+    "semantic_hash": "ab21683d298c822010fbb99eb5f12a00"
+  },
+  "/home/ad/Projects/Polis/js/content/nodes/olive_grove.js": {
+    "mtime": 1779515872.2588134,
+    "ast_hash": "96ee94e93995cba0e8c0c28ce3a851ca",
+    "semantic_hash": "96ee94e93995cba0e8c0c28ce3a851ca"
+  },
+  "/home/ad/Projects/Polis/js/content/nodes/ore_vein.js": {
+    "mtime": 1779515872.2588134,
+    "ast_hash": "c194e1b75a19f509e20232818772bf3f",
+    "semantic_hash": "c194e1b75a19f509e20232818772bf3f"
+  },
+  "/home/ad/Projects/Polis/js/content/nodes/scrub.js": {
+    "mtime": 1779515872.2588134,
+    "ast_hash": "f728120bab87c51669bfbf150338324b",
+    "semantic_hash": "f728120bab87c51669bfbf150338324b"
+  },
+  "/home/ad/Projects/Polis/js/content/nodes/small_boulder.js": {
+    "mtime": 1779515872.2588134,
+    "ast_hash": "c58e0152faf416c22f4c4aaae957f8ff",
+    "semantic_hash": "c58e0152faf416c22f4c4aaae957f8ff"
+  },
+  "/home/ad/Projects/Polis/js/content/nodes/small_tree.js": {
+    "mtime": 1779515872.2588134,
+    "ast_hash": "39ab229a836214b69ab0e987bac00e8a",
+    "semantic_hash": "39ab229a836214b69ab0e987bac00e8a"
+  },
+  "/home/ad/Projects/Polis/js/content/nodes/wild_garden.js": {
+    "mtime": 1779515872.2588134,
+    "ast_hash": "5fe49215fdc2bc48482b108bb5f1f29c",
+    "semantic_hash": "5fe49215fdc2bc48482b108bb5f1f29c"
+  },
+  "/home/ad/Projects/Polis/js/content/units/archer.js": {
+    "mtime": 1779515872.2588134,
+    "ast_hash": "0c630b9b1ab230f17f3ffb396fe9c69d",
+    "semantic_hash": "0c630b9b1ab230f17f3ffb396fe9c69d"
+  },
+  "/home/ad/Projects/Polis/js/content/units/berserker.js": {
+    "mtime": 1779515872.2589061,
+    "ast_hash": "ab00737319c6377bb50153511d627e0f",
+    "semantic_hash": "ab00737319c6377bb50153511d627e0f"
+  },
+  "/home/ad/Projects/Polis/js/content/units/cavalry.js": {
+    "mtime": 1779515872.2589061,
+    "ast_hash": "6f89cecc1cdd46ac3e0858891cb0ade3",
+    "semantic_hash": "6f89cecc1cdd46ac3e0858891cb0ade3"
+  },
+  "/home/ad/Projects/Polis/js/content/units/clubman.js": {
+    "mtime": 1779515872.2589061,
+    "ast_hash": "5299585f6985be892ed4c0bc07716a6d",
+    "semantic_hash": "5299585f6985be892ed4c0bc07716a6d"
+  },
+  "/home/ad/Projects/Polis/js/content/units/hoplite.js": {
+    "mtime": 1779515872.2589061,
+    "ast_hash": "287efb5d742fa7faa208b363cc8d1b2e",
+    "semantic_hash": "287efb5d742fa7faa208b363cc8d1b2e"
+  },
+  "/home/ad/Projects/Polis/js/content/units/index.js": {
+    "mtime": 1779515872.2589061,
+    "ast_hash": "891c8dca2379f4e92214588107044b86",
+    "semantic_hash": "891c8dca2379f4e92214588107044b86"
+  },
+  "/home/ad/Projects/Polis/js/content/units/peltast.js": {
+    "mtime": 1779515872.2589061,
+    "ast_hash": "64915228f96efbe255d0f5636b2b6e25",
+    "semantic_hash": "64915228f96efbe255d0f5636b2b6e25"
+  },
+  "/home/ad/Projects/Polis/js/content/units/scout.js": {
+    "mtime": 1779515872.2589061,
+    "ast_hash": "5fec4c33bc0dc2ea8001a1c087160b17",
+    "semantic_hash": "5fec4c33bc0dc2ea8001a1c087160b17"
+  },
+  "/home/ad/Projects/Polis/js/content/units/slinger.js": {
+    "mtime": 1779515872.2589061,
+    "ast_hash": "4318fb8d1ecb33ab82f1a05b344efb06",
+    "semantic_hash": "4318fb8d1ecb33ab82f1a05b344efb06"
+  },
+  "/home/ad/Projects/Polis/js/content/units/spearman.js": {
+    "mtime": 1779515872.2589061,
+    "ast_hash": "d370488900dcdbec5f70e434c8281989",
+    "semantic_hash": "d370488900dcdbec5f70e434c8281989"
+  },
+  "/home/ad/Projects/Polis/js/content/units/toxotes.js": {
+    "mtime": 1779515872.2589061,
+    "ast_hash": "956ba42e751c1b866f6c90215dc25a7a",
+    "semantic_hash": "956ba42e751c1b866f6c90215dc25a7a"
+  },
+  "/home/ad/Projects/Polis/js/content/units/worker.js": {
+    "mtime": 1779515872.2589061,
+    "ast_hash": "9c84b788451a645ded19ed58aa984ff0",
+    "semantic_hash": "9c84b788451a645ded19ed58aa984ff0"
+  },
+  "/home/ad/Projects/Polis/js/engine/renderShapes.js": {
+    "mtime": 1779515872.2589061,
+    "ast_hash": "c6cc111bff87d90fda698171bd83fa85",
+    "semantic_hash": "c6cc111bff87d90fda698171bd83fa85"
+  },
+  "/home/ad/Projects/Polis/js/scenes/BootScene.js": {
+    "mtime": 1779515872.2589061,
+    "ast_hash": "db29a4b1f2c26624913589802a572bd9",
+    "semantic_hash": "db29a4b1f2c26624913589802a572bd9"
+  },
+  "/home/ad/Projects/Polis/js/scenes/ChunkManager.js": {
+    "mtime": 1779515872.259032,
+    "ast_hash": "3658589da196cbf2a7d9ce903c0affc4",
+    "semantic_hash": "3658589da196cbf2a7d9ce903c0affc4"
+  },
+  "/home/ad/Projects/Polis/js/scenes/CivSelectScene.js": {
+    "mtime": 1779515872.259032,
+    "ast_hash": "dc3dbadf174e34e2b45e4888dbf313a2",
+    "semantic_hash": "dc3dbadf174e34e2b45e4888dbf313a2"
+  },
+  "/home/ad/Projects/Polis/js/scenes/ConstructManager.js": {
+    "mtime": 1779515872.259032,
+    "ast_hash": "246af76a63e92a0730f3c593fe51e806",
+    "semantic_hash": "246af76a63e92a0730f3c593fe51e806"
+  },
+  "/home/ad/Projects/Polis/js/scenes/EconomyManager.js": {
+    "mtime": 1779515872.259032,
+    "ast_hash": "9a3be65582a4f47d1ace3fd8db16ae1b",
+    "semantic_hash": "9a3be65582a4f47d1ace3fd8db16ae1b"
+  },
+  "/home/ad/Projects/Polis/js/scenes/EndScene.js": {
+    "mtime": 1779515872.259032,
+    "ast_hash": "39bc8fff0f8bdcfce63977affd95f455",
+    "semantic_hash": "39bc8fff0f8bdcfce63977affd95f455"
+  },
+  "/home/ad/Projects/Polis/js/scenes/GameScene.js": {
+    "mtime": 1779515872.259032,
+    "ast_hash": "79a401f0a984b67d12dba459102959d9",
+    "semantic_hash": "79a401f0a984b67d12dba459102959d9"
+  },
+  "/home/ad/Projects/Polis/js/scenes/InputManager.js": {
+    "mtime": 1779515872.259032,
+    "ast_hash": "e6a2634238beb6063611a8624df1a3b9",
+    "semantic_hash": "e6a2634238beb6063611a8624df1a3b9"
+  },
+  "/home/ad/Projects/Polis/js/scenes/MapManager.js": {
+    "mtime": 1779515872.259032,
+    "ast_hash": "a264e4376a69422c4b4fc20c1fb317dc",
+    "semantic_hash": "a264e4376a69422c4b4fc20c1fb317dc"
+  },
+  "/home/ad/Projects/Polis/js/scenes/MenuScene.js": {
+    "mtime": 1779515872.259032,
+    "ast_hash": "77765017a00b94202cc5feb23f3921e4",
+    "semantic_hash": "77765017a00b94202cc5feb23f3921e4"
+  },
+  "/home/ad/Projects/Polis/js/scenes/NatureManager.js": {
+    "mtime": 1779515872.259032,
+    "ast_hash": "740e4f9bee67565db98616ce760b33c1",
+    "semantic_hash": "740e4f9bee67565db98616ce760b33c1"
+  },
+  "/home/ad/Projects/Polis/js/scenes/SpriteEditorScene.js": {
+    "mtime": 1779515872.259032,
+    "ast_hash": "7443fe829774279c90778215faa6784d",
+    "semantic_hash": "7443fe829774279c90778215faa6784d"
+  },
+  "/home/ad/Projects/Polis/js/scenes/UIManager.js": {
+    "mtime": 1779515872.259032,
+    "ast_hash": "2b8a7ff91cf9539e6e7370bad5a0021c",
+    "semantic_hash": "2b8a7ff91cf9539e6e7370bad5a0021c"
+  },
+  "/home/ad/Projects/Polis/js/scenes/UIPanel.js": {
+    "mtime": 1779515872.259032,
+    "ast_hash": "a48ac42c7edd3dba899581decf9497b3",
+    "semantic_hash": "a48ac42c7edd3dba899581decf9497b3"
+  },
+  "/home/ad/Projects/Polis/js/scenes/UnitManager.js": {
+    "mtime": 1779515872.259032,
+    "ast_hash": "597b75ad3883ed9c153dd90b7535f4ff",
+    "semantic_hash": "597b75ad3883ed9c153dd90b7535f4ff"
+  },
+  "/home/ad/Projects/Polis/js/scenes/WorldManager.js": {
+    "mtime": 1779515872.259032,
+    "ast_hash": "8edb88b97f514efc068e2a066188a2f5",
+    "semantic_hash": "8edb88b97f514efc068e2a066188a2f5"
+  },
+  "/home/ad/Projects/Polis/js/scenes/ZoneManager.js": {
+    "mtime": 1779515872.259032,
+    "ast_hash": "0a91756ee4a221f2c0572d61f5df80b4",
+    "semantic_hash": "0a91756ee4a221f2c0572d61f5df80b4"
+  },
+  "/home/ad/Projects/Polis/js/scenes/ui/UIActionsZone.js": {
+    "mtime": 1779515872.259032,
+    "ast_hash": "fcbf0dfed94869ac02c9f8594ba1c5f5",
+    "semantic_hash": "fcbf0dfed94869ac02c9f8594ba1c5f5"
+  },
+  "/home/ad/Projects/Polis/js/scenes/ui/UIInfoPane.js": {
+    "mtime": 1779515872.259685,
+    "ast_hash": "73bcadc0e7887aa43c25c504a97c3f10",
+    "semantic_hash": "73bcadc0e7887aa43c25c504a97c3f10"
+  },
+  "/home/ad/Projects/Polis/js/scenes/ui/UIModals.js": {
+    "mtime": 1779515872.259685,
+    "ast_hash": "ede3c2dd720e3bf897ac8f11024d6e15",
+    "semantic_hash": "ede3c2dd720e3bf897ac8f11024d6e15"
+  },
+  "/home/ad/Projects/Polis/js/scenes/unit/UnitCombat.js": {
+    "mtime": 1779515872.259685,
+    "ast_hash": "bbef2982500c48ae4275bca604beed53",
+    "semantic_hash": "bbef2982500c48ae4275bca604beed53"
+  },
+  "/home/ad/Projects/Polis/js/scenes/unit/UnitEnemy.js": {
+    "mtime": 1779515872.2598398,
+    "ast_hash": "f0a796d35f2820efdef18efc6d57c87f",
+    "semantic_hash": "f0a796d35f2820efdef18efc6d57c87f"
+  },
+  "/home/ad/Projects/Polis/js/scenes/unit/UnitMovement.js": {
+    "mtime": 1779515872.2598398,
+    "ast_hash": "541f70f8253a881d7500e57e53046fac",
+    "semantic_hash": "541f70f8253a881d7500e57e53046fac"
+  },
+  "/home/ad/Projects/Polis/js/scenes/unit/UnitNeeds.js": {
+    "mtime": 1779515872.2598398,
+    "ast_hash": "6f91c4208af48e7d4fc512c6ddc81099",
+    "semantic_hash": "6f91c4208af48e7d4fc512c6ddc81099"
+  },
+  "/home/ad/Projects/Polis/js/scenes/unit/UnitRender.js": {
+    "mtime": 1779515872.2598398,
+    "ast_hash": "e59d91a76c73894b41f722eb4b7b2ae2",
+    "semantic_hash": "e59d91a76c73894b41f722eb4b7b2ae2"
+  },
+  "/home/ad/Projects/Polis/js/scenes/unit/UnitWorker.js": {
+    "mtime": 1779515872.2598398,
+    "ast_hash": "8ce828a62c2c9bb85e54233b8125f163",
+    "semantic_hash": "8ce828a62c2c9bb85e54233b8125f163"
+  },
+  "/home/ad/Projects/Polis/js/state/GameStateManager.js": {
+    "mtime": 1779515872.2598398,
+    "ast_hash": "1b7cbc8f09dc7090f5598bceeff3f9f4",
+    "semantic_hash": "1b7cbc8f09dc7090f5598bceeff3f9f4"
+  },
+  "/home/ad/Projects/Polis/js/ui/UIKit.js": {
+    "mtime": 1779515872.2598398,
+    "ast_hash": "d6de5df8d4247e3275fb82267e8fc4ea",
+    "semantic_hash": "d6de5df8d4247e3275fb82267e8fc4ea"
+  },
+  "/home/ad/Projects/Polis/js/utils/MathUtils.js": {
+    "mtime": 1779515872.2598398,
+    "ast_hash": "bc31841cf45fca8d0fc6c649c8a55f9b",
+    "semantic_hash": "bc31841cf45fca8d0fc6c649c8a55f9b"
+  },
+  "/home/ad/Projects/Polis/js/utils/Pathfinder.js": {
+    "mtime": 1779515872.2601292,
+    "ast_hash": "ba55f89e93d747ae28dfb2f9a41225fa",
+    "semantic_hash": "ba55f89e93d747ae28dfb2f9a41225fa"
+  },
+  "/home/ad/Projects/Polis/server/package.json": {
+    "mtime": 1779515872.2932148,
+    "ast_hash": "5fdcd5eb0834cb52981cae8ef2afcdab",
+    "semantic_hash": "5fdcd5eb0834cb52981cae8ef2afcdab"
+  },
+  "/home/ad/Projects/Polis/server/server.js": {
+    "mtime": 1779515872.2932148,
+    "ast_hash": "c936eba63eeb1fb27d09caa050d6d12d",
+    "semantic_hash": "c936eba63eeb1fb27d09caa050d6d12d"
+  },
+  "/home/ad/Projects/Polis/AGENTS.md": {
+    "mtime": 1779515872.2499788,
+    "ast_hash": "cc01fce8a955d3184e9cc80366972537",
+    "semantic_hash": "cc01fce8a955d3184e9cc80366972537"
+  },
+  "/home/ad/Projects/Polis/CHANGELOG.md": {
+    "mtime": 1779515872.2499788,
+    "ast_hash": "40b93dd25bacaf28e38e18cf994e929f",
+    "semantic_hash": "40b93dd25bacaf28e38e18cf994e929f"
+  },
+  "/home/ad/Projects/Polis/CLAUDE.md": {
+    "mtime": 1779515872.2499788,
+    "ast_hash": "ed4d5cdde962d2042023dfed31da96f2",
+    "semantic_hash": "ed4d5cdde962d2042023dfed31da96f2"
+  },
+  "/home/ad/Projects/Polis/GDD.md": {
+    "mtime": 1779515872.2499788,
+    "ast_hash": "38d5490a294a4551728c39faa53c8b14",
+    "semantic_hash": "38d5490a294a4551728c39faa53c8b14"
+  },
+  "/home/ad/Projects/Polis/PLANNING.md": {
+    "mtime": 1779515872.2499788,
+    "ast_hash": "d82a63161049d6984829965eb2d45f43",
+    "semantic_hash": "d82a63161049d6984829965eb2d45f43"
+  },
+  "/home/ad/Projects/Polis/SUMERIAN_RETHEME.md": {
+    "mtime": 1779515872.2499788,
+    "ast_hash": "5329710277d4f71d76927eec17786b80",
+    "semantic_hash": "5329710277d4f71d76927eec17786b80"
+  },
+  "/home/ad/Projects/Polis/index.html": {
+    "mtime": 1779515872.2576795,
+    "ast_hash": "0ea98d78b3fc4bab16ed7e77086aeaec",
+    "semantic_hash": "0ea98d78b3fc4bab16ed7e77086aeaec"
+  },
+  "/home/ad/Projects/Polis/.beads/README.md": {
+    "mtime": 1779515872.2499325,
+    "ast_hash": "a00afb35b5b41d506fabf0dfbbb64a0a",
+    "semantic_hash": "a00afb35b5b41d506fabf0dfbbb64a0a"
+  },
+  "/home/ad/Projects/Polis/.beads/config.yaml": {
+    "mtime": 1779515872.2499325,
+    "ast_hash": "aec7a117b79fee8ec97cf14937bf320a",
+    "semantic_hash": "aec7a117b79fee8ec97cf14937bf320a"
+  },
+  "/home/ad/Projects/Polis/docs/freeform-building-system.md": {
+    "mtime": 1779515872.2567384,
+    "ast_hash": "c455a76a33e2fb1fa8f4c89d9c0a84aa",
+    "semantic_hash": "c455a76a33e2fb1fa8f4c89d9c0a84aa"
+  },
+  "/home/ad/Projects/Polis/docs/render-optimization.md": {
+    "mtime": 1779515872.2576795,
+    "ast_hash": "d386ae19f4db70497651a4405f370776",
+    "semantic_hash": "d386ae19f4db70497651a4405f370776"
+  },
+  "/home/ad/Projects/Polis/assets/images/background_splash.png": {
+    "mtime": 1779515872.2503464,
+    "ast_hash": "f110ac38d12d4ddbb2a9f1dd5e80fdc9",
+    "semantic_hash": "f110ac38d12d4ddbb2a9f1dd5e80fdc9"
+  },
+  "/home/ad/Projects/Polis/assets/images/menu/constellations.png": {
+    "mtime": 1779515872.2527385,
+    "ast_hash": "55366670f50bfd2da4e2efb28b4fc5b5",
+    "semantic_hash": "55366670f50bfd2da4e2efb28b4fc5b5"
+  },
+  "/home/ad/Projects/Polis/assets/images/menu/foreground.png": {
+    "mtime": 1779515872.2527385,
+    "ast_hash": "6a55238c70efc8d56b8062c33fa46e10",
+    "semantic_hash": "6a55238c70efc8d56b8062c33fa46e10"
+  },
+  "/home/ad/Projects/Polis/assets/images/menu/sky.png": {
+    "mtime": 1779515872.2537384,
+    "ast_hash": "4b4edfe178d38a33db848c5696244f0c",
+    "semantic_hash": "4b4edfe178d38a33db848c5696244f0c"
+  },
+  "/home/ad/Projects/Polis/assets/images/menu/sun.png": {
+    "mtime": 1779515872.2547386,
+    "ast_hash": "4bb6d94066a959a1454a3160c6603723",
+    "semantic_hash": "4bb6d94066a959a1454a3160c6603723"
+  },
+  "/home/ad/Projects/Polis/assets/images/menu/sunrays.png": {
+    "mtime": 1779515872.2567384,
+    "ast_hash": "8272b43560fbd23db19304950b67c2cf",
+    "semantic_hash": "8272b43560fbd23db19304950b67c2cf"
+  }
+}
