@@ -96,7 +96,24 @@ export default class NatureManager {
     redrawSheep(s) {
         const g = s.gfx;
         g.clear().setPosition(s.x, s.y);
-        ANIMALS.sheep.draw(g, s);
+        ANIMALS.sheep.draw(g, s, { moving: s.moving ?? false });
+    }
+
+    // Derive facing + gait from this tick's motion delta, then redraw so the directional rig
+    // animates (mirrors tickDeer's per-frame block). Replaces the bare gfx.setPosition calls.
+    _animSheep(s) {
+        const mdx = s.x - (s._px ?? s.x), mdy = s.y - (s._py ?? s.y);
+        s._px = s.x; s._py = s.y;
+        const moving = (mdx * mdx + mdy * mdy) > 0.02;
+        if (moving) {
+            s._walkPhase = (s._walkPhase ?? 0) + 0.16;
+            if (Math.abs(mdx) > Math.abs(mdy)) s.facing = mdx >= 0 ? 'east' : 'west';
+            else                                s.facing = mdy >= 0 ? 'south' : 'north';
+        } else {
+            s._walkPhase = (s._walkPhase ?? 0) * 0.8;
+        }
+        s.moving = moving;
+        this.redrawSheep(s);
     }
 
     tick(delta, dt) {
@@ -198,7 +215,7 @@ export default class NatureManager {
                             s.x += Math.cos(a) * ANIMALS.sheep.speed * dt;
                             s.y += Math.sin(a) * ANIMALS.sheep.speed * dt;
                         }
-                        s.gfx.setPosition(s.x, s.y);
+                        this._animSheep(s);
                         continue;
                     }
                     s.followUnit = null;   // leader gone — stay tamed and graze
@@ -206,7 +223,7 @@ export default class NatureManager {
                 this._grazeTamed(s, delta, dt, cc);
                 s.x = Phaser.Math.Clamp(s.x, TILE, NATURE_WORLD_W * TILE - TILE);
                 s.y = Phaser.Math.Clamp(s.y, MAP_OY + TILE, NATURE_BOTTOM - TILE);
-                s.gfx.setPosition(s.x, s.y);
+                this._animSheep(s);
                 continue;
             }
 
@@ -227,7 +244,7 @@ export default class NatureManager {
             }
             s.x = Phaser.Math.Clamp(s.x, TILE, NATURE_WORLD_W * TILE - TILE);
             s.y = Phaser.Math.Clamp(s.y, MAP_OY + TILE, NATURE_BOTTOM - TILE);
-            s.gfx.setPosition(s.x, s.y);
+            this._animSheep(s);
         }
     }
 
