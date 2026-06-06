@@ -20,14 +20,14 @@ const paw   = (x, y) => ({ type: 'circle', x, y, r: 1.4, fill: PAW });
 export default {
     id: 'wolf',
     version: 1,
-    origin: { x: 0, y: 14 },
+    origin: { x: 0, y: 16 },
     views: {
         // ── side profile (facing right) ──
         east: [
             { name: 'legR', z: -2, pivot: { x: -5, y: 6 }, shapes: [
-                { type: 'line', x1: -8, y1: 6, x2: -9, y2: 14, stroke: legS },
-                { type: 'line', x1: -3, y1: 6, x2: -3, y2: 14, stroke: legS },
-                paw(-9, 14), paw(-3, 14),
+                { type: 'line', x1: -8, y1: 4, x2: -9, y2: 16, stroke: legS },
+                { type: 'line', x1: -3, y1: 4, x2: -3, y2: 16, stroke: legS },
+                paw(-9, 16), paw(-3, 16),
             ] },
             { name: 'tail', z: -1, pivot: { x: -11, y: -2 }, shapes: [
                 { type: 'line', x1: -11, y1: -2, x2: -16, y2: 1, stroke: { color: TAIL, width: 2 } },
@@ -38,9 +38,9 @@ export default {
                 { type: 'ellipse', x: 4, y: -2, rx: 5, ry: 4, fill: RUFF },     // shoulder ruff
             ] },
             { name: 'legL', z: 1, pivot: { x: 5, y: 6 }, shapes: [
-                { type: 'line', x1: 4, y1: 6, x2: 3, y2: 14, stroke: legS },
-                { type: 'line', x1: 9, y1: 6, x2: 10, y2: 14, stroke: legS },
-                paw(3, 14), paw(10, 14),
+                { type: 'line', x1: 4, y1: 4, x2: 3, y2: 16, stroke: legS },
+                { type: 'line', x1: 9, y1: 4, x2: 10, y2: 16, stroke: legS },
+                paw(3, 16), paw(10, 16),
             ] },
             { name: 'head', z: 2, pivot: { x: 9, y: -2 }, shapes: [
                 { type: 'ellipse', x: 11, y: -3, rx: 4, ry: 3.5, fill: '$bodyCol' },
@@ -53,10 +53,10 @@ export default {
         // ── front ──
         south: [
             { name: 'legL', z: -1, pivot: { x: -4, y: 6 }, shapes: [
-                { type: 'line', x1: -4, y1: 6, x2: -4, y2: 14, stroke: legS }, paw(-4, 14),
+                { type: 'line', x1: -4, y1: 4, x2: -4, y2: 16, stroke: legS }, paw(-4, 16),
             ] },
             { name: 'legR', z: -1, pivot: { x: 4, y: 6 }, shapes: [
-                { type: 'line', x1: 4, y1: 6, x2: 4, y2: 14, stroke: legS }, paw(4, 14),
+                { type: 'line', x1: 4, y1: 4, x2: 4, y2: 16, stroke: legS }, paw(4, 16),
             ] },
             { name: 'torso', z: 0, pivot: { x: 0, y: -1 }, shapes: [
                 { type: 'ellipse', x: 0, y: 0, rx: 7, ry: 6, fill: '$bodyCol' },
@@ -75,10 +75,10 @@ export default {
         // ── rear ──
         north: [
             { name: 'legL', z: -1, pivot: { x: -4, y: 6 }, shapes: [
-                { type: 'line', x1: -4, y1: 6, x2: -4, y2: 14, stroke: legS }, paw(-4, 14),
+                { type: 'line', x1: -4, y1: 4, x2: -4, y2: 16, stroke: legS }, paw(-4, 16),
             ] },
             { name: 'legR', z: -1, pivot: { x: 4, y: 6 }, shapes: [
-                { type: 'line', x1: 4, y1: 6, x2: 4, y2: 14, stroke: legS }, paw(4, 14),
+                { type: 'line', x1: 4, y1: 4, x2: 4, y2: 16, stroke: legS }, paw(4, 16),
             ] },
             { name: 'torso', z: 0, pivot: { x: 0, y: -1 }, shapes: [
                 { type: 'ellipse', x: 0, y: 0, rx: 7, ry: 6, fill: '$bodyCol' },

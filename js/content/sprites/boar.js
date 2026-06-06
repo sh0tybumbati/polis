@@ -25,14 +25,14 @@ const bigTusk = (x1, y1, x2, y2) => ({ type: 'line', x1, y1, x2, y2, stroke: tus
 export default {
     id: 'boar',
     version: 1,
-    origin: { x: 0, y: 14 },
+    origin: { x: 0, y: 16 },
     views: {
         // ── side profile (facing right) ──
         east: [
             { name: 'legR', z: -2, pivot: { x: -5, y: 6 }, shapes: [
-                { type: 'line', x1: -7, y1: 7, x2: -8, y2: 14, stroke: legS },
-                { type: 'line', x1: -3, y1: 7, x2: -4, y2: 14, stroke: legS },
-                hoof(-8, 14), hoof(-4, 14),
+                { type: 'line', x1: -7, y1: 5, x2: -8, y2: 16, stroke: legS },
+                { type: 'line', x1: -3, y1: 5, x2: -4, y2: 16, stroke: legS },
+                hoof(-8, 16), hoof(-4, 16),
             ] },
             { name: 'tail', z: -1, pivot: { x: -11, y: -1 }, shapes: [
                 { type: 'line', x1: -11, y1: -1, x2: -14, y2: -3, stroke: { color: BODY, width: 2 } },
@@ -45,9 +45,9 @@ export default {
                 bristle(1, -6, 2, -9), bristle(5, -7, 6, -10),
             ] },
             { name: 'legL', z: 1, pivot: { x: 5, y: 6 }, shapes: [
-                { type: 'line', x1: 4, y1: 7, x2: 3, y2: 14, stroke: legS },
-                { type: 'line', x1: 8, y1: 7, x2: 9, y2: 14, stroke: legS },
-                hoof(3, 14), hoof(9, 14),
+                { type: 'line', x1: 4, y1: 5, x2: 3, y2: 16, stroke: legS },
+                { type: 'line', x1: 8, y1: 5, x2: 9, y2: 16, stroke: legS },
+                hoof(3, 16), hoof(9, 16),
             ] },
             { name: 'head', z: 2, pivot: { x: 9, y: -1 }, shapes: [
                 { type: 'ellipse', x: 12, y: -1, rx: 5, ry: 4.5, fill: '$bodyCol' },
@@ -62,10 +62,10 @@ export default {
         // ── front ──
         south: [
             { name: 'legL', z: -1, pivot: { x: -5, y: 6 }, shapes: [
-                { type: 'line', x1: -5, y1: 7, x2: -5, y2: 14, stroke: legS }, hoof(-5, 14),
+                { type: 'line', x1: -5, y1: 5, x2: -5, y2: 16, stroke: legS }, hoof(-5, 16),
             ] },
             { name: 'legR', z: -1, pivot: { x: 5, y: 6 }, shapes: [
-                { type: 'line', x1: 5, y1: 7, x2: 5, y2: 14, stroke: legS }, hoof(5, 14),
+                { type: 'line', x1: 5, y1: 5, x2: 5, y2: 16, stroke: legS }, hoof(5, 16),
             ] },
             { name: 'torso', z: 0, pivot: { x: 0, y: -1 }, shapes: [
                 { type: 'ellipse', x: 0, y: 0, rx: 8.5, ry: 6.5, fill: '$bodyCol' },
@@ -87,10 +87,10 @@ export default {
         // ── rear ──
         north: [
             { name: 'legL', z: -1, pivot: { x: -5, y: 6 }, shapes: [
-                { type: 'line', x1: -5, y1: 7, x2: -5, y2: 14, stroke: legS }, hoof(-5, 14),
+                { type: 'line', x1: -5, y1: 5, x2: -5, y2: 16, stroke: legS }, hoof(-5, 16),
             ] },
             { name: 'legR', z: -1, pivot: { x: 5, y: 6 }, shapes: [
-                { type: 'line', x1: 5, y1: 7, x2: 5, y2: 14, stroke: legS }, hoof(5, 14),
+                { type: 'line', x1: 5, y1: 5, x2: 5, y2: 16, stroke: legS }, hoof(5, 16),
             ] },
             { name: 'torso', z: 0, pivot: { x: 0, y: -1 }, shapes: [
                 { type: 'ellipse', x: 0, y: 0, rx: 8.5, ry: 6.5, fill: '$bodyCol' },
