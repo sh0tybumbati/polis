@@ -4,7 +4,7 @@ export default {
     construct: 'tanningrack',
     input: 'Textile.Hide.Deer',
     // Any raw hide tans into its matching leather (<hide>.Leather).
-    inputs: ['Textile.Hide.Deer', 'Textile.Hide.Boar', 'Textile.Hide.Aurochs'],
+    inputs: ['Textile.Hide.Deer', 'Textile.Hide.Boar', 'Textile.Hide.Aurochs', 'Textile.Hide.Wolf'],
     outputFor: (k) => `${k}.Leather`,
     output: 'Textile.Hide.Deer.Leather',
     carryQty: 6,

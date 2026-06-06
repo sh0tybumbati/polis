@@ -325,6 +325,7 @@ export default {
             ['deer',    this.scene.deer],
             ['boar',    this.scene.boar],
             ['aurochs', this.scene.aurochs],
+            ['wolf',    this.scene.wolf],
         ];
     },
 

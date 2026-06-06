@@ -6,8 +6,9 @@ export default {
     id:         'wolf',
     maxCount:   5,
     breedRadius: 4 * TILE,
-    meat:       0,              // colonists kill wolves defensively — not farmed (no meat/hide SKU)
-    hide:       0,
+    meat:       0,              // wolves aren't eaten — but their pelts are prized
+    hide:       2,
+    hideKey:    'Textile.Hide.Wolf',
     hp:         5,
     speed:      72,             // faster than its prey
     scale:      1.0,
@@ -25,6 +26,11 @@ export default {
     draw(g, a, ctx = {}) {
         if (a.isDead) {
             g.fillStyle(0x2e2a22, 0.9).fillEllipse(0, 2, 24, 9);
+            if (a.hideLeft > 0) {   // pelt remaining
+                const r = a.hideLeft / this.hide;
+                g.fillStyle(0x2a2418, 0.7).fillRect(-10, -5, 20, 4);
+                g.fillStyle(0x8a8478, 0.9).fillRect(-10, -5, 20 * r, 4);
+            }
             return;
         }
         const sc = a.scale ?? 1.0;

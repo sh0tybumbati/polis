@@ -31,6 +31,8 @@ import hideBoar       from './hideBoar.js';
 import hideAurochs    from './hideAurochs.js';
 import leatherBoar    from './leatherBoar.js';
 import leatherAurochs from './leatherAurochs.js';
+import hideWolf       from './hideWolf.js';
+import leatherWolf    from './leatherWolf.js';
 
 const defs = [
     wheat, flour, bread, meat, cuts, sausages, olives, olive_oil, beer, berries,
@@ -38,6 +40,7 @@ const defs = [
     wool, cloth_wool, hide, leather, leatherKit, bronzeKit,
     wild_grapes, fish, greens,
     pork, beef, hideBoar, hideAurochs, leatherBoar, leatherAurochs,
+    hideWolf, leatherWolf,
 ];
 
 export const ITEMS = Object.fromEntries(defs.map(d => [d.key, d]));
