@@ -9,6 +9,20 @@ const NATURE_WORLD_H = 1024;
 const NATURE_BOTTOM  = MAP_OY + NATURE_WORLD_H * TILE;
 import { ANIMALS } from '../content/animals/index.js';
 
+// ── Animal needs tuning ──────────────────────────────────────────────────────
+// Food/rest are 0..1. Rates are per-second (multiplied by dt). Mirrors the unit
+// needs model (UnitNeeds) but a touch slower so wildlife survives unattended.
+const FOOD_DECAY   = 0.00060;   // hunger growth while awake
+const REST_DECAY   = 0.00045;   // tiredness growth while awake
+const REST_RECOVER = 0.0050;    // rest regained while sleeping
+const STARVE_HP    = 0.25;      // hp lost per second when food is empty
+const HUNGRY_SEEK  = 0.5;       // herbivore starts foraging below this
+const HUNT_HUNGER  = 0.6;       // wolf starts hunting below this
+const TIRED        = 0.20;      // forced sleep below this
+const WAKE_REST    = 0.95;      // wakes once rest climbs back to here
+const GRAZE_RANGE  = 1.2 * TILE;
+const GRAZE_RATE   = 0.12;      // food gained per second while grazing brush
+
 export default class NatureManager {
     constructor(scene) {
         this.scene = scene;
@@ -66,6 +80,7 @@ export default class NatureManager {
             speed: def.speed + Phaser.Math.Between(-5, 5),
             wanderTimer: Phaser.Math.Between(2000, 5000),
             ateToday: 3, hungryDays: 0,
+            needs: { food: 0.7 + Math.random() * 0.3, rest: 0.7 + Math.random() * 0.3 },
             gfx: this.scene._w(this.scene.add.graphics().setDepth(5)),
         };
         this.redrawDeer(d);
@@ -77,6 +92,7 @@ export default class NatureManager {
         const g = d.gfx;
         g.clear().setPosition(d.x, d.y);
         ANIMALS.deer.draw(g, d, { moving: d.moving ?? false });
+        this._drawNeedsBars(d);
     }
 
     spawnSheep(x, y, gender = null) {
@@ -86,6 +102,7 @@ export default class NatureManager {
             hp: 2, isDead: false, isTamed: false, followUnit: null,
             woolReady: true, woolTimer: 0,
             ateToday: 3, hungryDays: 0,
+            needs: { food: 0.7 + Math.random() * 0.3, rest: 0.7 + Math.random() * 0.3 },
             gfx: this.scene._w(this.scene.add.graphics().setDepth(5)),
         };
         this.redrawSheep(s);
@@ -97,6 +114,7 @@ export default class NatureManager {
         const g = s.gfx;
         g.clear().setPosition(s.x, s.y);
         ANIMALS.sheep.draw(g, s, { moving: s.moving ?? false });
+        this._drawNeedsBars(s);
     }
 
     // Derive facing + gait from this tick's motion delta, then redraw so the directional rig
@@ -121,6 +139,7 @@ export default class NatureManager {
         const g = a.gfx; if (!g) return;
         g.clear().setPosition(a.x, a.y);
         (ANIMALS[a.species] ?? ANIMALS.deer).draw(g, a, { moving: a.moving ?? false });
+        this._drawNeedsBars(a);
     }
 
     // Facing + gait from motion delta, then generic redraw (mirrors _animSheep for boar/aurochs).
@@ -139,8 +158,117 @@ export default class NatureManager {
         this.redrawAnimal(a);
     }
 
+    // ── Needs (food + rest) shared across every animal ───────────────────────────
+    // Returns true if the animal is asleep (caller should skip movement this frame).
+    // Food decays while awake; empty food drains hp → death. Rest decays while awake
+    // and recovers while sleeping; empty rest forces sleep in place. (#28)
+    _tickAnimalNeeds(a, def, dt) {
+        if (!a.needs) a.needs = { food: 0.7 + Math.random() * 0.3, rest: 0.7 + Math.random() * 0.3 };
+        const n = a.needs;
+
+        if (a.isSleeping) {
+            n.rest = Math.min(1, n.rest + dt * REST_RECOVER);
+            if (n.rest >= WAKE_REST) a.isSleeping = false;
+            a.hungryDays = n.food < 0.35 ? 1 : 0;
+            return a.isSleeping;
+        }
+
+        n.food = Math.max(0, n.food - dt * FOOD_DECAY);
+        n.rest = Math.max(0, n.rest - dt * REST_DECAY);
+        if (n.rest <= TIRED) { a.isSleeping = true; a.moveTo = null; }
+        if (n.food <= 0) {
+            a.hp = (a.hp ?? 1) - dt * STARVE_HP;
+            if (a.hp <= 0) { this._killAnimal(a); return true; }
+        }
+        a.hungryDays = n.food < 0.35 ? 1 : 0;
+        return false;
+    }
+
+    // Animal dies in place, leaving a harvestable carcass (each draw() has an isDead branch).
+    _killAnimal(a) {
+        if (a.isDead) return;
+        a.isDead = true; a.hp = 0; a.moveTo = null; a.moving = false; a.aggroTarget = null;
+        this.redrawAnimal(a);
+    }
+
+    // Nearest grazable brush (scrub) node with stock remaining. Mirrors the worker's findNearNode
+    // pattern (UnitWorker.findNearNode) but local so animals don't depend on the worker mixin.
+    _nearestBrush(a, maxDist) {
+        let best = null, bd = maxDist;
+        for (const node of (this.scene.resNodes ?? [])) {
+            if (node.type !== 'scrub' || (node.stock ?? 0) <= 0) continue;
+            const d = Phaser.Math.Distance.Between(a.x, a.y, node.x, node.y);
+            if (d < bd) { bd = d; best = node; }
+        }
+        return best;
+    }
+
+    // Herbivore foraging: when hungry, walk to the nearest brush and graze it (refills food,
+    // depletes node stock; regrowth handled by WorldManager.tickNodeRespawn). Returns true when
+    // it owns movement this frame so the caller skips its idle wander.
+    _grazeSeek(a, def, delta, dt) {
+        const n = a.needs;
+        if (!n || n.food >= HUNGRY_SEEK) { a.grazeNode = null; return false; }
+
+        let node = a.grazeNode;
+        if (!node || node.isDead || (node.stock ?? 0) <= 0) {
+            node = this._nearestBrush(a, 14 * TILE);
+            a.grazeNode = node;
+        }
+        if (!node) return false;
+
+        const d = Phaser.Math.Distance.Between(a.x, a.y, node.x, node.y);
+        if (d > GRAZE_RANGE) {
+            a.moveTo = { x: node.x, y: node.y };
+            this._stepToward(a, (def.speed ?? 40) * 0.5, dt);
+        } else {
+            a.moveTo = null;
+            n.food = Math.min(1, n.food + dt * GRAZE_RATE);
+            a._grazeAcc = (a._grazeAcc ?? 0) + dt;
+            if (a._grazeAcc >= 2) {   // nibble one stock every couple seconds
+                a._grazeAcc = 0;
+                node.stock = Math.max(0, (node.stock ?? 0) - 1);
+                this.scene.mapManager?.redrawNode?.(node);
+                if (node.stock <= 0) a.grazeNode = null;
+            }
+            if (n.food >= 1) a.grazeNode = null;
+        }
+        return true;
+    }
+
+    // Nearest living wolf within r (herbivores flee these like they flee colonists).
+    _nearestWolf(a, r) {
+        let best = null, bd = r;
+        for (const w of (this.scene.wolf ?? [])) {
+            if (w.isDead) continue;
+            const d = Phaser.Math.Distance.Between(a.x, a.y, w.x, w.y);
+            if (d < bd) { bd = d; best = w; }
+        }
+        return best;
+    }
+
+    // Two thin status bars (food green→red, rest blue) above an animal, drawn in the gfx's local
+    // space. Only shown when something is low or while sleeping, to keep the field uncluttered.
+    _drawNeedsBars(a) {
+        const g = a.gfx, n = a.needs;
+        if (!g || !n || a.isDead) return;
+        if (n.food >= 0.6 && n.rest >= 0.6 && !a.isSleeping) return;
+        const sc = a.scale ?? 1;
+        const bw = 16 * sc, bh = 2 * sc, bx = -bw / 2, by = -24 * sc;
+        const bar = (y, frac, col) => {
+            g.fillStyle(0x000000, 0.45).fillRect(bx - 0.5, y - 0.5, bw + 1, bh + 1);
+            g.fillStyle(0x222a33, 0.7).fillRect(bx, y, bw, bh);
+            g.fillStyle(col, 0.95).fillRect(bx, y, bw * Phaser.Math.Clamp(frac, 0, 1), bh);
+        };
+        const foodCol = n.food < 0.3 ? 0xdd4433 : n.food < 0.55 ? 0xddaa33 : 0x66cc44;
+        bar(by, n.food, foodCol);
+        bar(by + bh + 1.5, n.rest, 0x4aa0ff);
+        if (a.isSleeping) g.fillStyle(0xcfe0ff, 0.9).fillCircle(bw / 2 + 3 * sc, by - 2, 1.4 * sc);
+    }
+
     spawnBoar(x, y, gender = null)    { return this._spawnBeast('boar', x, y, gender); }
     spawnAurochs(x, y, gender = null) { return this._spawnBeast('aurochs', x, y, gender); }
+    spawnWolf(x, y, gender = null)    { return this._spawnBeast('wolf', x, y, gender); }
 
     _spawnBeast(species, x, y, gender = null) {
         const def = ANIMALS[species];
@@ -151,6 +279,7 @@ export default class NatureManager {
             speed: def.speed + Phaser.Math.Between(-4, 4),
             wanderTimer: Phaser.Math.Between(2000, 5000),
             ateToday: 3, hungryDays: 0,
+            needs: { food: 0.7 + Math.random() * 0.3, rest: 0.7 + Math.random() * 0.3 },
             aggroTarget: null, aggroUntil: 0,
             gfx: this.scene._w(this.scene.add.graphics().setDepth(5)),
         };
@@ -163,6 +292,7 @@ export default class NatureManager {
         this.tickDeer(delta, dt);
         this.tickSheep(delta, dt);
         this.tickBeasts(delta, dt);
+        this.tickWolves(delta, dt);
         this.tickCritter(delta, dt);
         this.tickSpawning(delta);
         this.tickBreeding(delta);
@@ -179,6 +309,7 @@ export default class NatureManager {
 
     _tickBeast(a, def, delta, dt, friendlies) {
         if (a.isDead) return;   // carcass already drawn at death; no movement
+        if (this._tickAnimalNeeds(a, def, dt)) { a.moving = false; this.redrawAnimal(a); return; }
         const now = this.scene.time.now;
         if (a.aggroUntil && now > a.aggroUntil) { a.aggroTarget = null; a.aggroUntil = 0; }
 
@@ -211,18 +342,85 @@ export default class NatureManager {
                 a.y += Math.sin(ang) * def.speed * 1.2 * dt;
             }
             a.moveTo = null; a.wanderTimer = 0;
-        } else if (near && nd < def.fleeRadius) {
-            const ang = Math.atan2(a.y - near.y, a.x - near.x);            // flee
-            a.x += Math.cos(ang) * def.speed * dt;
-            a.y += Math.sin(ang) * def.speed * dt;
-            a.moveTo = null; a.wanderTimer = 0;
         } else {
-            this._wander(a, delta, dt, def.speed * 0.3);                   // graze
+            // Flee the nearest threat (colonist within fleeRadius, or any wolf), else graze.
+            let fleeFrom = (near && nd < def.fleeRadius) ? near : null;
+            let fleeDist = fleeFrom ? nd : def.fleeRadius;
+            const wolf = this._nearestWolf(a, def.fleeRadius);
+            if (wolf) { const wd = Phaser.Math.Distance.Between(a.x, a.y, wolf.x, wolf.y); if (wd < fleeDist) { fleeFrom = wolf; fleeDist = wd; } }
+            if (fleeFrom) {
+                const ang = Math.atan2(a.y - fleeFrom.y, a.x - fleeFrom.x);   // flee
+                a.x += Math.cos(ang) * def.speed * dt;
+                a.y += Math.sin(ang) * def.speed * dt;
+                a.moveTo = null; a.wanderTimer = 0;
+            } else if (!this._grazeSeek(a, def, delta, dt)) {
+                this._wander(a, delta, dt, def.speed * 0.3);                 // graze
+            }
         }
 
         a.x = Phaser.Math.Clamp(a.x, TILE, NATURE_WORLD_W * TILE - TILE);
         a.y = Phaser.Math.Clamp(a.y, MAP_OY + TILE, NATURE_BOTTOM - TILE);
         this._animBeast(a);
+    }
+
+    // ── Wolves: apex predator. Hunt wild herbivores when hungry and raid the colony (attack
+    //    colonists & tamed sheep). Killing prey refills the wolf's food bar. (#28)
+    tickWolves(delta, dt) {
+        for (const w of (this.scene.wolf ?? [])) this._tickWolf(w, ANIMALS.wolf, delta, dt);
+    }
+
+    _tickWolf(w, def, delta, dt) {
+        if (w.isDead) return;
+        if (this._tickAnimalNeeds(w, def, dt)) { this._animBeast(w); return; }   // died or sleeping
+        const now = this.scene.time.now;
+        const hungry = w.needs.food < HUNT_HUNGER;
+
+        // Pick the nearest valid target. Prey (any herbivore) is fair game when hungry; colonists
+        // are raided when hungry (out to huntRadius) and defended against up close (aggroRadius).
+        let target = null, td = Infinity, targetIsUnit = false;
+        const consider = (o, isUnit, maxR) => {
+            if (!o || o.isDead || (o.hp ?? 1) <= 0) return;
+            const d = Phaser.Math.Distance.Between(w.x, w.y, o.x, o.y);
+            if (d < maxR && d < td) { td = d; target = o; targetIsUnit = isUnit; }
+        };
+        if (hungry) {
+            for (const list of [this.scene.deer, this.scene.sheep, this.scene.boar, this.scene.aurochs]) {
+                for (const p of (list ?? [])) consider(p, false, def.huntRadius);
+            }
+        }
+        for (const u of this.scene.units) {
+            if (u.isEnemy || u.hp <= 0) continue;
+            consider(u, true, hungry ? def.huntRadius : def.aggroRadius);
+        }
+
+        if (target) {
+            w.aggroTarget = target.id ?? 0;
+            const d = Phaser.Math.Distance.Between(w.x, w.y, target.x, target.y);
+            if (d <= def.atkRange) {
+                if (now - (w.lastAtk ?? 0) > 900) {
+                    w.lastAtk = now;
+                    target.hp = (target.hp ?? 1) - def.atk;
+                    this.scene.uiManager?.showFloatText?.(target.x, target.y - 14, `-${def.atk}`, '#ff6666');
+                    if (!targetIsUnit && target.hp <= 0) {   // prey down — feed
+                        this._killAnimal(target);
+                        w.needs.food = 1;
+                        w.aggroTarget = null;
+                    }
+                }
+            } else {
+                const ang = Math.atan2(target.y - w.y, target.x - w.x);   // charge
+                w.x += Math.cos(ang) * def.speed * 1.2 * dt;
+                w.y += Math.sin(ang) * def.speed * 1.2 * dt;
+            }
+            w.moveTo = null; w.wanderTimer = 0;
+        } else {
+            w.aggroTarget = null;
+            this._wander(w, delta, dt, def.speed * 0.3);
+        }
+
+        w.x = Phaser.Math.Clamp(w.x, TILE, NATURE_WORLD_W * TILE - TILE);
+        w.y = Phaser.Math.Clamp(w.y, MAP_OY + TILE, NATURE_BOTTOM - TILE);
+        this._animBeast(w);
     }
 
     // Colony centre (townhall → first camp → spawn) — tamed sheep without a pasture mill here.
@@ -237,12 +435,15 @@ export default class NatureManager {
         const friendlies = this.scene.units.filter(u => !u.isEnemy && u.hp > 0);
         for (const d of this.scene.deer) {
             if (d.isDead) continue;
+            if (this._tickAnimalNeeds(d, ANIMALS.deer, dt)) { d.moving = false; this.redrawDeer(d); continue; }
             const fleeRadius = d.fleeR ?? ANIMALS.deer.fleeRadius;
             let fleeFrom = null, fleeD = fleeRadius;
             for (const u of friendlies) {
                 const dist = Phaser.Math.Distance.Between(d.x, d.y, u.x, u.y);
                 if (dist < fleeD) { fleeD = dist; fleeFrom = u; }
             }
+            const wolf = this._nearestWolf(d, fleeRadius);
+            if (wolf) { const wd = Phaser.Math.Distance.Between(d.x, d.y, wolf.x, wolf.y); if (wd < fleeD) { fleeD = wd; fleeFrom = wolf; } }
 
             if (fleeFrom) {
                 const angle = Math.atan2(d.y - fleeFrom.y, d.x - fleeFrom.x);
@@ -254,7 +455,7 @@ export default class NatureManager {
                     if (this.scene.tileAt(nx2, ny2) && this.scene.tileAt(nx2, ny2).type !== 4) { d.x = nx2; d.y = ny2; }
                 } else { d.x = nx; d.y = ny; }
                 d.moveTo = null; d.wanderTimer = 0;
-            } else {
+            } else if (!this._grazeSeek(d, ANIMALS.deer, delta, dt)) {
                 // Grazing/Wander logic simplified for now
                 d.wanderTimer -= delta;
                 if (!d.moveTo || d.wanderTimer <= 0) {
@@ -298,6 +499,7 @@ export default class NatureManager {
         const cc = this._colonyCenter();
         for (const s of this.scene.sheep) {
             if (s.isDead) continue;
+            if (this._tickAnimalNeeds(s, ANIMALS.sheep, dt)) { s.moving = false; this.redrawSheep(s); continue; }
 
             // Wool regrows on wild sheep (autonomous shepherds shear them)
             if (!s.isTamed && !s.woolReady) {
@@ -321,7 +523,7 @@ export default class NatureManager {
                     }
                     s.followUnit = null;   // leader gone — stay tamed and graze
                 }
-                this._grazeTamed(s, delta, dt, cc);
+                if (!this._grazeSeek(s, ANIMALS.sheep, delta, dt)) this._grazeTamed(s, delta, dt, cc);
                 s.x = Phaser.Math.Clamp(s.x, TILE, NATURE_WORLD_W * TILE - TILE);
                 s.y = Phaser.Math.Clamp(s.y, MAP_OY + TILE, NATURE_BOTTOM - TILE);
                 this._animSheep(s);
@@ -335,12 +537,14 @@ export default class NatureManager {
                 const d = Phaser.Math.Distance.Between(s.x, s.y, u.x, u.y);
                 if (d < fleeD) { fleeD = d; fleeFrom = u; }
             }
+            const wolf = this._nearestWolf(s, ANIMALS.sheep.fleeRadius);
+            if (wolf) { const wd = Phaser.Math.Distance.Between(s.x, s.y, wolf.x, wolf.y); if (wd < fleeD) { fleeD = wd; fleeFrom = wolf; } }
             if (fleeFrom) {
                 const angle = Math.atan2(s.y - fleeFrom.y, s.x - fleeFrom.x);
                 s.x += Math.cos(angle) * ANIMALS.sheep.speed * dt;
                 s.y += Math.sin(angle) * ANIMALS.sheep.speed * dt;
                 s.moveTo = null; s.wanderTimer = 0;
-            } else {
+            } else if (!this._grazeSeek(s, ANIMALS.sheep, delta, dt)) {
                 this._wander(s, delta, dt, ANIMALS.sheep.speed * 0.3);
             }
             s.x = Phaser.Math.Clamp(s.x, TILE, NATURE_WORLD_W * TILE - TILE);
@@ -411,10 +615,12 @@ export default class NatureManager {
         const wildSheep   = this.scene.sheep.filter(s => !s.isDead && !s.isTamed).length;
         const wildBoar    = this.scene.boar.filter(a => !a.isDead).length;
         const wildAurochs = this.scene.aurochs.filter(a => !a.isDead).length;
+        const wildWolf    = (this.scene.wolf ?? []).filter(a => !a.isDead).length;
         if (wildDeer    < 2) this.spawnDeerAtEdge();
         if (wildSheep   < 2) this.spawnSheepAtEdge();
         if (wildBoar    < 2) this._spawnAtEdge((x, y) => this.spawnBoar(x, y));
         if (wildAurochs < 1) this._spawnAtEdge((x, y) => this.spawnAurochs(x, y));
+        if (wildWolf    < 1 && Math.random() < 0.3) this._spawnAtEdge((x, y) => this.spawnWolf(x, y));   // predators stay scarce
     }
 
     _spawnAtEdge(spawnFn) {
@@ -444,6 +650,9 @@ export default class NatureManager {
             (x, y) => this.spawnBoar(x, y), false);
         this._breedSpecies(this.scene.aurochs.filter(a => !a.isDead), ANIMALS.aurochs, ANIMALS.aurochs.maxCount,
             (x, y) => this.spawnAurochs(x, y), false);
+        // Wolves only breed when well-fed, so the pack grows only when prey is plentiful.
+        this._breedSpecies((this.scene.wolf ?? []).filter(w => !w.isDead && (w.needs?.food ?? 1) > 0.6),
+            ANIMALS.wolf, ANIMALS.wolf.maxCount, (x, y) => this.spawnWolf(x, y), false);
     }
 
     _breedSpecies(herd, def, cap, spawnFn, tamed) {
@@ -464,6 +673,7 @@ export default class NatureManager {
                 : def === ANIMALS.deer    ? '🦌 fawn born'
                 : def === ANIMALS.boar    ? '🐗 piglet born'
                 : def === ANIMALS.aurochs ? '🐂 calf born'
+                : def === ANIMALS.wolf    ? '🐺 pup born'
                 : '🐑 lamb born';
             this.scene.uiManager?.showFloatText?.(baby.x, baby.y - 14, bornText, '#cfeac0');
             return;   // one birth per breed window per species
@@ -493,6 +703,7 @@ export default class NatureManager {
         place((x, y) => this.spawnSheep(x, y),   Math.ceil(ANIMALS.sheep.maxCount * 0.7));
         place((x, y) => this.spawnBoar(x, y),    Math.ceil(ANIMALS.boar.maxCount * 0.6));
         place((x, y) => this.spawnAurochs(x, y), Math.ceil(ANIMALS.aurochs.maxCount * 0.5));
+        place((x, y) => this.spawnWolf(x, y),    Math.ceil(ANIMALS.wolf.maxCount * 0.4));
     }
 
     spawnDeerAtEdge() {

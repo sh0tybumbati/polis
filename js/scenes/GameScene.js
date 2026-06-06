@@ -85,6 +85,7 @@ export default class GameScene extends Phaser.Scene {
         this.sheep       = [];
         this.boar        = [];
         this.aurochs     = [];
+        this.wolf        = [];
         this.discoveredCrops = new Set();   // crop keys unlocked by harvesting their wild form (#22)
         this.unlockedConstructs = new Set(['camp']);   // types the colony knows how to build (archon pioneers the first of each)
         this.knownTechs    = new Set();   // researched techs (tech tree); gates advanced constructs
@@ -218,7 +219,7 @@ export default class GameScene extends Phaser.Scene {
                 s.gfx = this._w(this.add.graphics().setDepth(5));
                 this.natureManager.redrawSheep(s);
             }
-            for (const a of [...this.boar, ...this.aurochs]) {
+            for (const a of [...this.boar, ...this.aurochs, ...this.wolf]) {
                 a.gfx = this._w(this.add.graphics().setDepth(5));
                 this.natureManager.redrawAnimal(a);
             }
@@ -304,6 +305,7 @@ export default class GameScene extends Phaser.Scene {
                 sheep: this.sheep.map(s => this._serAnimal(s)),
                 boar:    this.boar.map(a => this._serAnimal(a)),
                 aurochs: this.aurochs.map(a => this._serAnimal(a)),
+                wolf:    this.wolf.map(a => this._serAnimal(a)),
                 discoveredCrops: [...this.discoveredCrops],
                 unlockedConstructs: [...this.unlockedConstructs],
                 knownTechs: [...this.knownTechs],
@@ -394,6 +396,7 @@ export default class GameScene extends Phaser.Scene {
             this.sheep     = (s.sheep     ?? []).map(ss => ({ ...ss, species: ss.species ?? 'sheep', gfx: null, followUnit: null }));
             this.boar      = (s.boar      ?? []).map(a => ({ ...a, species: a.species ?? 'boar', gfx: null }));
             this.aurochs   = (s.aurochs   ?? []).map(a => ({ ...a, species: a.species ?? 'aurochs', gfx: null }));
+            this.wolf      = (s.wolf      ?? []).map(a => ({ ...a, species: a.species ?? 'wolf', gfx: null }));
             this.discoveredCrops = new Set(s.discoveredCrops ?? []);
             // Unlocked build types: restore, then back-fill from anything already built (old saves).
             this.unlockedConstructs = new Set(s.unlockedConstructs ?? ['camp']);
