@@ -9,8 +9,9 @@ import sheep   from './sheep.js';
 import boar    from './boar.js';
 import aurochs from './aurochs.js';
 import wolf    from './wolf.js';
+import human   from './human.js';
 
-const defs = [critter, deer, sheep, boar, aurochs, wolf];
+const defs = [critter, deer, sheep, boar, aurochs, wolf, human];
 
 export const SPRITES = Object.fromEntries(defs.map(d => [d.id, d]));
 

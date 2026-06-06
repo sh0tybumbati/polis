@@ -24,6 +24,10 @@ import { renderShapes, res } from '../engine/renderShapes.js';
 import { renderRig } from '../engine/renderRig.js';
 import { vectorizeImage } from '../engine/vectorize.js';
 import { SPRITES } from '../content/sprites/index.js';
+import { ANIMALS } from '../content/animals/index.js';
+import { UNITS } from '../content/units/index.js';
+import { ENTITY_PARAM_SCHEMA, KEY_CHOICES, paramsFromDef } from '../content/entityParams.js';
+import { saveOverride, applyEntityOverrides } from '../content/entityOverrides.js';
 
 const PALETTE = [
     0xccccaa, 0xffdd44, 0x66dd44, 0xee4466, 0x9999bb, 0xf0ece0, 0xdd8833, 0xffaa22,
@@ -50,9 +54,15 @@ export default class SpriteEditorScene extends Phaser.Scene {
 
         // Editor state
         this.tool = 'place';                              // 'place' | 'pan'
-        this.openPanel = null;                            // 'color' | 'parts' | 'props' | 'anim' | null
+        this.openPanel = null;                            // 'load'|'color'|'parts'|'props'|'inspect'|'anim'|'trace'|null
         this.activePart = 0;
         this.selIdx = -1;
+        this.view = null;                                 // facing for directional rigs (null = flat parts)
+        this.entityId = null;                             // id of the loaded entity (for Save/override)
+        this.entityKind = null;                           // 'animal' | 'unit' | null
+        this.params = {};                                 // scalar behavioural params (entityParams schema)
+        this._selVerts = new Set();                       // multi-selected vertex handle keys (active shape)
+        this._inspScroll = 0;
         this.newType = 'circle';
         this.newFill = 0xccccaa;
         this.newAlpha = 1.0;
@@ -105,9 +115,38 @@ export default class SpriteEditorScene extends Phaser.Scene {
             parts: [{ name: 'part1', pivot: { x: 0, y: 0 }, z: 0, shapes: [] }], clips: {} };
     }
 
-    activeShapes() { return this.rig.parts[this.activePart]?.shapes ?? []; }
+    // Parts for the currently-edited view (directional rig) or the flat parts array.
+    _partList() {
+        if (this.rig.views) {
+            const keys = Object.keys(this.rig.views);
+            if (!this.view || !this.rig.views[this.view]) this.view = keys[0] || 'south';
+            return this.rig.views[this.view] ?? (this.rig.views[this.view] = []);
+        }
+        this.view = null;
+        return this.rig.parts ?? (this.rig.parts = []);
+    }
+    _viewKeys() { return this.rig.views ? Object.keys(this.rig.views) : []; }
+
+    activeShapes() { return this._partList()[this.activePart]?.shapes ?? []; }
 
     _clone(o) { return JSON.parse(JSON.stringify(o)); }
+
+    // ── Entity loading (rig + params from the live registries) ───────────────────
+    _entityIds() { return Object.keys(SPRITES); }
+    _loadEntity(id) {
+        const rig = SPRITES[id];
+        if (!rig) return;
+        this._pushUndo();
+        this.rig = this._clone(rig);
+        if (!this.rig.clips) this.rig.clips = {};
+        this.entityId = id;
+        this.entityKind = ANIMALS[id] ? 'animal' : (UNITS[id] ? 'unit' : null);
+        const def = ANIMALS[id] || UNITS[id] || null;
+        this.params = this.entityKind ? paramsFromDef(def, this.entityKind) : {};
+        this.view = this.rig.views ? (Object.keys(this.rig.views)[0] || 'south') : null;
+        this.activePart = 0; this.selIdx = -1; this._selVerts.clear();
+        this._fitView(); this._autosave(); this._redraw();
+    }
 
     // ── Persistence ───────────────────────────────────────────────────────────────
 
@@ -145,9 +184,11 @@ export default class SpriteEditorScene extends Phaser.Scene {
         this._clampSelection(); this._autosave(); this._redraw();
     }
     _clampSelection() {
-        if (this.activePart >= this.rig.parts.length) this.activePart = this.rig.parts.length - 1;
+        const pl = this._partList();
+        if (this.activePart >= pl.length) this.activePart = pl.length - 1;
         if (this.activePart < 0) this.activePart = 0;
         if (this.selIdx >= this.activeShapes().length) this.selIdx = -1;
+        this._selVerts.clear();
     }
 
     // ── Coordinate mapping (rig units ↔ screen) ─────────────────────────────────────
@@ -168,7 +209,7 @@ export default class SpriteEditorScene extends Phaser.Scene {
     }
     _rigBounds() {
         let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity, any = false;
-        for (const part of this.rig.parts) for (const s of part.shapes) {
+        for (const part of this._partList()) for (const s of part.shapes) {
             const b = this._shapeBounds(s); if (!b) continue;
             any = true;
             minX = Math.min(minX, b.minX); minY = Math.min(minY, b.minY);
@@ -210,6 +251,79 @@ export default class SpriteEditorScene extends Phaser.Scene {
         return gx >= b.minX - PAD && gx <= b.maxX + PAD && gy >= b.minY - PAD && gy <= b.maxY + PAD;
     }
 
+    // ── Vertex handles (draggable points of a shape) ─────────────────────────────────
+    // Returns [{ key, x, y }] in rig coords. `key` identifies the handle for drag/multi-select.
+    _shapeHandles(s) {
+        const v = this.pv, n = (f) => res(s[f], v);
+        switch (s.type) {
+            case 'circle':   return [{ key: 'c', x: n('x'), y: n('y') }, { key: 'r', x: n('x') + n('r'), y: n('y') }];
+            case 'ellipse':  return [{ key: 'c', x: n('x'), y: n('y') }, { key: 'rx', x: n('x') + n('rx'), y: n('y') }, { key: 'ry', x: n('x'), y: n('y') + n('ry') }];
+            case 'rect':     return [{ key: 'tl', x: n('x'), y: n('y') }, { key: 'br', x: n('x') + n('w'), y: n('y') + n('h') }];
+            case 'line':     return [{ key: 'p1', x: n('x1'), y: n('y1') }, { key: 'p2', x: n('x2'), y: n('y2') }];
+            case 'triangle': return [{ key: 'p1', x: n('x1'), y: n('y1') }, { key: 'p2', x: n('x2'), y: n('y2') }, { key: 'p3', x: n('x3'), y: n('y3') }];
+            case 'polygon':  return (s.points ?? []).map((p, i) => ({ key: 'pt' + i, x: p.x, y: p.y }));
+        }
+        return [];
+    }
+    // Hit-test handles of the selected shape; returns the handle key within HIT screen-px, or null.
+    _hitHandle(s, ptrX, ptrY) {
+        const HIT = 8;
+        for (const h of this._shapeHandles(s)) {
+            const dx = this._sx(h.x) - ptrX, dy = this._sy(h.y) - ptrY;
+            if (dx * dx + dy * dy <= HIT * HIT) return h.key;
+        }
+        return null;
+    }
+    // Move one handle by a rig-space delta (mutates the right field(s)).
+    _moveHandle(s, key, dx, dy) {
+        const r1 = (val) => Math.round(val * 10) / 10;
+        const add = (f, d) => { s[f] = r1((s[f] ?? 0) + d); };
+        switch (s.type) {
+            case 'circle':
+                if (key === 'c') { add('x', dx); add('y', dy); }
+                else if (key === 'r') s.r = Math.max(0.5, r1((s.r ?? 1) + dx));
+                break;
+            case 'ellipse':
+                if (key === 'c') { add('x', dx); add('y', dy); }
+                else if (key === 'rx') s.rx = Math.max(0.5, r1((s.rx ?? 1) + dx));
+                else if (key === 'ry') s.ry = Math.max(0.5, r1((s.ry ?? 1) + dy));
+                break;
+            case 'rect':
+                if (key === 'tl') { add('x', dx); add('y', dy); s.w = Math.max(1, r1((s.w ?? 1) - dx)); s.h = Math.max(1, r1((s.h ?? 1) - dy)); }
+                else if (key === 'br') { s.w = Math.max(1, r1((s.w ?? 1) + dx)); s.h = Math.max(1, r1((s.h ?? 1) + dy)); }
+                break;
+            case 'line': case 'triangle': {
+                const i = key.slice(1);               // 'p1'->'1'
+                add('x' + i, dx); add('y' + i, dy);
+                break;
+            }
+            case 'polygon': {
+                const p = s.points?.[parseInt(key.slice(2), 10)];
+                if (p) { p.x = r1(p.x + dx); p.y = r1(p.y + dy); }
+                break;
+            }
+        }
+    }
+    // Polygon vertex add/remove (relative to the selected vertex, or appended).
+    _addPolyPoint() {
+        const s = this.activeShapes()[this.selIdx];
+        if (!s || s.type !== 'polygon' || !s.points?.length) return;
+        this._pushUndo();
+        const i = this._lastVert ?? s.points.length - 1;
+        const a = s.points[i], b = s.points[(i + 1) % s.points.length];
+        s.points.splice(i + 1, 0, { x: Math.round((a.x + b.x) / 2), y: Math.round((a.y + b.y) / 2) });
+        this._autosave(); this._redraw();
+    }
+    _delPolyPoint() {
+        const s = this.activeShapes()[this.selIdx];
+        if (!s || s.type !== 'polygon' || (s.points?.length ?? 0) <= 3) return;
+        this._pushUndo();
+        const i = this._lastVert ?? s.points.length - 1;
+        s.points.splice(i, 1);
+        this._selVerts.clear(); this._lastVert = null;
+        this._autosave(); this._redraw();
+    }
+
     // ── Shape manipulation ──────────────────────────────────────────────────────────
 
     _placeShape(gx, gy) {
@@ -246,13 +360,14 @@ export default class SpriteEditorScene extends Phaser.Scene {
 
     _addPart() {
         this._pushUndo();
-        const n = this.rig.parts.length + 1;
-        this.rig.parts.push({ name: `part${n}`, pivot: { x: 0, y: 0 }, z: n - 1, shapes: [] });
-        this.activePart = this.rig.parts.length - 1;
+        const pl = this._partList();
+        const n = pl.length + 1;
+        pl.push({ name: `part${n}`, pivot: { x: 0, y: 0 }, z: n - 1, shapes: [] });
+        this.activePart = pl.length - 1;
         this.selIdx = -1;
     }
     _cyclePartName(dir) {
-        const part = this.rig.parts[this.activePart]; if (!part) return;
+        const part = this._partList()[this.activePart]; if (!part) return;
         // cycle through standard limb names + the part's own custom name
         const opts = [...STD_PARTS, part.name].filter((v, i, a) => a.indexOf(v) === i);
         const cur = opts.indexOf(part.name);
@@ -261,7 +376,7 @@ export default class SpriteEditorScene extends Phaser.Scene {
         this._redraw();
     }
     _setPivotToSelection() {
-        const part = this.rig.parts[this.activePart]; if (!part) return;
+        const part = this._partList()[this.activePart]; if (!part) return;
         this._pushUndo();
         if (this.selIdx >= 0) {
             const c = this._shapeCenter(this.activeShapes()[this.selIdx]);
@@ -361,7 +476,7 @@ export default class SpriteEditorScene extends Phaser.Scene {
         return this.rig.clips[this.activeClip];
     }
     _addKey() {
-        const part = this.rig.parts[this.activePart]; if (!part) return;
+        const part = this._partList()[this.activePart]; if (!part) return;
         this._pushUndo();
         const clip = this._ensureClip();
         const track = clip.tracks[part.name] ?? (clip.tracks[part.name] = []);
@@ -373,7 +488,7 @@ export default class SpriteEditorScene extends Phaser.Scene {
         this._redraw();
     }
     _clearTrack() {
-        const part = this.rig.parts[this.activePart]; if (!part) return;
+        const part = this._partList()[this.activePart]; if (!part) return;
         const clip = this.rig.clips?.[this.activeClip]; if (!clip?.tracks?.[part.name]) return;
         this._pushUndo();
         delete clip.tracks[part.name];
@@ -394,16 +509,39 @@ export default class SpriteEditorScene extends Phaser.Scene {
             }
             let gx = this._gx(ptr.x), gy = this._gy(ptr.y);
             if (this.gridSnap) { gx = Math.round(gx); gy = Math.round(gy); }
+            const shift = !!ptr.event?.shiftKey;
+
+            // 1) Vertex handles of the already-selected shape take priority.
+            const cur = this.activeShapes()[this.selIdx];
+            if (cur) {
+                const hk = this._hitHandle(cur, ptr.x, ptr.y);
+                if (hk) {
+                    this._lastVert = hk.startsWith('pt') ? parseInt(hk.slice(2), 10) : this._lastVert;
+                    if (shift) {                       // toggle membership, no drag
+                        this._selVerts.has(hk) ? this._selVerts.delete(hk) : this._selVerts.add(hk);
+                        this._redraw();
+                        return;
+                    }
+                    if (!this._selVerts.has(hk)) { this._selVerts.clear(); this._selVerts.add(hk); }
+                    this._drag = { ox: gx, oy: gy, moved: false, verts: [...this._selVerts] };
+                    this._redraw();
+                    return;
+                }
+            }
+
+            // 2) Whole-shape select / drag.
             const sh = this.activeShapes();
             for (let i = sh.length - 1; i >= 0; i--) {
                 if (this._hitTest(sh[i], gx, gy)) {
-                    this.selIdx = i;
+                    this.selIdx = i; this._selVerts.clear();
                     this._drag = { ox: gx, oy: gy, moved: false };
                     this._redraw();
                     return;
                 }
             }
-            this.selIdx = -1;
+
+            // 3) Miss → place a new shape.
+            this.selIdx = -1; this._selVerts.clear();
             this._pushUndo();
             this._placeShape(gx, gy);
             this._drag = null;
@@ -423,7 +561,9 @@ export default class SpriteEditorScene extends Phaser.Scene {
             const dx = gx - this._drag.ox, dy = gy - this._drag.oy;
             if (dx === 0 && dy === 0) return;
             if (!this._drag.moved) { this._pushUndo(); this._drag.moved = true; }
-            if (this.selIdx >= 0) this._translateShape(this.activeShapes()[this.selIdx], dx, dy);
+            const s = this.activeShapes()[this.selIdx];
+            if (s && this._drag.verts) { for (const k of this._drag.verts) this._moveHandle(s, k, dx, dy); }
+            else if (s) this._translateShape(s, dx, dy);
             this._drag.ox = gx; this._drag.oy = gy;
             this._drawShapesOnly();
         });
@@ -435,6 +575,16 @@ export default class SpriteEditorScene extends Phaser.Scene {
 
         // Scroll to zoom toward the cursor.
         this.input.on('wheel', (ptr, _over, _dx, dy) => {
+            // Over an open scrolling popover (inspector), scroll its content instead of zooming.
+            if (this.openPanel === 'inspect') {
+                const POP_W = Math.min(Math.round(this.W * 0.30), 280);
+                const px = this.RAIL_X - POP_W - 2;
+                if (ptr.x >= px && ptr.x < this.RAIL_X) {
+                    this._inspScroll = Math.max(0, this._inspScroll + (dy > 0 ? 60 : -60));
+                    this._redraw();
+                    return;
+                }
+            }
             if (ptr.x >= this.RAIL_X) return;            // ignore over the rail
             const gx = this._gx(ptr.x), gy = this._gy(ptr.y);
             this.VS = Phaser.Math.Clamp(this.VS * (dy < 0 ? 1.1 : 0.9), 0.5, 60);
@@ -498,27 +648,34 @@ export default class SpriteEditorScene extends Phaser.Scene {
         if (this.playing || this._scrubbing) {
             renderRig(this.shpGfx, this.rig, {
                 scale: this.VS, ox, oy, walkPhase: this._phase, moving: true,
+                facing: this.view ?? 'south',
                 clip: this.activeClip, clipTime: this.playhead,
             });
         } else {
-            // Static authoring view: draw each part; dim the inactive ones; mark pivots.
-            const sorted = [...this.rig.parts].sort((a, b) => (a.z ?? 0) - (b.z ?? 0));
+            // Static authoring view: draw each part of the current view; dim inactive; mark pivots.
+            const pl = this._partList();
+            const sorted = [...pl].sort((a, b) => (a.z ?? 0) - (b.z ?? 0));
             for (const part of sorted) {
-                const active = part === this.rig.parts[this.activePart];
+                const active = part === pl[this.activePart];
                 renderShapes(this.shpGfx, part.shapes, this.pv, { scale: this.VS, ox, oy, alpha: active ? 1 : 0.35 });
             }
             // pivots
-            for (const part of this.rig.parts) {
-                const active = part === this.rig.parts[this.activePart];
+            for (const part of pl) {
+                const active = part === pl[this.activePart];
                 this.selGfx.fillStyle(active ? 0xff8844 : 0x886644, active ? 1 : 0.6)
                     .fillCircle(this._sx(part.pivot.x), this._sy(part.pivot.y), active ? 3 : 2);
             }
-            // selection handle
+            // selection bbox + draggable vertex handles for the selected shape
             const s = this.activeShapes()[this.selIdx];
             if (s) {
                 const b = this._shapeBounds(s);
-                if (b) this.selGfx.lineStyle(1, 0x88ffaa, 0.9)
+                if (b) this.selGfx.lineStyle(1, 0x88ffaa, 0.5)
                     .strokeRect(this._sx(b.minX) - 2, this._sy(b.minY) - 2, (b.maxX - b.minX) * this.VS + 4, (b.maxY - b.minY) * this.VS + 4);
+                for (const h of this._shapeHandles(s)) {
+                    const hx = this._sx(h.x), hy = this._sy(h.y), sel = this._selVerts.has(h.key);
+                    this.selGfx.fillStyle(sel ? 0xffdd44 : 0x44ddff, 1).fillRect(hx - 3, hy - 3, 6, 6);
+                    this.selGfx.lineStyle(1, 0x06140c, 1).strokeRect(hx - 3, hy - 3, 6, 6);
+                }
             }
         }
         // origin marker
@@ -602,6 +759,9 @@ export default class SpriteEditorScene extends Phaser.Scene {
         const sep = () => items.push({ sep: true });
         items.push({ ic: '✕', col: 0x221111, cb: () => this._close(), tip: 'Close  (Esc)' });
         sep();
+        items.push({ ic: '📂', cb: () => this._togglePanel('load'), active: this.openPanel === 'load', tip: 'Load entity' });
+        items.push({ ic: '💾', col: 0x112a14, cb: () => this._saveOverride(), tip: this.entityId ? `Save '${this.entityId}' (live)` : 'Load an entity first' });
+        sep();
         items.push({ ic: '↶', cb: () => this._undo(), tip: 'Undo  (Ctrl+Z)' });
         items.push({ ic: '↷', cb: () => this._redo(), tip: 'Redo  (Ctrl+Y)' });
         sep();
@@ -610,8 +770,9 @@ export default class SpriteEditorScene extends Phaser.Scene {
         items.push({ ic: '✋', cb: () => { this.tool = this.tool === 'pan' ? 'place' : 'pan'; this._redraw(); }, active: this.tool === 'pan', tip: 'Pan  (or middle/right-drag)' });
         sep();
         items.push({ ic: '🎨', cb: () => this._togglePanel('color'), active: this.openPanel === 'color', tip: 'Colour & alpha' });
-        items.push({ ic: '🧩', cb: () => this._togglePanel('parts'), active: this.openPanel === 'parts', tip: 'Parts' });
+        items.push({ ic: '🧩', cb: () => this._togglePanel('parts'), active: this.openPanel === 'parts', tip: 'Parts & shapes' });
         items.push({ ic: '⚙', cb: () => this._togglePanel('props'), active: this.openPanel === 'props', tip: 'Shape properties' });
+        items.push({ ic: '🧬', cb: () => this._togglePanel('inspect'), active: this.openPanel === 'inspect', tip: 'Entity parameters' });
         items.push({ ic: '🎞', cb: () => this._togglePanel('anim'), active: this.openPanel === 'anim', tip: 'Animation / keyframes' });
         sep();
         items.push({ ic: '🖼', cb: () => this._togglePanel('trace'), active: this.openPanel === 'trace', tip: 'Import image → trace' });
@@ -641,14 +802,16 @@ export default class SpriteEditorScene extends Phaser.Scene {
         this.uiGfx.lineStyle(1, 0x2a3a2a).strokeRect(x, 0, POP_W, this.H);
         const px = x + 8, pw = POP_W - 16;
         let py = 8;
-        const titles = { color: '🎨 Colour & alpha', parts: '🧩 Parts', props: '⚙ Shape', anim: '🎞 Animation', trace: '🖼 Import & trace' };
+        const titles = { load: '📂 Load entity', color: '🎨 Colour & alpha', parts: '🧩 Parts & shapes', props: '⚙ Shape', inspect: '🧬 Parameters', anim: '🎞 Animation', trace: '🖼 Import & trace' };
         this._txt(px, py + 2, titles[this.openPanel], { fontSize: this._fs(11), color: '#c8a030' });
         this._btn(x + POP_W - 24, py - 2, 20, 20, '✕', 0x221111, () => this._togglePanel(this.openPanel));
         py += 24;
         this.uiGfx.lineStyle(1, 0x223322, 0.6).lineBetween(px, py, px + pw, py); py += 6;
-        if (this.openPanel === 'color') this._panelColor(px, py, pw);
+        if (this.openPanel === 'load') this._panelLoad(px, py, pw);
+        else if (this.openPanel === 'color') this._panelColor(px, py, pw);
         else if (this.openPanel === 'parts') this._panelParts(px, py, pw);
         else if (this.openPanel === 'props') this._panelProps(px, py, pw);
+        else if (this.openPanel === 'inspect') this._panelInspect(px, py, pw);
         else if (this.openPanel === 'anim') this._panelAnim(px, py, pw);
         else if (this.openPanel === 'trace') this._panelTrace(px, py, pw);
     }
@@ -706,24 +869,143 @@ export default class SpriteEditorScene extends Phaser.Scene {
     }
 
     _panelParts(PX, py, PW) {
-        const part = this.rig.parts[this.activePart];
-        this._txt(PX, py + 3, `${this.rig.parts.length} part(s)`, { fontSize: this._fs(9), color: '#668866' });
+        const pl = this._partList();
+        // View (facing) selector for directional rigs.
+        const vks = this._viewKeys();
+        if (vks.length) {
+            this._txt(PX, py + 4, 'View', { fontSize: this._fs(9), color: '#668866' });
+            let vx = PX + 40;
+            for (const vk of vks) {
+                const w = 38;
+                this._btn(vx, py, w, 20, vk.slice(0, 4), 0x111811, () => { this.view = vk; this.activePart = 0; this.selIdx = -1; this._selVerts.clear(); this._redraw(); }, this.view === vk);
+                vx += w + 2;
+            }
+            py += 26;
+        }
+
+        const part = pl[this.activePart];
+        this._txt(PX, py + 3, `${pl.length} part(s)`, { fontSize: this._fs(9), color: '#668866' });
         this._btn(PX + PW - 44, py, 44, 20, '+ part', 0x112211, () => { this._addPart(); this._redraw(); });
+        py += 24;
+        // Clickable part list (compact rows).
+        for (let i = 0; i < pl.length; i++) {
+            const p = pl[i], on = i === this.activePart;
+            this._btn(PX, py, PW - 24, 18, `${i}:${p.name}  z${p.z ?? 0}·${p.shapes.length}`, on ? 0x18301a : 0x111811,
+                () => { this.activePart = i; this.selIdx = -1; this._selVerts.clear(); this._redraw(); }, on);
+            this._btn(PX + PW - 22, py, 22, 18, '🗑', 0x331111, () => {
+                if (pl.length > 1) { this._pushUndo(); pl.splice(i, 1); this.activePart = Math.min(this.activePart, pl.length - 1); this.selIdx = -1; this._redraw(); }
+            });
+            py += 20;
+        }
+        py += 4;
+        this._btn(PX, py, 70, 20, 'name ◀▶', 0x111811, () => this._cyclePartName(1));
+        this._btn(PX + 74, py, 56, 20, '⌖ pivot', 0x111811, () => this._setPivotToSelection());
+        this._btn(PX + PW - 56, py, 26, 20, 'z−', 0x111811, () => { if (part) { this._pushUndo(); part.z = (part.z ?? 0) - 1; this._redraw(); } });
+        this._btn(PX + PW - 28, py, 26, 20, 'z+', 0x111811, () => { if (part) { this._pushUndo(); part.z = (part.z ?? 0) + 1; this._redraw(); } });
         py += 26;
-        this._btn(PX, py, 24, 24, '◀', 0x111811, () => { this.activePart = (this.activePart + this.rig.parts.length - 1) % this.rig.parts.length; this.selIdx = -1; this._redraw(); });
-        this._txt(PX + 30, py + 7, `${this.activePart}: ${part?.name ?? '—'}`, { fontSize: this._fs(9), color: '#aaddaa' });
-        this._btn(PX + PW - 24, py, 24, 24, '▶', 0x111811, () => { this.activePart = (this.activePart + 1) % this.rig.parts.length; this.selIdx = -1; this._redraw(); });
-        py += 28;
-        this._txt(PX, py + 3, `z ${part?.z ?? 0} · ${part?.shapes.length ?? 0} shapes`, { fontSize: this._fs(8), color: '#668866' });
-        py += 18;
-        this._btn(PX, py, 74, 22, 'name ◀▶', 0x111811, () => this._cyclePartName(1));
-        this._btn(PX + 80, py, 66, 22, '⌖ pivot', 0x111811, () => this._setPivotToSelection());
+
+        // ── Shape sub-list for the active part ──
+        this.uiGfx.lineStyle(1, 0x223322, 0.6).lineBetween(PX, py, PX + PW, py); py += 6;
+        const sh = this.activeShapes();
+        this._txt(PX, py + 3, `${sh.length} shape(s)`, { fontSize: this._fs(9), color: '#668866' });
+        py += 20;
+        for (let i = 0; i < sh.length; i++) {
+            const on = i === this.selIdx;
+            this._btn(PX, py, PW - 48, 18, `#${i} ${sh[i].type}`, on ? 0x18301a : 0x111811,
+                () => { this.selIdx = i; this._selVerts.clear(); this._redraw(); }, on);
+            this._btn(PX + PW - 46, py, 22, 18, '⧉', 0x111811, () => { this._pushUndo(); const c = this._clone(sh[i]); this._translateShape(c, 2, 2); sh.push(c); this.selIdx = sh.length - 1; this._redraw(); });
+            this._btn(PX + PW - 22, py, 22, 18, '🗑', 0x331111, () => { this.selIdx = i; this._deleteSelected(); this._redraw(); });
+            py += 20;
+        }
+        py += 4;
+        // Add-shape buttons (pick a type → tap canvas, OR add at origin immediately).
+        this._txt(PX, py, 'add:', { fontSize: this._fs(8), color: '#668866' }); py += 14;
+        let ax = PX;
+        for (const [icon, tp] of SHAPE_TYPES) {
+            this._btn(ax, py, 30, 22, icon, 0x111811, () => { this.newType = tp; this.tool = 'place'; this._placeShape(0, 0); this._pushUndo(); this._autosave(); this._redraw(); }, this.newType === tp);
+            ax += 32; if (ax > PX + PW - 30) { ax = PX; py += 24; }
+        }
         py += 26;
-        this._btn(PX, py, 32, 22, 'z−', 0x111811, () => { if (part) { this._pushUndo(); part.z = (part.z ?? 0) - 1; this._redraw(); } });
-        this._btn(PX + 36, py, 32, 22, 'z+', 0x111811, () => { if (part) { this._pushUndo(); part.z = (part.z ?? 0) + 1; this._redraw(); } });
-        this._btn(PX + PW - 64, py, 64, 22, '🗑 part', 0x331111, () => {
-            if (this.rig.parts.length > 1) { this._pushUndo(); this.rig.parts.splice(this.activePart, 1); this.activePart = 0; this.selIdx = -1; this._redraw(); }
-        });
+        const sel = sh[this.selIdx];
+        if (sel?.type === 'polygon') {
+            this._txt(PX, py + 3, `polygon · ${sel.points.length} pts`, { fontSize: this._fs(8), color: '#668866' });
+            this._btn(PX + PW - 56, py, 26, 20, '+pt', 0x112011, () => this._addPolyPoint());
+            this._btn(PX + PW - 28, py, 26, 20, '−pt', 0x331111, () => this._delPolyPoint());
+        }
+    }
+
+    // ── Load / Save / params inspector ───────────────────────────────────────────────
+    _panelLoad(PX, py, PW) {
+        this._txt(PX, py, 'Pick a creature to edit:', { fontSize: this._fs(8), color: '#668866' }); py += 16;
+        for (const id of this._entityIds()) {
+            const on = id === this.entityId;
+            const kind = ANIMALS[id] ? '🐾' : (UNITS[id] ? '🧍' : '◇');
+            this._btn(PX, py, PW, 20, `${kind} ${id}`, on ? 0x18301a : 0x111811, () => this._loadEntity(id), on);
+            py += 22;
+        }
+        py += 8;
+        this._txt(PX, py, this.entityId ? `Loaded: ${this.entityId} · ${this.entityKind ?? 'rig'}` : 'Editing scratch rig.', { fontSize: this._fs(8), color: '#88aa88' });
+        py += 14;
+        this._txt(PX, py, '💾 saves a live override.', { fontSize: this._fs(7), color: '#557755' });
+    }
+
+    _panelInspect(PX, py, PW) {
+        if (!this.entityKind) {
+            this._txt(PX, py + 3, 'No entity loaded.', { fontSize: this._fs(9), color: '#668866' });
+            this._txt(PX, py + 22, 'Use 📂 to load an animal', { fontSize: this._fs(8), color: '#446644' });
+            this._txt(PX, py + 36, 'or unit, then tune it here.', { fontSize: this._fs(8), color: '#446644' });
+            return;
+        }
+        const fields = ENTITY_PARAM_SCHEMA.filter(f => f.applies === 'both' || f.applies === this.entityKind);
+        const top = py, bottom = this.H - 6;
+        let yy = py - this._inspScroll, group = null;
+        const draw = (fn, h) => { if (yy >= top && yy <= bottom - h) fn(yy); yy += h; };
+        for (const f of fields) {
+            if (f.group !== group) { group = f.group; draw(y => this._txt(PX, y + 2, `— ${group}${f.wired === false ? '  (saved, not yet wired)' : ''}`, { fontSize: this._fs(8), color: '#8a7a40' }), 16); }
+            draw(y => this._inspectRow(PX, y, PW, f), 20);
+        }
+        // scrollbar hint
+        this._txt(PX, bottom - 12, 'scroll to see more · 💾 save', { fontSize: this._fs(7), color: '#446644' });
+    }
+
+    _inspectRow(PX, y, PW, f) {
+        const val = this.params[f.key];
+        this._txt(PX, y + 4, f.label, { fontSize: this._fs(8), color: f.wired === false ? '#7a8a6a' : '#a8c8a8' });
+        const RX = PX + PW - 96;
+        const set = (v) => { this.params[f.key] = v; this._autosave(); this._redraw(); };
+        if (f.kind === 'num' || f.kind === 'int') {
+            const step = f.step ?? 1, lo = f.min ?? -Infinity, hi = f.max ?? Infinity;
+            const fmt = (n) => f.kind === 'int' ? String(Math.round(n)) : (Math.round(n * 100) / 100).toString();
+            this._btn(RX, y, 20, 18, '−', 0x111811, () => set(Phaser.Math.Clamp(Math.round(((val ?? f.def) - step) * 100) / 100, lo, hi)));
+            this._txt(RX + 24, y + 4, fmt(val ?? f.def), { fontSize: this._fs(8), color: '#ddddaa' });
+            this._btn(RX + 74, y, 20, 18, '+', 0x111811, () => set(Phaser.Math.Clamp(Math.round(((val ?? f.def) + step) * 100) / 100, lo, hi)));
+        } else if (f.kind === 'bool') {
+            this._btn(RX + 40, y, 54, 18, (val ? 'ON' : 'off'), 0x111811, () => set(!val), !!val);
+        } else if (f.kind === 'enum' || f.kind === 'key') {
+            const opts = f.kind === 'key' ? (KEY_CHOICES[f.keyset] ?? []) : f.options;
+            const cur = Math.max(0, opts.indexOf(val));
+            const cyc = (d) => set(opts[(cur + d + opts.length) % opts.length]);
+            this._btn(RX, y, 18, 18, '◀', 0x111811, () => cyc(-1));
+            const label = f.kind === 'key' ? String(val ?? '—').split('.').pop() : String(val ?? '—');
+            this._txt(RX + 21, y + 4, label.slice(0, 9), { fontSize: this._fs(7), color: '#ddddaa' });
+            this._btn(RX + 76, y, 18, 18, '▶', 0x111811, () => cyc(1));
+        }
+    }
+
+    _saveOverride() {
+        if (!this.entityId) { this._toast('Load an entity first (📂)'); return; }
+        const rig = this._clone(this.rig);
+        const params = this.entityKind ? { ...this.params } : undefined;
+        saveOverride(this.entityId, { rig, params });
+        applyEntityOverrides(SPRITES, ANIMALS, UNITS);   // live: game shows it without reload
+        this._toast(`Saved '${this.entityId}' ✓ (live)`);
+    }
+
+    _toast(msg) {
+        if (!this._toastTxt) this._toastTxt = this.add.text(0, 0, '', { fontFamily: 'monospace', fontSize: this._fs(11), color: '#cfeac0', backgroundColor: '#16301a', padding: { x: 8, y: 4 } }).setDepth(40);
+        this._toastTxt.setText(msg).setVisible(true);
+        this._toastTxt.setPosition(Math.round(this.CANVAS_W / 2 - this._toastTxt.width / 2), this.H - 44);
+        this.time.delayedCall(1500, () => this._toastTxt?.setVisible(false));
     }
 
     _panelProps(PX, py, PW) {
@@ -800,7 +1082,12 @@ export default class SpriteEditorScene extends Phaser.Scene {
         const rig = this._clone(this.rig);
         const json = JSON.stringify(rig, null, 2)
             .replace(/"(fill|color)":\s*(\d+)/g, (_m, k, n) => `"${k}": 0x${Number(n).toString(16).padStart(6, '0')}`);
-        return `// Generated by the sprite editor. Drop into js/content/sprites/ and register in index.js.\nexport default ${json};\n`;
+        let out = `// Generated by the entity editor. Drop into js/content/sprites/ and register in index.js.\nexport default ${json};\n`;
+        if (this.entityKind && Object.keys(this.params).length) {
+            const p = JSON.stringify(this.params, null, 2);
+            out += `\n// ── Params — merge these scalar fields into js/content/${this.entityKind}s/${this.entityId}.js ──\n${p}\n`;
+        }
+        return out;
     }
 
     _showExport() {

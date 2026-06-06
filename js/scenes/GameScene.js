@@ -4,6 +4,10 @@ import {
     DAY_DURATION, pickFamilyName
 } from '../config/gameConstants.js';
 import { CONSTRUCTS } from '../content/constructs/index.js';
+import { SPRITES } from '../content/sprites/index.js';
+import { ANIMALS } from '../content/animals/index.js';
+import { UNITS } from '../content/units/index.js';
+import { applyEntityOverrides } from '../content/entityOverrides.js';
 
 import ChunkManager from './ChunkManager.js';
 import MapManager from './MapManager.js';
@@ -162,6 +166,10 @@ export default class GameScene extends Phaser.Scene {
         console.log('[GameScene] SW:', this.SW, 'SH:', this.SH);
 
         this.uiCam = this.cameras.add(0, 0, this.SW, this.SH, false, 'ui');
+
+        // Apply any saved entity-editor overrides (rigs + scalar params) over the static defs so
+        // edits take effect live. Idempotent — safe to run each time the scene starts.
+        applyEntityOverrides(SPRITES, ANIMALS, UNITS);
 
         // Map + entities: load from save or generate fresh
         const loaded = this._loadGame();
