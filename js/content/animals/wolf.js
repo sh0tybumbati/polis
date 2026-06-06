@@ -6,7 +6,8 @@ export default {
     id:         'wolf',
     maxCount:   5,
     breedRadius: 4 * TILE,
-    meat:       0,              // wolves aren't eaten — but their pelts are prized
+    meat:       3,              // gamey wolf meat, plus a prized pelt
+    meatKey:    'Food.Meat.Wolf',
     hide:       2,
     hideKey:    'Textile.Hide.Wolf',
     hp:         5,
@@ -26,10 +27,15 @@ export default {
     draw(g, a, ctx = {}) {
         if (a.isDead) {
             g.fillStyle(0x2e2a22, 0.9).fillEllipse(0, 2, 24, 9);
+            if (a.meatLeft > 0) {   // meat remaining
+                const r = a.meatLeft / this.meat;
+                g.fillStyle(0x331010, 0.7).fillRect(-10, -5, 20, 4);
+                g.fillStyle(0xcc4422, 0.9).fillRect(-10, -5, 20 * r, 4);
+            }
             if (a.hideLeft > 0) {   // pelt remaining
                 const r = a.hideLeft / this.hide;
-                g.fillStyle(0x2a2418, 0.7).fillRect(-10, -5, 20, 4);
-                g.fillStyle(0x8a8478, 0.9).fillRect(-10, -5, 20 * r, 4);
+                g.fillStyle(0x2a2418, 0.7).fillRect(-10, 0, 20, 4);
+                g.fillStyle(0x8a8478, 0.9).fillRect(-10, 0, 20 * r, 4);
             }
             return;
         }

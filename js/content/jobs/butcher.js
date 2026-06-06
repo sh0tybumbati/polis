@@ -2,7 +2,7 @@ export default {
     id: 'butcher',
     input: 'Food.Meat.Venison',
     // Any raw meat (venison / pork / beef) butchers into the same sausages.
-    inputs: ['Food.Meat.Venison', 'Food.Meat.Pork', 'Food.Meat.Beef'],
+    inputs: ['Food.Meat.Venison', 'Food.Meat.Pork', 'Food.Meat.Beef', 'Food.Meat.Wolf'],
     output: 'Food.Meat.Venison.Sausages',
     carryQty: 4,
     skill: 'butcher',
