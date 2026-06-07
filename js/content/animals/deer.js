@@ -14,6 +14,12 @@ export default {
     fleeRadius: 3.5 * TILE,
     atkRange:   0.9 * TILE,
 
+    // Behaviour (entity-editor params, wired in NatureManager): timid grazing herd animal.
+    diet: 'herbivore', fightOrFlight: 'flee', aggroChancePct: 0,
+    packCohesion: 0.45, activeCycle: 'diurnal', territorialRadius: 0,
+    lifespanDays: 30, litterSize: 1, timeToAdulthoodDays: 6,
+    tameable: false, tameCost: 1,
+
     // Rig-driven: a directional body-part sprite (SPRITES.deer) animated by walkPhase + facing.
     draw(g, d, ctx = {}) {
         if (d.isDead) {

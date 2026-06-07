@@ -23,6 +23,12 @@ export default {
     atkRange:    0.9 * TILE,
     atk:         3,
 
+    // Behaviour (entity-editor params, wired in NatureManager): nocturnal pack carnivore.
+    diet: 'carnivore', fightOrFlight: 'fight', aggroChancePct: 100,
+    packCohesion: 0.6, activeCycle: 'nocturnal', territorialRadius: 0,
+    lifespanDays: 26, litterSize: 4, timeToAdulthoodDays: 6,
+    tameable: false, tameCost: 6,
+
     // Rig-driven: directional grey-canine sprite (SPRITES.wolf) animated by walkPhase + facing.
     draw(g, a, ctx = {}) {
         if (a.isDead) {

@@ -16,6 +16,12 @@ export default {
     fleeRadius: 2 * TILE,        // territorial — doesn't spook easily
     atkRange:   0.9 * TILE,
 
+    // Behaviour (entity-editor params, wired in NatureManager): omnivore that often fights back.
+    diet: 'omnivore', fightOrFlight: 'fight', aggroChancePct: 70,
+    packCohesion: 0.25, activeCycle: 'diurnal', territorialRadius: 0,
+    lifespanDays: 24, litterSize: 3, timeToAdulthoodDays: 5,
+    tameable: false, tameCost: 2,
+
     // Hostility: a boar is aggressive — it charges anyone who wanders within aggroRadius, and
     // always retaliates when struck (handled in NatureManager._tickBeast).
     aggressive: true,

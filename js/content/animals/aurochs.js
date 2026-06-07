@@ -22,6 +22,12 @@ export default {
     aggroRadius: 1.8 * TILE,
     atk:        3,
 
+    // Behaviour (entity-editor params, wired in NatureManager): herd grazer that defends hard.
+    diet: 'herbivore', fightOrFlight: 'fight', aggroChancePct: 50,
+    packCohesion: 0.5, activeCycle: 'diurnal', territorialRadius: 0,
+    lifespanDays: 40, litterSize: 1, timeToAdulthoodDays: 8,
+    tameable: false, tameCost: 4,
+
     // Rig-driven: directional ox sprite (SPRITES.aurochs) animated by walkPhase + facing.
     draw(g, a, ctx = {}) {
         if (a.isDead) {

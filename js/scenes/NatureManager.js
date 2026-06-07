@@ -80,6 +80,7 @@ export default class NatureManager {
             speed: def.speed + Phaser.Math.Between(-5, 5),
             wanderTimer: Phaser.Math.Between(2000, 5000),
             ateToday: 3, hungryDays: 0,
+            ageDays: (def.timeToAdulthoodDays ?? 0) + Phaser.Math.Between(0, 10),
             needs: { food: 0.7 + Math.random() * 0.3, rest: 0.7 + Math.random() * 0.3 },
             gfx: this.scene._w(this.scene.add.graphics().setDepth(5)),
         };
@@ -102,6 +103,7 @@ export default class NatureManager {
             hp: 2, isDead: false, isTamed: false, followUnit: null,
             woolReady: true, woolTimer: 0,
             ateToday: 3, hungryDays: 0,
+            ageDays: (ANIMALS.sheep.timeToAdulthoodDays ?? 0) + Phaser.Math.Between(0, 10),
             needs: { food: 0.7 + Math.random() * 0.3, rest: 0.7 + Math.random() * 0.3 },
             gfx: this.scene._w(this.scene.add.graphics().setDepth(5)),
         };
@@ -176,6 +178,8 @@ export default class NatureManager {
         n.food = Math.max(0, n.food - dt * FOOD_DECAY);
         n.rest = Math.max(0, n.rest - dt * REST_DECAY);
         if (n.rest <= TIRED) { a.isSleeping = true; a.moveTo = null; }
+        // Off-cycle (a diurnal animal at night / nocturnal by day): drift to sleep when undisturbed.
+        else if (!a.aggroTarget && !this._isActiveTime(def) && n.rest < 0.7 && Math.random() < dt * 0.6) { a.isSleeping = true; a.moveTo = null; }
         if (n.food <= 0) {
             a.hp = (a.hp ?? 1) - dt * STARVE_HP;
             if (a.hp <= 0) { this._killAnimal(a); return true; }
@@ -189,6 +193,97 @@ export default class NatureManager {
         if (a.isDead) return;
         a.isDead = true; a.hp = 0; a.moveTo = null; a.moving = false; a.aggroTarget = null;
         this.redrawAnimal(a);
+    }
+
+    // ── Behaviour params (entity-editor fields → sim). All read def.<field> with fallbacks so
+    //    base values come from the def and live edits flow through Object.assign overrides. (#28b)
+    _allHerds() {
+        return [['deer', this.scene.deer], ['sheep', this.scene.sheep], ['boar', this.scene.boar],
+                ['aurochs', this.scene.aurochs], ['wolf', this.scene.wolf]];
+    }
+    _isAdult(a, def) { return (a.ageDays ?? (def.timeToAdulthoodDays ?? 0)) >= (def.timeToAdulthoodDays ?? 0); }
+
+    // Juveniles spawn small and grow to the def's full scale by adulthood.
+    _applyGrowth(a, def) {
+        const adult = def.timeToAdulthoodDays ?? 0, full = def.scale ?? 1;
+        a.scale = (adult > 0 && (a.ageDays ?? adult) < adult)
+            ? full * (0.5 + 0.5 * (a.ageDays ?? 0) / adult) : full;
+    }
+
+    // Once per game-day: age every animal, grow juveniles, roll old-age death past lifespan.
+    _onNewDay() {
+        for (const [sp, arr] of this._allHerds()) {
+            const def = ANIMALS[sp]; if (!def) continue;
+            for (const a of (arr ?? [])) {
+                if (a.isDead) continue;
+                a.ageDays = (a.ageDays ?? 0) + 1;
+                this._applyGrowth(a, def);
+                const span = def.lifespanDays ?? 0;
+                if (span > 0 && a.ageDays > span && Math.random() < Math.min(1, (a.ageDays - span) / 5)) {
+                    this._killAnimal(a);
+                    this.scene.uiManager?.showFloatText?.(a.x, a.y - 14, '☠ old age', '#9a8a7a');
+                } else this.redrawAnimal(a);   // reflect new scale
+            }
+        }
+    }
+
+    // Active-cycle: does this animal forage/hunt now, or is this its rest window?
+    _isActiveTime(def) {
+        const cyc = def.activeCycle ?? 'always';
+        if (cyc === 'always') return true;
+        const night = this.scene.phase === 'NIGHT';
+        return cyc === 'nocturnal' ? night : !night;
+    }
+
+    // Nearest carcass (dead animal with meat left) — omnivores scavenge these.
+    _nearestCarcass(a, r) {
+        let best = null, bd = r;
+        for (const [, arr] of this._allHerds()) for (const o of (arr ?? [])) {
+            if (o === a || !o.isDead || (o.meatLeft ?? 0) <= 0) continue;
+            const d = Phaser.Math.Distance.Between(a.x, a.y, o.x, o.y);
+            if (d < bd) { bd = d; best = o; }
+        }
+        return best;
+    }
+
+    // Diet-aware foraging when hungry: herbivores graze brush; omnivores graze or scavenge a
+    // carcass; carnivores hunt elsewhere. Returns true if it owns movement this frame.
+    _forage(a, def, delta, dt) {
+        const diet = def.diet ?? 'herbivore';
+        if (diet === 'carnivore') return false;
+        if (this._grazeSeek(a, def, delta, dt)) return true;
+        if (diet === 'omnivore') return this._scavengeSeek(a, def, delta, dt);
+        return false;
+    }
+    _scavengeSeek(a, def, delta, dt) {
+        const n = a.needs; if (!n || n.food >= HUNGRY_SEEK) return false;
+        let c = a._carcass;
+        if (!c || !c.isDead || (c.meatLeft ?? 0) <= 0) { c = this._nearestCarcass(a, 16 * TILE); a._carcass = c; }
+        if (!c) return false;
+        const d = Phaser.Math.Distance.Between(a.x, a.y, c.x, c.y);
+        if (d > GRAZE_RANGE) { a.moveTo = { x: c.x, y: c.y }; this._stepToward(a, (def.speed ?? 40) * 0.5, dt); }
+        else {
+            a.moveTo = null;
+            n.food = Math.min(1, n.food + dt * GRAZE_RATE * 1.5);
+            a._grazeAcc = (a._grazeAcc ?? 0) + dt;
+            if (a._grazeAcc >= 2) { a._grazeAcc = 0; c.meatLeft = Math.max(0, (c.meatLeft ?? 0) - 1); this.redrawAnimal(c); if (c.meatLeft <= 0) a._carcass = null; }
+            if (n.food >= 1) a._carcass = null;
+        }
+        return true;
+    }
+
+    // Pack/herd cohesion: centroid of nearby same-species animals (biases wander).
+    _herdCentroid(s, r) {
+        const arr = this.scene[s.species]; if (!arr) return null;
+        let sx = 0, sy = 0, k = 0;
+        for (const o of arr) { if (o === s || o.isDead) continue; const d = Phaser.Math.Distance.Between(s.x, s.y, o.x, o.y); if (d < r) { sx += o.x; sy += o.y; k++; } }
+        return k ? { x: sx / k, y: sy / k } : null;
+    }
+
+    // Roll whether a struck/approached animal turns hostile (% aggroChance, with fight/flight default).
+    _willFight(def) {
+        const pct = def.aggroChancePct ?? (def.aggressive || def.defensive ? 100 : (def.fightOrFlight === 'fight' ? 50 : 0));
+        return Math.random() * 100 < pct;
     }
 
     // Nearest grazable brush (scrub) node with stock remaining. Mirrors the worker's findNearNode
@@ -279,6 +374,7 @@ export default class NatureManager {
             speed: def.speed + Phaser.Math.Between(-4, 4),
             wanderTimer: Phaser.Math.Between(2000, 5000),
             ateToday: 3, hungryDays: 0,
+            ageDays: (def.timeToAdulthoodDays ?? 0) + Phaser.Math.Between(0, 10),   // seeded/edge animals are adults
             needs: { food: 0.7 + Math.random() * 0.3, rest: 0.7 + Math.random() * 0.3 },
             aggroTarget: null, aggroUntil: 0,
             gfx: this.scene._w(this.scene.add.graphics().setDepth(5)),
@@ -289,6 +385,10 @@ export default class NatureManager {
     }
 
     tick(delta, dt) {
+        // Daily aging / growth / lifespan, driven off the scene's day counter.
+        if (this._lastDay === undefined) this._lastDay = this.scene.day;
+        else if (this.scene.day !== this._lastDay) { this._lastDay = this.scene.day; this._onNewDay(); }
+
         this.tickDeer(delta, dt);
         this.tickSheep(delta, dt);
         this.tickBeasts(delta, dt);
@@ -319,12 +419,17 @@ export default class NatureManager {
             if (d < nd) { nd = d; near = u; }
         }
 
-        // Resolve a hostile target: an existing grudge, an aggressive beast's proximity aggro, or
-        // a defensive beast that's been cornered (very close).
+        // Resolve a hostile target: an existing grudge, proximity/territorial aggro (gated by the
+        // animal's aggroChance), or a defensive beast cornered very close. A struck animal's grudge
+        // is set by the hunter (UnitWorker.tickHunter) using the same aggroChance roll.
         let target = a.aggroTarget != null ? friendlies.find(u => u.id === a.aggroTarget) ?? null : null;
-        if (!target && near) {
-            if (def.aggressive && nd <= (def.aggroRadius ?? 2.5 * TILE)) { target = near; }
-            else if (def.defensive && nd <= def.atkRange * 1.2)          { target = near; }
+        if (!target && near && now > (a._aggroRollUntil ?? 0)) {
+            const terr = (def.territorialRadius ?? 0) > 0 && nd <= def.territorialRadius;
+            const prox = def.aggressive && nd <= (def.aggroRadius ?? 2.5 * TILE);
+            const cornered = def.defensive && nd <= def.atkRange * 1.2;
+            if ((terr || prox) && this._willFight(def)) target = near;
+            else if (cornered) target = near;
+            else a._aggroRollUntil = now + 1500;   // don't re-roll every frame
             if (target) { a.aggroTarget = near.id; a.aggroUntil = now + 9000; }
         }
 
@@ -353,8 +458,8 @@ export default class NatureManager {
                 a.x += Math.cos(ang) * def.speed * dt;
                 a.y += Math.sin(ang) * def.speed * dt;
                 a.moveTo = null; a.wanderTimer = 0;
-            } else if (!this._grazeSeek(a, def, delta, dt)) {
-                this._wander(a, delta, dt, def.speed * 0.3);                 // graze
+            } else if (!this._forage(a, def, delta, dt)) {
+                this._wander(a, delta, dt, def.speed * 0.3);                 // graze / scavenge
             }
         }
 
@@ -373,10 +478,11 @@ export default class NatureManager {
         if (w.isDead) return;
         if (this._tickAnimalNeeds(w, def, dt)) { this._animBeast(w); return; }   // died or sleeping
         const now = this.scene.time.now;
-        const hungry = w.needs.food < HUNT_HUNGER;
+        const active = this._isActiveTime(def);                 // nocturnal → hunts at night
+        const hungry = w.needs.food < HUNT_HUNGER && active;
 
-        // Pick the nearest valid target. Prey (any herbivore) is fair game when hungry; colonists
-        // are raided when hungry (out to huntRadius) and defended against up close (aggroRadius).
+        // Pick the nearest valid target. Prey (any herbivore) is fair game when hungry & active;
+        // colonists are raided when hunting and defended against up close (or in territory).
         let target = null, td = Infinity, targetIsUnit = false;
         const consider = (o, isUnit, maxR) => {
             if (!o || o.isDead || (o.hp ?? 1) <= 0) return;
@@ -388,9 +494,10 @@ export default class NatureManager {
                 for (const p of (list ?? [])) consider(p, false, def.huntRadius);
             }
         }
+        const guardR = Math.max(def.aggroRadius ?? 0, def.territorialRadius ?? 0);
         for (const u of this.scene.units) {
             if (u.isEnemy || u.hp <= 0) continue;
-            consider(u, true, hungry ? def.huntRadius : def.aggroRadius);
+            consider(u, true, hungry ? def.huntRadius : guardR);
         }
 
         if (target) {
@@ -455,7 +562,7 @@ export default class NatureManager {
                     if (this.scene.tileAt(nx2, ny2) && this.scene.tileAt(nx2, ny2).type !== 4) { d.x = nx2; d.y = ny2; }
                 } else { d.x = nx; d.y = ny; }
                 d.moveTo = null; d.wanderTimer = 0;
-            } else if (!this._grazeSeek(d, ANIMALS.deer, delta, dt)) {
+            } else if (!this._forage(d, ANIMALS.deer, delta, dt)) {
                 // Grazing/Wander logic simplified for now
                 d.wanderTimer -= delta;
                 if (!d.moveTo || d.wanderTimer <= 0) {
@@ -523,7 +630,7 @@ export default class NatureManager {
                     }
                     s.followUnit = null;   // leader gone — stay tamed and graze
                 }
-                if (!this._grazeSeek(s, ANIMALS.sheep, delta, dt)) this._grazeTamed(s, delta, dt, cc);
+                if (!this._forage(s, ANIMALS.sheep, delta, dt)) this._grazeTamed(s, delta, dt, cc);
                 s.x = Phaser.Math.Clamp(s.x, TILE, NATURE_WORLD_W * TILE - TILE);
                 s.y = Phaser.Math.Clamp(s.y, MAP_OY + TILE, NATURE_BOTTOM - TILE);
                 this._animSheep(s);
@@ -544,7 +651,7 @@ export default class NatureManager {
                 s.x += Math.cos(angle) * ANIMALS.sheep.speed * dt;
                 s.y += Math.sin(angle) * ANIMALS.sheep.speed * dt;
                 s.moveTo = null; s.wanderTimer = 0;
-            } else if (!this._grazeSeek(s, ANIMALS.sheep, delta, dt)) {
+            } else if (!this._forage(s, ANIMALS.sheep, delta, dt)) {
                 this._wander(s, delta, dt, ANIMALS.sheep.speed * 0.3);
             }
             s.x = Phaser.Math.Clamp(s.x, TILE, NATURE_WORLD_W * TILE - TILE);
@@ -583,14 +690,20 @@ export default class NatureManager {
         this._stepToward(s, ANIMALS.sheep.speed * 0.3, dt);
     }
 
-    // Generic random wander (wild animals).
+    // Generic random wander (wild animals), biased toward the herd/pack centroid by packCohesion.
     _wander(s, delta, dt, speed) {
         s.wanderTimer = (s.wanderTimer ?? 0) - delta;
         if (!s.moveTo || s.wanderTimer <= 0) {
             const angle = Math.random() * Math.PI * 2;
             const dist  = Phaser.Math.Between(TILE * 1, TILE * 3);
-            s.moveTo = { x: Phaser.Math.Clamp(s.x + Math.cos(angle) * dist, TILE, NATURE_WORLD_W * TILE - TILE),
-                         y: Phaser.Math.Clamp(s.y + Math.sin(angle) * dist, MAP_OY + TILE, NATURE_BOTTOM - TILE) };
+            let tx = s.x + Math.cos(angle) * dist, ty = s.y + Math.sin(angle) * dist;
+            const coh = ANIMALS[s.species]?.packCohesion ?? 0;
+            if (coh > 0 && s.species) {
+                const c = this._herdCentroid(s, 12 * TILE);
+                if (c) { tx += (c.x - tx) * coh; ty += (c.y - ty) * coh; }
+            }
+            s.moveTo = { x: Phaser.Math.Clamp(tx, TILE, NATURE_WORLD_W * TILE - TILE),
+                         y: Phaser.Math.Clamp(ty, MAP_OY + TILE, NATURE_BOTTOM - TILE) };
             s.wanderTimer = Phaser.Math.Between(4000, 8000);
         }
         this._stepToward(s, speed, dt);
@@ -656,27 +769,40 @@ export default class NatureManager {
     }
 
     _breedSpecies(herd, def, cap, spawnFn, tamed) {
-        if (herd.length < 2 || herd.length >= cap) return;
-        const males   = herd.filter(a => a.gender === 'male');
-        const females = herd.filter(a => a.gender === 'female');
+        if (herd.length >= cap) return;
+        // Only sexually-mature adults breed (timeToAdulthoodDays gate).
+        const adults = herd.filter(a => this._isAdult(a, def));
+        const males   = adults.filter(a => a.gender === 'male');
+        const females = adults.filter(a => a.gender === 'female');
         if (!males.length || !females.length) return;
         const R = def.breedRadius ?? 4 * TILE;
+        const litter = Math.max(1, def.litterSize ?? 1);
         for (const f of females) {
             const mate = males.find(m => Phaser.Math.Distance.Between(m.x, m.y, f.x, f.y) < R);
             if (!mate || Math.random() > 0.5) continue;
-            const bx = f.x + Phaser.Math.Between(-TILE, TILE);
-            const by = f.y + Phaser.Math.Between(-TILE, TILE);
-            const baby = spawnFn(Phaser.Math.Clamp(bx, TILE, NATURE_WORLD_W * TILE - TILE),
-                                 Phaser.Math.Clamp(by, MAP_OY + TILE, NATURE_BOTTOM - TILE));
-            if (baby && tamed) { baby.isTamed = true; baby.pastureZoneId = f.pastureZoneId ?? null; this.redrawSheep(baby); }
+            let last = null;
+            for (let k = 0; k < litter && herd.length + k < cap; k++) {
+                const bx = f.x + Phaser.Math.Between(-TILE, TILE);
+                const by = f.y + Phaser.Math.Between(-TILE, TILE);
+                const baby = spawnFn(Phaser.Math.Clamp(bx, TILE, NATURE_WORLD_W * TILE - TILE),
+                                     Phaser.Math.Clamp(by, MAP_OY + TILE, NATURE_BOTTOM - TILE));
+                if (!baby) continue;
+                baby.ageDays = 0;                       // born a juvenile → grows to adult over time
+                if (tamed) { baby.isTamed = true; baby.pastureZoneId = f.pastureZoneId ?? null; }
+                this._applyGrowth(baby, def);
+                this.redrawAnimal(baby);
+                last = baby;
+            }
+            if (!last) return;
             const bornText = tamed ? '🐑 lamb born'
                 : def === ANIMALS.deer    ? '🦌 fawn born'
                 : def === ANIMALS.boar    ? '🐗 piglet born'
                 : def === ANIMALS.aurochs ? '🐂 calf born'
                 : def === ANIMALS.wolf    ? '🐺 pup born'
                 : '🐑 lamb born';
-            this.scene.uiManager?.showFloatText?.(baby.x, baby.y - 14, bornText, '#cfeac0');
-            return;   // one birth per breed window per species
+            const note = litter > 1 ? `${bornText} ×${litter}` : bornText;
+            this.scene.uiManager?.showFloatText?.(last.x, last.y - 14, note, '#cfeac0');
+            return;   // one litter per breed window per species
         }
     }
 

@@ -12,6 +12,12 @@ export default {
     tameCost:   1,
     woolMs:     35000,
 
+    // Behaviour (entity-editor params, wired in NatureManager): flocking, tameable grazer.
+    diet: 'herbivore', fightOrFlight: 'flee', aggroChancePct: 0,
+    packCohesion: 0.6, activeCycle: 'diurnal', territorialRadius: 0,
+    lifespanDays: 28, litterSize: 1, timeToAdulthoodDays: 5,
+    tameable: true,
+
     // Rig-driven: a directional fleece sprite (SPRITES.sheep) animated by walkPhase + facing.
     // $woolCol carries the state colour (hungry dims it, wool-ready brightens it); rams gate
     // horns on `male` and tamed sheep gate a collar on `tamed`.

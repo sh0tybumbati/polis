@@ -388,8 +388,9 @@ export default {
                 u.lastAtk = now;
                 prey.hp -= 1;
                 this._gainSkillXp(u, 'animalTrap');
-                // Provoke hostile species — struck boar/aurochs turn and fight back.
-                if ((def.aggressive || def.defensive) && prey.hp > 0) {
+                // A struck animal fights back per its aggroChance (fight-or-flight); flee-types just run.
+                const aggroPct = def.aggroChancePct ?? ((def.aggressive || def.defensive) ? 100 : (def.fightOrFlight === 'fight' ? 50 : 0));
+                if (prey.hp > 0 && Math.random() * 100 < aggroPct) {
                     prey.aggroTarget = u.id;
                     prey.aggroUntil  = now + 9000;
                 }
