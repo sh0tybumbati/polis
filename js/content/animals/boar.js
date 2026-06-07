@@ -1,6 +1,7 @@
 import { TILE } from '../../config/gameConstants.js';
 import { renderRig } from '../../engine/renderRig.js';
 import { SPRITES } from '../sprites/index.js';
+import { dim } from '../genetics.js';
 
 export default {
     id:         'boar',
@@ -21,6 +22,9 @@ export default {
     packCohesion: 0.25, activeCycle: 'diurnal', territorialRadius: 0,
     lifespanDays: 24, litterSize: 3, timeToAdulthoodDays: 5,
     tameable: false, tameCost: 2,
+
+    // Genetics: bristly coat tint, size gene, pale-saddle marking.
+    genetics: { coat: 0x4a3826, coatJitter: 14, sizeVar: 0.14, markings: ['plain', 'saddle'], morphRate: 0.01 },
 
     // Hostility: a boar is aggressive — it charges anyone who wanders within aggroRadius, and
     // always retaliates when struck (handled in NatureManager._tickBeast).
@@ -47,7 +51,7 @@ export default {
             walkPhase: a._walkPhase ?? 0,
             moving: ctx.moving ?? false,
             facing: a.facing ?? 'south',
-            vars: { male: a.gender === 'male', bodyCol: hungry ? 0x3a2c1e : 0x4a3826 },
+            vars: { male: a.gender === 'male', bodyCol: dim(a.pheno?.coat ?? 0x4a3826, hungry), marking: a.pheno?.marking ?? 'plain' },
         });
         if (a.aggroTarget != null) {   // enraged glint
             g.fillStyle(0xff3322, 0.8).fillCircle(7 * sc, -3 * sc, 1.2 * sc);

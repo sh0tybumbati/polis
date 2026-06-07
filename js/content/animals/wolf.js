@@ -1,6 +1,7 @@
 import { TILE } from '../../config/gameConstants.js';
 import { renderRig } from '../../engine/renderRig.js';
 import { SPRITES } from '../sprites/index.js';
+import { dim } from '../genetics.js';
 
 export default {
     id:         'wolf',
@@ -29,6 +30,9 @@ export default {
     lifespanDays: 26, litterSize: 4, timeToAdulthoodDays: 6,
     tameable: false, tameCost: 6,
 
+    // Genetics: pelt tint (grey→black→white), size gene, dark-back marking.
+    genetics: { coat: 0x7a736a, coatJitter: 22, sizeVar: 0.13, markings: ['plain', 'darkback'], morphRate: 0.02 },
+
     // Rig-driven: directional grey-canine sprite (SPRITES.wolf) animated by walkPhase + facing.
     draw(g, a, ctx = {}) {
         if (a.isDead) {
@@ -53,7 +57,7 @@ export default {
             walkPhase: a._walkPhase ?? 0,
             moving: ctx.moving ?? false,
             facing: a.facing ?? 'south',
-            vars: { bodyCol: hungry ? 0x5e5850 : 0x7a736a },
+            vars: { bodyCol: dim(a.pheno?.coat ?? 0x7a736a, hungry), marking: a.pheno?.marking ?? 'plain' },
         });
         if (a.aggroTarget != null) {   // hunting glint
             g.fillStyle(0xffdd33, 0.85).fillCircle(8 * sc, -3 * sc, 1.1 * sc);

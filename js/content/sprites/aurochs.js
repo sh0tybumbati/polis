@@ -48,6 +48,7 @@ export default {
             ] },
             { name: 'head', z: 2, pivot: { x: 10, y: -6 }, shapes: [
                 { type: 'ellipse', x: 13, y: -5, rx: 5, ry: 5.5, fill: '$bodyCol' },
+                { type: 'ellipse', x: 15, y: -5, rx: 1.5, ry: 4, fill: 0xd8c2a0, when: v => v.marking === 'blaze' },
                 { type: 'ellipse', x: 16, y: -2, rx: 3, ry: 3.5, fill: MUZZLE },  // muzzle
                 { type: 'triangle', x1: 9, y1: -9, x2: 11, y2: -6, x3: 12, y3: -10, fill: BODY }, // ear
                 horn(11, -9, 14, -14), horn(14, -14, 19, -13),                    // forward lyre horn
@@ -70,6 +71,7 @@ export default {
             ] },
             { name: 'head', z: 2, pivot: { x: 0, y: -9 }, shapes: [
                 { type: 'ellipse', x: 0, y: -10, rx: 5.5, ry: 5, fill: '$bodyCol' },
+                { type: 'ellipse', x: 0, y: -10, rx: 1.6, ry: 4, fill: 0xd8c2a0, when: v => v.marking === 'blaze' },
                 { type: 'ellipse', x: 0, y: -6, rx: 3.5, ry: 3, fill: MUZZLE },
                 horn(-5, -13, -10, -16), horn(-10, -16, -11, -11),               // forward-curving
                 horn(5, -13, 10, -16), horn(10, -16, 11, -11),

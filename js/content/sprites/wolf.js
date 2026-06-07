@@ -35,6 +35,7 @@ export default {
             ] },
             { name: 'torso', z: 0, pivot: { x: 0, y: -1 }, shapes: [
                 { type: 'ellipse', x: -1, y: 0, rx: 12, ry: 5, fill: '$bodyCol' },
+                { type: 'ellipse', x: -1, y: -3, rx: 9, ry: 1.6, fill: 0x2a241c, when: v => v.marking === 'darkback' },
                 { type: 'ellipse', x: 4, y: -2, rx: 5, ry: 4, fill: RUFF },     // shoulder ruff
             ] },
             { name: 'legL', z: 1, pivot: { x: 5, y: 6 }, shapes: [
@@ -60,6 +61,7 @@ export default {
             ] },
             { name: 'torso', z: 0, pivot: { x: 0, y: -1 }, shapes: [
                 { type: 'ellipse', x: 0, y: 0, rx: 7, ry: 6, fill: '$bodyCol' },
+                { type: 'ellipse', x: 0, y: -4, rx: 5, ry: 1.6, fill: 0x2a241c, when: v => v.marking === 'darkback' },
                 { type: 'ellipse', x: 0, y: -2, rx: 5, ry: 4, fill: RUFF },
             ] },
             { name: 'head', z: 2, pivot: { x: 0, y: -6 }, shapes: [
@@ -82,6 +84,7 @@ export default {
             ] },
             { name: 'torso', z: 0, pivot: { x: 0, y: -1 }, shapes: [
                 { type: 'ellipse', x: 0, y: 0, rx: 7, ry: 6, fill: '$bodyCol' },
+                { type: 'ellipse', x: 0, y: -4, rx: 5, ry: 1.6, fill: 0x2a241c, when: v => v.marking === 'darkback' },
                 { type: 'ellipse', x: 0, y: -2, rx: 5, ry: 4, fill: RUFF },
             ] },
             { name: 'tail', z: 2, pivot: { x: 0, y: -1 }, shapes: [

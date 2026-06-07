@@ -41,6 +41,7 @@ export default {
             { name: 'torso', z: 0, pivot: { x: 0, y: -1 }, shapes: [
                 { type: 'ellipse', x: -1, y: 0, rx: 11, ry: 6, fill: '$bodyCol' },
                 { type: 'circle', x: 5, y: -3, r: 5.5, fill: '$bodyCol' },   // shoulder hump
+                { type: 'ellipse', x: -1, y: -3, rx: 8, ry: 1.8, fill: 0x9a8a70, when: v => v.marking === 'saddle' },
                 bristle(-7, -5, -6, -8), bristle(-3, -6, -2, -9),
                 bristle(1, -6, 2, -9), bristle(5, -7, 6, -10),
             ] },
@@ -69,6 +70,7 @@ export default {
             ] },
             { name: 'torso', z: 0, pivot: { x: 0, y: -1 }, shapes: [
                 { type: 'ellipse', x: 0, y: 0, rx: 8.5, ry: 6.5, fill: '$bodyCol' },
+                { type: 'ellipse', x: 0, y: -3, rx: 6, ry: 1.6, fill: 0x9a8a70, when: v => v.marking === 'saddle' },
                 bristle(-4, -5, -4, -8), bristle(0, -6, 0, -9), bristle(4, -5, 4, -8),
             ] },
             { name: 'head', z: 2, pivot: { x: 0, y: -6 }, shapes: [
@@ -94,6 +96,7 @@ export default {
             ] },
             { name: 'torso', z: 0, pivot: { x: 0, y: -1 }, shapes: [
                 { type: 'ellipse', x: 0, y: 0, rx: 8.5, ry: 6.5, fill: '$bodyCol' },
+                { type: 'ellipse', x: 0, y: -3, rx: 6, ry: 1.6, fill: 0x9a8a70, when: v => v.marking === 'saddle' },
                 bristle(-4, -5, -4, -8), bristle(0, -6, 0, -9), bristle(4, -5, 4, -8),
             ] },
             { name: 'tail', z: 2, pivot: { x: 0, y: -1 }, shapes: [

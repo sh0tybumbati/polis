@@ -110,10 +110,11 @@ export default class UnitManager {
         const def = UNITS[type];
         const gender = forcedGender ?? (Math.random() < 0.5 ? 'male' : 'female');
 
-        // Genealogy & genetics (workers only — soldiers use def defaults)
+        // Genealogy & genetics. Attributes/passions stay worker-only (they drive stats), but EVERY
+        // unit gets a phenotype now so soldiers vary in skin/hair/eye colour, hair style and height.
         const isWorker = type === 'worker';
         const attributes = isWorker ? randomAttributes() : null;
-        const phenotype  = isWorker ? randomPhenotype(gender) : null;
+        const phenotype  = randomPhenotype(gender);
         const passions   = isWorker ? randomPassions()   : null;
         const maxHp  = isWorker ? 10 + attributes.con : def.hp;
         const speed  = isWorker ? def.speed * (1 + (attributes.agi - 5) * 0.04) : def.speed;

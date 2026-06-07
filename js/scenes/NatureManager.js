@@ -8,6 +8,7 @@ const NATURE_WORLD_W = 1024;
 const NATURE_WORLD_H = 1024;
 const NATURE_BOTTOM  = MAP_OY + NATURE_WORLD_H * TILE;
 import { ANIMALS } from '../content/animals/index.js';
+import { randomAnimalPheno, blendAnimalPheno } from '../content/genetics.js';
 
 // ── Animal needs tuning ──────────────────────────────────────────────────────
 // Food/rest are 0..1. Rates are per-second (multiplied by dt). Mirrors the unit
@@ -81,6 +82,7 @@ export default class NatureManager {
             wanderTimer: Phaser.Math.Between(2000, 5000),
             ateToday: 3, hungryDays: 0,
             ageDays: (def.timeToAdulthoodDays ?? 0) + Phaser.Math.Between(0, 10),
+            pheno: randomAnimalPheno(def),
             needs: { food: 0.7 + Math.random() * 0.3, rest: 0.7 + Math.random() * 0.3 },
             gfx: this.scene._w(this.scene.add.graphics().setDepth(5)),
         };
@@ -104,6 +106,7 @@ export default class NatureManager {
             woolReady: true, woolTimer: 0,
             ateToday: 3, hungryDays: 0,
             ageDays: (ANIMALS.sheep.timeToAdulthoodDays ?? 0) + Phaser.Math.Between(0, 10),
+            pheno: randomAnimalPheno(ANIMALS.sheep),
             needs: { food: 0.7 + Math.random() * 0.3, rest: 0.7 + Math.random() * 0.3 },
             gfx: this.scene._w(this.scene.add.graphics().setDepth(5)),
         };
@@ -166,6 +169,7 @@ export default class NatureManager {
     // and recovers while sleeping; empty rest forces sleep in place. (#28)
     _tickAnimalNeeds(a, def, dt) {
         if (!a.needs) a.needs = { food: 0.7 + Math.random() * 0.3, rest: 0.7 + Math.random() * 0.3 };
+        if (!a.pheno) a.pheno = randomAnimalPheno(def);   // lazy-init for old saves
         const n = a.needs;
 
         if (a.isSleeping) {
@@ -205,7 +209,7 @@ export default class NatureManager {
 
     // Juveniles spawn small and grow to the def's full scale by adulthood.
     _applyGrowth(a, def) {
-        const adult = def.timeToAdulthoodDays ?? 0, full = def.scale ?? 1;
+        const adult = def.timeToAdulthoodDays ?? 0, full = (def.scale ?? 1) * (a.pheno?.sizeGene ?? 1);
         a.scale = (adult > 0 && (a.ageDays ?? adult) < adult)
             ? full * (0.5 + 0.5 * (a.ageDays ?? 0) / adult) : full;
     }
@@ -375,6 +379,7 @@ export default class NatureManager {
             wanderTimer: Phaser.Math.Between(2000, 5000),
             ateToday: 3, hungryDays: 0,
             ageDays: (def.timeToAdulthoodDays ?? 0) + Phaser.Math.Between(0, 10),   // seeded/edge animals are adults
+            pheno: randomAnimalPheno(def),
             needs: { food: 0.7 + Math.random() * 0.3, rest: 0.7 + Math.random() * 0.3 },
             aggroTarget: null, aggroUntil: 0,
             gfx: this.scene._w(this.scene.add.graphics().setDepth(5)),
@@ -788,6 +793,7 @@ export default class NatureManager {
                                      Phaser.Math.Clamp(by, MAP_OY + TILE, NATURE_BOTTOM - TILE));
                 if (!baby) continue;
                 baby.ageDays = 0;                       // born a juvenile → grows to adult over time
+                baby.pheno = blendAnimalPheno(def, f.pheno, mate.pheno);   // inherit coat/size/marking
                 if (tamed) { baby.isTamed = true; baby.pastureZoneId = f.pastureZoneId ?? null; }
                 this._applyGrowth(baby, def);
                 this.redrawAnimal(baby);

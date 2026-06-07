@@ -48,6 +48,7 @@ export default {
                 puff(-11, 0, 5), puff(11, 0, 4.5),
                 puff(-6, 5, 5), puff(2, 6, 5), puff(8, 4, 4.5),
                 puff(-2, -2, 5),
+                { type: 'ellipse', x: 5, y: -3, rx: 4, ry: 3.4, fill: 0x6a5a48, when: v => v.marking === 'patched' },
             ] },
             { name: 'legL', z: 1, pivot: { x: 5, y: 6 }, shapes: [
                 { type: 'line', x1: 4, y1: 6, x2: 3, y2: 16, stroke: legS },
@@ -77,6 +78,7 @@ export default {
                 puff(-7, -5, 5), puff(0, -7, 6), puff(7, -5, 5),
                 puff(-9, 1, 4.5), puff(9, 1, 4.5),
                 puff(-4, 5, 5), puff(4, 5, 5), puff(0, 2, 5),
+                { type: 'ellipse', x: 4, y: -2, rx: 3.4, ry: 3, fill: 0x6a5a48, when: v => v.marking === 'patched' },
             ] },
             { name: 'head', z: 2, pivot: { x: 0, y: -7 }, shapes: [
                 { type: 'circle', x: 0, y: -9, r: 5, fill: FACE },
@@ -103,6 +105,7 @@ export default {
                 puff(-7, -5, 5), puff(0, -7, 6), puff(7, -5, 5),
                 puff(-9, 1, 4.5), puff(9, 1, 4.5),
                 puff(-4, 5, 5), puff(4, 5, 5), puff(0, 2, 5),
+                { type: 'ellipse', x: 4, y: -2, rx: 3.4, ry: 3, fill: 0x6a5a48, when: v => v.marking === 'patched' },
             ] },
             { name: 'tail', z: 2, pivot: { x: 0, y: -2 }, shapes: [
                 puff(0, -7, 3.5), puff(0, -4, 3),

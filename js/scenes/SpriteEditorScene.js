@@ -127,6 +127,26 @@ export default class SpriteEditorScene extends Phaser.Scene {
     }
     _viewKeys() { return this.rig.views ? Object.keys(this.rig.views) : []; }
 
+    // Preview $var palette so rigs render in real colour (not black) and `when:` layers can be
+    // toggled in-tool. Covers animal coat ($bodyCol/$woolCol) and the human phenotype + gates.
+    _defaultVars(id, def) {
+        const coat = def?.genetics?.coat ?? 0x9a7850;
+        return {
+            bodyCol: coat, woolCol: coat,
+            skin: 0xc8a878, hair: 0x3a2a18, eye: 0x140a04, tunic: 0x9a7850,
+            hairStyle: 'short', marking: 'plain',
+            male: true, tamed: false, helmet: false,
+        };
+    }
+    // The species' non-'plain' marking (for the preview cycle).
+    _markB() { return (ANIMALS[this.entityId]?.genetics?.markings ?? ['plain', 'spotted']).find(m => m !== 'plain') ?? 'spotted'; }
+    // Cycle a preview-only var (hairStyle / marking) or toggle a boolean gate (male / helmet …).
+    _cyclePreview(key, opts) {
+        if (Array.isArray(opts)) { const i = Math.max(0, opts.indexOf(this.pv[key])); this.pv[key] = opts[(i + 1) % opts.length]; }
+        else this.pv[key] = !this.pv[key];
+        this._redraw();
+    }
+
     activeShapes() { return this._partList()[this.activePart]?.shapes ?? []; }
 
     _clone(o) { return JSON.parse(JSON.stringify(o)); }
@@ -143,6 +163,7 @@ export default class SpriteEditorScene extends Phaser.Scene {
         this.entityKind = ANIMALS[id] ? 'animal' : (UNITS[id] ? 'unit' : null);
         const def = ANIMALS[id] || UNITS[id] || null;
         this.params = this.entityKind ? paramsFromDef(def, this.entityKind) : {};
+        this.pv = this._defaultVars(id, def);          // preview palette so $var rigs render in colour
         this.view = this.rig.views ? (Object.keys(this.rig.views)[0] || 'south') : null;
         this.activePart = 0; this.selIdx = -1; this._selVerts.clear();
         this._fitView(); this._autosave(); this._redraw();
@@ -882,6 +903,14 @@ export default class SpriteEditorScene extends Phaser.Scene {
             }
             py += 26;
         }
+
+        // Preview-var toggles so gated (`when:`) layers can be designed in-tool.
+        this._txt(PX, py + 4, 'preview', { fontSize: this._fs(8), color: '#668866' });
+        let bx = PX + 44;
+        const pbtn = (label, key, opts) => { this._btn(bx, py, 52, 20, label, 0x111811, () => this._cyclePreview(key, opts), !!this.pv[key]); bx += 54; };
+        if (this.entityId === 'human') { pbtn(`hair:${(this.pv.hairStyle ?? 'short').slice(0, 4)}`, 'hairStyle', ['short', 'curls', 'bald', 'long', 'bun']); pbtn('helmet', 'helmet'); }
+        else if (this.entityKind === 'animal') { pbtn(`mark:${(this.pv.marking ?? 'plain').slice(0, 4)}`, 'marking', ['plain', this._markB()]); pbtn('male', 'male'); if (this.entityId === 'sheep') pbtn('tamed', 'tamed'); }
+        py += 26;
 
         const part = pl[this.activePart];
         this._txt(PX, py + 3, `${pl.length} part(s)`, { fontSize: this._fs(9), color: '#668866' });

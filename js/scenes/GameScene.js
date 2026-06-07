@@ -330,7 +330,7 @@ export default class GameScene extends Phaser.Scene {
             const raw = localStorage.getItem('epochs_save');
             if (!raw) return false;
             const s = JSON.parse(raw);
-            if (s.v !== 6) { localStorage.removeItem('epochs_save'); return false; }
+            if (s.v !== 7) { localStorage.removeItem('epochs_save'); return false; }
 
             const KEY_MIGRATION = {
                 wheat: 'Food.Grain.Wheat', flour: 'Food.Grain.Wheat.Flour', bread: 'Food.Grain.Wheat.Bread',

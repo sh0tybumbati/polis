@@ -1,6 +1,7 @@
 import { TILE } from '../../config/gameConstants.js';
 import { renderRig } from '../../engine/renderRig.js';
 import { SPRITES } from '../sprites/index.js';
+import { dim } from '../genetics.js';
 
 export default {
     id:         'aurochs',
@@ -28,6 +29,9 @@ export default {
     lifespanDays: 40, litterSize: 1, timeToAdulthoodDays: 8,
     tameable: false, tameCost: 4,
 
+    // Genetics: hide tint (dun→near-black), size gene, pale-blaze marking.
+    genetics: { coat: 0x3a2a1a, coatJitter: 16, sizeVar: 0.13, markings: ['plain', 'blaze'], morphRate: 0.01 },
+
     // Rig-driven: directional ox sprite (SPRITES.aurochs) animated by walkPhase + facing.
     draw(g, a, ctx = {}) {
         if (a.isDead) {
@@ -47,7 +51,7 @@ export default {
             walkPhase: a._walkPhase ?? 0,
             moving: ctx.moving ?? false,
             facing: a.facing ?? 'south',
-            vars: { male: a.gender === 'male', bodyCol: hungry ? 0x2c2014 : 0x3a2a1a },
+            vars: { male: a.gender === 'male', bodyCol: dim(a.pheno?.coat ?? 0x3a2a1a, hungry), marking: a.pheno?.marking ?? 'plain' },
         });
         if (a.aggroTarget != null) {   // enraged glint
             g.fillStyle(0xff3322, 0.8).fillCircle(8 * sc, -5 * sc, 1.4 * sc);

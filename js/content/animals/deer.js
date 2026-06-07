@@ -1,6 +1,7 @@
 import { TILE } from '../../config/gameConstants.js';
 import { renderRig } from '../../engine/renderRig.js';
 import { SPRITES } from '../sprites/index.js';
+import { dim } from '../genetics.js';
 
 export default {
     id:         'deer',
@@ -19,6 +20,9 @@ export default {
     packCohesion: 0.45, activeCycle: 'diurnal', territorialRadius: 0,
     lifespanDays: 30, litterSize: 1, timeToAdulthoodDays: 6,
     tameable: false, tameCost: 1,
+
+    // Genetics: per-individual coat tint, size gene, and markings inherited at breeding.
+    genetics: { coat: 0xb07030, coatJitter: 16, sizeVar: 0.12, markings: ['plain', 'spotted'], morphRate: 0.012 },
 
     // Rig-driven: a directional body-part sprite (SPRITES.deer) animated by walkPhase + facing.
     draw(g, d, ctx = {}) {
@@ -39,7 +43,7 @@ export default {
             walkPhase: d._walkPhase ?? 0,
             moving: ctx.moving ?? false,
             facing: d.facing ?? 'south',
-            vars: { male: d.gender === 'male', bodyCol: hungry ? 0x806020 : 0xb07030 },
+            vars: { male: d.gender === 'male', bodyCol: dim(d.pheno?.coat ?? 0xb07030, hungry), marking: d.pheno?.marking ?? 'plain' },
         });
     },
 };

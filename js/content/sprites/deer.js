@@ -31,6 +31,9 @@ export default {
             ] },
             { name: 'torso', z: 0, pivot: { x: 0, y: -2 }, shapes: [
                 { type: 'ellipse', x: 0, y: 0, rx: 10, ry: 6.5, fill: '$bodyCol' },
+                { type: 'circle', x: -4, y: -1, r: 1.1, fill: 0xe8d8b0, when: v => v.marking === 'spotted' },
+                { type: 'circle', x: 1, y: 1, r: 1.1, fill: 0xe8d8b0, when: v => v.marking === 'spotted' },
+                { type: 'circle', x: 5, y: -2, r: 1, fill: 0xe8d8b0, when: v => v.marking === 'spotted' },
             ] },
             { name: 'legL', z: 1, pivot: { x: 6, y: 4 }, shapes: [
                 { type: 'line', x1: 4, y1: 5, x2: 3, y2: 14, stroke: legS },
@@ -49,6 +52,8 @@ export default {
             { name: 'legR', z: 1, pivot: { x: 5, y: 5 }, shapes: [{ type: 'line', x1: 5, y1: 5, x2: 5, y2: 14, stroke: legS }] },
             { name: 'torso', z: 0, pivot: { x: 0, y: -2 }, shapes: [
                 { type: 'ellipse', x: 0, y: -1, rx: 8, ry: 7, fill: '$bodyCol' },
+                { type: 'circle', x: -3, y: 0, r: 1.1, fill: 0xe8d8b0, when: v => v.marking === 'spotted' },
+                { type: 'circle', x: 3, y: 2, r: 1.1, fill: 0xe8d8b0, when: v => v.marking === 'spotted' },
             ] },
             { name: 'head', z: 2, pivot: { x: 0, y: -8 }, shapes: [
                 { type: 'circle', x: 0, y: -10, r: 5, fill: '$bodyCol' },
@@ -66,6 +71,8 @@ export default {
             { name: 'legR', z: 1, pivot: { x: 5, y: 5 }, shapes: [{ type: 'line', x1: 5, y1: 5, x2: 5, y2: 14, stroke: legS }] },
             { name: 'torso', z: 0, pivot: { x: 0, y: -2 }, shapes: [
                 { type: 'ellipse', x: 0, y: -1, rx: 8, ry: 7, fill: '$bodyCol' },
+                { type: 'circle', x: -3, y: 0, r: 1.1, fill: 0xe8d8b0, when: v => v.marking === 'spotted' },
+                { type: 'circle', x: 3, y: 2, r: 1.1, fill: 0xe8d8b0, when: v => v.marking === 'spotted' },
             ] },
             { name: 'tail', z: 2, pivot: { x: 0, y: -2 }, shapes: [
                 { type: 'triangle', x1: 0, y1: -9, x2: -2.5, y2: -2, x3: 2.5, y3: -2, fill: 0xc89060 },
