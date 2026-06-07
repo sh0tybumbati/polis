@@ -407,7 +407,7 @@ export default class NatureManager {
     // aggroRadius; defensive ones (aurochs) only turn hostile when struck or cornered. Both flee
     // mild threats and graze otherwise. (#27)
     tickBeasts(delta, dt) {
-        const friendlies = this.scene.units.filter(u => !u.isEnemy && u.hp > 0);
+        const friendlies = this.scene.units.filter(u => !u.isEnemy && u.hp > 0 && !u.isInside && !u._dying);
         for (const a of this.scene.boar)    this._tickBeast(a, ANIMALS.boar, delta, dt, friendlies);
         for (const a of this.scene.aurochs) this._tickBeast(a, ANIMALS.aurochs, delta, dt, friendlies);
     }
@@ -444,6 +444,7 @@ export default class NatureManager {
                 if (now - (a.lastAtk ?? 0) > 1100) {
                     a.lastAtk = now;
                     target.hp -= def.atk ?? 2;
+                    target._threatId = a.id; target._threatT = now;
                     this.scene.uiManager?.showFloatText?.(target.x, target.y - 14, `-${def.atk ?? 2}`, '#ff6666');
                 }
             } else {
@@ -501,7 +502,7 @@ export default class NatureManager {
         }
         const guardR = Math.max(def.aggroRadius ?? 0, def.territorialRadius ?? 0);
         for (const u of this.scene.units) {
-            if (u.isEnemy || u.hp <= 0) continue;
+            if (u.isEnemy || u.hp <= 0 || u.isInside || u._dying) continue;   // sheltered colonists are safe
             consider(u, true, hungry ? def.huntRadius : guardR);
         }
 
@@ -512,6 +513,7 @@ export default class NatureManager {
                 if (now - (w.lastAtk ?? 0) > 900) {
                     w.lastAtk = now;
                     target.hp = (target.hp ?? 1) - def.atk;
+                    if (targetIsUnit) { target._threatId = w.id; target._threatT = now; }
                     this.scene.uiManager?.showFloatText?.(target.x, target.y - 14, `-${def.atk}`, '#ff6666');
                     if (!targetIsUnit && target.hp <= 0) {   // prey down — feed
                         this._killAnimal(target);

@@ -64,6 +64,10 @@ export default {
         this._tickNeeds(u, dt);
         this._tickRelations(u, dt);
 
+        // Danger preempts work/eat/sleep: fight a nearby predator or flee to shelter. A unit safely
+        // sheltered/asleep is left alone (NatureManager skips isInside units).
+        if (!u.isSleeping && this._dangerResponse(u, time, dt)) return;
+
         if (u._mentalBreakPending && u.taskType && u.taskType !== 'garrison' && u.taskType !== 'eat') {
             u._mentalBreakPending = false;
             u.taskType = 'mental_break';

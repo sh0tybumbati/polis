@@ -30,6 +30,7 @@ import unitMovementMethods  from './unit/UnitMovement.js';
 import unitNeedsMethods     from './unit/UnitNeeds.js';
 import unitEnemyMethods     from './unit/UnitEnemy.js';
 import unitWorkerMethods    from './unit/UnitWorker.js';
+import unitDangerMethods    from './unit/UnitDanger.js';
 
 // ── Vocation system ───────────────────────────────────────────────────────────
 
@@ -515,6 +516,13 @@ export default class UnitManager {
             u.moveTo = null; u.vx = 0; u.vy = 0;
         }
 
+        // Proactive defence: with no enemy units around, a soldier intercepts and engages wildlife
+        // threats near the colony perimeter (stops wolves from wiping the workers).
+        if (!this.scene.units.some(e => e.isEnemy && e.hp > 0)) {
+            const th = this._nearestThreat(u, 13 * TILE);
+            if (th) { this._fightThreat(u, th.animal, time, dt); return; }
+        }
+
         this.updateCombat(u, time, dt);
     }
 
@@ -918,3 +926,4 @@ Object.assign(UnitManager.prototype, unitMovementMethods);
 Object.assign(UnitManager.prototype, unitNeedsMethods);
 Object.assign(UnitManager.prototype, unitEnemyMethods);
 Object.assign(UnitManager.prototype, unitWorkerMethods);
+Object.assign(UnitManager.prototype, unitDangerMethods);

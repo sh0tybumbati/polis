@@ -171,7 +171,7 @@ export default {
             onionMult *= 0.6 + (u.needs?.food ?? 1.0) * 0.4;
         }
 
-        const maxSpeed = u.speed * spd * onionMult;
+        const maxSpeed = u.speed * spd * onionMult * (u._panic ? 1.4 : 1);   // frightened sprint
         // Ease to a stop only when steering at the real destination (the final target, or the last
         // path waypoint) — intermediate waypoints keep full speed so units don't dawdle at corners.
         const arrive = onFinalLeg;
