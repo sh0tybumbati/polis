@@ -767,8 +767,47 @@ export default class SpriteEditorScene extends Phaser.Scene {
         this._uiObjs = [];
         this.uiGfx.clear();
         this._hideTip();                      // a hovered button may have just been destroyed
+        this._buildHeader();
         this._buildRail();
         this._buildPopover();
+        this._buildHint();
+    }
+
+    // Persistent top bar: ▶ preview toggle + a breadcrumb of what you're editing + zoom/snap.
+    // Kept left-anchored so it never sits under the right-side popover.
+    _buildHeader() {
+        const H = 22;
+        this.uiGfx.fillStyle(0x0c140c, 0.86).fillRect(0, 0, this.RAIL_X, H);
+        this.uiGfx.lineStyle(1, 0x223322, 0.7).lineBetween(0, H, this.RAIL_X, H);
+        this._btn(4, 2, 30, 18, this.playing ? '⏸' : '▶', 0x111811,
+            () => { this.playing = !this.playing; this._scrubbing = false; this._redraw(); },
+            this.playing, this.playing ? 'Pause preview' : 'Play walk-cycle preview');
+        const pl = this._partList();
+        const part = pl[this.activePart];
+        const sh = this.activeShapes()[this.selIdx];
+        const crumb = [
+            this.entityId ? `${this.entityId}${this.entityKind ? ` (${this.entityKind})` : ''}` : 'scratch rig',
+            this.view || null,
+            part ? `${this.activePart}:${part.name}` : null,
+            sh ? `#${this.selIdx} ${sh.type}` : null,
+        ].filter(Boolean).join('  ›  ');
+        this._txt(40, 5, crumb, { fontSize: this._fs(10), color: '#cad8c2' });
+        const tail = `${this.VS.toFixed(1)}×${this.gridSnap ? ' · snap' : ''}`;
+        const tx = this._txt(this.RAIL_X - 8, 5, tail, { fontSize: this._fs(8), color: '#5f7d5f' });
+        tx.setOrigin(1, 0);   // right-align against the rail edge
+    }
+
+    // Context-sensitive hint footer (discoverability).
+    _buildHint() {
+        const y = this.H - 20;
+        this.uiGfx.fillStyle(0x0c140c, 0.86).fillRect(0, y - 2, this.RAIL_X, 22);
+        this.uiGfx.lineStyle(1, 0x223322, 0.7).lineBetween(0, y - 2, this.RAIL_X, y - 2);
+        let hint;
+        if (!this.entityId && !this.activeShapes().length) hint = '📂 Load an entity (left rail) — or tap the canvas to draw shapes from scratch';
+        else if (this.activeShapes()[this.selIdx]) hint = 'Drag the □ handles to move points · Shift-click handles = multi-select · Del = delete · ⚙ for exact values';
+        else if (this.openPanel === 'parts') hint = 'Click a part, then a shape · tap the canvas to add a shape to the active part';
+        else hint = 'Tap canvas = add shape · scroll = zoom · right-drag = pan · ▶ to preview the walk cycle · 💾 saves live';
+        this._txt(6, y + 2, hint, { fontSize: this._fs(8), color: '#86a886' });
     }
 
     // ── Icon rail (always visible, < 1/8 screen) ─────────────────────────────────────
@@ -904,12 +943,20 @@ export default class SpriteEditorScene extends Phaser.Scene {
             py += 26;
         }
 
-        // Preview-var toggles so gated (`when:`) layers can be designed in-tool.
-        this._txt(PX, py + 4, 'preview', { fontSize: this._fs(8), color: '#668866' });
-        let bx = PX + 44;
-        const pbtn = (label, key, opts) => { this._btn(bx, py, 52, 20, label, 0x111811, () => this._cyclePreview(key, opts), !!this.pv[key]); bx += 54; };
-        if (this.entityId === 'human') { pbtn(`hair:${(this.pv.hairStyle ?? 'short').slice(0, 4)}`, 'hairStyle', ['short', 'curls', 'bald', 'long', 'bun']); pbtn('helmet', 'helmet'); }
-        else if (this.entityKind === 'animal') { pbtn(`mark:${(this.pv.marking ?? 'plain').slice(0, 4)}`, 'marking', ['plain', this._markB()]); pbtn('male', 'male'); if (this.entityId === 'sheep') pbtn('tamed', 'tamed'); }
+        // Preview-var toggles so gated (`when:`) layers can be designed in-tool. Own line + roomy
+        // buttons so labels don't collide.
+        this._txt(PX, py + 2, 'preview gates', { fontSize: this._fs(8), color: '#668866' });
+        py += 14;
+        let bx = PX;
+        const pbtn = (label, w, key, opts) => { this._btn(bx, py, w, 20, label, 0x111811, () => this._cyclePreview(key, opts), !!this.pv[key]); bx += w + 4; };
+        if (this.entityId === 'human') {
+            pbtn(`✂ ${this.pv.hairStyle ?? 'short'}`, 74, 'hairStyle', ['short', 'curls', 'bald', 'long', 'bun']);
+            pbtn('helmet', 56, 'helmet');
+        } else if (this.entityKind === 'animal') {
+            pbtn(`✦ ${this.pv.marking ?? 'plain'}`, 74, 'marking', ['plain', this._markB()]);
+            pbtn('male', 46, 'male');
+            if (this.entityId === 'sheep') pbtn('tamed', 50, 'tamed');
+        }
         py += 26;
 
         const part = pl[this.activePart];
