@@ -32,6 +32,11 @@ import unitEnemyMethods     from './unit/UnitEnemy.js';
 import unitWorkerMethods    from './unit/UnitWorker.js';
 import unitDangerMethods    from './unit/UnitDanger.js';
 
+// Max full A* searches per frame across all movers. Clear-LOS moves don't count
+// (they skip pathing); only obstacle-avoidance searches draw from this. Overflow
+// coasts straight and retries next frame, bounding worst-case pathfinding cost.
+const PATH_SEARCH_BUDGET = 48;
+
 // ── Vocation system ───────────────────────────────────────────────────────────
 
 // Attribute affinities per job. Weights 0–1; multiplied against attribute value (1–10).
@@ -392,6 +397,10 @@ export default class UnitManager {
         const STRIDE = 3; // each unit ticks every 3rd frame, accumulates dt in between
 
         this._rebuildUnitGrid(units);   // spatial hash for cheap crowd-separation lookups
+        // Cap full A* searches per frame: clear-LOS moves skip pathing entirely (see
+        // moveToward), and any overflow of obstacle-avoidance searches coasts straight and
+        // retries next frame — so a large crowd can't stall a frame with unbounded A*.
+        this.pathfinder.resetSearchBudget(PATH_SEARCH_BUDGET);
 
         for (let i = 0; i < units.length; i++) {
             const u = units[i];

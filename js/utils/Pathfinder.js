@@ -44,6 +44,21 @@ export class Pathfinder {
         // findPath call, so each tile is resolved (incl. the gate construct scan)
         // at most once instead of on every neighbour/corner check.
         this._blockCache = new Map();
+        // Per-frame A* budget. UnitManager.tick refills it; movers call
+        // consumeSearch() before requesting a path so a crowd can't fire an
+        // unbounded number of full searches in a single frame. Infinity = no cap
+        // (unchanged behaviour if a caller never refills it).
+        this._searchBudget = Infinity;
+    }
+
+    /** Refill the per-frame A* budget (called once per frame by UnitManager). */
+    resetSearchBudget(n) { this._searchBudget = n; }
+
+    /** Claim one A* search from this frame's budget; false if exhausted. */
+    consumeSearch() {
+        if (this._searchBudget <= 0) return false;
+        this._searchBudget--;
+        return true;
     }
 
     /**

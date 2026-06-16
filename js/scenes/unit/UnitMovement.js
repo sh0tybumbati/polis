@@ -10,6 +10,7 @@ const ACCEL_TIME = 0.30;        // seconds to reach full speed (smaller = snappi
 const ARRIVE_R   = TILE * 0.6;  // start easing to a stop within this distance of the final goal
 const SEP_R      = TILE * 0.7;  // personal-space radius for crowd separation
 const SEP_FORCE  = 0.6;         // separation strength (fraction of maxSpeed)
+const LOS_SKIP_RANGE = TILE * 16; // within this range, a clear LOS skips A* and steers straight
 
 export default {
     // Velocity-based steering: accelerate toward the target (smooth start/stop + turning),
@@ -98,11 +99,24 @@ export default {
         const needsPath = isFar && (!u.currentPath || targetChanged) && !u._pathFailed;
 
         if (needsPath) {
-            u.currentPath = this.pathfinder.findPath(startTx, startTy, targetTx, targetTy);
-            u._pathTargetTx = targetTx;
-            u._pathTargetTy = targetTy;
-            u._pathIndex = 0;
-            if (!u.currentPath) { u._pathFailed = true; u._pathRetryTimer = 2.0; }
+            // Fast path: a clear straight line to a target within sight needs no A* at all.
+            // The LOS funnel below already collapses clear paths into diagonals, so steering
+            // straight here is consistent — it just skips building a path we'd immediately flatten.
+            if (d <= LOS_SKIP_RANGE && this.pathfinder.lineClear(u.x, u.y, tx, ty)) {
+                u.currentPath = null;
+                u._pathTargetTx = targetTx;
+                u._pathTargetTy = targetTy;
+                u._pathIndex = 0;
+            } else if (this.pathfinder.consumeSearch()) {
+                u.currentPath = this.pathfinder.findPath(startTx, startTy, targetTx, targetTy);
+                u._pathTargetTx = targetTx;
+                u._pathTargetTy = targetTy;
+                u._pathIndex = 0;
+                if (!u.currentPath) { u._pathFailed = true; u._pathRetryTimer = 2.0; }
+            }
+            // else: frame's pathfinding budget is spent — coast straight toward the goal this
+            // tick (moveTarget defaults to tx,ty) and retry next tick. _pathTargetTx is left
+            // unset so `targetChanged` stays true and the request isn't silently dropped.
         }
 
         let moveTargetX = tx, moveTargetY = ty;
