@@ -184,7 +184,7 @@ export default {
 
             n.stock -= pick;
             u.carrying[res] = (u.carrying[res] ?? 0) + pick;
-            if (n.stock <= 0) { u.targetNode = null; this.scene.mapManager.drawResourceNodes(); }
+            if (n.stock <= 0) { u.targetNode = null; this.scene.mapManager.redrawNode(n); }
             if (!this.canUnitCarryMore(u, res, 1)) u.targetNode = null;
         }
     },

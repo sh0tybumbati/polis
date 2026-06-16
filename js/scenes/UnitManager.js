@@ -728,7 +728,7 @@ export default class UnitManager {
             if (n.fellWork <= 0) {
                 n.felled = true;
                 this._gainSkillXp(u, 'woodcutting');
-                this.scene.mapManager.drawResourceNodes();
+                this.scene.mapManager.redrawNode(n);
                 this.scene.uiManager.showFloatText(n.x, n.y - 14, '🪓 timber!', '#c0a050');
             }
             return;
@@ -805,7 +805,7 @@ export default class UnitManager {
                 n.sapling = true;
                 n.stump = true;   // stump-sapling, distinct from seeded sapling
                 n.saplingTimer = 0;
-                this.scene.mapManager.drawResourceNodes();
+                this.scene.mapManager.redrawNode(n);
             }
             if (n.stock <= 0) u.targetNode = null;
         }

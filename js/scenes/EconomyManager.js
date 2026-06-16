@@ -316,7 +316,6 @@ export default class EconomyManager {
     }
 
     tickResourceNodes(delta) {
-        let redraw = false;
         for (const n of this.scene.resNodes) {
             if (!n.sapling) continue;
             n.saplingTimer = (n.saplingTimer ?? 0) + delta;
@@ -327,10 +326,9 @@ export default class EconomyManager {
                 n.saplingTimer = 0;
                 n.stock = n.maxStock;
                 n.fellWork = undefined;
-                redraw = true;
+                this.scene.mapManager.redrawNode(n);   // only the matured sapling
             }
         }
-        if (redraw) this.scene.mapManager.drawResourceNodes();
     }
 
     _processOrders(workshop, delta) {

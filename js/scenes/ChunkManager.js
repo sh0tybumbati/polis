@@ -278,7 +278,8 @@ export default class ChunkManager {
 
         chunk.nodes = nodes;
         for (const n of nodes) this.scene.resNodes.push(n);
-        if (nodes.length > 0) this.scene.mapManager?.drawResourceNodes?.();
+        // Only the freshly-generated nodes need drawing — not every node on the map.
+        for (const n of nodes) this.scene.mapManager?.redrawNode?.(n);
     }
 
     // Called at game start: generate + render the 3×3 chunks around spawn so

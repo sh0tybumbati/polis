@@ -354,7 +354,15 @@ export default class MapManager {
     }
 
     drawResourceNodes() {
+        // Build the set of currently-targeted nodes once (O(units)) so the ring
+        // check in redrawNode is an O(1) membership test instead of an O(units)
+        // scan per node — i.e. O(units + nodes) for the whole pass, not O(units × nodes).
+        const ts = this._targetedNodes ?? (this._targetedNodes = new Set());
+        ts.clear();
+        for (const u of this.scene.units) if (u.targetNode && u.hp > 0) ts.add(u.targetNode);
+        this._fullRedraw = true;
         for (const n of this.scene.resNodes) this.redrawNode(n);
+        this._fullRedraw = false;
     }
 
     findNodeAt(wx, wy) {
@@ -432,7 +440,11 @@ export default class MapManager {
         }
 
         const alpha    = 0.45 + ratio * 0.55;
-        const targeted = this.scene.units?.some(u => u.targetNode === n && u.hp > 0);
+        // During a full pass use the prebuilt set (O(1)); a lone redraw falls back
+        // to a direct scan (one node, so O(units) is fine).
+        const targeted = this._fullRedraw
+            ? this._targetedNodes.has(n)
+            : this.scene.units?.some(u => u.targetNode === n && u.hp > 0);
 
         if ((n.type === 'small_tree' || n.type === 'large_tree') && !n.felled) {
             const treeScale = Math.min(1.0, 0.35 + (n.treeAge ?? 0) * 0.033);
