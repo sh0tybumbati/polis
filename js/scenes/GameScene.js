@@ -598,6 +598,7 @@ export default class GameScene extends Phaser.Scene {
         if (this.isPaused) return;
         const dt = (delta / 1000) * this.tickSpeed;
         const f0 = performance.now();
+        this.mapManager.clearBlockCache();   // frame-scoped blocked-tile cache (see isTileBlocked)
         const fr = this._frame = ((this._frame ?? -1) + 1) % 60;
 
         let t0;

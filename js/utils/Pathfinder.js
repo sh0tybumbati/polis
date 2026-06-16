@@ -40,10 +40,6 @@ class MinHeap {
 export class Pathfinder {
     constructor(scene) {
         this.scene = scene;
-        // Per-search memo of tile-blocked state. The map is static during one
-        // findPath call, so each tile is resolved (incl. the gate construct scan)
-        // at most once instead of on every neighbour/corner check.
-        this._blockCache = new Map();
         // Per-frame A* budget. UnitManager.tick refills it; movers call
         // consumeSearch() before requesting a path so a crowd can't fire an
         // unbounded number of full searches in a single frame. Infinity = no cap
@@ -66,8 +62,6 @@ export class Pathfinder {
      * Returns an array of {tx, ty} or null if no path found.
      */
     findPath(startTx, startTy, endTx, endTy) {
-        this._blockCache.clear();
-
         if (this._isBlocked(endTx, endTy)) {
             const adj = this._getAdjacent(endTx, endTy).find(t => !this._isBlocked(t.x, t.y));
             if (adj) { endTx = adj.x; endTy = adj.y; }
@@ -127,16 +121,11 @@ export class Pathfinder {
     }
 
     _isBlocked(tx, ty) {
-        const k = `${tx},${ty}`;
-        const cache = this._blockCache;
-        let v = cache.get(k);
-        if (v === undefined) {
-            const wx = tx * TILE + TILE / 2;
-            const wy = MAP_OY + ty * TILE + TILE / 2;
-            v = this.scene.mapManager.isTileBlocked(wx, wy);
-            cache.set(k, v);
-        }
-        return v;
+        // isTileBlocked is frame-cached in MapManager, so a direct call is already
+        // a Map hit for tiles seen earlier this frame by any mover or search.
+        const wx = tx * TILE + TILE / 2;
+        const wy = MAP_OY + ty * TILE + TILE / 2;
+        return this.scene.mapManager.isTileBlocked(wx, wy);
     }
 
     // Octile distance: cardinal cost 1, diagonal cost √2.

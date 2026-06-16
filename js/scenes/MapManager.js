@@ -377,15 +377,34 @@ export default class MapManager {
         return TILE_SPD[Math.min(terr, TILE_SPD.length - 1)] ?? 1.0;
     }
 
+    // Cleared once per frame (GameScene.update). Map topology only changes between
+    // frames (gates toggle / constructs build on ticks), so a frame-scoped cache is
+    // safe — worst case one frame of staleness — and turns the chunk + mapData
+    // lookups and the linear gate scan below into a single Map hit for the many
+    // repeat queries A*, lineClear and the LOS funnel fire each frame.
+    clearBlockCache() { this._blockCache?.clear(); }
+
     isTileBlocked(wx, wy) {
         const tx = Math.floor(wx / TILE), ty = Math.floor((wy - MAP_OY) / TILE);
+        // Numeric cache key (no string alloc on the hot hit path). Tile coords sit
+        // well within ±32k, so pack them into one integer.
+        const nk = (tx + 0x8000) * 0x10000 + (ty + 0x8000);
+        const cache = this._blockCache ?? (this._blockCache = new Map());
+        const hit = cache.get(nk);
+        if (hit !== undefined) return hit;
+
+        let blocked;
         const terr = this.scene.chunkManager ? this.scene.chunkManager.getTile(tx, ty) : 0;
-        if (terr === T_WATER || terr === T_MOUNTAIN) return true;
-        const cell = this.scene.mapData.get(`${tx},${ty}`) ?? 0;
-        if (cell < 98) return false;
-        const gate = this.scene.constructs.find(b => b.type === 'gate' && b.built && b.tx === tx && b.ty === ty);
-        if (gate) return !gate.isOpen;
-        return true;
+        if (terr === T_WATER || terr === T_MOUNTAIN) {
+            blocked = true;
+        } else if ((this.scene.mapData.get(`${tx},${ty}`) ?? 0) < 98) {
+            blocked = false;
+        } else {
+            const gate = this.scene.constructs.find(b => b.type === 'gate' && b.built && b.tx === tx && b.ty === ty);
+            blocked = gate ? !gate.isOpen : true;
+        }
+        cache.set(nk, blocked);
+        return blocked;
     }
 
     redrawNode(n) {
