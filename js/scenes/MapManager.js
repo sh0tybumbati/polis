@@ -381,36 +381,42 @@ export default class MapManager {
     }
 
     redrawNode(n) {
-        n.gfx?.destroy(); n.labelObj?.destroy();
-        n.gfx = null; n.labelObj = null;
+        // Reuse the node's Graphics object (clear + redraw) rather than destroy +
+        // recreate. The per-redraw teardown/alloc of a fresh Graphics was the
+        // dominant frame cost wherever many nodes redraw; clearing is alloc-free.
+        // Visibility is owned by drawFog() each frame, so it's left untouched here.
+        let g = n.gfx;
+        if (g) g.clear();
+        else   g = n.gfx = this.scene._w(this.scene.add.graphics().setDepth(2));
+        g.setPosition(n.x, n.y).setScale(1);
+        if (n.labelObj) { n.labelObj.destroy(); n.labelObj = null; }
 
+        // Branches that draw nothing leave the cleared Graphics empty — visually
+        // identical to the old null gfx, minus the destroy/recreate churn.
         if (n.discovered === false) return;
 
         if (n.type === 'scrub' && n.dormantTimer > 0) {
-            n.gfx = this.scene._w(this.scene.add.graphics().setDepth(2)).setPosition(n.x, n.y);
-            n.gfx.fillStyle(0x8a6840, 0.35).fillEllipse(0, 2, 18, 10);
-            n.gfx.fillStyle(0x7a5830, 0.25).fillEllipse(-4, -1, 10, 6);
+            g.fillStyle(0x8a6840, 0.35).fillEllipse(0, 2, 18, 10);
+            g.fillStyle(0x7a5830, 0.25).fillEllipse(-4, -1, 10, 6);
             return;
         }
 
         if (n.type === 'berry_bush' && n.dormantTimer > 0) {
-            n.gfx = this.scene._w(this.scene.add.graphics().setDepth(2)).setPosition(n.x, n.y);
-            n.gfx.fillStyle(0x3a5520, 0.22).fillCircle(-5, 2, 9);
-            n.gfx.fillStyle(0x4a6630, 0.22).fillCircle(4, 1, 10);
-            n.gfx.fillStyle(0x3a5520, 0.22).fillCircle(-1, -4, 8);
+            g.fillStyle(0x3a5520, 0.22).fillCircle(-5, 2, 9);
+            g.fillStyle(0x4a6630, 0.22).fillCircle(4, 1, 10);
+            g.fillStyle(0x3a5520, 0.22).fillCircle(-1, -4, 8);
             return;
         }
 
         if (n.sapling) {
-            n.gfx = this.scene._w(this.scene.add.graphics().setDepth(2)).setPosition(n.x, n.y);
             if (n.stump) {
-                n.gfx.fillStyle(0x5a3318, 0.9).fillEllipse(0, 6, 18, 8);
-                n.gfx.fillStyle(0x7a4a28, 0.7).fillEllipse(0, 5, 12, 5);
-                n.gfx.fillStyle(0x6a4422, 0.85).fillRect(-1, -1, 2, 7);
-                n.gfx.fillStyle(0x55cc33, 0.95).fillCircle(0, -3, 4);
+                g.fillStyle(0x5a3318, 0.9).fillEllipse(0, 6, 18, 8);
+                g.fillStyle(0x7a4a28, 0.7).fillEllipse(0, 5, 12, 5);
+                g.fillStyle(0x6a4422, 0.85).fillRect(-1, -1, 2, 7);
+                g.fillStyle(0x55cc33, 0.95).fillCircle(0, -3, 4);
             } else {
-                n.gfx.fillStyle(0x6a4422, 0.85).fillRect(-1, 2, 2, 6);
-                n.gfx.fillStyle(0x44bb22, 0.9).fillCircle(0, 0, 4);
+                g.fillStyle(0x6a4422, 0.85).fillRect(-1, 2, 2, 6);
+                g.fillStyle(0x44bb22, 0.9).fillCircle(0, 0, 4);
             }
             return;
         }
@@ -421,32 +427,29 @@ export default class MapManager {
         const ratio = n.stock / n.maxStock;
 
         if (n.type === 'scrub') {
-            n.gfx = this.scene._w(this.scene.add.graphics().setDepth(2)).setPosition(n.x, n.y);
-            NODES[n.type]?.draw(n.gfx, n, 0.45 + ratio * 0.55);
+            NODES[n.type]?.draw(g, n, 0.45 + ratio * 0.55);
             return;
         }
 
         const alpha    = 0.45 + ratio * 0.55;
         const targeted = this.scene.units?.some(u => u.targetNode === n && u.hp > 0);
 
-        n.gfx = this.scene._w(this.scene.add.graphics().setDepth(2));
-        n.gfx.setPosition(n.x, n.y);
         if ((n.type === 'small_tree' || n.type === 'large_tree') && !n.felled) {
             const treeScale = Math.min(1.0, 0.35 + (n.treeAge ?? 0) * 0.033);
-            n.gfx.setScale(treeScale);
+            g.setScale(treeScale);
         }
-        NODES[n.type]?.draw(n.gfx, n, alpha);
+        NODES[n.type]?.draw(g, n, alpha);
 
         if (n.felled === false && n.fellWork !== undefined) {
             const maxFell = n.type === 'large_tree' ? 28 : 16;
             const p = Math.max(0, 1 - n.fellWork / maxFell);
-            n.gfx.fillStyle(0x000000, 0.6).fillRect(-12, -22, 24, 6);
-            n.gfx.fillStyle(0xddaa44, 0.9).fillRect(-12, -22, 24 * p, 6);
+            g.fillStyle(0x000000, 0.6).fillRect(-12, -22, 24, 6);
+            g.fillStyle(0xddaa44, 0.9).fillRect(-12, -22, 24 * p, 6);
         }
 
         if (targeted) {
             const r = def.large ? 24 : 16;
-            n.gfx.lineStyle(2, 0xffdd44, 0.9).strokeCircle(0, 0, r);
+            g.lineStyle(2, 0xffdd44, 0.9).strokeCircle(0, 0, r);
         }
 
         if (n.slated) {
@@ -458,9 +461,9 @@ export default class MapManager {
             };
             const col = SLATE_COLORS[n.slateType] ?? 0xcccccc;
             const r   = def.large ? 27 : 19;
-            n.gfx.lineStyle(2, col, 0.85).strokeCircle(0, 0, r);
+            g.lineStyle(2, col, 0.85).strokeCircle(0, 0, r);
             // Small upward triangle above the ring as a flag
-            n.gfx.fillStyle(col, 1.0).fillTriangle(-4, -r - 1, 4, -r - 1, 0, -r - 7);
+            g.fillStyle(col, 1.0).fillTriangle(-4, -r - 1, 4, -r - 1, 0, -r - 7);
         }
 
     }
