@@ -588,7 +588,11 @@ export default {
                 for (const t of u.traits) {
                     const def = TRAITS[t];
                     if (!def) continue;
-                    this._infTxt(tx, ry, `[${def.label}]`, { fontSize: this._fs(8), color: def.col });
+                    const txt = this._infTxt(tx, ry, `[${def.label}]`, { fontSize: this._fs(8), color: def.col });
+                    txt.setInteractive({ cursor: 'pointer' });
+                    const cx = tx + txt.width / 2;
+                    txt.on('pointerover', () => this._showTooltip(cx, ry, def.label, def.desc));
+                    txt.on('pointerout',  () => this._hideTooltip());
                     tx += def.label.length * 5 + 12;
                 }
                 ry += 12;
