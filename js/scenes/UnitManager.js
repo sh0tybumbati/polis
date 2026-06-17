@@ -513,7 +513,9 @@ export default class UnitManager {
     }
 
     tickPlayer(u, time, dt) {
-        if (u.type === 'worker') {
+        // Drafted colonists fall through to the combat branch below — they obey stances,
+        // formations and move/attack orders and fight with their existing (weak) stats.
+        if (u.type === 'worker' && !u.drafted) {
             if (u.isArchon && ENABLE_PROACTIVE_AI) this._runArchonAI(u, dt);
             this.tickWorker(u, time, dt);
             return;

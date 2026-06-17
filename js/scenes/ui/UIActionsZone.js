@@ -22,8 +22,8 @@ export default {
 
         const sel      = this.scene.units.filter(u => u.selected && !u.isEnemy);
         const construct = this.scene.selectedConstruct;
-        const workers  = sel.filter(u => u.type === 'worker' && u.age >= 2);
-        const military = sel.filter(u => u.type !== 'worker');
+        const workers  = sel.filter(u => u.type === 'worker' && u.age >= 2 && !u.drafted);
+        const military = sel.filter(u => u.type !== 'worker' || u.drafted);
         const scouts   = sel.filter(u => u.type === 'scout');
 
         if (construct) {
@@ -497,10 +497,26 @@ export default {
     _renderWorkerActions(sel, workers, zx, zy, ACT_W, fullH) {
         const s    = this.scene;
         const STRIP = 28;
-        // Jobs and Vocation are now in the inspector Jobs tab.
-        // Orders are via the Orders toolbar button.
-        // Right panel just provides the deselect strip.
-        this._actStrip(zx, zy + fullH - STRIP, ACT_W, STRIP, [
+        // Jobs and Vocation are in the inspector Jobs tab; ordinary orders via the Orders toolbar.
+        // Here we expose drafting — pressing colonists into temporary combatants.
+        const items = [];
+        if (workers.length > 0) {
+            items.push({ label: `⚔ Draft (${workers.length})`, color: 0x884433, callback: () => {
+                workers.forEach(u => {
+                    u._predraft = { role: u.role, taskType: u.taskType };
+                    u.drafted   = true;
+                    u.stance    = 'aggressive';
+                    u.isRouting = false;
+                    u.taskType  = null; u.targetNode = null; u.role = null; u.moveTo = null;
+                });
+                this.updateUI();
+            }});
+        }
+        const panelH = fullH - STRIP;
+        this._actionPanel = new UIPanel(this.scene, zx, zy, ACT_W, panelH);
+        this._actionPanel.setItems(items);
+
+        this._actStrip(zx, zy + panelH, ACT_W, STRIP, [
             { label: '✕ Deselect', color: 0x2a1c10, cb: () => {
                 s.constructType = null; s.roadMode = false;
                 s.deselect(); s.hoverGfx?.clear(); this.updateUI();
@@ -573,9 +589,22 @@ export default {
                     s.deselect(); this.updateUI();
                 }});
             }
-            if (military.some(u => (u.vetLevel ?? 0) === 0)) {
+            const drafted = sel.filter(u => u.drafted);
+            if (drafted.length > 0) {
+                items.push({ label: `Stand Down (${drafted.length})`, color: 0x445533, callback: () => {
+                    drafted.forEach(u => {
+                        u.drafted = false; u.isRouting = false; u.moveTo = null;
+                        u.role = u._predraft?.role ?? null;
+                        u.taskType = null; u.targetNode = null;
+                        u._predraft = null;
+                    });
+                    s.deselect(); this.updateUI();
+                }});
+            }
+
+            if (military.some(u => u.type !== 'worker' && (u.vetLevel ?? 0) === 0)) {
                 items.push({ label: 'Dismiss', color: 0x663322, callback: () => {
-                    military.forEach(u => { if ((u.vetLevel ?? 0) === 0) u.role = 'demobilizing'; });
+                    military.forEach(u => { if (u.type !== 'worker' && (u.vetLevel ?? 0) === 0) u.role = 'demobilizing'; });
                     s.deselect(); this.updateUI();
                 }});
             }
