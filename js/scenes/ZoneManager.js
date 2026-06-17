@@ -90,7 +90,9 @@ export default class ZoneManager {
     paintStorage(tx, ty) {
         const k = this.tileKey(tx, ty);
         if (this._claimed(k) && !this.storageTiles.has(k)) return;
-        if (!this.storageTiles.has(k)) this.storageTiles.set(k, { accepts: [] });
+        // priority 0–4 (2 = normal) biases hauling: workers fill higher-priority zones first.
+        // capacity 0 = unlimited, else max items this tile will hold before haulers skip it.
+        if (!this.storageTiles.has(k)) this.storageTiles.set(k, { accepts: [], priority: 2, capacity: 0 });
         this.renderAll();
     }
 
@@ -127,6 +129,35 @@ export default class ZoneManager {
             if (cfg) cfg.accepts = [...categories];
         }
     }
+
+    // Set haul priority (0–4) across the connected storage zone containing (tx, ty)
+    setStoragePriority(tx, ty, priority) {
+        const { tiles } = this.getConnectedTiles(tx, ty);
+        for (const { tx: ttx, ty: tty } of tiles) {
+            const cfg = this.storageTiles.get(this.tileKey(ttx, tty));
+            if (cfg) cfg.priority = Math.max(0, Math.min(4, priority | 0));
+        }
+        this._stockDirty = true;
+    }
+
+    // Set per-tile capacity (0 = unlimited) across the connected storage zone
+    setStorageCapacity(tx, ty, capacity) {
+        const { tiles } = this.getConnectedTiles(tx, ty);
+        for (const { tx: ttx, ty: tty } of tiles) {
+            const cfg = this.storageTiles.get(this.tileKey(ttx, tty));
+            if (cfg) cfg.capacity = Math.max(0, capacity | 0);
+        }
+    }
+
+    // ─── Storage helpers (shared by hauling AI + UI) ──────────────────────────────
+
+    zoneFill(cfg)  { const inv = cfg?.inventory ?? {}; let t = 0; for (const k in inv) t += inv[k] || 0; return t; }
+    zonePriority(cfg) { return cfg?.priority ?? 2; }
+    zoneAccepts(cfg, res) {
+        const a = cfg?.accepts ?? [];
+        return a.length === 0 || a.some(cat => res.startsWith(cat));
+    }
+    zoneHasRoom(cfg, add = 1) { return !cfg?.capacity || this.zoneFill(cfg) + add <= cfg.capacity; }
 
     // Assign a crop to all tiles in the connected grow zone containing (tx, ty)
     setGrowZoneCrop(tx, ty, crop) {
@@ -419,7 +450,7 @@ export default class ZoneManager {
     save() {
         return {
             work:    [...this.workTiles],
-            storage: [...this.storageTiles].map(([k, v]) => ({ k, accepts: v.accepts ?? [], inventory: v.inventory ?? {} })),
+            storage: [...this.storageTiles].map(([k, v]) => ({ k, accepts: v.accepts ?? [], inventory: v.inventory ?? {}, priority: v.priority ?? 2, capacity: v.capacity ?? 0 })),
             market:  [...this.marketTiles],
             grow:    [...this.growTiles].map(([k, v]) => ({ k, crop: v.crop, slots: [...v.slots] })),
         };
@@ -435,7 +466,7 @@ export default class ZoneManager {
         if (storageRaw.length > 0 && typeof storageRaw[0] === 'number') {
             this.storageTiles = new Map(storageRaw.map(k => [k, { accepts: [] }]));
         } else {
-            this.storageTiles = new Map(storageRaw.map(({ k, accepts, inventory }) => [k, { accepts: accepts ?? [], inventory: inventory ?? {} }]));
+            this.storageTiles = new Map(storageRaw.map(({ k, accepts, inventory, priority, capacity }) => [k, { accepts: accepts ?? [], inventory: inventory ?? {}, priority: priority ?? 2, capacity: capacity ?? 0 }]));
         }
     }
 }

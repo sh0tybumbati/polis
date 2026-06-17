@@ -1452,30 +1452,22 @@ export default {
         const zm = this.scene.zoneManager;
         const fm = this.scene.constructManager;
         if (zm?.storageTiles.size > 0) {
-            // Check whether a storage tile accepts the resources being carried
+            // Pick a storage tile that accepts the carried goods and still has room, biased by
+            // zone priority (higher fills first), then a small appliance-tile preference, then
+            // proximity. Full tiles (capacity reached) are skipped so haulers overflow to the
+            // next-best zone instead of piling onto a full one.
             const carryKeys = Object.keys(u.carrying).filter(r => (u.carrying[r] ?? 0) > 0);
-            const tileAccepts = (cfg) => {
-                if (!cfg?.accepts?.length) return true;
-                return carryKeys.some(r => cfg.accepts.some(cat => r.startsWith(cat)));
-            };
-            let bestKey = null, bestDist = Infinity;
-            // First pass: tiles with a built storage appliance that accepts carried resources
+            const tileOk = (cfg) => zm.zoneHasRoom(cfg) &&
+                (!cfg?.accepts?.length || carryKeys.some(r => cfg.accepts.some(cat => r.startsWith(cat))));
+            let bestKey = null, bestScore = -Infinity;
             for (const [key, cfg] of zm.storageTiles) {
-                if (!tileAccepts(cfg)) continue;
+                if (!tileOk(cfg)) continue;
                 const [tx, ty] = key.split(',').map(Number);
                 const item = fm?.getAt(tx, ty);
-                if (!item?.built || !_STORAGE_APPL.has(item.type)) continue;
+                const isAppl = item?.built && _STORAGE_APPL.has(item.type);
                 const d = Phaser.Math.Distance.Between(u.x, u.y, (tx + 0.5) * TILE, MAP_OY + (ty + 0.5) * TILE);
-                if (d < bestDist) { bestDist = d; bestKey = key; }
-            }
-            // Second pass: any accepting storage tile
-            if (bestKey === null) {
-                for (const [key, cfg] of zm.storageTiles) {
-                    if (!tileAccepts(cfg)) continue;
-                    const [tx, ty] = key.split(',').map(Number);
-                    const d = Phaser.Math.Distance.Between(u.x, u.y, tx * TILE + TILE / 2, MAP_OY + ty * TILE + TILE / 2);
-                    if (d < bestDist) { bestDist = d; bestKey = key; }
-                }
+                const score = zm.zonePriority(cfg) * 100000 + (isAppl ? 5000 : 0) - d;
+                if (score > bestScore) { bestScore = score; bestKey = key; }
             }
             if (bestKey !== null) { u.taskType = 'deposit_zone'; u.taskZoneKey = bestKey; return; }
         }

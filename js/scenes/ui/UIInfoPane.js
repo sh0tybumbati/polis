@@ -1085,6 +1085,26 @@ export default {
                 { fontSize: this._fs(9), color: depositing ? '#ffcc66' : '#5a5040' });
             ry += 14;
 
+            // Haul priority (left) + per-tile capacity stepper (right)
+            const cfg0    = zm.storageTiles?.get(zm.tileKey(tx, ty));
+            const PRIO    = ['Low', 'Below', 'Normal', 'High', 'Urgent'];
+            const PCOL    = [0x3a2a14, 0x4a3a1a, 0x2a3a4a, 0x315a36, 0x5a2a2a];
+            const curPrio = cfg0?.priority ?? 2;
+            const curCap  = cfg0?.capacity ?? 0;
+            const zFill   = zoneTiles.reduce((sum, t) =>
+                sum + zm.zoneFill(zm.storageTiles?.get(zm.tileKey(t.tx, t.ty))), 0);
+            const halfW   = Math.floor((W - pad * 2 - 4) / 2);
+            this._infBtn(ox + pad, ry, halfW, 20, `▲ ${PRIO[curPrio]}`, PCOL[curPrio],
+                () => { zm.setStoragePriority?.(tx, ty, (curPrio + 1) % 5); this.updateUI(); });
+            const capX = ox + pad + halfW + 4, sW = 20, midW = halfW - sW * 2;
+            this._infBtn(capX, ry, sW, 20, '−', 0x2a2418,
+                () => { zm.setStorageCapacity?.(tx, ty, Math.max(0, curCap - 10)); this.updateUI(); });
+            this._infTxt(capX + sW, ry + 4, curCap ? `${zFill}/${curCap}` : `${zFill}/∞`,
+                { fontSize: this._fs(8), color: '#ddcc88', align: 'center', fixedWidth: midW });
+            this._infBtn(capX + sW + midW, ry, sW, 20, '＋', 0x2a2418,
+                () => { zm.setStorageCapacity?.(tx, ty, curCap + 10); this.updateUI(); });
+            ry += 24;
+
             const CATS = [
                 { id: 'Food.',            label: 'Food',  color: 0x336622 },
                 { id: 'Materials.Wood.',  label: 'Wood',  color: 0x6a3a14 },

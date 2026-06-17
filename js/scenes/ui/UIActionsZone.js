@@ -191,8 +191,45 @@ export default {
                 });
             });
 
+            // ── Haul priority + per-tile capacity row ──────────────────────────
+            const PRIO_NAMES = ['Low', 'Below', 'Normal', 'High', 'Urgent'];
+            const PRIO_COLS  = [0x3a2a14, 0x4a3a1a, 0x2a3a4a, 0x315a36, 0x5a2a2a];
+            const curPrio = cfg?.priority ?? 2;
+            const curCap  = cfg?.capacity ?? 0;
+            const rowY = btnY + catH + 4, rowH = 16;
+            const mkCtl = (bx, bw, label, bgCol, cb) => {
+                const g = this._tab(s.add.graphics().setDepth(22));
+                g.fillStyle(bgCol, 0.85).fillRect(bx, rowY, bw, rowH);
+                g.lineStyle(1, 0xffaa22, 0.4).strokeRect(bx, rowY, bw, rowH);
+                this._tab(s.add.text(bx + bw / 2, rowY + rowH / 2, label, {
+                    fontFamily: THEME.fontMono, fontSize: '8px', color: '#e8d8a0', align: 'center',
+                }).setOrigin(0.5).setDepth(23));
+                const z = this._tab(s.add.zone(bx + bw / 2, rowY + rowH / 2, bw, rowH)
+                    .setInteractive({ cursor: 'pointer' }).setDepth(24));
+                z.on('pointerdown', cb);
+            };
+            const halfW = Math.floor((ACT_W - 8) / 2);
+            // Priority cycle (left half)
+            mkCtl(zx + 4, halfW - 2, `▲ ${PRIO_NAMES[curPrio]}`, PRIO_COLS[curPrio], () => {
+                zm.setStoragePriority(tile.tx, tile.ty, (curPrio + 1) % 5);
+                this.updateUI();
+            });
+            // Capacity stepper (right half): [−] cap [+]
+            const capX = zx + 4 + halfW, stepW = 16;
+            const capLblW = halfW - 2 - stepW * 2;
+            mkCtl(capX, stepW, '−', 0x2a2418, () => {
+                zm.setStorageCapacity(tile.tx, tile.ty, Math.max(0, curCap - 10)); this.updateUI();
+            });
+            this._tab(s.add.text(capX + stepW + capLblW / 2, rowY + rowH / 2,
+                curCap ? `cap ${curCap}` : 'cap ∞', {
+                    fontFamily: THEME.fontMono, fontSize: '8px', color: '#ddcc88', align: 'center',
+                }).setOrigin(0.5).setDepth(23));
+            mkCtl(capX + stepW + capLblW, stepW, '＋', 0x2a2418, () => {
+                zm.setStorageCapacity(tile.tx, tile.ty, curCap + 10); this.updateUI();
+            });
+
             // Inventory list below toggles
-            let invY = btnY + catH + 4;
+            let invY = rowY + rowH + 4;
             const zoneInv = {};
             for (const t of tiles) {
                 const tileCfg = zm.storageTiles.get(zm.tileKey(t.tx, t.ty));
