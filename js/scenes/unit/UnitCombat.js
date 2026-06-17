@@ -1,6 +1,11 @@
 import { TILE, MAP_OY } from '../../config/gameConstants.js';
 import { MathUtils } from '../../utils/MathUtils.js';
 
+// Ranged loadouts that should keep their distance / kite melee attackers.
+const RANGED   = new Set(['archer', 'slinger', 'toxotes', 'scout']);
+// A ranged unit backs away when an enemy closes inside this many px.
+const KITE_MIN = 64;
+
 export default {
     updateCombat(u, time, dt) {
         const enemies = this.scene.units.filter(e => e.isEnemy && e.hp > 0);
@@ -9,6 +14,11 @@ export default {
             const d = Phaser.Math.Distance.Between(u.x, u.y, e.x, e.y);
             if (d < nd) { nd = d; near = e; }
         }
+
+        // Per-unit combat stance: 'aggressive' (chase + engage), 'hold' (defend ground, no chase),
+        // 'fallback' (retreat home and stay passive — reuses the routing mover below).
+        const stance = u.stance ?? 'aggressive';
+        if (stance === 'fallback') u.isRouting = true;
 
         if (this.scene.phase !== 'NIGHT' && this.scene.phase !== 'DAY') { u.isRouting = false; return; }
 
@@ -82,6 +92,7 @@ export default {
         }));
         const flankMod = quadrants.size >= 2 ? 0.8 : 1.0;
 
+        // Attack anything already in range — every stance fights what's on top of it.
         if (nd <= u.range + 4) {
             if (time - u.lastAtk > 1000) {
                 const nTx = Math.floor(near.x/TILE), nTy = Math.floor((near.y-MAP_OY)/TILE);
@@ -91,7 +102,16 @@ export default {
                 near.hp -= dmg; u.lastAtk = time;
                 this.scene.uiManager.showFloatText(near.x, near.y - 14, `-${dmg}`, '#ff6666');
             }
-        } else if (nd < 115) {
+        }
+
+        // Movement is stance-driven. Ranged units kite (back off + keep firing) when an enemy
+        // closes; melee/aggressive units close the gap; 'hold' units stay put and only defend.
+        const isRanged = RANGED.has(u.type);
+        if (isRanged && nd < KITE_MIN) {
+            const a = Phaser.Math.Angle.Between(near.x, near.y, u.x, u.y);   // away from the enemy
+            u.x += Math.cos(a) * u.speed * 0.9 * dt;
+            u.y += Math.sin(a) * u.speed * 0.9 * dt;
+        } else if (stance !== 'hold' && nd > u.range + 4 && nd < 115) {
             const a = Phaser.Math.Angle.Between(u.x, u.y, near.x, near.y);
             u.x += Math.cos(a) * u.speed * 0.8 * dt;
             u.y += Math.sin(a) * u.speed * 0.8 * dt;

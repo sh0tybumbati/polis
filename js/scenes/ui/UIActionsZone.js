@@ -543,6 +543,23 @@ export default {
         }
 
         if (this._actMilTab === 'Orders') {
+            // Combat stance — applies to every selected combatant (soldiers + drafted colonists).
+            const combatants = sel.filter(u => u.type !== 'worker' || u.drafted);
+            if (combatants.length > 0) {
+                const STANCES = [
+                    { id: 'aggressive', label: 'Aggressive', color: 0x884433 },
+                    { id: 'hold',       label: 'Hold Ground', color: 0x445588 },
+                    { id: 'fallback',   label: 'Fall Back',  color: 0x666644 },
+                ];
+                for (const st of STANCES) {
+                    const active = combatants.every(u => (u.stance ?? 'aggressive') === st.id);
+                    items.push({ label: st.label, color: active ? st.color : 0x1e2c3a, active, callback: () => {
+                        combatants.forEach(u => { u.stance = st.id; if (st.id !== 'fallback') u.isRouting = false; });
+                        this.updateUI();
+                    }});
+                }
+            }
+
             const towers = s.constructs.filter(b => b.built && !b.faction && b.type === 'watchtower');
             if (towers.length > 0) {
                 items.push({ label: 'Garrison Tower', color: 0x334455, callback: () => {

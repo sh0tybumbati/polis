@@ -132,6 +132,8 @@ export default class UnitManager {
             isEnemy, selected: false,
             gender, name: pickName(gender),
             moveTo: null, lastAtk: 0, lastGather: 0,
+            stance: 'aggressive',   // combat stance for military / drafted units
+            drafted: false,         // colonists temporarily pressed into combat
             vx: 0, vy: 0,   // steering velocity (UnitMovement._steer)
             speed, atk: def.atk, range: def.range,
             wallSide: 0, homeConstructId: null, bedConstructId: null, estateId: null, age: 2,
