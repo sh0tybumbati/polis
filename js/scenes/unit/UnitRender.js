@@ -183,13 +183,26 @@ export default {
             this.selGfx.fillStyle(0x44dd55, 0.28).fillEllipse(u.x, u.y + 7 * scale, w, h);
             this.selGfx.lineStyle(1, 0x55ff66, 0.75).strokeEllipse(u.x, u.y + 7 * scale, w, h);
         }
-        // Highlight a selected edge construct (wall/gate/door/fence) along its border.
+        // Highlight a selected construct.
         const sc = this.scene.selectedConstruct;
         if (sc && sc.placement === 'edge') {
+            // Edge construct (wall/gate/door/fence) — along its border.
             const x = sc.col * TILE, y = MAP_OY + sc.row * TILE;
             this.selGfx.lineStyle(3, 0x66ddff, 0.9);
             if (sc.isH) this.selGfx.lineBetween(x, y, x + TILE, y);
             else        this.selGfx.lineBetween(x, y, x, y + TILE);
+        } else if (sc) {
+            // Tile construct (house/workshop/furniture) — outline its footprint.
+            const x = sc.tx * TILE, y = MAP_OY + sc.ty * TILE;
+            const w = (sc.width || 1) * TILE, h = (sc.height || 1) * TILE;
+            this.selGfx.fillStyle(0x66ddff, 0.10).fillRect(x, y, w, h);
+            this.selGfx.lineStyle(2, 0x66ddff, 0.9).strokeRect(x + 1, y + 1, w - 2, h - 2);
+        }
+
+        // Ring the inspected resource node.
+        const sn = this.scene.selectedNode;
+        if (sn) {
+            this.selGfx.lineStyle(2, 0x66ddff, 0.9).strokeCircle(sn.x, sn.y, 18);
         }
     },
 

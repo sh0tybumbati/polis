@@ -261,7 +261,7 @@ export default class UIManager {
     _renderSheet() {
         const { W, TOOLBAR_Y, INSP_W, FLOAT_W } = this.L;
 
-        const sel       = this.scene.units.filter(u => u.selected && !u.isEnemy);
+        const sel       = this.scene.units.filter(u => u.selected && !u.isEnemy && u.hp > 0);
         const construct = this.scene.selectedConstruct;
         const workers   = sel.filter(u => u.type === 'worker' && u.age >= 2);
         const military  = sel.filter(u => u.type !== 'worker');
@@ -610,7 +610,7 @@ export default class UIManager {
 
     _renderOrdersPanel(x, y, w, h) {
         const s       = this.scene;
-        const sel     = s.units.filter(u => u.selected && !u.isEnemy);
+        const sel     = s.units.filter(u => u.selected && !u.isEnemy && u.hp > 0);
         const workers = sel.filter(u => u.type === 'worker' && u.age >= 2);
 
         if (workers.length > 0) {

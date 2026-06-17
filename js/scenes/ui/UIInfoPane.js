@@ -12,13 +12,13 @@ export default {
         const W = INFO_W - 2, H = PANEL_H - KEY_H - (QB_H ?? 0);
         const ox = INFO_X ?? 0, oy = panelY + KEY_H;
         const pad = 8;
-        const sel = this.scene.units.filter(u => u.selected && !u.isEnemy);
+        const sel = this.scene.units.filter(u => u.selected && !u.isEnemy && u.hp > 0);
 
         if (this.scene.selectedConstruct) {
             this._renderConstructInfo(ox, oy, W, H, pad);
         } else if (sel.length > 0) {
             this._renderUnitInfo(sel, ox, oy, W, H, pad);
-        } else if (this.scene.selectedNode) {
+        } else if (this.scene.selectedNode && this.scene.resNodes?.includes(this.scene.selectedNode)) {
             this._renderNodeInfo(ox, oy, W, H, pad);
         } else if (this.scene.selectedZoneTile) {
             this._renderZoneInfo(ox, oy, W, H, pad);

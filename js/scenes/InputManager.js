@@ -427,7 +427,7 @@ export default class InputManager {
 
             // Left click: select — capture workers BEFORE deselect clears s.selIds
             const preWorkers = s.selIds?.size > 0
-                ? s.units.filter(u => s.selIds.has(u.id) && u.type === 'worker' && u.age >= 2)
+                ? s.units.filter(u => s.selIds.has(u.id) && u.hp > 0 && u.type === 'worker' && u.age >= 2)
                 : [];
             s.deselect();
             s.selectedConstruct = null;
@@ -440,9 +440,9 @@ export default class InputManager {
             s.selectedZoneCrop  = null;
             if (hit && !hit.isEnemy) { s.selectUnit(hit.id, ptr.event?.shiftKey ?? false); return; }
             if (construct) { s.selectedConstruct = construct; s.updateUI(); return; }
-            // Nodes are not inspected via left-click — no info panel pops open. To put workers on
-            // a node, select them and right-click it (orderWorkersToNode).
-            if (node) { s.updateUI(); return; }
+            // Left-click a resource node to inspect it (stock / yields). Right-click still
+            // orders selected workers to it (orderWorkersToNode) — unaffected.
+            if (node) { s.selectedNode = node; s.updateUI(); return; }
             const furnHit = s.constructManager?.findConstructAt(wx, wy);
             if (furnHit) { s.selectedConstruct = furnHit; s.updateUI(); return; }
 
@@ -529,7 +529,7 @@ export default class InputManager {
             const hasActive = s.constructType || s.roadMode || s.wallMode || s.wallRectMode ||
                 s.constructMode || s.placementType || s.relocateMode || s.zoneMode ||
                 s.slateModeType || s.orderMode ||
-                s.selectedConstruct || s.selectedZoneTile || s.selectedZoneTiles ||
+                s.selectedConstruct || s.selectedNode || s.selectedZoneTile || s.selectedZoneTiles ||
                 s.selectedGroundTile || s.units?.some(u => u.selected);
             if (hasActive) {
                 s.slateModeType = null; s.slateNodeTypes = null; s.orderMode = null;
@@ -539,15 +539,22 @@ export default class InputManager {
                 s.selectedConstruct = null; s.zoneMode = null; s._zoneDragStart = null;
                 s.selectedZoneTile = null; s.selectedZoneTiles = null;
                 s.selectedZoneType = null; s.selectedZoneCrop = null;
-                s.selectedGroundTile = null;
-                s.zoneManager?.clearSelection(); s.deselect(); s.selectedConstruct = null;
+                s.selectedGroundTile = null; s.selectedNode = null;
+                s.zoneManager?.clearSelection(); s.deselect();
                 s.hoverGfx.clear(); s.updateUI();
             } else {
                 // Nothing active — open pause menu
                 s.uiManager?.showPauseMenu();
             }
         });
-        s.input.keyboard?.on('keydown-A', () => s.units.filter(u => !u.isEnemy).forEach(u => s.selectUnit(u.id, true)));
+        s.input.keyboard?.on('keydown-A', () => {
+            // Select all living colonists, clearing any other selection type first.
+            s.deselect();
+            s.selectedConstruct = null; s.selectedNode = null; s.selectedGroundTile = null;
+            s.selectedZoneTile = null; s.selectedZoneTiles = null; s.selectedZoneType = null;
+            s.zoneManager?.clearSelection();
+            s.units.filter(u => !u.isEnemy && u.hp > 0).forEach(u => s.selectUnit(u.id, true));
+        });
         s.input.keyboard?.on('keydown-F', () => { const sel = s.units.filter(u => u.selected && !u.isEnemy); if (sel.length) s.moveSelectedTo((s.spawnTx ?? 0) * TILE, MAP_OY + (s.spawnTy ?? 0) * TILE); });
         s.input.keyboard?.on('keydown-BACKTICK', () => s.scene.launch('SpriteEditorScene'));
         // Debug: spawn a rig-animated critter at the camera centre (proves the sprite pipeline).

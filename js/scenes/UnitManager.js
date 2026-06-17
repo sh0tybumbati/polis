@@ -442,6 +442,10 @@ export default class UnitManager {
             if (u.hp > 0 || u._dying) continue;
             u._dying = true;
             u._alpha = 1.0;
+            // Drop the dead unit out of any active selection so corpses can't show as
+            // selected in the UI or get assigned to zones.
+            u.selected = false;
+            this.scene.selIds.delete(u.id);
             if (u.nameLabel) { u.nameLabel.destroy(); u.nameLabel = null; }
             if (u._zzzLabel) { u._zzzLabel.destroy(); u._zzzLabel = null; }
             if (u.isScout) this.waveIntelFlash();
