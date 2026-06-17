@@ -6,14 +6,28 @@ export default {
     tickEnemy(u, time, dt) {
         if (u.type === 'worker') { this.tickEnemyWorker(u, time, dt); return; }
 
-        // Always attack any player unit in range
         const players = this.scene.units.filter(p => !p.isEnemy && p.hp > 0);
         let near = null, nd = Infinity;
         for (const p of players) {
             const d = Phaser.Math.Distance.Between(u.x, u.y, p.x, p.y);
             if (d < nd) { nd = d; near = p; }
         }
-        if (near && nd <= u.range + 4) {
+
+        // Pick a priority/focus-fire target to maneuver toward (wounded, ranged, hero, countered,
+        // and whatever allies already pile onto). Movement uses this; in-range hits still land on
+        // whoever is adjacent.
+        const target = this._pickEnemyTarget(u, players);
+        u._targetId = target ? target.id : null;
+
+        // Withdraw when badly hurt and locally outnumbered — raiders live to fight another night.
+        const hpFrac = u.hp / (u.maxHp || u.hp || 1);
+        if (u.aiMode !== 'scout' && u.aiMode !== 'tower_assault'
+            && hpFrac < 0.45 && this._outnumbered(u, 6 * TILE)) {
+            u.aiMode = 'retreat';
+        }
+
+        // Attack any player unit in range (unless disengaging to retreat).
+        if (near && nd <= u.range + 4 && u.aiMode !== 'retreat') {
             if (time - u.lastAtk > 1000) {
                 const nTx = Math.floor(near.x/TILE), nTy = Math.floor((near.y-MAP_OY)/TILE);
                 const cover = MathUtils.coverMod(this.scene.chunkManager?.getTile(nTx, nTy) ?? 0);
@@ -70,9 +84,15 @@ export default {
                     this.scene.uiManager.showFloatText(gnear.x, gnear.y - 14, `-${dmg}`, '#ff8844');
                 }
             }
+        } else if (mode === 'retreat') {
+            // Fall back to the village; rejoin the raid once healed or no longer outnumbered.
+            if (hpFrac > 0.75 || !this._outnumbered(u, 7 * TILE)) { u.aiMode = 'raid'; }
+            else { this.moveToward(u, vc.x, vc.y, 8, dt); return; }
         } else { // raid
-            if (near && nd < u.range * 8) {
-                this.moveToward(u, near.x, near.y, 10, dt);
+            const chase = target ?? near;
+            const cd = chase ? Phaser.Math.Distance.Between(u.x, u.y, chase.x, chase.y) : Infinity;
+            if (chase && cd < u.range * 8) {
+                this.moveToward(u, chase.x, chase.y, 10, dt);
             } else {
                 // If a watchtower with melee garrison is nearby, try to assault it
                 const RANGED = new Set(['archer','slinger','toxotes','scout']);
@@ -106,6 +126,48 @@ export default {
                 }
             }
         }
+    },
+
+    // Choose which player unit an enemy should maneuver toward. Scores proximity, then biases
+    // toward wounded / soft (ranged, hero) / countered targets and toward whatever allies are
+    // already focusing — producing focus-fire without a separate coordination pass.
+    _pickEnemyTarget(u, players) {
+        if (!players.length) return null;
+        const RANGED = new Set(['archer', 'slinger', 'toxotes', 'scout']);
+        // Tally current focus from the squad's last-assigned targets (drives convergence).
+        const focus = {};
+        for (const e of this.scene.units) {
+            if (e.isEnemy && e.hp > 0 && e._targetId != null) {
+                focus[e._targetId] = (focus[e._targetId] ?? 0) + 1;
+            }
+        }
+        let best = null, bestScore = -Infinity;
+        for (const p of players) {
+            const d = Phaser.Math.Distance.Between(u.x, u.y, p.x, p.y);
+            let score = -d / TILE;                                   // closer is better
+            const hpFrac = p.hp / (p.maxHp || p.hp || 1);
+            score += (1 - hpFrac) * 4;                               // finish off the wounded
+            if (RANGED.has(p.type)) score += 2.5;                    // soft, high-value
+            if (p.isHero)           score += 3;
+            score += (MathUtils.counterMod(u.type, p.type) - 1) * 3; // exploit type advantage
+            score += Math.min(focus[p.id] ?? 0, 3) * 1.2;            // pile on (capped)
+            if (score > bestScore) { bestScore = score; best = p; }
+        }
+        return best;
+    },
+
+    // True if nearby player combat power (soldiers + drafted colonists) clearly exceeds nearby
+    // enemy power around u. Plain workers aren't counted as a threat.
+    _outnumbered(u, r) {
+        let mine = 0, theirs = 0;
+        for (const e of this.scene.units) {
+            if (e.hp <= 0) continue;
+            if (Phaser.Math.Distance.Between(u.x, u.y, e.x, e.y) > r) continue;
+            const power = (e.atk || 1) * Phaser.Math.Clamp(e.hp / (e.maxHp || e.hp || 1), 0.2, 1);
+            if (e.isEnemy) mine += power;
+            else if (e.type !== 'worker' || e.drafted) theirs += power;
+        }
+        return theirs > mine * 1.4;
     },
 
     tickEnemyWorker(u, time, dt) {
