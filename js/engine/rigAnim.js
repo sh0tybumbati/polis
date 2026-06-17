@@ -23,7 +23,7 @@ export function isConventionPart(name) {
  * Convention transform for a standard limb slot. Returns null for non-standard names
  * (those stay static unless an authored clip drives them).
  */
-export function conventionPartTransform(name, { walkPhase = 0, moving = false, working = false } = {}) {
+export function conventionPartTransform(name, { walkPhase = 0, moving = false, working = false, facing = 'south' } = {}) {
     if (!LIMB_SLOTS.has(name)) return null;
     const ph = walkPhase;
 
@@ -41,6 +41,24 @@ export function conventionPartTransform(name, { walkPhase = 0, moving = false, w
     if (moving) {
         const sw = Math.sin(ph);                 // primary gait phase
         const bob = -Math.abs(Math.sin(ph)) * 0.6;
+
+        // Facing toward/away from the camera (north/south): a left-right swing reads as wrong, so
+        // limbs step up-and-down instead — each leg/arm lifts on alternate halves of the gait.
+        if (facing === 'north' || facing === 'south') {
+            const LEG = 1.8, ARM = 0.9;
+            switch (name) {
+                case 'legL': return { ...REST, y: -Math.max(0,  sw) * LEG };
+                case 'legR': return { ...REST, y: -Math.max(0, -sw) * LEG };
+                case 'armL': return { ...REST, y: -Math.max(0, -sw) * ARM };  // arms counter the legs
+                case 'armR': return { ...REST, y: -Math.max(0,  sw) * ARM };
+                case 'torso': return { ...REST, y: bob };
+                case 'head':  return { ...REST, y: bob };
+                case 'tail':  return { ...REST, y: -Math.abs(sw) * 1.0 };
+                default:      return { ...REST };
+            }
+        }
+
+        // Side profile (east/west): swing limbs fore-and-aft about the hip/shoulder.
         switch (name) {
             case 'legL': return { ...REST, rot:  sw * 0.55 };
             case 'legR': return { ...REST, rot: -sw * 0.55 };
