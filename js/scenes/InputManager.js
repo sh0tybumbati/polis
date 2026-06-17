@@ -152,7 +152,18 @@ export default class InputManager {
                         s.dragGfx.lineBetween(px, py, px, py + sy2 * cl);
                     });
                 s.hoverGfx.clear();
-            } else if (!s.constructType && !s.roadMode && !s.wallMode && !s.slateModeType && ptr.isDown && !ptr.middleButtonDown() && !isUI) {
+            } else if (s.orderMode && ptr.isDown && !isUI) {
+                // Designation drag (deconstruct / forbid / cancel) — coloured marquee, applied on release.
+                s._orderDragging = true;
+                const rx = Math.min(ptr.x, s._ptrDownX), ry = Math.min(ptr.y, s._ptrDownY);
+                const rw = Math.abs(ptr.x - s._ptrDownX), rh = Math.abs(ptr.y - s._ptrDownY);
+                const col = s.orderMode === 'deconstruct' ? 0xff8844
+                          : s.orderMode === 'forbid'      ? 0xcc66cc : 0xffcc44;
+                s.dragGfx.clear()
+                    .fillStyle(col, 0.16).fillRect(rx, ry, rw, rh)
+                    .lineStyle(2, col, 0.95).strokeRect(rx, ry, rw, rh);
+                s.hoverGfx.clear();
+            } else if (!s.constructType && !s.roadMode && !s.wallMode && !s.slateModeType && !s.orderMode && ptr.isDown && !ptr.middleButtonDown() && !isUI) {
                 const d = Phaser.Math.Distance.Between(ptr.x, ptr.y, s._ptrDownX, s._ptrDownY);
                 if (d > TAP_DIST) {
                     if (s.selIds.size >= 1) {
@@ -222,6 +233,20 @@ export default class InputManager {
                 }
             }
 
+            // Order designation drag (deconstruct / forbid / cancel): apply to everything in the rect.
+            if (s.orderMode && s._orderDragging) {
+                s._orderDragging = false;
+                const moved = Phaser.Math.Distance.Between(ptr.x, ptr.y, s._ptrDownX, s._ptrDownY) >= TAP_DIST;
+                if (moved) {
+                    const cam = s.cameras.main;
+                    const tl = cam.getWorldPoint(Math.min(ptr.x, s._ptrDownX), Math.min(ptr.y, s._ptrDownY));
+                    const br = cam.getWorldPoint(Math.max(ptr.x, s._ptrDownX), Math.max(ptr.y, s._ptrDownY));
+                    this._applyOrderRect(s.orderMode, tl, br);
+                    s.updateUI();
+                    return;
+                }
+            }
+
             if (s._fmDragging) {
                 s._fmDragging = false;
                 if (s._fmDragStart) {
@@ -247,7 +272,7 @@ export default class InputManager {
             {
                 const L = s.uiManager?.L;
                 const hasSel = (s.selIds?.size ?? 0) > 0 || !!s.selectedConstruct || !!s.selectedNode || !!s.selectedZoneTile;
-                const inMode = !!(s.zoneMode || s.roadMode || s.wallMode || s.wallRectMode || s.constructType || s.slateModeType || s.constructMode);
+                const inMode = !!(s.zoneMode || s.roadMode || s.wallMode || s.wallRectMode || s.constructType || s.slateModeType || s.orderMode || s.constructMode);
                 const blockH = L
                     ? (inMode ? L.TOOLBAR_H : (hasSel || s.uiManager?._activePanel) ? L.INSP_MAX_H + L.TOOLBAR_H : L.TOOLBAR_H)
                     : 190;
@@ -295,6 +320,13 @@ export default class InputManager {
                 node.slated    = !node.slated;
                 node.slateType = node.slated ? s.slateModeType : null;
                 s.mapManager?.redrawNode(node);
+                s.updateUI();
+                return;
+            }
+
+            // Order designation tap: apply to the single thing under the cursor
+            if (s.orderMode) {
+                this._applyOrderAt(s.orderMode, wx, wy, construct, node);
                 s.updateUI();
                 return;
             }
@@ -476,9 +508,11 @@ export default class InputManager {
             // Check if anything is currently active/selected
             const hasActive = s.constructType || s.roadMode || s.wallMode || s.wallRectMode ||
                 s.constructMode || s.placementType || s.relocateMode || s.zoneMode ||
+                s.slateModeType || s.orderMode ||
                 s.selectedConstruct || s.selectedZoneTile || s.selectedZoneTiles ||
                 s.selectedGroundTile || s.units?.some(u => u.selected);
             if (hasActive) {
+                s.slateModeType = null; s.slateNodeTypes = null; s.orderMode = null;
                 s.constructType = null; s.roadMode = false; s.wallMode = false;
                 s.wallRectMode = false; s._wallRectStart = null; s.constructMode = false;
                 s.placementType = null; s.relocateMode = false; s.relocateSrc = null;
@@ -548,6 +582,57 @@ export default class InputManager {
         s.hoverGfx.clear().fillStyle(col_c, alpha);
         if (isH) s.hoverGfx.fillRect(px, py - W / 2, TILE, W);
         else     s.hoverGfx.fillRect(px - W / 2, py, W, TILE);
+    }
+
+    // ─── Order designations (deconstruct / forbid / cancel) ──────────────────────
+
+    _applyOrderRect(mode, tl, br) {
+        const s = this.scene;
+        const inRect = (x, y) => x >= tl.x && x <= br.x && y >= tl.y && y <= br.y;
+        const cc = (b) => [(b.tx + (b.width || 1) / 2) * TILE, MAP_OY + (b.ty + (b.height || 1) / 2) * TILE];
+        let cnt = 0;
+        if (mode === 'deconstruct') {
+            for (const b of s.constructs) {
+                if (b.faction || !b.built || b.deconstructing) continue;
+                const [cx, cy] = cc(b);
+                if (inRect(cx, cy)) { s.constructManager.orderDeconstruct(b); cnt++; }
+            }
+        } else if (mode === 'cancel') {
+            for (const b of [...s.constructs]) {
+                if (b.faction) continue;
+                const [cx, cy] = cc(b);
+                if (!inRect(cx, cy)) continue;
+                if (!b.built) { s.constructManager.demolishConstruct(b); cnt++; }   // cancel blueprint
+                else if (b.deconstructing) { b.deconstructing = false; cnt++; }      // un-cancel deconstruct
+            }
+            for (const n of s.resNodes ?? []) {
+                if (inRect(n.x, n.y) && n.slated) { n.slated = false; n.slateType = null; s.mapManager?.redrawNode(n); cnt++; }
+            }
+        } else if (mode === 'forbid') {
+            const nodes = (s.resNodes ?? []).filter(n => inRect(n.x, n.y));
+            const items = (s.groundItems ?? []).filter(i => inRect(i.x, i.y));
+            // Toggle as a group: forbid all if any are currently allowed, else allow all.
+            const forbidding = nodes.some(n => !n.forbidden) || items.some(i => !i.forbidden);
+            for (const n of nodes) { n.forbidden = forbidding; s.mapManager?.redrawNode(n); cnt++; }
+            for (const i of items) { i.forbidden = forbidding; cnt++; }
+        }
+        if (cnt > 0) s.uiManager?.showFloatText?.((tl.x + br.x) / 2, (tl.y + br.y) / 2, `${mode} ×${cnt}`, '#ffd277');
+    }
+
+    _applyOrderAt(mode, wx, wy, construct, node) {
+        const s = this.scene;
+        if (mode === 'deconstruct') {
+            if (construct && !construct.faction && construct.built && !construct.deconstructing)
+                s.constructManager.orderDeconstruct(construct);
+        } else if (mode === 'cancel') {
+            if (construct && !construct.faction && !construct.built) s.constructManager.demolishConstruct(construct);
+            else if (construct?.deconstructing) construct.deconstructing = false;
+            else if (node?.slated) { node.slated = false; node.slateType = null; s.mapManager?.redrawNode(node); }
+        } else if (mode === 'forbid') {
+            const item = (s.groundItems ?? []).find(i => Phaser.Math.Distance.Between(wx, wy, i.x, i.y) < 16);
+            const tgt = node ?? item;
+            if (tgt) { tgt.forbidden = !tgt.forbidden; if (node) s.mapManager?.redrawNode(node); }
+        }
     }
 
     _drawWallRectGhost(start, end) {

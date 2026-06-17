@@ -644,10 +644,33 @@ export default class UIManager {
                 callback: () => {
                     s.slateModeType  = active ? null : t.key;
                     s.slateNodeTypes = active ? null : t.types;
+                    s.orderMode = null;   // harvest + order tools are mutually exclusive
                     this.updateUI();
                 },
             };
         });
+
+        // RimWorld-style designation tools: drag a rectangle (or tap) to apply.
+        const ORDER_TOOLS = [
+            { key: 'deconstruct', icon: '🛠', label: 'Decon-\nstruct', color: 0x4a2a12 },
+            { key: 'forbid',      icon: '🚫', label: 'Forbid', color: 0x402038 },
+            { key: 'cancel',      icon: '✖',  label: 'Cancel', color: 0x3a2a10 },
+        ];
+        for (const t of ORDER_TOOLS) {
+            const active = s.orderMode === t.key;
+            items.push({
+                label:    `${t.icon}\n${t.label}`,
+                sublabel: active ? 'drag area' : null,
+                color:    active ? t.color + 0x222222 : t.color,
+                active,
+                callback: () => {
+                    s.orderMode      = active ? null : t.key;
+                    s.slateModeType  = null;   // mutually exclusive with harvest tools
+                    s.slateNodeTypes = null;
+                    this.updateUI();
+                },
+            });
+        }
 
         if (slatedCount > 0) {
             items.push({

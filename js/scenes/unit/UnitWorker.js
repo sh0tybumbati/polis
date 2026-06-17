@@ -1349,7 +1349,7 @@ export default {
         if (!items?.length) return false;
         let best = null, bd = Infinity;
         for (const item of items) {
-            if (item.reserved) continue;
+            if (item.reserved || item.forbidden) continue;
             if (!this.canUnitCarryMore(u, item.resource, 1)) continue;
             const d = Phaser.Math.Distance.Between(u.x, u.y, item.x, item.y);
             if (d < 4000 && d < bd) { bd = d; best = item; }
@@ -2181,7 +2181,7 @@ export default {
     findNearNode(u, maxDist, filterType, requireSlated = false) {
         let best = null, bd = Infinity;
         for (const n of this.scene.resNodes) {
-            if (n.stock <= 0) continue;
+            if (n.stock <= 0 || n.forbidden) continue;
             if (filterType && !filterType.includes(n.type)) continue;
             if (requireSlated && !n.slated) continue;
             const d = Phaser.Math.Distance.Between(u.x, u.y, n.x, n.y);

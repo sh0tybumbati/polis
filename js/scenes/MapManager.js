@@ -497,5 +497,12 @@ export default class MapManager {
             g.fillStyle(col, 1.0).fillTriangle(-4, -r - 1, 4, -r - 1, 0, -r - 7);
         }
 
+        // Forbidden: red prohibition X so haulers/harvesters skip it (see UnitWorker seeks)
+        if (n.forbidden) {
+            const r = (def?.large ? 12 : 9);
+            g.lineStyle(2.5, 0xff4433, 0.95);
+            g.lineBetween(-r, -r, r, r);
+            g.lineBetween(-r, r, r, -r);
+        }
     }
 }
