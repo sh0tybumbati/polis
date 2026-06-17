@@ -540,10 +540,9 @@ export default {
         const u   = sel[0];
         const nm  = UNIT_NAMES[u.type] ?? u.type;
         const vet = u.vetLevel >= 1 ? VET_LEVELS[u.vetLevel - 1].label + ' ' : '';
-        const workers = sel.filter(w => w.type === 'worker' && w.age >= 2);
         const isAdultWorker = u.type === 'worker' && u.age >= 2;
         const tabs = isAdultWorker
-            ? ['Stats', 'Skills', 'Needs', 'Inv', 'Jobs']
+            ? ['Stats', 'Skills', 'Needs', 'Inv', 'Relations']
             : ['Stats'];
         if (!tabs.includes(this._unitTab)) { this._unitTab = 'Stats'; this._skillsScroll = 0; }
         this._infTabBar(ox, oy, W + 2, tabs, this._unitTab, t => { if (t !== 'Skills') this._skillsScroll = 0; this._unitTab = t; this.updateUI(); });
@@ -567,7 +566,7 @@ export default {
         else if (this._unitTab === 'Skills') this._renderUnitSkills(u, ox, contentY, W, contentH, pad);
         else if (this._unitTab === 'Needs')  this._renderUnitNeeds(u, ox, contentY, W, contentH, pad);
         else if (this._unitTab === 'Inv')    this._renderUnitInventory(u, ox, contentY, W, contentH, pad);
-        else if (this._unitTab === 'Jobs')   this._renderInlineJobs(workers, ox, contentY, W, contentH, pad);
+        else if (this._unitTab === 'Relations') this._renderUnitRelations(u, ox, contentY, W, contentH, pad);
     },
 
     _renderUnitStats(u, ox, oy, W, H, pad) {
@@ -742,14 +741,6 @@ export default {
                 { fontSize: this._fs(9), color: '#886699' });
             ry += 12;
         }
-
-        const curW = this.scene.unitManager.getUnitCarryWeight(u);
-        const maxW = this.scene.unitManager.getUnitMaxWeight(u);
-        const curV = this.scene.unitManager.getUnitCarryVolume(u);
-        const maxV = this.scene.unitManager.getUnitMaxVolume(u);
-        this._infTxt(ox + pad, ry, `⚖ ${curW.toFixed(1)}/${maxW} lbs`, { fontSize: this._fs(9), color: '#8899aa' });
-        ry += 12;
-        this._infTxt(ox + pad, ry, `📦 ${curV.toFixed(1)}/${maxV} cu`, { fontSize: this._fs(9), color: '#aa9988' });
     },
 
     _renderUnitInventory(u, ox, oy, W, H, pad) {
@@ -776,30 +767,49 @@ export default {
         div.lineStyle(1, 0x3a3020, 0.4).lineBetween(ox + pad, ry, ox + W - pad, ry);
         ry += 6;
 
-        // Relations
+        // Encumbrance
+        const curW = this.scene.unitManager.getUnitCarryWeight(u);
+        const maxW = this.scene.unitManager.getUnitMaxWeight(u);
+        const curV = this.scene.unitManager.getUnitCarryVolume(u);
+        const maxV = this.scene.unitManager.getUnitMaxVolume(u);
+        this._infTxt(ox + pad, ry, `⚖ ${curW.toFixed(1)}/${maxW} lbs`, { fontSize: this._fs(9), color: '#8899aa' });
+        ry += 12;
+        this._infTxt(ox + pad, ry, `📦 ${curV.toFixed(1)}/${maxV} cu`, { fontSize: this._fs(9), color: '#aa9988' });
+    },
+
+    _renderUnitRelations(u, ox, oy, W, H, pad) {
+        let ry = oy;
+
+        // Social relations — top friends/rivals by score magnitude.
         const relEntries = Object.entries(u.relations ?? {})
             .map(([id, score]) => ({ u: this.scene.units.find(w => w.id === +id), score }))
             .filter(r => r.u && Math.abs(r.score) > 0.05)
             .sort((a, b) => b.score - a.score);
         if (relEntries.length) {
-            const relDiv = this._inf(this.scene.add.graphics().setDepth(22));
-            relDiv.lineStyle(1, 0x3a3020, 0.4).lineBetween(ox + pad, ry, ox + W - pad, ry);
-            ry += 5;
-            for (const r of relEntries.slice(0, 4)) {
+            this._infTxt(ox + pad, ry, 'Relationships', { fontSize: this._fs(8), color: '#7a6a4a' });
+            ry += 12;
+            for (const r of relEntries.slice(0, 6)) {
+                if (ry > oy + H - 40) break;
                 const bar = r.score > 0 ? '▌'.repeat(Math.round(r.score * 4)) : '▌'.repeat(Math.round(-r.score * 4));
                 const col = r.score > 0.3 ? '#88cc88' : r.score < -0.3 ? '#cc6666' : '#aaa880';
                 const rName = [r.u.name, r.u.familyName].filter(Boolean).join(' ').slice(0, 13);
                 this._infTxt(ox + pad, ry, `${rName} ${bar}`, { fontSize: this._fs(9), color: col });
                 ry += 12;
             }
-            ry += 2;
+            ry += 4;
         }
 
+        // Family ties — spouse, parents, children.
         const fa         = u.fatherId ? this.scene.units.find(p => p.id === u.fatherId) : null;
         const mo         = u.motherId ? this.scene.units.find(p => p.id === u.motherId) : null;
         const spouse     = u.spouseId ? this.scene.units.find(p => p.id === u.spouseId) : null;
         const myChildren = this.scene.units.filter(c => c.fatherId === u.id || c.motherId === u.id);
 
+        if (spouse || fa || mo || myChildren.length) {
+            const famDiv = this._inf(this.scene.add.graphics().setDepth(22));
+            famDiv.lineStyle(1, 0x3a3020, 0.4).lineBetween(ox + pad, ry, ox + W - pad, ry);
+            ry += 6;
+        }
         if (spouse) {
             const sIcon = spouse.gender === 'female' ? '♀' : '♂';
             const sName = [spouse.name, spouse.familyName].filter(Boolean).join(' ').slice(0, 16);
@@ -817,6 +827,11 @@ export default {
             this._infTxt(ox + pad, ry,
                 `↓ ${myChildren.map(c => c.name?.slice(0, 5) ?? '?').slice(0, 3).join(', ')}`,
                 { fontSize: this._fs(9), color: '#6a7850' });
+            ry += 12;
+        }
+
+        if (!relEntries.length && !spouse && !fa && !mo && !myChildren.length) {
+            this._infTxt(ox + pad, ry, '(no known relations)', { fontSize: this._fs(9), color: '#4a4030' });
         }
     },
 
@@ -913,92 +928,6 @@ export default {
                 this._infTxt(ox + pad, ry, `${icon} ${r[k] ?? 0}/${sm[k]}`, { fontSize: this._fs(10), color: '#7a7060' });
                 ry += 13;
             }
-        }
-    },
-
-    _renderInlineJobs(workers, ox, oy, W, H, pad) {
-        const s = this.scene;
-        if (!workers.length) return;
-        // Per-job priority for the selected worker(s): Off (0) disables the job, 1–4 bias how
-        // urgently the AI picks it (1 = most urgent), '—' = unset/normal. pickRole consumes
-        // u.taskPriorities. Tap a cell to cycle  —→1→2→3→4→Off→—.
-        const JOB_ROWS = [
-            { id: 'farmer',     label: '🌾 Farm'   },
-            { id: 'forager',    label: '🍄 Forage' },
-            { id: 'woodcutter', label: '🪵 Lumber' },
-            { id: 'miner',      label: '⛏ Mine'   },
-            { id: 'builder',    label: '🔨 Build'  },
-            { id: 'shepherd',   label: '🐑 Herd'   },
-            { id: 'hunter',     label: '🏹 Hunt'   },
-        ];
-        const VOCATIONS = [
-            'farmer','hunter','woodcutter','miner','builder','shepherd','forager',
-            'carpenter','mason','smith','smelter','miller','baker','butcher',
-            'presser','weaver','brewer','tanner','merchant',
-        ];
-
-        this._infTxt(ox + pad, oy + 2, 'Job priority — tap to cycle (Off · 1–4)',
-            { fontSize: this._fs(8), color: '#7a6a4a' });
-        let ry = oy + 14;
-        const rowH = 16, cols = 2;
-        const cellW = Math.floor((W - pad * 2) / cols);
-        const u0 = workers[0];
-        const CYCLE = [undefined, 1, 2, 3, 4, 0];
-        const stLabel = v => v === 0 ? 'Off' : (v >= 1 && v <= 4) ? `P${v}` : '—';
-        const stColor = v => v === 0 ? 0x4a2020 : v === 1 ? 0x3a6a2a : v === 2 ? 0x315a36
-                          : v === 3 ? 0x2a3a4a : v === 4 ? 0x3a2a4a : 0x2a2418;
-
-        // 2-column grid so all jobs fit the short info pane. Each cell is one cycling button.
-        JOB_ROWS.forEach((job, i) => {
-            const col = i % cols, rowi = Math.floor(i / cols);
-            const cx = ox + pad + col * cellW;
-            const cy = ry + rowi * rowH;
-            const cur = u0.taskPriorities?.[job.id];
-            this._infBtn(cx, cy, cellW - 4, rowH - 2, `${job.label}  ${stLabel(cur)}`, stColor(cur), () => {
-                const next = CYCLE[(CYCLE.findIndex(v => v === cur) + 1) % CYCLE.length];
-                workers.forEach(w => {
-                    if (!w.taskPriorities) w.taskPriorities = {};
-                    if (next === undefined) delete w.taskPriorities[job.id];
-                    else w.taskPriorities[job.id] = next;
-                });
-                this.updateUI();
-            });
-        });
-        ry += Math.ceil(JOB_ROWS.length / cols) * rowH + 6;
-
-        // Calling / Vocation — with ◂ ▸ cycle arrows
-        if (ry + 18 < oy + H) {
-            const dg = this._inf(s.add.graphics().setDepth(22));
-            dg.lineStyle(1, 0x3a2e18, 0.35).lineBetween(ox + pad, ry + 2, ox + W - pad, ry + 2);
-            ry += 6;
-
-            const u     = workers[0];
-            const voc   = u?.vocation ?? null;
-            const vidx  = voc ? VOCATIONS.indexOf(voc) : -1;
-            const label = voc ? voc[0].toUpperCase() + voc.slice(1) : '—';
-
-            this._infTxt(ox + pad, ry, 'Calling', { fontSize: this._fs(8), color: '#5a5040' });
-            this._infTxt(ox + pad + 46, ry, label, { fontSize: this._fs(9), color: '#c8a840' });
-
-            // ◂ prev
-            const prevBtn = this._inf(s.add.text(ox + W - pad - 26, ry - 1, '◂', {
-                fontFamily: THEME.fontMono, fontSize: this._fs(10), color: '#807040',
-            }).setOrigin(0, 0).setDepth(22).setInteractive({ cursor: 'pointer' }));
-            prevBtn.on('pointerdown', () => {
-                const ni = vidx <= 0 ? VOCATIONS.length - 1 : vidx - 1;
-                workers.forEach(w => { w.vocation = VOCATIONS[ni]; });
-                this.updateUI();
-            });
-
-            // ▸ next
-            const nextBtn = this._inf(s.add.text(ox + W - pad - 10, ry - 1, '▸', {
-                fontFamily: THEME.fontMono, fontSize: this._fs(10), color: '#807040',
-            }).setOrigin(0, 0).setDepth(22).setInteractive({ cursor: 'pointer' }));
-            nextBtn.on('pointerdown', () => {
-                const ni = vidx < 0 ? 0 : (vidx + 1) % VOCATIONS.length;
-                workers.forEach(w => { w.vocation = VOCATIONS[ni]; });
-                this.updateUI();
-            });
         }
     },
 
