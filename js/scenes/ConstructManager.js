@@ -146,6 +146,7 @@ export default class ConstructManager {
             resNeeded: {},
             drawnStock: -1,
             isOpen: type === 'gate' ? true : undefined,
+            rot: 0,   // 0/90/180/270 — cosmetic facing (all tile footprints are square)
             domainId: null,
             isPublic: false,
             inbox: {},
@@ -162,7 +163,7 @@ export default class ConstructManager {
         return c;
     }
 
-    placeConstruct(type, tx, ty, material = 'Materials.Wood.Pine') {
+    placeConstruct(type, tx, ty, material = 'Materials.Wood.Pine', rotation = 0) {
         const def = CONSTRUCTS[type];
         if (!def) return null;
 
@@ -190,6 +191,7 @@ export default class ConstructManager {
         this.occupy(tx, ty, def.width, def.height, isWallType ? 98 : 99);
 
         const c = this.makeConstructObj(type, tx, ty, false);
+        c.rot = ((rotation % 360) + 360) % 360;
         const cost = computeBuildCost(type, material);
         if (Object.keys(cost).length) c.resNeeded = { ...cost };
 
@@ -229,7 +231,7 @@ export default class ConstructManager {
         const mat  = mats.length > 0
             ? (this.scene.constructMaterials?.[type] ?? mats[0])
             : null;
-        return this.placeConstruct(type, tx, ty, mat);
+        return this.placeConstruct(type, tx, ty, mat, this.scene.constructRot || 0);
     }
 
     placeBuiltConstruct(type, tx, ty) {
@@ -708,6 +710,20 @@ export default class ConstructManager {
         const def = CONSTRUCTS[c.type];
         if (!def) return;
 
+        // Cosmetic rotation: rotate the (absolute-coord) art around the footprint centre via
+        // the Graphics transform stack, so existing draw() functions need no changes. Footprints
+        // are square, so occupancy is unaffected.
+        const rot = c.rot || 0;
+        const g = this.constructGfx;
+        if (rot) {
+            const cx = (c.tx + (c.width || 1) / 2) * TILE;
+            const cy = MAP_OY + (c.ty + (c.height || 1) / 2) * TILE;
+            g.save();
+            g.translateCanvas(cx, cy);
+            g.rotateCanvas(rot * Math.PI / 180);
+            g.translateCanvas(-cx, -cy);
+        }
+
         if (def.draw) {
             def.draw(this.constructGfx, c, this.scene);
         } else {
@@ -729,6 +745,8 @@ export default class ConstructManager {
                 this.constructGfx.fillStyle(0xffdd44, 0.7).fillRect(px, py + szH - 3, Math.round(szW * progress), 3);
             }
         }
+
+        if (rot) g.restore();
     }
 
     // Wall colour follows its build material so logs/cobble/dressed-block/brick read distinctly,

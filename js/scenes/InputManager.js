@@ -194,8 +194,21 @@ export default class InputManager {
                         s.hoverGfx.clear();
                     }
                 }
-            } else if (s.constructType && !ptr.isDown) {
-                this.drawBuildGhost(ptr);
+            } else if (s.constructType && !isUI) {
+                const def = CONSTRUCTS[s.constructType];
+                const oneByOne = (def?.width || 1) === 1 && (def?.height || 1) === 1 && def?.placement !== 'edge';
+                if (ptr.isDown && oneByOne) {
+                    // Drag to drop a blueprint on each free tile under the cursor (1×1 only).
+                    const t = s.tileAt(ptr.worldX, ptr.worldY);
+                    if (t) {
+                        if (!s._buildDragTiles) s._buildDragTiles = new Set();
+                        const k = `${t.tx},${t.ty}`;
+                        if (!s._buildDragTiles.has(k)) { s._buildDragTiles.add(k); s.placeConstruct(t.tx, t.ty); }
+                    }
+                } else if (!ptr.isDown) {
+                    s._buildDragTiles = null;
+                    this.drawBuildGhost(ptr);
+                }
             }
 
         });
@@ -498,6 +511,13 @@ export default class InputManager {
             cam.setZoom(Phaser.Math.Clamp(cam.zoom * (dy > 0 ? 0.9 : 1.1), 0.3, 3));
         });
 
+        // R rotates the build ghost (cosmetic facing) while a construct is selected for placement.
+        s.input.keyboard?.on('keydown-R', () => {
+            if (!s.constructType) return;
+            s.constructRot = (((s.constructRot || 0) + 90) % 360);
+            s.uiManager?.showToast?.(`Rotated ${s.constructRot}°`, '#c8a030');
+        });
+
         s.input.keyboard?.on('keydown-ESC', () => {
             // Close an open right-click action menu first
             if (s.uiManager?._ctxMenuOpen) { s.uiManager.closeContextMenu(); return; }
@@ -513,7 +533,7 @@ export default class InputManager {
                 s.selectedGroundTile || s.units?.some(u => u.selected);
             if (hasActive) {
                 s.slateModeType = null; s.slateNodeTypes = null; s.orderMode = null;
-                s.constructType = null; s.roadMode = false; s.wallMode = false;
+                s.constructType = null; s.constructRot = 0; s.roadMode = false; s.wallMode = false;
                 s.wallRectMode = false; s._wallRectStart = null; s.constructMode = false;
                 s.placementType = null; s.relocateMode = false; s.relocateSrc = null;
                 s.selectedConstruct = null; s.zoneMode = null; s._zoneDragStart = null;
@@ -759,5 +779,11 @@ export default class InputManager {
         const w = def.width * TILE, h = def.height * TILE, px = tile.tx * TILE, py = MAP_OY + tile.ty * TILE;
         s.hoverGfx.clear().fillStyle(col, 0.15).fillRect(px+1, py+1, w-2, h-2)
             .lineStyle(2, col, 0.6).strokeRect(px+1, py+1, w-2, h-2);
+        // Facing nub showing the current rotation (0 = up; 90 = right; …).
+        const rot = s.constructRot || 0;
+        const cx = px + w / 2, cy = py + h / 2, r = Math.min(w, h) / 2 - 4;
+        const ang = (rot - 90) * Math.PI / 180;   // rot 0 -> point up
+        s.hoverGfx.fillStyle(col, 0.85)
+            .fillCircle(cx + Math.cos(ang) * r, cy + Math.sin(ang) * r, 3);
     }
 }
