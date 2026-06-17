@@ -723,6 +723,20 @@ export default {
         if ((u._grief ?? 0) > 0) this._infTxt(ox + W - pad - 4, ry + 1, `🕯 ${Math.round(u._grief * 100)}%`,
             { fontSize: this._fs(9), color: '#9988aa' }).setOrigin(1, 0);
         ry += 16;
+
+        // Mood breakdown — why the colonist feels this way (top contributors by magnitude).
+        const factors = (u._moodFactors ?? []).filter(x => Math.abs(x.val) >= 0.005)
+            .sort((a, b) => Math.abs(b.val) - Math.abs(a.val)).slice(0, 6);
+        for (const ftr of factors) {
+            if (ry > oy + H - 28) break;
+            const pos = ftr.val >= 0;
+            this._infTxt(ox + pad + 2, ry, ftr.label, { fontSize: this._fs(8), color: '#9a8a6a' });
+            this._infTxt(ox + W - pad - 2, ry, `${pos ? '+' : ''}${Math.round(ftr.val * 100)}`,
+                { fontSize: this._fs(8), color: pos ? '#88cc88' : '#cc6655' }).setOrigin(1, 0);
+            ry += 11;
+        }
+        ry += 4;
+
         if (u._widowed) {
             this._infTxt(ox + pad, ry, u.gender === 'female' ? '🖤 Widow' : '🖤 Widower',
                 { fontSize: this._fs(9), color: '#886699' });

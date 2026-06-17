@@ -173,21 +173,20 @@ export default {
             n.joy = Math.min(1.0, n.joy + dt * 0.0015);
         }
 
-        // Mood: weighted needs + relations bonus − grief penalty ± trait modifiers
-        const relVals = Object.values(u.relations ?? {});
-        const relBonus = relVals.length
-            ? relVals.reduce((a, b) => a + b, 0) / relVals.length * 0.05 : 0;
-        const griefPenalty = (u._grief ?? 0) * 0.28;
-        const traitMoodMod = (u.traits ?? []).includes('melancholic') ? -0.04 : 0;
-        // Roofing comfort (#29): under a finished roof = indoor (+0.03 mood); near a heat source = warm (+0.05).
+        // Comfort (roofing #29): under a finished roof = indoor; near a heat source = warm.
         const rm = this.scene.roofManager;
         const utx = Math.floor(u.x / TILE), uty = Math.floor((u.y - MAP_OY) / TILE);
         u._indoor = rm ? rm.isRoofed(utx, uty) : false;
         u._warm   = u._indoor && rm.isWarm(utx, uty);
-        const comfortBonus = u._warm ? 0.05 : u._indoor ? 0.03 : 0;
-        u.mood = Math.max(0, Math.min(1,
-            n.food * 0.35 + n.rest * 0.28 + n.social * 0.20 + n.joy * 0.12
-            + relBonus - griefPenalty + traitMoodMod + comfortBonus));
+
+        // Mood = sum of itemized factors (needs + relations + grief + traits + comfort +
+        // decaying event "thoughts"). _moodFactors returns the very terms summed here, cached on
+        // the unit so the UI breakdown always explains the number. No event thoughts present →
+        // identical to the previous weighted formula (no balance change).
+        this._tickThoughts(u);
+        const factors = this._moodFactors(u, n);
+        u._moodFactors = factors;
+        u.mood = Math.max(0, Math.min(1, factors.reduce((a, x) => a + x.val, 0)));
 
         // Starvation: food=0 drains HP; warn every 8s
         if (n.food <= 0 && !u.isSleeping) {
@@ -216,6 +215,44 @@ export default {
         if (!u._moodCollapsed && prevCollapsed) {
             u._mentalBreakPending = false;
         }
+    },
+
+    // Itemized mood contributions — summed for u.mood and shown as the UI breakdown so the
+    // player can read *why* a colonist feels how they do. Negative values pull mood down.
+    _moodFactors(u, n) {
+        n = n ?? u.needs ?? {};
+        const f = [
+            { label: 'Well fed',   val: (n.food   ?? 0.5) * 0.35 },
+            { label: 'Rested',     val: (n.rest   ?? 0.5) * 0.28 },
+            { label: 'Socialized', val: (n.social ?? 0.5) * 0.20 },
+            { label: 'Recreation', val: (n.joy    ?? 0.5) * 0.12 },
+        ];
+        const relVals = Object.values(u.relations ?? {});
+        if (relVals.length) {
+            const rb = relVals.reduce((a, b) => a + b, 0) / relVals.length * 0.05;
+            if (Math.abs(rb) >= 0.003) f.push({ label: rb >= 0 ? 'Companionship' : 'Bad blood', val: rb });
+        }
+        if ((u._grief ?? 0) > 0.001) f.push({ label: 'Grief', val: -(u._grief * 0.28) });
+        if ((u.traits ?? []).includes('melancholic')) f.push({ label: 'Melancholic', val: -0.04 });
+        if (u._warm)        f.push({ label: 'Warm hearth', val: 0.05 });
+        else if (u._indoor) f.push({ label: 'Sheltered',   val: 0.03 });
+        for (const t of u.thoughts ?? []) f.push({ label: t.label, val: t.mood });
+        return f;
+    },
+
+    // Decaying event-driven mood modifier. Dedupes by key (re-adding refreshes the timer).
+    addThought(u, key, mood, label, durMs = 30000) {
+        if (!u.thoughts) u.thoughts = [];
+        const expires = this.scene.time.now + durMs;
+        const ex = u.thoughts.find(t => t.key === key);
+        if (ex) { ex.mood = mood; ex.label = label; ex.expires = expires; }
+        else u.thoughts.push({ key, mood, label, expires });
+    },
+
+    _tickThoughts(u) {
+        if (!u.thoughts?.length) return;
+        const now = this.scene.time.now;
+        if (u.thoughts.some(t => t.expires <= now)) u.thoughts = u.thoughts.filter(t => t.expires > now);
     },
 
     _collectWage(u) {

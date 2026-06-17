@@ -469,6 +469,8 @@ export default class UnitManager {
                     if (rel <= 0.08) continue;
                     const strength = Math.min(1, rel * 0.9);
                     w._grief = Math.min(1, (w._grief ?? 0) + strength);
+                    // A lasting "someone I knew died" thought (decays over a few game-days).
+                    this.addThought(w, 'death', -Math.min(0.12, strength * 0.12), `${deadName} died`, 240000);
                     if (strength > 0.3) {
                         this.scene.uiManager?.showFloatText?.(w.x, w.y - 20,
                             `mourning ${deadName}`, '#9988aa');

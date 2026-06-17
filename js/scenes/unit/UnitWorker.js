@@ -2079,6 +2079,7 @@ export default {
                 }
                 if (!found) break;
             }
+            this.addThought(u, 'ate', 0.04, 'Ate a meal', 25000);
             this.scene.uiManager.showFloatText(u.x, u.y - 14, '🍱 full', '#ffee88');
             this.popTask(u);
             return;
@@ -2088,7 +2089,7 @@ export default {
         // should starve standing next to a pile of berries just outside the larder.
         const near = this._eatFromGroundPile(u, dt, 8 * TILE);
         if (near === 'moving') return;
-        if (near === 'ate') { this.scene.uiManager.showFloatText(u.x, u.y - 14, '🍱 full', '#ffee88'); this.popTask(u); return; }
+        if (near === 'ate') { this.addThought(u, 'ate', 0.04, 'Ate a meal', 25000); this.scene.uiManager.showFloatText(u.x, u.y - 14, '🍱 full', '#ffee88'); this.popTask(u); return; }
 
         // Try to eat from the nearest food construct's inventory
         let foodConstruct = null, bd = Infinity;
