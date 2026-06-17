@@ -1345,6 +1345,8 @@ export default {
     },
 
     seekGroundItem(u) {
+        // Haul is a prioritizable work type (People → Work grid): Off disables picking up loose items.
+        if ((u.taskPriorities?.haul ?? 3) === 0) return false;
         const items = this.scene.groundItems;
         if (!items?.length) return false;
         let best = null, bd = Infinity;

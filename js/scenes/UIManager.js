@@ -12,6 +12,7 @@ import { WORKSHOP_JOBS } from '../content/jobs/index.js';
 import uiInfoPaneMethods    from './ui/UIInfoPane.js';
 import uiActionsZoneMethods from './ui/UIActionsZone.js';
 import uiModalsMethods      from './ui/UIModals.js';
+import uiWorkGridMethods    from './ui/UIWorkGrid.js';
 
 // Known resource defs for the resources panel (ordered by importance)
 const RESOURCE_DEFS = [
@@ -474,6 +475,24 @@ export default class UIManager {
         const workers = this.scene.units
             .filter(u => !u.isEnemy && u.hp > 0 && u.type === 'worker')
             .sort((a, b) => b.age - a.age || (a.name ?? '').localeCompare(b.name ?? ''));
+
+        // Roster / Work toggle (RimWorld-style work-priority matrix lives under "Work")
+        if (!['roster', 'work'].includes(this._peopleTab)) this._peopleTab = 'roster';
+        const TABH = 20, tw = Math.floor(w / 2);
+        [['roster', 'Roster'], ['work', 'Work']].forEach(([id, lbl], i) => {
+            const bx = x + i * tw, on = this._peopleTab === id;
+            const g = this._tab(this.scene.add.graphics().setDepth(21));
+            g.fillStyle(on ? 0x2a3a4a : 0x141009, 0.95).fillRect(bx, y, tw, TABH);
+            g.lineStyle(1, 0x3a2e18, 0.6).strokeRect(bx, y, tw, TABH);
+            this._tab(this.scene.add.text(bx + tw / 2, y + TABH / 2, lbl, {
+                fontFamily: THEME.fontMono, fontSize: '9px', color: on ? '#e8d8a0' : '#7a6a4a',
+            }).setOrigin(0.5).setDepth(22));
+            const z = this._tab(this.scene.add.zone(bx + tw / 2, y + TABH / 2, tw, TABH)
+                .setInteractive({ cursor: 'pointer' }).setDepth(23));
+            z.on('pointerdown', () => { this._peopleTab = id; this._censusPage = 0; this.updateUI(); });
+        });
+        y += TABH; h -= TABH;
+        if (this._peopleTab === 'work') { this._renderWorkGrid(x, y, w, h); return; }
 
         const HDR_H  = 22;
         const ROW_H  = Math.floor((h - HDR_H) / Math.max(1, Math.floor((h - HDR_H) / 24)));
@@ -1517,3 +1536,4 @@ export default class UIManager {
 Object.assign(UIManager.prototype, uiInfoPaneMethods);
 Object.assign(UIManager.prototype, uiActionsZoneMethods);
 Object.assign(UIManager.prototype, uiModalsMethods);
+Object.assign(UIManager.prototype, uiWorkGridMethods);
