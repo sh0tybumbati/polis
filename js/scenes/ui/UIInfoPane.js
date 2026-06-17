@@ -220,35 +220,61 @@ export default {
             return;
         }
 
-        // Queue list
+        // Bill list — each order: mode glyph (№ count / → until-N / ∞ forever), suspend, remove
         const queue = b.productionQueue;
+        const outStock = this.scene.resources?.[jDef.output] ?? 0;
+        const orderActive = (o) => {
+            if (!o || o.suspended) return false;
+            const m = o.mode ?? 'count';
+            if (m === 'forever') return true;
+            if (m === 'untilN')  return outStock < o.qty;
+            return (o.done ?? 0) < o.qty;
+        };
         if (queue.length === 0) {
-            this._infTxt(ox + pad, ry, '— queue empty —', { fontSize: this._fs(9), color: '#443322' });
+            this._infTxt(ox + pad, ry, '— no bills —', { fontSize: this._fs(9), color: '#443322' });
             ry += 14;
         } else {
+            const activeIdx = queue.findIndex(orderActive);
             for (let i = 0; i < queue.length; i++) {
+                if (ry > oy + H - 58) break;
                 const order = queue[i];
-                const pct = order.qty > 0 ? Math.round((order.done ?? 0) / order.qty * 100) : 0;
-                const label = `${i === 0 ? '▶ ' : '  '}${order.qty}× ${outLabel}  (${order.done ?? 0}/${order.qty})`;
-                this._infTxt(ox + pad, ry, label, { fontSize: this._fs(9), color: i === 0 ? '#c8a030' : '#776655' });
-                const rmBtn = this._infBtn(ox + W - pad - 22, ry - 1, 22, 14, '✕', 0x3a1010, () => {
-                    queue.splice(i, 1); this.updateUI();
+                const mode = order.mode ?? 'count';
+                const susp = !!order.suspended;
+                const isActive = i === activeIdx;
+                const body = mode === 'count'  ? `${order.qty}× (${order.done ?? 0}/${order.qty})`
+                           : mode === 'untilN' ? `to ${order.qty} (${outStock})`
+                           : `∞`;
+                const mark = susp ? '⏸ ' : isActive ? '▶ ' : '  ';
+                this._infTxt(ox + pad, ry, `${mark}${body} ${outLabel}`,
+                    { fontSize: this._fs(9), color: susp ? '#665544' : isActive ? '#c8a030' : '#9a8a6a' });
+                const b3 = ox + W - pad - 16, b2 = b3 - 18, b1 = b2 - 18;
+                const glyph = mode === 'count' ? '№' : mode === 'untilN' ? '→' : '∞';
+                this._infBtn(b1, ry - 1, 16, 14, glyph, 0x2a2818, () => {
+                    order.mode = mode === 'count' ? 'untilN' : mode === 'untilN' ? 'forever' : 'count';
+                    order.done = 0;
+                    this.updateUI();
                 });
-                ry += 15;
+                this._infBtn(b2, ry - 1, 16, 14, susp ? '▶' : '⏸', susp ? 0x2a4020 : 0x2a2818, () => {
+                    order.suspended = !order.suspended; this.updateUI();
+                });
+                this._infBtn(b3, ry - 1, 16, 14, '✕', 0x3a1010, () => { queue.splice(i, 1); this.updateUI(); });
+                ry += 16;
             }
         }
 
-        // Add order controls
+        // Add-bill controls (qty = count target / until-N target; mode is set per-row after adding)
         if (!b._queueQty) b._queueQty = 5;
         const qw = (W - pad * 2 - 4) / 3;
         this._infBtn(ox + pad,            ry, qw, 22, '−', 0x221810, () => { b._queueQty = Math.max(1, (b._queueQty ?? 5) - 1); this.updateUI(); });
         this._infTxt(ox + pad + qw + 2,   ry + 6, String(b._queueQty ?? 5), { fontSize: this._fs(11), color: '#c8a030' }).setOrigin(0.5, 0);
-        this._infBtn(ox + pad + qw * 2 + 4, ry, qw, 22, '+', 0x221810, () => { b._queueQty = Math.min(50, (b._queueQty ?? 5) + 1); this.updateUI(); });
+        this._infBtn(ox + pad + qw * 2 + 4, ry, qw, 22, '+', 0x221810, () => { b._queueQty = Math.min(200, (b._queueQty ?? 5) + 1); this.updateUI(); });
         ry += 26;
-        this._infBtn(ox + pad, ry, W - pad * 2 - 4, 22, `+ Add ${b._queueQty ?? 5}× ${outLabel}`, 0x1a2a10, () => {
-            queue.push({ qty: b._queueQty ?? 5, done: 0 });
+        this._infBtn(ox + pad, ry, W - pad * 2 - 4, 22, `+ Add bill (${b._queueQty ?? 5}× ${outLabel})`, 0x1a2a10, () => {
+            queue.push({ qty: b._queueQty ?? 5, done: 0, mode: 'count', suspended: false });
             this.updateUI();
         });
+        this._infTxt(ox + pad, ry + 24, '№ count · → until-N · ∞ forever · ⏸ pause',
+            { fontSize: this._fs(7), color: '#5a5040', wordWrap: { width: W - pad * 2 } });
     },
 
     _renderConstructWorkers(b, def, ox, oy, W, H, pad) {

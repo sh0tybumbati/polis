@@ -674,11 +674,10 @@ export default {
         const queue = item.productionQueue; // null=auto, []=queue-idle, [...]= has orders
         const isQueueMode = Array.isArray(queue);
 
-        // Queue mode: if nothing to do, idle
+        // Queue mode: drop finished count-orders, idle if no order is currently workable.
+        let active = null;
         if (isQueueMode) {
-            if (queue.length === 0) { u.workshopPhase = 'idle'; return; }
-            // Advance to next order if front is done
-            while (queue.length > 0 && queue[0].done >= queue[0].qty) {
+            while (queue.length > 0 && (queue[0].mode ?? 'count') === 'count' && (queue[0].done ?? 0) >= queue[0].qty) {
                 queue.shift();
                 const [_qtx, _qty] = u.taskZoneKey.split(',').map(Number);
                 this.scene.uiManager.showFloatText(
@@ -686,7 +685,8 @@ export default {
                     MAP_OY + _qty * TILE - 14,
                     'Order done!', '#88ffaa');
             }
-            if (queue.length === 0) { u.workshopPhase = 'idle'; return; }
+            active = this._billActiveOrder(item, def);
+            if (!active) { u.workshopPhase = 'idle'; return; }
         }
 
         const [tx, ty] = u.taskZoneKey.split(',').map(Number);
@@ -716,7 +716,7 @@ export default {
             this._gainSkillXp(u, def.skill);
             this.scene.uiManager.showFloatText(cx, cy - 14,
                 `+1 ${def.output.split('.').pop()}`, '#ffe066');
-            if (isQueueMode && queue.length > 0) queue[0].done++;
+            if (isQueueMode && active) active.done = (active.done ?? 0) + 1;
             if ((u.carrying[def.input] ?? 0) <= 0) u.workshopPhase = 'procure';
         }
     },
@@ -1868,9 +1868,8 @@ export default {
 
         // === PROCURER: goFetch → goWork → loop back to goFetch ===
         if (u.workshopSubrole === 'procure') {
-            // Queue mode: idle if queue is exhausted (mirrors processor check below)
-            const bQueueP = b.productionQueue;
-            if (Array.isArray(bQueueP) && bQueueP.filter(o => (o.done ?? 0) < o.qty).length === 0) {
+            // Queue mode: idle if no order is currently workable (mirrors processor check below)
+            if (Array.isArray(b.productionQueue) && !this._billActiveOrder(b, def)) {
                 u.workshopPhase = 'idle';
                 return;
             }
@@ -1926,9 +1925,8 @@ export default {
 
         // === PROCESSOR: stay at bench, consume inbox → output ===
         if (u.workshopSubrole === 'process') {
-            // Queue mode: idle if queue is empty
-            const bQueue = b.productionQueue;
-            if (Array.isArray(bQueue) && bQueue.filter(o => (o.done ?? 0) < o.qty).length === 0) return;
+            // Queue mode: idle if no order is currently workable
+            if (Array.isArray(b.productionQueue) && !this._billActiveOrder(b, def)) return;
 
             const cx = (b.tx + b.width / 2) * TILE;
             const cy = MAP_OY + (b.ty + b.width / 2) * TILE;
@@ -2007,15 +2005,38 @@ export default {
         this._doProcessTick(u, b, def, dt);
     },
 
+    // ── Bill model ──────────────────────────────────────────────────────────────
+    // Each queue order is { qty, done, mode?, suspended? }. mode:
+    //   'count'   (default) — produce qty, then the order is removed
+    //   'untilN'           — keep colony stock of the output at ≥ qty (re-activates if it drops)
+    //   'forever'          — never stops
+    // Suspended orders are skipped. Returns the first workable order, or null if the bill is
+    // exhausted/suspended (workshop idles).
+    _billOrderActive(b, def, o) {
+        if (!o || o.suspended) return false;
+        const mode = o.mode ?? 'count';
+        if (mode === 'forever') return true;
+        if (mode === 'untilN')  return (this.scene.resources?.[def.output] ?? 0) < o.qty;
+        return (o.done ?? 0) < o.qty;
+    },
+    _billActiveOrder(b, def) {
+        const q = b.productionQueue;
+        if (!Array.isArray(q)) return null;
+        for (const o of q) if (this._billOrderActive(b, def, o)) return o;
+        return null;
+    },
+
     _doProcessTick(u, b, def, dt) {
-        // Queue mode: stop if queue is empty or all orders done
         const queue = b.productionQueue;
+        let active = null;
         if (Array.isArray(queue)) {
-            while (queue.length > 0 && (queue[0].done ?? 0) >= queue[0].qty) {
+            // Remove front-most finished count-orders (untilN/forever persist).
+            while (queue.length > 0 && (queue[0].mode ?? 'count') === 'count' && (queue[0].done ?? 0) >= queue[0].qty) {
                 queue.shift();
                 this.scene.uiManager.showFloatText(u.x, u.y - 20, 'Order done!', '#88ffaa');
             }
-            if (queue.length === 0) { u.workshopPhase = 'goFetch'; return; }
+            active = this._billActiveOrder(b, def);
+            if (!active) { u.workshopPhase = 'goFetch'; return; }
         }
 
         const attrMult = this.getAttrMult(u, ['dex', 'int']);
@@ -2024,7 +2045,7 @@ export default {
         if (u.workProgress >= 3.0) {
             u.workProgress = 0;
             b.inbox[def.input] -= 1;
-            if (Array.isArray(queue) && queue.length > 0) queue[0].done = (queue[0].done ?? 0) + 1;
+            if (active) active.done = (active.done ?? 0) + 1;
 
             b.dailyProduction = b.dailyProduction ?? {};
             b.dailyProduction[def.output] = (b.dailyProduction[def.output] ?? 0) + 1;
