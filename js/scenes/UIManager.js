@@ -251,11 +251,53 @@ export default class UIManager {
         this._updateResources();
         this._renderSheet();
         this._renderModeHint();
+        this._renderAlerts();
         this._renderInventoryColumn();
         this._updateCursor();
         Object.entries(this._toolbarBtnDrawers ?? {}).forEach(([id, draw]) => {
             draw(this._activePanel === id);
         });
+    }
+
+    // Persistent alert chips (top-right): scans colony state each render and surfaces urgent
+    // conditions. Click a chip to pan the camera to the offending colonist/threat. Uses the
+    // _inf() HUD wrapper so chips are camera-ignored and cleared with the rest of the sheet.
+    _renderAlerts() {
+        const s = this.scene, W = this.L?.W ?? 960;
+        const units = s.units ?? [];
+        const alive = u => !u.isEnemy && u.hp > 0;
+        const starving = units.filter(u => alive(u) && (u.needs?.food ?? 1) <= 0.04);
+        const breaking = units.filter(u => alive(u) && (u.taskType === 'mental_break' || u._moodCollapsed));
+        const idle     = units.filter(u => alive(u) && u.type === 'worker' && (u.age ?? 2) >= 2
+            && !u.role && !u.taskType && !u.targetNode && !u.isSleeping);
+        const enemies  = units.filter(u => u.isEnemy && u.hp > 0);
+        const wolves   = (s.wolf ?? []).filter(w => !w.isDead && !w._dying && w.hp > 0);
+        let food = 0; for (const k in (s.resources ?? {})) if (k.startsWith('Food.')) food += s.resources[k] || 0;
+
+        const alerts = [];
+        if (enemies.length)  alerts.push({ icon: '⚔',  label: `Under attack (${enemies.length})`, col: 0x551515, line: 0xff5555, t: enemies[0] });
+        if (wolves.length)   alerts.push({ icon: '🐺', label: `Predators near (${wolves.length})`, col: 0x4a3010, line: 0xddaa55, t: wolves[0] });
+        if (starving.length) alerts.push({ icon: '🍖', label: `${starving.length} starving`,        col: 0x551515, line: 0xff6644, t: starving[0] });
+        if (breaking.length) alerts.push({ icon: '💔', label: `${breaking.length} breaking down`,    col: 0x44204a, line: 0xcc66dd, t: breaking[0] });
+        if (food < 5)        alerts.push({ icon: '🍽', label: 'Low on food',                          col: 0x4a3a10, line: 0xddcc44, t: null });
+        if (idle.length)     alerts.push({ icon: '💤', label: `${idle.length} idle`,                  col: 0x1a2a3a, line: 0x66aaff, t: idle[0] });
+        if (!alerts.length) return;
+
+        const cw = 184, ch = 22, gap = 4, x = W - cw - 6;
+        let y = 56;
+        for (const a of alerts.slice(0, 6)) {
+            const g = this._inf(s.add.graphics().setDepth(40));
+            g.fillStyle(a.col, 0.92).fillRect(x, y, cw, ch);
+            g.lineStyle(1, a.line, 0.85).strokeRect(x, y, cw, ch);
+            this._inf(s.add.text(x + 6, y + ch / 2, `${a.icon}  ${a.label}`,
+                { fontFamily: THEME.fontMono, fontSize: '10px', color: '#f0e8d0' }).setOrigin(0, 0.5).setDepth(41));
+            if (a.t) {
+                const z = this._inf(s.add.zone(x + cw / 2, y + ch / 2, cw, ch)
+                    .setInteractive({ cursor: 'pointer' }).setDepth(42));
+                z.on('pointerdown', () => s.cameras.main.pan(a.t.x, a.t.y, 350, 'Sine.easeInOut'));
+            }
+            y += ch + gap;
+        }
     }
 
     _renderSheet() {
