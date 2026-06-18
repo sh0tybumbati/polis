@@ -840,70 +840,67 @@ export default class UnitManager {
         const ntx = Math.floor(n.x / TILE);
         const nty = Math.floor((n.y - MAP_OY) / TILE);
 
-        // Build sorted candidate cubits in the 3×3 tile area around the node
-        const candidates = [];
-        for (let dtx = -1; dtx <= 1; dtx++) {
-            for (let dty = -1; dty <= 1; dty++) {
-                const tx = ntx + dtx, ty = nty + dty;
-                for (let sx = 0; sx < 3; sx++) {
-                    for (let sy = 0; sy < 3; sy++) {
-                        const px = tx * TILE + SUB[sx];
-                        const py = MAP_OY + ty * TILE + SUB[sy];
-                        candidates.push({ tx, ty, sx, sy, px, py,
-                            d: Math.hypot(n.x - px, n.y - py) });
+        // Place `remaining` units within a (2R+1)² tile area: first merge into the nearest
+        // same-resource pile, then drop a new pile on the nearest empty cubit. Returns whatever
+        // couldn't be placed (every cubit in the area was full of other resources).
+        const tryRadius = (R, remaining) => {
+            const candidates = [];
+            for (let dtx = -R; dtx <= R; dtx++) {
+                for (let dty = -R; dty <= R; dty++) {
+                    const tx = ntx + dtx, ty = nty + dty;
+                    for (let sx = 0; sx < 3; sx++) {
+                        for (let sy = 0; sy < 3; sy++) {
+                            const px = tx * TILE + SUB[sx];
+                            const py = MAP_OY + ty * TILE + SUB[sy];
+                            candidates.push({ tx, ty, sx, sy, px, py, d: Math.hypot(n.x - px, n.y - py) });
+                        }
                     }
                 }
             }
-        }
-        candidates.sort((a, b) => a.d - b.d);
+            candidates.sort((a, b) => a.d - b.d);
+            const occupied = new Set(items.map(i => i.subKey));
 
-        // Build fast occupied-cubit set
-        const occupied = new Set(items.map(i => i.subKey));
-
-        let remaining = qty;
-
-        // Pass 1: merge into existing same-resource pile
-        for (const c of candidates) {
-            if (remaining <= 0) break;
-            const sk = `${c.tx},${c.ty},${c.sx},${c.sy}`;
-            const mk = `${sk}:${res}`;
-            const existing = itemMap.get(mk);
-            if (existing) {
-                existing.qty += remaining;
-                remaining = 0;
-                this.drawGroundItem(existing);
-            }
-        }
-
-        // Pass 2: create a new pile at the nearest empty cubit
-        for (const c of candidates) {
-            if (remaining <= 0) break;
-            const sk = `${c.tx},${c.ty},${c.sx},${c.sy}`;
-            if (!occupied.has(sk)) {
-                const item = {
-                    id: this.scene.getId(), resource: res, qty: remaining,
-                    x: c.px, y: c.py, subKey: sk,
-                    gfx: null, labelObj: null, reserved: null,
-                };
-                this.drawGroundItem(item);
-                items.push(item);
-                itemMap.set(`${sk}:${res}`, item);
-                occupied.add(sk);
-                remaining = 0;
-            }
-        }
-
-        // Overflow: all 81 cubits occupied — merge into nearest same-resource or any pile
-        if (remaining > 0) {
+            // Pass 1: merge into the nearest existing same-resource pile.
             for (const c of candidates) {
-                const mk = `${c.tx},${c.ty},${c.sx},${c.sy}:${res}`;
-                const existing = itemMap.get(mk) ?? items[0];
-                if (existing) {
-                    existing.qty += remaining;
-                    this.drawGroundItem(existing);
-                    break;
+                if (remaining <= 0) break;
+                const existing = itemMap.get(`${c.tx},${c.ty},${c.sx},${c.sy}:${res}`);
+                if (existing) { existing.qty += remaining; remaining = 0; this.drawGroundItem(existing); }
+            }
+            // Pass 2: create a new pile on the nearest empty cubit.
+            for (const c of candidates) {
+                if (remaining <= 0) break;
+                const sk = `${c.tx},${c.ty},${c.sx},${c.sy}`;
+                if (!occupied.has(sk)) {
+                    const item = {
+                        id: this.scene.getId(), resource: res, qty: remaining,
+                        x: c.px, y: c.py, subKey: sk,
+                        gfx: null, labelObj: null, reserved: null,
+                    };
+                    this.drawGroundItem(item);
+                    items.push(item);
+                    itemMap.set(`${sk}:${res}`, item);
+                    occupied.add(sk);
+                    remaining = 0;
                 }
             }
+            return remaining;
+        };
+
+        // Start tight (preserves the usual pile-by-the-node look), then spill into neighbouring
+        // tiles only if the immediate area is genuinely full.
+        let remaining = qty;
+        for (let R = 1; R <= 4 && remaining > 0; R++) remaining = tryRadius(R, remaining);
+
+        // Last resort (a 9×9 cubit area entirely full of other resources): pool into the nearest
+        // SAME-resource pile anywhere — never a wrong-resource pile, never an arbitrary global one.
+        if (remaining > 0) {
+            let best = null, bd = Infinity;
+            for (const i of items) {
+                if (i.resource !== res) continue;
+                const d = Math.hypot(n.x - i.x, n.y - i.y);
+                if (d < bd) { bd = d; best = i; }
+            }
+            if (best) { best.qty += remaining; this.drawGroundItem(best); }
         }
     }
 

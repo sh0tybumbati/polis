@@ -366,7 +366,7 @@ export default {
         } else {
             // Fallback: only use if player hasn't disabled these
             const hasUnbuilt = this.scene.constructs.some(b => !b.built && !b.faction);
-            const hasNodes   = this.scene.resNodes?.some(n => n.stock > 0);
+            const hasNodes   = this.scene.resNodes?.some(n => n.stock > 0 && !n.forbidden);
             if (hasUnbuilt && u.age >= 2 && (priors['builder'] ?? 3) > 0) u.role = 'builder';
             else if (hasNodes && (priors['forager'] ?? 3) > 0) u.role = 'forager';
         }

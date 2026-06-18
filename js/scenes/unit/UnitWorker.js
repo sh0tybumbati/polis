@@ -2541,7 +2541,7 @@ export default {
                   : res.includes('Stone') ? 'Stone' : null;
         if (!fam) return false;
         for (const n of this.scene.resNodes ?? []) {
-            if ((n.stock ?? 0) <= 0) continue;
+            if ((n.stock ?? 0) <= 0 || n.forbidden) continue;
             if ((NODES[n.type]?.resource ?? '').includes(fam)) return true;
         }
         return false;

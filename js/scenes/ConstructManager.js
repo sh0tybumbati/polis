@@ -639,7 +639,7 @@ export default class ConstructManager {
         const producers = _RESOURCE_PRODUCERS[res];
         if (producers && this.constructs.some(b => !b.faction && producers.has(b.type))) return true;
         if (_RESOURCE_FROM_NODE.has(res) &&
-            (this.scene.resNodes ?? []).some(n => n.stock > 0 && NODES[n.type]?.resource === res)) return true;
+            (this.scene.resNodes ?? []).some(n => n.stock > 0 && !n.forbidden && NODES[n.type]?.resource === res)) return true;
         if (_RESOURCE_FROM_CROP.has(res)) {
             const gz = this.scene.zoneManager?.growTiles;
             if (gz && [...gz.values()].some(st => st.crop && CROPS[st.crop]?.output === res)) return true;
@@ -860,6 +860,7 @@ export default class ConstructManager {
     _autoSlateEstateNodes(dom = null) {
         const doms = dom ? [dom] : this.scene.estateBounds;
         for (const n of this.scene.resNodes ?? []) {
+            if (n.forbidden) continue;   // don't auto-queue a node the player has forbidden
             const role = NODES[n.type]?.role;
             if (role !== 'woodcutter' && role !== 'miner' && role !== 'forager') continue;
             const tx = Math.floor(n.x / TILE), ty = Math.floor((n.y - MAP_OY) / TILE);
