@@ -38,7 +38,11 @@ export function renderRig(gfx, rig, ctx = {}) {
     let parts = rig.parts;
     let signX = 1;
     if (rig.views) {
-        const f = ctx.facing || 'south';
+        let f = ctx.facing || 'south';
+        // Diagonal facings (NE/NW/SE/SW) map onto the side profile — the most readable view for
+        // diagonal movement — preserving the left/right side via the horizontal component.
+        const DIAG = { northeast: 'east', southeast: 'east', northwest: 'west', southwest: 'west' };
+        if (!rig.views[f] && DIAG[f]) f = DIAG[f];
         let view = rig.views[f];
         if (!view) {
             if (f === 'west' && rig.views.east) { view = rig.views.east; signX = -1; }

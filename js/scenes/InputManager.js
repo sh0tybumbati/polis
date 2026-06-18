@@ -556,6 +556,18 @@ export default class InputManager {
             s.units.filter(u => !u.isEnemy && u.hp > 0).forEach(u => s.selectUnit(u.id, true));
         });
         s.input.keyboard?.on('keydown-F', () => { const sel = s.units.filter(u => u.selected && !u.isEnemy); if (sel.length) s.moveSelectedTo((s.spawnTx ?? 0) * TILE, MAP_OY + (s.spawnTy ?? 0) * TILE); });
+
+        // Combat stance hotkeys (1/2/3) for the selected soldiers & drafted colonists.
+        const setStance = (st, label) => {
+            const sel = s.units.filter(u => u.selected && !u.isEnemy && (u.type !== 'worker' || u.drafted));
+            if (!sel.length) return;
+            sel.forEach(u => { u.stance = st; if (st !== 'fallback') u.isRouting = false; });
+            s.uiManager?.showToast?.(`Stance: ${label}`, '#c8a030');
+            s.updateUI();
+        };
+        s.input.keyboard?.on('keydown-ONE',   () => setStance('aggressive', 'Aggressive'));
+        s.input.keyboard?.on('keydown-TWO',   () => setStance('hold',       'Hold Ground'));
+        s.input.keyboard?.on('keydown-THREE', () => setStance('fallback',   'Fall Back'));
         s.input.keyboard?.on('keydown-BACKTICK', () => s.scene.launch('SpriteEditorScene'));
         // Debug: spawn a rig-animated critter at the camera centre (proves the sprite pipeline).
         s.input.keyboard?.on('keydown-K', () => {

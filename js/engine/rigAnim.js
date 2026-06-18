@@ -23,9 +23,18 @@ export function isConventionPart(name) {
  * Convention transform for a standard limb slot. Returns null for non-standard names
  * (those stay static unless an authored clip drives them).
  */
-export function conventionPartTransform(name, { walkPhase = 0, moving = false, working = false, facing = 'south' } = {}) {
+export function conventionPartTransform(name, { walkPhase = 0, moving = false, working = false, facing = 'south', attacking = null } = {}) {
     if (!LIMB_SLOTS.has(name)) return null;
     const ph = walkPhase;
+
+    // Attack thrust: a brief weapon-arm swing right after a strike lands (attacking is 1 at the
+    // strike, easing to 0). Overrides walk/idle for the arms only; legs keep their gait.
+    if (attacking != null && (name === 'armR' || name === 'armL')) {
+        const ext = Math.max(0, Math.min(1, attacking));
+        const amt = name === 'armR' ? 1.25 : 0.45;   // weapon arm thrusts hard, off-arm braces
+        if (facing === 'north' || facing === 'south') return { ...REST, y: -ext * 2.4 * amt };
+        return { ...REST, rot: -ext * amt };
+    }
 
     if (working) {
         // Both arms chop; legs plant; subtle torso/head bob.

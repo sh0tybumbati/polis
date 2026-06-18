@@ -27,6 +27,7 @@ export function drawHuman(gfx, u, ctx = {}, loadout = {}) {
         walkPhase: u._walkPhase ?? 0,
         moving: ctx.isMoving ?? false,
         working: ctx.isWorking ?? false,
+        attacking: ctx.attacking ?? null,
         facing: ctx.facing ?? 'south',
         alpha: ctx.alpha ?? 1,
         // equipment loadout + phenotype palette / hair style (consumed by human.js $vars + when:)

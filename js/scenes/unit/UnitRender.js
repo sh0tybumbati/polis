@@ -148,17 +148,26 @@ export default {
             u._walkPhase = ((u._walkPhase ?? 0) * 0.80);
         }
 
-        // Derive facing from position delta — persists when unit stops
+        // Derive facing from position delta — persists when unit stops. 8-way: when both axes
+        // are comparable the unit faces a diagonal (NE/NW/SE/SW) instead of snapping to a
+        // cardinal; renderRig maps diagonals onto the nearest available view.
         const _fdx = u.x - (u._prevX ?? u.x);
         const _fdy = u.y - (u._prevY ?? u.y);
         if (_fdx * _fdx + _fdy * _fdy > 0.09) {
-            if      (_fdy < -Math.abs(_fdx) * 0.5)  u._facing = 'north';
-            else if (_fdy >  Math.abs(_fdx) * 0.5)  u._facing = 'south';
-            else if (_fdx >= 0)                      u._facing = 'east';
-            else                                     u._facing = 'west';
+            const ax = Math.abs(_fdx), ay = Math.abs(_fdy);
+            const vert = _fdy < 0 ? 'north' : 'south';
+            const horiz = _fdx >= 0 ? 'east' : 'west';
+            if (Math.min(ax, ay) > Math.max(ax, ay) * 0.5)  u._facing = vert + horiz; // diagonal
+            else if (ay > ax)                                u._facing = vert;
+            else                                             u._facing = horiz;
         }
         u._prevX = u.x;
         u._prevY = u.y;
+
+        // Brief attack pose right after a strike lands (drives the weapon-arm thrust in rigAnim).
+        const ATTACK_MS = 260;
+        const atkAge = (this.scene.time?.now ?? 0) - (u.lastAtk ?? -1e9);
+        const attacking = (u.hp > 0 && atkAge >= 0 && atkAge < ATTACK_MS) ? (1 - atkAge / ATTACK_MS) : null;
 
         const htScale = u.phenotype?.heightScale ?? 1.0;
         // Dim units sleeping inside a structure (they're behind the tent canvas)
@@ -167,21 +176,30 @@ export default {
             totalCarrying: u => this.totalCarrying(u),
             lod, ageScale: scale * htScale, walkPhase: u._walkPhase,
             isMoving, isWorking, facing: u._facing ?? 'south', alpha: drawAlpha, ox, oy,
-            isSleeping: isSleepingDown,
+            isSleeping: isSleepingDown, attacking,
             isCorpse,
         });
 
         this._drawProgressBar(gfx, u, scale, ox, oy, alpha);
+        this._drawHealthBar(gfx, u, scale, ox, oy, alpha);
+        if (u.drafted) this._drawDraftMarker(gfx, u, scale, ox, oy, alpha);
     },
 
     _redrawSelections() {
         this.selGfx.clear();
+        const STANCE_COL = { aggressive: 0xff5533, hold: 0x55aaff, fallback: 0xffcc33 };
         for (const u of this.scene.units) {
             if (!u.selected || u.hp <= 0 || !u._visible) continue;
             const scale = this._ageScale(u.age ?? 2);
             const w = 22 * scale, h = 9 * scale;
             this.selGfx.fillStyle(0x44dd55, 0.28).fillEllipse(u.x, u.y + 7 * scale, w, h);
             this.selGfx.lineStyle(1, 0x55ff66, 0.75).strokeEllipse(u.x, u.y + 7 * scale, w, h);
+            // Stance pip for combatants (soldiers + drafted colonists).
+            if (u.type !== 'worker' || u.drafted) {
+                const col = STANCE_COL[u.stance ?? 'aggressive'];
+                this.selGfx.fillStyle(col, 0.95).fillCircle(u.x + w / 2 + 3, u.y + 7 * scale, 2.5 * scale);
+                this.selGfx.lineStyle(1, 0x000000, 0.5).strokeCircle(u.x + w / 2 + 3, u.y + 7 * scale, 2.5 * scale);
+            }
         }
         // Highlight a selected construct.
         const sc = this.scene.selectedConstruct;
@@ -284,5 +302,27 @@ export default {
             const phase = (Date.now() % 1200) / 1200;
             gfx.fillStyle(0x55ddaa, 0.8 * alpha).fillRect(bx + bw * phase - 4, by, 6, bh);
         }
+    },
+
+    // Floating HP bar — shown over any damaged living unit (friend or foe) so fights are legible
+    // without opening the inspector.
+    _drawHealthBar(gfx, u, scale, ox, oy, alpha = 1) {
+        if (u.hp <= 0 || u._corpse || u.isSleeping) return;
+        const frac = u.maxHp ? u.hp / u.maxHp : 1;
+        if (frac >= 1) return;                              // only when damaged
+        const bw = 20 * scale, bh = 2.5 * scale;
+        const bx = ox - bw / 2, by = oy - 20 * scale;
+        const col = frac > 0.5 ? 0x55cc55 : frac > 0.25 ? 0xddbb33 : 0xcc4433;
+        gfx.fillStyle(0x000000, 0.45 * alpha).fillRect(bx - 0.5, by - 0.5, bw + 1, bh + 1);
+        gfx.fillStyle(0x442222, 0.7 * alpha).fillRect(bx, by, bw, bh);
+        gfx.fillStyle(col, alpha).fillRect(bx, by, bw * frac, bh);
+    },
+
+    // Small steel spearhead over a drafted colonist — distinguishes pressed combatants at a glance.
+    _drawDraftMarker(gfx, u, scale, ox, oy, alpha = 1) {
+        if (u.hp <= 0 || u._corpse) return;
+        const y = oy - 25 * scale, r = 3 * scale;
+        gfx.fillStyle(0xccd2dd, 0.95 * alpha).fillTriangle(ox, y - r, ox - r, y + r, ox + r, y + r);
+        gfx.lineStyle(1, 0x33373d, 0.8 * alpha).strokeTriangle(ox, y - r, ox - r, y + r, ox + r, y + r);
     },
 };
