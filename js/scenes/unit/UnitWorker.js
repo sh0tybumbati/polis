@@ -1351,7 +1351,18 @@ export default {
         if (!items?.length) return false;
         let best = null, bd = Infinity;
         for (const item of items) {
-            if (item.reserved || item.forbidden) continue;
+            if (item.forbidden) continue;
+            // A reservation only counts if its owner still exists and is actively hauling THIS
+            // item. Otherwise the holder died / was retasked / fled / drafted mid-haul and never
+            // released it — self-heal the stale claim so the pile is haulable again.
+            if (item.reserved != null) {
+                const owner = this._byUnitId?.get(item.reserved)
+                    ?? this.scene.units.find(w => w.id === item.reserved);
+                const validClaim = owner && owner.hp > 0
+                    && owner.taskType === 'haul' && owner.targetItemId === item.id;
+                if (validClaim) continue;
+                item.reserved = null;
+            }
             if (!this.canUnitCarryMore(u, item.resource, 1)) continue;
             const d = Phaser.Math.Distance.Between(u.x, u.y, item.x, item.y);
             if (d < 4000 && d < bd) { bd = d; best = item; }
