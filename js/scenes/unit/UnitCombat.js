@@ -100,7 +100,7 @@ export default {
                 const highGround = u.taskType === 'garrison' ? 1.5 : 1.0;
                 const dmg = Math.max(1, Math.round(u.atk * flankMod * MathUtils.counterMod(u.type, near.type) * cover * highGround));
                 near.hp -= dmg; u.lastAtk = time;
-                this.scene.uiManager.showFloatText(near.x, near.y - 14, `-${dmg}`, '#ff6666');
+                this._floatDmg(near, `-${dmg}`, '#ff6666');
             }
         }
 

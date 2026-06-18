@@ -1374,8 +1374,12 @@ export default {
         n.stock = Math.max(0, (n.stock ?? 0) - 1);
         u.needs = u.needs ?? {};
         u.needs.food = Math.min(1.0, (u.needs.food ?? 0) + nut);
-        this.scene.uiManager?.showFloatText?.(u.x, u.y - 14,
-            `😡 grabs ${res ? res.split('.').pop() : 'food'}`, '#ffcc66');
+        const now = this.scene.time?.now ?? 0;
+        if (now - (u._grabFloatT ?? 0) > 1000) {     // don't spam a float every single bite
+            u._grabFloatT = now;
+            this.scene.uiManager?.showFloatText?.(u.x, u.y - 14,
+                `😡 grabs ${res ? res.split('.').pop() : 'food'}`, '#ffcc66');
+        }
         if (n.stock <= 0) { this.scene.mapManager?.redrawNode?.(n); u._mbNode = null; }
         return true;
     },

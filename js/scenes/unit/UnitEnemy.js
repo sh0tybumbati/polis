@@ -6,7 +6,10 @@ export default {
     tickEnemy(u, time, dt) {
         if (u.type === 'worker') { this.tickEnemyWorker(u, time, dt); return; }
 
-        const players = this.scene.units.filter(p => !p.isEnemy && p.hp > 0);
+        // Only the local crowd matters for combat decisions — use the per-frame spatial hash
+        // instead of sweeping every unit on the map (O(enemies × units) → O(enemies × neighbours)).
+        const nearbyUnits = this._neighbors(u, 9 * TILE) ?? this.scene.units;
+        const players = nearbyUnits.filter(p => !p.isEnemy && p.hp > 0);
         let near = null, nd = Infinity;
         for (const p of players) {
             const d = Phaser.Math.Distance.Between(u.x, u.y, p.x, p.y);
@@ -33,7 +36,7 @@ export default {
                 const cover = MathUtils.coverMod(this.scene.chunkManager?.getTile(nTx, nTy) ?? 0);
                 const dmg = Math.max(1, Math.round(u.atk * MathUtils.counterMod(u.type, near.type) * cover));
                 near.hp -= dmg; u.lastAtk = time;
-                this.scene.uiManager.showFloatText(near.x, near.y - 14, `-${dmg}`, '#ff6666');
+                this._floatDmg(near, `-${dmg}`, '#ff6666');
             }
             return;
         }
@@ -81,7 +84,7 @@ export default {
                     u.lastAtk = time;
                     const dmg = Math.max(1, Math.round(u.atk * 0.7)); // attacker penalty climbing
                     gnear.hp -= dmg;
-                    this.scene.uiManager.showFloatText(gnear.x, gnear.y - 14, `-${dmg}`, '#ff8844');
+                    this._floatDmg(gnear, `-${dmg}`, '#ff8844');
                 }
             }
         } else if (mode === 'retreat') {
@@ -134,9 +137,11 @@ export default {
     _pickEnemyTarget(u, players) {
         if (!players.length) return null;
         const RANGED = new Set(['archer', 'slinger', 'toxotes', 'scout']);
-        // Tally current focus from the squad's last-assigned targets (drives convergence).
+        // Tally current focus from the nearby squad's last-assigned targets (drives convergence) —
+        // scoped to neighbours so it's both cheaper and a more sensible local focus-fire.
         const focus = {};
-        for (const e of this.scene.units) {
+        const squad = this._neighbors(u, 10 * TILE) ?? this.scene.units;
+        for (const e of squad) {
             if (e.isEnemy && e.hp > 0 && e._targetId != null) {
                 focus[e._targetId] = (focus[e._targetId] ?? 0) + 1;
             }
@@ -160,7 +165,8 @@ export default {
     // enemy power around u. Plain workers aren't counted as a threat.
     _outnumbered(u, r) {
         let mine = 0, theirs = 0;
-        for (const e of this.scene.units) {
+        const near = this._neighbors(u, r) ?? this.scene.units;
+        for (const e of near) {
             if (e.hp <= 0) continue;
             if (Phaser.Math.Distance.Between(u.x, u.y, e.x, e.y) > r) continue;
             const power = (e.atk || 1) * Phaser.Math.Clamp(e.hp / (e.maxHp || e.hp || 1), 0.2, 1);

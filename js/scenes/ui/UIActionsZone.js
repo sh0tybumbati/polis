@@ -592,12 +592,7 @@ export default {
             const drafted = sel.filter(u => u.drafted);
             if (drafted.length > 0) {
                 items.push({ label: `Stand Down (${drafted.length})`, color: 0x445533, callback: () => {
-                    drafted.forEach(u => {
-                        u.drafted = false; u.isRouting = false; u.moveTo = null;
-                        u.role = u._predraft?.role ?? null;
-                        u.taskType = null; u.targetNode = null;
-                        u._predraft = null;
-                    });
+                    drafted.forEach(u => s.unitManager.undraftUnit(u));
                     s.deselect(); this.updateUI();
                 }});
             }

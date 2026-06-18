@@ -263,6 +263,35 @@ export default class UnitManager {
         u.targetNode = prev.node;
         u.workProgress = prev.workProgress;
         if (prev.role) u.role = prev.role;
+        // The stacked node may have gone stale while the task was suspended (mined out, forbidden,
+        // or removed from the map). Drop it so the worker re-seeks instead of resuming an invalid one.
+        if (u.targetNode && ((u.targetNode.stock ?? 0) <= 0 || u.targetNode.forbidden
+            || !this.scene.resNodes.includes(u.targetNode))) {
+            u.targetNode = null;
+        }
+    }
+
+    // Throttled combat damage float — at most one number per target every ~220ms, so a unit being
+    // swarmed by many attackers doesn't spawn a Text object per hit. HP bars carry the continuous
+    // feedback; the floating numbers are just flavour.
+    _floatDmg(target, text, color) {
+        const now = this.scene.time?.now ?? 0;
+        if (now - (target._dmgFloatT ?? 0) < 220) return;
+        target._dmgFloatT = now;
+        this.scene.uiManager.showFloatText(target.x, target.y - 14, text, color);
+    }
+
+    // Release a drafted colonist back to civilian work (shared by the UI Stand Down button and the
+    // automatic stand-down when needs get critical).
+    undraftUnit(u) {
+        u.drafted = false;
+        u.isRouting = false;
+        u.moveTo = null;
+        u.role = u._predraft?.role ?? null;
+        u.taskType = null;
+        u.targetNode = null;
+        u._predraft = null;
+        u.stance = 'aggressive';
     }
 
     getAttrMult(u, attrs) {
@@ -519,6 +548,18 @@ export default class UnitManager {
             if (u.isArchon && ENABLE_PROACTIVE_AI) this._runArchonAI(u, dt);
             this.tickWorker(u, time, dt);
             return;
+        }
+        // Drafted colonists still get hungry and tired (no free needs-pause from drafting). When a
+        // need gets critical they automatically stand down to go eat/sleep, then can be re-drafted.
+        if (u.type === 'worker' && u.drafted) {
+            this._tickNeeds(u, dt);
+            const nd = u.needs ?? {};
+            if ((nd.food ?? 1) < 0.15 || (nd.rest ?? 1) < 0.12) {
+                this.undraftUnit(u);
+                this.scene.uiManager?.showFloatText?.(u.x, u.y - 18, '⚔ stands down', '#ccaa66');
+                this.tickWorker(u, time, dt);
+                return;
+            }
         }
         // Garrisoned combat unit — walk to tower; melee guards also fight assaulters
         if (u.taskType === 'garrison') {
