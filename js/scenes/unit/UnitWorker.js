@@ -1327,8 +1327,22 @@ export default {
     },
 
     handleMentalBreakTask(u, dt) {
-        if (!u._moodCollapsed) { u.taskType = null; u._mbTimer = 0; return; }
+        if (!u._moodCollapsed) { u.taskType = null; u._mbTimer = 0; u._mbNode = null; return; }
         u._mbTimer = (u._mbTimer ?? 0) + dt;
+        // The break overrides any normal gather target so tickWorker's trailing harvest can't fire.
+        u.targetNode = null;
+
+        // Act out: storm off and grab/eat the nearest food — forbidden or reserved, doesn't matter;
+        // a colonist in crisis ignores every designation. Falls back to erratic wandering when
+        // there's nothing within reach (or they've gorged themselves full).
+        if ((u.needs?.food ?? 1) < 0.98) {
+            const r = this._eatFromGroundPile(u, dt, 7 * TILE);   // already ignores forbidden + reservations
+            if (r === 'moving' || r === 'ate') { u._mbNode = null; return; }
+            if (this._mbRaidNode(u, dt)) return;                  // grab straight off the nearest food node
+        }
+        u._mbNode = null;
+
+        // Erratic wandering between binges.
         if (!u._mbPoints || u._mbTimer > (u._mbNextPoint ?? 0)) {
             const range = 80;
             u._mbPoints = {
@@ -1342,6 +1356,28 @@ export default {
             if (d > 6) this.moveToward(u, u._mbPoints.x, u._mbPoints.y, u.speed * 0.7, dt);
             else u._mbPoints = null;
         }
+    },
+
+    // Mental-break binge: walk to the nearest food node (forbidden allowed — findNearNode honors the
+    // mental_break exception) and tear bites off it. Uses its own _mbNode so it never collides with
+    // the normal gather pipeline. Returns true while it's busy (moving or biting).
+    _mbRaidNode(u, dt) {
+        if (!u._mbNode || (u._mbNode.stock ?? 0) <= 0) {
+            u._mbNode = this.findNearNode(u, 7 * TILE,
+                ['berry_bush', 'wild_garden', 'olive_grove', 'grape_vine', 'wild_wheat'], false);
+        }
+        const n = u._mbNode;
+        if (!n) return false;
+        if (this.moveToward(u, n.x, n.y, 20, dt)) return true;   // still walking over
+        const res = NODES[n.type]?.resource;
+        const nut = _NUTRITION_MAP[res] ?? 0.15;
+        n.stock = Math.max(0, (n.stock ?? 0) - 1);
+        u.needs = u.needs ?? {};
+        u.needs.food = Math.min(1.0, (u.needs.food ?? 0) + nut);
+        this.scene.uiManager?.showFloatText?.(u.x, u.y - 14,
+            `😡 grabs ${res ? res.split('.').pop() : 'food'}`, '#ffcc66');
+        if (n.stock <= 0) { this.scene.mapManager?.redrawNode?.(n); u._mbNode = null; }
+        return true;
     },
 
     seekGroundItem(u) {
@@ -2214,9 +2250,13 @@ export default {
     },
 
     findNearNode(u, maxDist, filterType, requireSlated = false) {
+        // A colonist having a mental break ignores forbidding (they're acting out, not following
+        // designations). Everyone else respects the forbidden flag.
+        const ignoreForbid = u.taskType === 'mental_break';
         let best = null, bd = Infinity;
         for (const n of this.scene.resNodes) {
-            if (n.stock <= 0 || n.forbidden) continue;
+            if ((n.stock ?? 0) <= 0) continue;
+            if (n.forbidden && !ignoreForbid) continue;
             if (filterType && !filterType.includes(n.type)) continue;
             if (requireSlated && !n.slated) continue;
             const d = Phaser.Math.Distance.Between(u.x, u.y, n.x, n.y);
