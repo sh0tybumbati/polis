@@ -1,6 +1,8 @@
 /**
  * Utility functions for mathematical operations.
  */
+import { T_FOREST } from '../config/gameConstants.js';
+
 export const MathUtils = {
     /**
      * Clamps a value between a minimum and maximum number.
@@ -54,7 +56,7 @@ export const MathUtils = {
      * Damage reduction based on target terrain.
      */
     coverMod: (targetTerrain) => {
-        if (targetTerrain === 3) return 0.8; // 3 is T_FOREST
+        if (targetTerrain === T_FOREST) return 0.8; // forest gives cover
         return 1.0;
     }
 };

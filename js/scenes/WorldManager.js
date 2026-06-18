@@ -182,7 +182,7 @@ export default class WorldManager {
         for (const b of this.scene.constructs) {
             if (!b.built || b.faction || !FOOD_TYPES.has(b.type)) continue;
             if (!FOOD_KEYS.some(k => (b.inventory?.[k] ?? 0) > 0)) continue;
-            const bx = (b.tx + b.width / 2) * TILE, by = MAP_OY + (b.ty + b.width / 2) * TILE;
+            const bx = (b.tx + b.width / 2) * TILE, by = MAP_OY + (b.ty + b.height / 2) * TILE;
             const d  = Phaser.Math.Distance.Between(u.x, u.y, bx, by);
             if (d < bd) { bd = d; best = b; }
         }

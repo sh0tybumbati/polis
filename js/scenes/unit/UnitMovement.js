@@ -157,7 +157,7 @@ export default {
             const gate = this.scene.constructs.find(b =>
                 b.type === 'gate' && b.built && !b.isOpen && !b.faction &&
                 checkTx >= b.tx && checkTx <= b.tx + (b.width ?? 1) - 1 &&
-                checkTy >= b.ty && checkTy <= b.ty + (b.width ?? 1) - 1);
+                checkTy >= b.ty && checkTy <= b.ty + (b.height ?? 1) - 1);
             if (gate) {
                 u._gateAttackTimer = (u._gateAttackTimer ?? 0) + dt;
                 if (u._gateAttackTimer >= 1.2) {
@@ -213,7 +213,7 @@ export default {
     _constructDoor(b) {
         return {
             x: (b.tx + b.width / 2) * TILE,
-            y: MAP_OY + (b.ty + b.width) * TILE - 4,
+            y: MAP_OY + (b.ty + b.height) * TILE - 4,
         };
     },
 
@@ -229,7 +229,7 @@ export default {
         for (const b of this.scene.constructs) {
             if (b.faction || !b.built) continue;
             const bx = (b.tx + b.width / 2) * TILE;
-            const by = MAP_OY + (b.ty + b.width / 2) * TILE;
+            const by = MAP_OY + (b.ty + b.height / 2) * TILE;
             const d = Phaser.Math.Distance.Between(x, y, bx, by);
             if (d < bd) { bd = d; best = b; }
         }

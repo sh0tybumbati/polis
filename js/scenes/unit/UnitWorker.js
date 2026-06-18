@@ -511,7 +511,7 @@ export default {
     handleRepairTask(u, dt) {
         const b = this.scene.constructManager?.getById(u.taskConstructId);
         if (!b?.built || b.hp >= b.maxHp) { u.taskType = null; return; }
-        const cx = (b.tx + b.width / 2) * TILE, cy = MAP_OY + (b.ty + b.width / 2) * TILE;
+        const cx = (b.tx + b.width / 2) * TILE, cy = MAP_OY + (b.ty + b.height / 2) * TILE;
         if (this.moveToward(u, cx, cy, 28, dt)) return;
         u.workProgress = (u.workProgress ?? 0) + dt;
         if (u.workProgress >= 25.0) {
@@ -731,7 +731,7 @@ export default {
             cy = b.isH ? MAP_OY + b.row * TILE : MAP_OY + (b.row + 0.5) * TILE;
         } else {
             cx = (b.tx + b.width / 2) * TILE;
-            cy = MAP_OY + (b.ty + b.width / 2) * TILE;
+            cy = MAP_OY + (b.ty + b.height / 2) * TILE;
         }
         if (this.moveToward(u, cx, cy, 28, dt)) return;
         u.isInside = false;
@@ -943,7 +943,7 @@ export default {
 
         // Garden: scoop inventory into carrying, then deposit home
         if (b.type === 'garden') {
-            const cx = (b.tx + b.width / 2) * TILE, cy = MAP_OY + (b.ty + b.width / 2) * TILE;
+            const cx = (b.tx + b.width / 2) * TILE, cy = MAP_OY + (b.ty + b.height / 2) * TILE;
             if (this.moveToward(u, cx, cy, 28, dt)) return;
             const avail = b.inventory?.['Food.Produce.Olive'] ?? 0;
             if (avail <= 0) { u.taskType = null; return; }
@@ -957,7 +957,7 @@ export default {
         }
 
         if (b.stock <= 0) { u.taskType = null; return; }
-        const cx = (b.tx + b.width / 2) * TILE, cy = MAP_OY + (b.ty + b.width / 2) * TILE;
+        const cx = (b.tx + b.width / 2) * TILE, cy = MAP_OY + (b.ty + b.height / 2) * TILE;
         if (this.moveToward(u, cx, cy, 28, dt)) return;
         u.isInside = false;
         const attrMult = this.getAttrMult(u, ['dex']);
@@ -995,7 +995,7 @@ export default {
     handlePlantTask(u, dt) {
         const b = this.scene.constructManager?.getById(u.taskConstructId);
         if (!b?.built || b.type !== 'farm' || !b.needsPlanting) { u.taskType = null; return; }
-        const cx = (b.tx + b.width / 2) * TILE, cy = MAP_OY + (b.ty + b.width / 2) * TILE;
+        const cx = (b.tx + b.width / 2) * TILE, cy = MAP_OY + (b.ty + b.height / 2) * TILE;
         if (this.moveToward(u, cx, cy, 28, dt)) return;
 
         u.workProgress = (u.workProgress ?? 0) + dt;
@@ -1076,7 +1076,7 @@ export default {
         for (const b of this.scene.constructs) {
             if (!b.built || b.faction === 'enemy') continue;
             if (!types.includes(b.type)) continue;
-            const bx = (b.tx + b.width / 2) * TILE, by = MAP_OY + (b.ty + b.width / 2) * TILE;
+            const bx = (b.tx + b.width / 2) * TILE, by = MAP_OY + (b.ty + b.height / 2) * TILE;
             const d = Phaser.Math.Distance.Between(x, y, bx, by);
             if (d < bd) { bd = d; best = b; }
         }
@@ -1511,7 +1511,7 @@ export default {
     handleDepositTask(u, dt) {
         const b = this.scene.constructManager?.getById(u.taskConstructId);
         if (!b?.built || b.faction) { u.taskType = null; u._depositPrivate = false; return; }
-        const cx = (b.tx + b.width / 2) * TILE, cy = MAP_OY + (b.ty + b.width / 2) * TILE;
+        const cx = (b.tx + b.width / 2) * TILE, cy = MAP_OY + (b.ty + b.height / 2) * TILE;
         if (this.moveToward(u, cx, cy, 30, dt)) return;
         u.isInside = !(CONSTRUCTS[b.type]?.outdoor ?? false);
 
@@ -1854,7 +1854,7 @@ export default {
             if (!types.includes(b.type)) continue;
             if ((b.inventory?.[input] ?? 0) <= 0) continue;
             if (unit && !this._canAccessConstruct(unit, b)) continue;
-            const bx = (b.tx + b.width / 2) * TILE, by2 = MAP_OY + (b.ty + b.width / 2) * TILE;
+            const bx = (b.tx + b.width / 2) * TILE, by2 = MAP_OY + (b.ty + b.height / 2) * TILE;
             const d = Phaser.Math.Distance.Between(x, y, bx, by2);
             if (d < bd) { bd = d; best = b; }
         }
@@ -1929,7 +1929,7 @@ export default {
             if (Array.isArray(b.productionQueue) && !this._billActiveOrder(b, def)) return;
 
             const cx = (b.tx + b.width / 2) * TILE;
-            const cy = MAP_OY + (b.ty + b.width / 2) * TILE;
+            const cy = MAP_OY + (b.ty + b.height / 2) * TILE;
             if (this.moveToward(u, cx, cy, 10, dt)) return;
 
             u.isInside = !(CONSTRUCTS[b.type]?.outdoor ?? false);
@@ -1989,7 +1989,7 @@ export default {
         }
 
         const cx = (b.tx + b.width / 2) * TILE;
-        const cy = MAP_OY + (b.ty + b.width / 2) * TILE;
+        const cy = MAP_OY + (b.ty + b.height / 2) * TILE;
         if (this.moveToward(u, cx, cy, 10, dt)) return;
 
         if ((b.inbox?.[def.input] ?? 0) <= 0) {
@@ -2099,7 +2099,7 @@ export default {
             const isHome = b.id === u.homeConstructId;
             const inv = (CONSTRUCTS[b.type]?.isHomeType) && !isHome && !b.isPublic ? null : b.inventory;
             if (!inv || !_FOOD_PRIORITY.some(k => (inv[k] ?? 0) > 0)) continue;
-            const bx = (b.tx + b.width / 2) * TILE, by = MAP_OY + (b.ty + b.width / 2) * TILE;
+            const bx = (b.tx + b.width / 2) * TILE, by = MAP_OY + (b.ty + b.height / 2) * TILE;
             const d = Phaser.Math.Distance.Between(u.x, u.y, bx, by);
             if (d < bd) { bd = d; foodConstruct = b; }
         }

@@ -110,7 +110,7 @@ export default {
                 const construct = this._nearestPlayerConstruct(u.x, u.y);
                 if (construct) {
                     const bx = (construct.tx + construct.width / 2) * TILE;
-                    const by = MAP_OY + (construct.ty + construct.width / 2) * TILE;
+                    const by = MAP_OY + (construct.ty + construct.height / 2) * TILE;
                     const bd = Phaser.Math.Distance.Between(u.x, u.y, bx, by);
                     if (bd < TILE * 1.2) {
                         if (time - (u.lastAtk ?? 0) > 1200) {
