@@ -186,6 +186,12 @@ export default class ChunkManager {
             };
         };
 
+        // One resource node per tile, globally. Seeded from existing nodes (so cross-chunk
+        // placements never collide) and updated as each node is committed within this chunk
+        // (so different clusters in the same chunk can't stack on the same tile either).
+        const tileKey = (x, y) => `${Math.floor(x / TILE)},${Math.floor((y - MAP_OY) / TILE)}`;
+        const occupied = new Set(this.scene.resNodes.map(n => tileKey(n.x, n.y)));
+
         const tryPlace = (type, count, okFn) => {
             const placed = [];
             const existing = this.scene.resNodes;
@@ -197,13 +203,15 @@ export default class ChunkManager {
                 const t = getT(tx, ty);
                 const b = getB(tx, ty);
                 if (!okFn(t, b, tx, ty)) continue;
+                const key = `${tx},${ty}`;
+                if (occupied.has(key)) continue;
                 const wx = tx * TILE + TILE / 2;
                 const wy = MAP_OY + ty * TILE + TILE / 2;
                 const tooClose = existing.some(n => Phaser.Math.Distance.Between(wx, wy, n.x, n.y) < 40)
                               || placed.some(n => Phaser.Math.Distance.Between(wx, wy, n.x, n.y) < 40);
                 if (tooClose) continue;
                 const node = _makeNode(type, wx, wy);
-                if (node) placed.push(node);
+                if (node) { occupied.add(key); placed.push(node); }
             }
             return placed;
         };
@@ -223,11 +231,13 @@ export default class ChunkManager {
                 const tx = cTx + Math.round((rng() * 2 - 1) * clusterRadius);
                 const ty = cTy + Math.round((rng() * 2 - 1) * clusterRadius);
                 if (!okFn(getT(tx, ty), getB(tx, ty), tx, ty)) continue;
+                const key = `${tx},${ty}`;
+                if (occupied.has(key)) continue;
                 const wx = tx * TILE + TILE / 2, wy = MAP_OY + ty * TILE + TILE / 2;
                 if (existing.some(n => Phaser.Math.Distance.Between(wx, wy, n.x, n.y) < 28)) continue;
                 if (placed.some(n => Phaser.Math.Distance.Between(wx, wy, n.x, n.y) < 22)) continue;
                 const node = _makeNode(type, wx, wy);
-                if (node) placed.push(node);
+                if (node) { occupied.add(key); placed.push(node); }
             }
             return placed;
         };

@@ -810,11 +810,16 @@ export default class UnitManager {
                     this.scene.chunkManager?.setTile(n.tx, n.ty, T_ROCK);
                     // chunk will auto-redraw via setTile
                 }
-            } else if (n.stock <= 0) {
+            } else if (n.stock <= 0 && isTree) {
+                // Trees leave a stump that sprouts a sapling and regrows (EconomyManager matures it).
                 n.felled = false;
                 n.sapling = true;
                 n.stump = true;   // stump-sapling, distinct from seeded sapling
                 n.saplingTimer = 0;
+                this.scene.mapManager.redrawNode(n);
+            } else if (n.stock <= 0) {
+                // Boulders, ore, bushes, etc. don't sprout — they stay depleted and only come back
+                // via WorldManager's daily respawn per the node's respawnDays (rock = 0 → never).
                 this.scene.mapManager.redrawNode(n);
             }
             if (n.stock <= 0) u.targetNode = null;
