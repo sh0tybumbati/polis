@@ -37,6 +37,10 @@ import unitDangerMethods    from './unit/UnitDanger.js';
 // coasts straight and retries next frame, bounding worst-case pathfinding cost.
 const PATH_SEARCH_BUDGET = 48;
 
+// An unburied corpse rots away after this long (~3 in-game day/night cycles of 480s) so corpses
+// can't accumulate forever when burial can't keep up.
+const CORPSE_DECAY_MS = 3 * 480000;
+
 // ── Vocation system ───────────────────────────────────────────────────────────
 
 // Attribute affinities per job. Weights 0–1; multiplied against attribute value (1–10).
@@ -522,6 +526,7 @@ export default class UnitManager {
             if (!u.isEnemy && u.type === 'worker') {
                 // Friendly workers become corpses awaiting burial — no fade
                 u._corpse = true;
+                u._corpseSince = time;   // for decay-if-never-buried (see corpse sweep in tick)
                 u.isSleeping = false;
                 u.isInside = false;
                 u.taskType = null; u.targetNode = null; u.moveTo = null;
@@ -531,6 +536,23 @@ export default class UnitManager {
                     targets: u, _alpha: 0, duration: 280,
                     onComplete: () => { this._byUnitId.delete(u.id); this.scene.units = this.scene.units.filter(x => x !== u); },
                 });
+            }
+        }
+
+        // Corpse decay: colonists nobody buries eventually rot away, so a mass-casualty event
+        // can't leave corpses iterating/drawing forever. Throttled to ~2s.
+        if (time - (this._lastCorpseScan ?? 0) > 2000) {
+            this._lastCorpseScan = time;
+            for (const u of this.scene.units) {
+                if (!u._corpse || u._rotting) continue;
+                if (time - (u._corpseSince ?? time) > CORPSE_DECAY_MS) {
+                    u._rotting = true;
+                    this.scene.uiManager?.showFloatText?.(u.x, u.y - 16, `${u.name ?? 'corpse'} rots away`, '#7a6a55');
+                    this.scene.tweens.add({
+                        targets: u, _alpha: 0, duration: 700,
+                        onComplete: () => { this._byUnitId.delete(u.id); this.scene.units = this.scene.units.filter(x => x !== u); },
+                    });
+                }
             }
         }
 
@@ -876,6 +898,7 @@ export default class UnitManager {
         const SUB = [5, 16, 27];
         const items   = this.scene.groundItems;
         const itemMap = this.scene.groundItemMap ??= new Map();
+        const now     = this.scene.time?.now ?? 0;   // freshness stamp for ground-item decay
 
         // Node's tile coords
         const ntx = Math.floor(n.x / TILE);
@@ -905,7 +928,7 @@ export default class UnitManager {
             for (const c of candidates) {
                 if (remaining <= 0) break;
                 const existing = itemMap.get(`${c.tx},${c.ty},${c.sx},${c.sy}:${res}`);
-                if (existing) { existing.qty += remaining; remaining = 0; this.drawGroundItem(existing); }
+                if (existing) { existing.qty += remaining; existing._spawnT = now; remaining = 0; this.drawGroundItem(existing); }
             }
             // Pass 2: create a new pile on the nearest empty cubit.
             for (const c of candidates) {
@@ -914,7 +937,7 @@ export default class UnitManager {
                 if (!occupied.has(sk)) {
                     const item = {
                         id: this.scene.getId(), resource: res, qty: remaining,
-                        x: c.px, y: c.py, subKey: sk,
+                        x: c.px, y: c.py, subKey: sk, _spawnT: now,
                         gfx: null, labelObj: null, reserved: null,
                     };
                     this.drawGroundItem(item);
@@ -941,7 +964,7 @@ export default class UnitManager {
                 const d = Math.hypot(n.x - i.x, n.y - i.y);
                 if (d < bd) { bd = d; best = i; }
             }
-            if (best) { best.qty += remaining; this.drawGroundItem(best); }
+            if (best) { best.qty += remaining; best._spawnT = now; this.drawGroundItem(best); }
         }
     }
 

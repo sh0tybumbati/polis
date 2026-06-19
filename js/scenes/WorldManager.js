@@ -312,6 +312,7 @@ export default class WorldManager {
             this._reclaimEmptyCamps();                 // tear down camps once everyone has a bed
             this.scene.progression?.researchTick();    // accrue Lore + complete research
             this.scene.units.forEach(u => { u._wageCollected = false; });
+            this.scene.economyManager.spoilStoredFood();    // stored food goes off a little each day
             this.scene.economyManager.collectFirstFruits(); // Restored: calculate daily tithe delivery preparation
 
             if ((this.scene.day - 1) % 8 === 0) {

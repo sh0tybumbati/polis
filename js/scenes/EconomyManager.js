@@ -5,6 +5,11 @@ import {
 import { CONSTRUCTS as CONSTRUCTS } from '../content/constructs/index.js';
 import { ITEMS } from '../content/items/index.js';
 
+// Loose ground-pile decay (one day/night cycle ≈ 480s). Food spoils fast; everything else just
+// deteriorates eventually as a cleanup safety net (hauling normally clears it first).
+const FOOD_PILE_SPOIL_MS = 2  * 480000;
+const ITEM_DECAY_MS      = 10 * 480000;
+
 export default class EconomyManager {
     constructor(scene) {
         this.scene = scene;
@@ -313,6 +318,46 @@ export default class EconomyManager {
         if (this._syncAcc >= 500) { this._syncAcc = 0; this.syncResources(); }
         this.scene.constructManager.tick(delta);
         this.tickResourceNodes(delta);
+        this.tickGroundDecay(delta);
+    }
+
+    // Loose piles rot/deteriorate so the ground doesn't fill with abandoned (or forbidden) stacks
+    // forever. Throttled to ~3s. Food spoils on a shorter clock than raw materials.
+    tickGroundDecay(delta) {
+        this._decayAcc = (this._decayAcc ?? 0) + delta;
+        if (this._decayAcc < 3000) return;
+        this._decayAcc = 0;
+        const now = this.scene.time?.now ?? 0;
+        const items = this.scene.groundItems ?? [];
+        for (let i = items.length - 1; i >= 0; i--) {
+            const it = items[i];
+            if (it._spawnT == null) { it._spawnT = now; continue; }   // stamp legacy/loaded piles
+            const isFood = it.resource.startsWith('Food.');
+            if (now - it._spawnT > (isFood ? FOOD_PILE_SPOIL_MS : ITEM_DECAY_MS)) {
+                this.scene.unitManager.removeGroundItem(it);
+                this.scene.uiManager?.showFloatText?.(it.x, it.y - 10,
+                    isFood ? '🤢 spoiled' : '🍂 decayed', isFood ? '#8a9a5a' : '#9a8a6a');
+            }
+        }
+    }
+
+    // Daily stored-food spoilage: raw produce/meat go off faster than preserved goods (bread,
+    // sausages). Reduces the real container/zone inventories, then resyncs the aggregate. Gentle and
+    // tunable — small stacks round to no loss so a tiny reserve isn't wiped out.
+    spoilStoredFood() {
+        const PRESERVED = /(Bread|Sausages)/;
+        let spoiled = false;
+        const spoil = (inv) => {
+            if (!inv) return;
+            for (const k of Object.keys(inv)) {
+                if (!k.startsWith('Food.') || (inv[k] ?? 0) <= 0) continue;
+                const loss = Math.round(inv[k] * (PRESERVED.test(k) ? 0.02 : 0.08));
+                if (loss > 0) { inv[k] -= loss; spoiled = true; }
+            }
+        };
+        for (const b of this._playerConstructs()) spoil(b.inventory);
+        for (const [, cfg] of this.scene.zoneManager?.storageTiles ?? []) spoil(cfg.inventory);
+        if (spoiled) this.syncResources();
     }
 
     tickResourceNodes(delta) {
